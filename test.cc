@@ -39,6 +39,13 @@ main(
         shapes[i].mesh.positions[3*v+1],
         shapes[i].mesh.positions[3*v+2]);
     }
+  
+    printf("shape[%ld].material.name = %s\n", i, shapes[i].material.name.c_str());
+    printf("  material.Ka = (%f, %f ,%f)\n", shapes[i].material.ambient[0], shapes[i].material.ambient[1], shapes[i].material.ambient[2]);
+    printf("  material.Kd = (%f, %f ,%f)\n", shapes[i].material.diffuse[0], shapes[i].material.diffuse[1], shapes[i].material.diffuse[2]);
+    printf("  material.Ks = (%f, %f ,%f)\n", shapes[i].material.specular[0], shapes[i].material.specular[1], shapes[i].material.specular[2]);
+    printf("  material.Tr = (%f, %f ,%f)\n", shapes[i].material.transmittance[0], shapes[i].material.transmittance[1], shapes[i].material.transmittance[2]);
+    printf("\n");
   }
 
   return 0;

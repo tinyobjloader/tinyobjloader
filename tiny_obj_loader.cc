@@ -5,12 +5,10 @@
 //
 
 //
+// version 0.9.1: Add initial .mtl load suppor
 // version 0.9.0: Initial
 //
 
-//
-// @todo { Read .mtl }
-//
 
 #include <cassert>
 
@@ -49,6 +47,10 @@ struct obj_shape {
 
 static inline bool isSpace(const char c) {
   return (c == ' ') || (c == '\t');
+}
+
+static inline bool isNewLine(const char c) {
+  return (c == '\r') || (c == '\n') || (c == '\0');
 }
 
 // Make index zero-base, and also support relative index. 
@@ -178,6 +180,7 @@ exportFaceGroupToShape(
   const std::vector<float> in_normals,
   const std::vector<float> in_texcoords,
   const std::vector<std::vector<vertex_index> >& faceGroup,
+  const material_t material,
   const std::string name)
 {
   if (faceGroup.empty()) {
@@ -226,10 +229,127 @@ exportFaceGroupToShape(
   shape.mesh.texcoords.swap(texcoords);
   shape.mesh.indices.swap(indices);
 
-  // @todo { material, name }
+  shape.material = material;
 
   return true;
 
+}
+
+  
+void InitMaterial(material_t& material) {
+  material.name = material.ambient_texname = material.diffuse_texname = material.specular_texname = "";
+  for (int i = 0; i < 3; i ++) {
+    material.ambient[i] = material.diffuse[i] = material.specular[i] = material.transmittance[i] = 0.0;
+  }
+}
+
+std::string LoadMtl (
+  std::map<std::string, material_t>& material_map,
+  const char* filename)
+{
+  material_map.clear();
+  std::stringstream err;
+
+  std::ifstream ifs(filename);
+  if (!ifs) {
+    err << "Cannot open file [" << filename << "]" << std::endl;
+    return err.str();
+  }
+
+  material_t material;
+  
+  int maxchars = 8192;  // Alloc enough size.
+  std::vector<char> buf(maxchars);  // Alloc enough size.
+  while (ifs.peek() != -1) {
+    ifs.getline(&buf[0], maxchars);
+
+    std::string linebuf(&buf[0]);
+
+    // Trim newline '\r\n' or '\r'
+    if (linebuf.size() > 0) {
+      if (linebuf[linebuf.size()-1] == '\n') linebuf.erase(linebuf.size()-1);
+    }
+    if (linebuf.size() > 0) {
+      if (linebuf[linebuf.size()-1] == '\n') linebuf.erase(linebuf.size()-1);
+    }
+
+    // Skip if empty line.
+    if (linebuf.empty()) {
+      continue;
+    }
+
+    // Skip leading space.
+    const char* token = linebuf.c_str();
+    token += strspn(token, " \t");
+
+    assert(token);
+    if (token[0] == '\0') continue; // empty line
+    
+    if (token[0] == '#') continue;  // comment line
+    
+    // new mtl
+    if ((0 == strncmp(token, "newmtl", 6)) && isSpace((token[6]))) {
+      // flush previous material.
+      material_map.insert(std::pair<std::string, material_t>(material.name, material));
+
+      // initial temporary material
+      InitMaterial(material);
+
+      // set new mtl name
+      char namebuf[4096];
+      token += 7;
+      sscanf(token, "%s", namebuf);
+      material.name = namebuf;
+      continue;
+    }
+    
+    // ambient
+    if (token[0] == 'K' && token[1] == 'a' && isSpace((token[2]))) {
+      token += 2;
+      float r, g, b;
+      parseFloat3(r, g, b, token);
+      material.ambient[0] = r;
+      material.ambient[1] = g;
+      material.ambient[2] = b;
+      continue;
+    }
+    
+    // diffuse
+    if (token[0] == 'K' && token[1] == 'd' && isSpace((token[2]))) {
+      token += 2;
+      float r, g, b;
+      parseFloat3(r, g, b, token);
+      material.diffuse[0] = r;
+      material.diffuse[1] = g;
+      material.diffuse[2] = b;
+      continue;
+    }
+    
+    // specular
+    if (token[0] == 'K' && token[1] == 's' && isSpace((token[2]))) {
+      token += 2;
+      float r, g, b;
+      parseFloat3(r, g, b, token);
+      material.specular[0] = r;
+      material.specular[1] = g;
+      material.specular[2] = b;
+      continue;
+    }
+    
+    // specular
+    if (token[0] == 'K' && token[1] == 't' && isSpace((token[2]))) {
+      token += 2;
+      float r, g, b;
+      parseFloat3(r, g, b, token);
+      material.specular[0] = r;
+      material.specular[1] = g;
+      material.specular[2] = b;
+      continue;
+    }
+    // Ignore unknown command.
+  }
+
+  return err.str();
 }
 
 std::string
@@ -253,6 +373,10 @@ LoadObj(
   std::vector<float> vt;
   std::vector<std::vector<vertex_index> > faceGroup;
   std::string name;
+
+  // material
+  std::map<std::string, material_t> material_map;
+  material_t material;
 
   int maxchars = 8192;  // Alloc enough size.
   std::vector<char> buf(maxchars);  // Alloc enough size.
@@ -321,10 +445,10 @@ LoadObj(
       token += strspn(token, " \t");
 
       std::vector<vertex_index> face;
-      while (token[0] && (token[1] != '\0')) {
+      while (!isNewLine(token[0])) {
         vertex_index vi = parseTriple(token, v.size() / 3, vn.size() / 3, vt.size() / 2);
         face.push_back(vi);
-        int n = strspn(token, " \t");
+        int n = strspn(token, " \t\r");
         token += n;
       }
 
@@ -336,30 +460,51 @@ LoadObj(
     // use mtl
     if ((0 == strncmp(token, "usemtl", 6)) && isSpace((token[6]))) {
 
-      // flush previous face group.
-      shape_t shape;
-      bool ret = exportFaceGroupToShape(shape, v, vn, vt, faceGroup, name);
-      if (ret) {
-        shapes.push_back(shape);
+      char namebuf[4096];
+      token += 7;
+      sscanf(token, "%s", namebuf);
+
+      if (material_map.find(namebuf) != material_map.end()) {
+        material = material_map[namebuf];
+      } else {
+        // { error!! material not found }
+        InitMaterial(material);
       }
-
-      faceGroup.clear();
-
       continue;
 
     }
 
     // load mtl
     if ((0 == strncmp(token, "mtllib", 6)) && isSpace((token[6]))) {
+      char namebuf[4096];
+      token += 7;
+      sscanf(token, "%s", namebuf);
+
+      std::string err_mtl = LoadMtl(material_map, namebuf);
+      if (!err_mtl.empty()) {
+        faceGroup.clear();  // for safety
+        return err_mtl;
+      }
       continue;
     }
 
     // object name
     if (token[0] == 'o' && isSpace((token[1]))) {
+
+      // flush previous face group.
+      shape_t shape;
+      bool ret = exportFaceGroupToShape(shape, v, vn, vt, faceGroup, material, name);
+      if (ret) {
+        shapes.push_back(shape);
+      }
+
+      faceGroup.clear();
+
       char namebuf[4096];
       token += 2;
       sscanf(token, "%s", namebuf);
       name = std::string(namebuf);
+
 
       continue;
     }
@@ -368,7 +513,7 @@ LoadObj(
   }
 
   shape_t shape;
-  bool ret = exportFaceGroupToShape(shape, v, vn, vt, faceGroup, name);
+  bool ret = exportFaceGroupToShape(shape, v, vn, vt, faceGroup, material, name);
   if (ret) {
     shapes.push_back(shape);
   }
