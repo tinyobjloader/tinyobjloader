@@ -8,6 +8,7 @@
 
 #include <string>
 #include <vector>
+#include <map>
 
 namespace tinyobj {
 
@@ -19,10 +20,14 @@ typedef struct
     float diffuse[3];
     float specular[3];
     float transmittance[3];
+    float emission[3];
+    float shininess;
 
     std::string ambient_texname;
     std::string diffuse_texname;
     std::string specular_texname;
+    std::string normal_texname;
+    std::map<std::string, std::string> unknown_parameter;
 } material_t;
 
 typedef struct

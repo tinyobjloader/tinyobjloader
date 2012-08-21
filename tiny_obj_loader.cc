@@ -237,10 +237,19 @@ exportFaceGroupToShape(
 
   
 void InitMaterial(material_t& material) {
-  material.name = material.ambient_texname = material.diffuse_texname = material.specular_texname = "";
+  material.name = "";
+  material.ambient_texname = "";
+  material.diffuse_texname = "";
+  material.specular_texname = "";
+  material.normal_texname = "";
   for (int i = 0; i < 3; i ++) {
-    material.ambient[i] = material.diffuse[i] = material.specular[i] = material.transmittance[i] = 0.0;
+    material.ambient[i] = 0.f;
+    material.diffuse[i] = 0.f;
+    material.specular[i] = 0.f;
+    material.transmittance[i] = 0.f;
+    material.emission[i] = 0.f;
   }
+  material.shininess = 1.f;
 }
 
 std::string LoadMtl (
@@ -346,8 +355,67 @@ std::string LoadMtl (
       material.specular[2] = b;
       continue;
     }
-    // Ignore unknown command.
+
+    // emission
+    if(token[0] == 'K' && token[1] == 'e' && isSpace(token[2])) {
+      token += 2;
+      float r, g, b;
+      parseFloat3(r, g, b, token);
+      material.emission[0] = r;
+      material.emission[1] = g;
+      material.emission[2] = b;
+      continue;
+    }
+
+    // shininess
+    if(token[0] == 'N' && token[1] == 's' && isSpace(token[2])) {
+      token += 2;
+      material.shininess = parseFloat(token);
+      continue;
+    }
+
+    // ambient texture
+    if ((0 == strncmp(token, "map_Ka", 6)) && isSpace(token[6])) {
+      token += 7;
+      material.ambient_texname = token;
+      continue;
+    }
+
+    // diffuse texture
+    if ((0 == strncmp(token, "map_Kd", 6)) && isSpace(token[6])) {
+      token += 7;
+      material.diffuse_texname = token;
+      continue;
+    }
+
+    // specular texture
+    if ((0 == strncmp(token, "map_Ks", 6)) && isSpace(token[6])) {
+      token += 7;
+      material.specular_texname = token;
+      continue;
+    }
+
+    // normal texture
+    if ((0 == strncmp(token, "map_Ns", 6)) && isSpace(token[6])) {
+      token += 7;
+      material.normal_texname = token;
+      continue;
+    }
+
+    // unknown parameter
+    char* _space = strchr(token, ' ');
+    if(!_space) {
+      _space = strchr(token, '\t');
+    }
+    if(_space) {
+      *_space = '\0';
+      std::string key = token;
+      std::string value = _space + 1;
+      material.unknown_parameter.insert(std::pair<std::string, std::string>(key, value));
+    }
   }
+  // flush last material.
+  material_map.insert(std::pair<std::string, material_t>(material.name, material));
 
   return err.str();
 }
