@@ -8,7 +8,7 @@ main(
   int argc,
   char **argv)
 {
-  std::string inputfile = "test.obj";
+  std::string inputfile = "cornell_box.obj";
   std::vector<tinyobj::shape_t> shapes;
 
   if (argc > 1) {

@@ -414,6 +414,8 @@ std::string LoadMtl (
       material.unknown_parameter.insert(std::pair<std::string, std::string>(key, value));
     }
   }
+  // flush last material.
+  material_map.insert(std::pair<std::string, material_t>(material.name, material));
 
   return err.str();
 }
