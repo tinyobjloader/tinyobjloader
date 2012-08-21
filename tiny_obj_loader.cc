@@ -5,11 +5,14 @@
 //
 
 //
-// version 0.9.1: Add initial .mtl load suppor
+// version 0.9.2: Add more .mtl load support
+// version 0.9.1: Add initial .mtl load support
 // version 0.9.0: Initial
 //
 
 
+#include <cstdlib>
+#include <cstring>
 #include <cassert>
 
 #include <string>
@@ -403,13 +406,13 @@ std::string LoadMtl (
     }
 
     // unknown parameter
-    char* _space = strchr(token, ' ');
+    const char* _space = strchr(token, ' ');
     if(!_space) {
       _space = strchr(token, '\t');
     }
     if(_space) {
-      *_space = '\0';
-      std::string key = token;
+      int len = _space - token;
+      std::string key(token, len);
       std::string value = _space + 1;
       material.unknown_parameter.insert(std::pair<std::string, std::string>(key, value));
     }

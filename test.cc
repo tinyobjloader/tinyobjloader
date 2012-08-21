@@ -1,5 +1,7 @@
 #include "tiny_obj_loader.h"
 
+#include <cstdio>
+#include <cstdlib>
 #include <cassert>
 #include <iostream>
 
@@ -51,6 +53,11 @@ main(
     printf("  material.map_Kd = %s\n", shapes[i].material.diffuse_texname.c_str());
     printf("  material.map_Ks = %s\n", shapes[i].material.specular_texname.c_str());
     printf("  material.map_Ns = %s\n", shapes[i].material.normal_texname.c_str());
+    std::map<std::string, std::string>::iterator it(shapes[i].material.unknown_parameter.begin());
+    std::map<std::string, std::string>::iterator itEnd(shapes[i].material.unknown_parameter.end());
+    for (; it != itEnd; it++) {
+      printf("  material.%s = %s\n", it->first.c_str(), it->second.c_str());
+    }
     printf("\n");
   }
 
