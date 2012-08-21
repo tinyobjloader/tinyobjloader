@@ -8,7 +8,7 @@ main(
   int argc,
   char **argv)
 {
-  std::string inputfile = "cornell_box.obj";
+  std::string inputfile = "test.obj";
   std::vector<tinyobj::shape_t> shapes;
 
   if (argc > 1) {
@@ -45,6 +45,12 @@ main(
     printf("  material.Kd = (%f, %f ,%f)\n", shapes[i].material.diffuse[0], shapes[i].material.diffuse[1], shapes[i].material.diffuse[2]);
     printf("  material.Ks = (%f, %f ,%f)\n", shapes[i].material.specular[0], shapes[i].material.specular[1], shapes[i].material.specular[2]);
     printf("  material.Tr = (%f, %f ,%f)\n", shapes[i].material.transmittance[0], shapes[i].material.transmittance[1], shapes[i].material.transmittance[2]);
+    printf("  material.Ke = (%f, %f ,%f)\n", shapes[i].material.emission[0], shapes[i].material.emission[1], shapes[i].material.emission[2]);
+    printf("  material.Ns = %f\n", shapes[i].material.shininess);
+    printf("  material.map_Ka = %s\n", shapes[i].material.ambient_texname.c_str());
+    printf("  material.map_Kd = %s\n", shapes[i].material.diffuse_texname.c_str());
+    printf("  material.map_Ks = %s\n", shapes[i].material.specular_texname.c_str());
+    printf("  material.map_Ns = %s\n", shapes[i].material.normal_texname.c_str());
     printf("\n");
   }
 
