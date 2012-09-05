@@ -165,9 +165,8 @@ updateVertex(
   }
 
   if (i.vt_idx >= 0) {
-    texcoords.push_back(in_texcoords[3*i.vt_idx+0]);
-    texcoords.push_back(in_texcoords[3*i.vt_idx+1]);
-    texcoords.push_back(in_texcoords[3*i.vt_idx+2]);
+    texcoords.push_back(in_texcoords[2*i.vt_idx+0]);
+    texcoords.push_back(in_texcoords[2*i.vt_idx+1]);
   }
 
   unsigned int idx = positions.size() / 3 - 1;
