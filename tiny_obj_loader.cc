@@ -5,6 +5,7 @@
 //
 
 //
+// version 0.9.3: Fix parsing triple 'x/y/z'
 // version 0.9.2: Add more .mtl load support
 // version 0.9.1: Add initial .mtl load support
 // version 0.9.0: Initial
@@ -129,6 +130,7 @@ static vertex_index parseTriple(
     }
 
     // i/j/k
+    token++;  // skip '/'
     vi.vn_idx = fixIndex(atoi(token), vnsize);
     token += strcspn(token, "/ \t\r");
     return vi; 
