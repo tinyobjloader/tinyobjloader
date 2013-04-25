@@ -5,6 +5,15 @@ Tiny but poweful single file wavefront obj loader written in C++. No dependency 
 
 Good for embedding .obj loader to your (global illumination) renderer ;-)
 
+
+Example
+-------
+
+https://github.com/syoyo/tinyobjloader/images/rungholt.jpg
+
+tinyobjloader can successfully load 6M triangles Rungholt scene.
+http://graphics.cs.williams.edu/data/meshes.xml
+
 Features
 --------
 
