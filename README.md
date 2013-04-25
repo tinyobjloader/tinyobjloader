@@ -9,7 +9,7 @@ Good for embedding .obj loader to your (global illumination) renderer ;-)
 Example
 -------
 
-https://github.com/syoyo/tinyobjloader/images/rungholt.jpg
+https://raw.github.com/syoyo/tinyobjloader/master/images/rungholt.jpg
 
 tinyobjloader can successfully load 6M triangles Rungholt scene.
 http://graphics.cs.williams.edu/data/meshes.xml
