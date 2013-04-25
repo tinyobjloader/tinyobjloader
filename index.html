@@ -1,0 +1,119 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>Tiny obj loader by syoyo</title>
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/pygment_trac.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+    <script src="javascripts/respond.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <!--[if lt IE 8]>
+    <link rel="stylesheet" href="stylesheets/ie.css">
+    <![endif]-->
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+
+  </head>
+  <body>
+      <div id="header">
+        <nav>
+          <li class="fork"><a href="https://github.com/syoyo/tinyobjloader">View On GitHub</a></li>
+          <li class="downloads"><a href="https://github.com/syoyo/tinyobjloader/zipball/master">ZIP</a></li>
+          <li class="downloads"><a href="https://github.com/syoyo/tinyobjloader/tarball/master">TAR</a></li>
+          <li class="title">DOWNLOADS</li>
+        </nav>
+      </div><!-- end header -->
+
+    <div class="wrapper">
+
+      <section>
+        <div id="title">
+          <h1>Tiny obj loader</h1>
+          <p>Tiny but powerful single file wavefront obj loader</p>
+          <hr>
+          <span class="credits left">Project maintained by <a href="https://github.com/syoyo">syoyo</a></span>
+          <span class="credits right">Hosted on GitHub Pages &mdash; Theme by <a href="http://twitter.com/#!/michigangraham">mattgraham</a></span>
+        </div>
+
+        <h1>tinyobjloader</h1>
+
+<p>Tiny but poweful single file wavefront obj loader written in C++. No dependency except for C++ STL. It can parse 10M over polygons with moderate memory and time.</p>
+
+<p>Good for embedding .obj loader to your (global illumination) renderer ;-)</p>
+
+<h2>Features</h2>
+
+<ul>
+<li>Group</li>
+<li>Vertex</li>
+<li>Texcoord</li>
+<li>Normal</li>
+<li>Material
+
+<ul>
+<li>Unknown material attributes are treated as key-value.</li>
+</ul>
+</li>
+</ul><h2>Notes</h2>
+
+<p>Polygon is converted into triangle.</p>
+
+<h2>Usage</h2>
+
+<pre><code>std::string inputfile = "cornell_box.obj";
+std::vector&lt;tinyobj::shape_t&gt; shapes;
+
+std::string err = tinyobj::LoadObj(shapes, inputfile.c_str());
+
+if (!err.empty()) {
+  std::cerr &lt;&lt; err &lt;&lt; std::endl;
+}
+
+std::cout &lt;&lt; "# of shapes : " &lt;&lt; shapes.size() &lt;&lt; std::endl;
+
+for (size_t i = 0; i &lt; shapes.size(); i++) {
+  printf("shape[%ld].name = %s\n", i, shapes[i].name.c_str());
+  printf("shape[%ld].indices: %ld\n", i, shapes[i].mesh.indices.size());
+  assert((shapes[i].mesh.indices.size() % 3) == 0);
+  for (size_t f = 0; f &lt; shapes[i].mesh.indices.size(); f++) {
+    printf("  idx[%ld] = %d\n", f, shapes[i].mesh.indices[f]);
+  }
+
+  printf("shape[%ld].vertices: %ld\n", i, shapes[i].mesh.positions.size());
+  assert((shapes[i].mesh.positions.size() % 3) == 0);
+  for (size_t v = 0; v &lt; shapes[i].mesh.positions.size() / 3; v++) {
+    printf("  v[%ld] = (%f, %f, %f)\n", v,
+      shapes[i].mesh.positions[3*v+0],
+      shapes[i].mesh.positions[3*v+1],
+      shapes[i].mesh.positions[3*v+2]);
+  }
+
+  printf("shape[%ld].material.name = %s\n", i, shapes[i].material.name.c_str());
+  printf("  material.Ka = (%f, %f ,%f)\n", shapes[i].material.ambient[0], shapes[i].material.ambient[1], shapes[i].material.ambient[2]);
+  printf("  material.Kd = (%f, %f ,%f)\n", shapes[i].material.diffuse[0], shapes[i].material.diffuse[1], shapes[i].material.diffuse[2]);
+  printf("  material.Ks = (%f, %f ,%f)\n", shapes[i].material.specular[0], shapes[i].material.specular[1], shapes[i].material.specular[2]);
+  printf("  material.Tr = (%f, %f ,%f)\n", shapes[i].material.transmittance[0], shapes[i].material.transmittance[1], shapes[i].material.transmittance[2]);
+  printf("  material.Ke = (%f, %f ,%f)\n", shapes[i].material.emission[0], shapes[i].material.emission[1], shapes[i].material.emission[2]);
+  printf("  material.Ns = %f\n", shapes[i].material.shininess);
+  printf("  material.map_Ka = %s\n", shapes[i].material.ambient_texname.c_str());
+  printf("  material.map_Kd = %s\n", shapes[i].material.diffuse_texname.c_str());
+  printf("  material.map_Ks = %s\n", shapes[i].material.specular_texname.c_str());
+  printf("  material.map_Ns = %s\n", shapes[i].material.normal_texname.c_str());
+  std::map&lt;std::string, std::string&gt;::iterator it(shapes[i].material.unknown_parameter.begin());
+  std::map&lt;std::string, std::string&gt;::iterator itEnd(shapes[i].material.unknown_parameter.end());
+  for (; it != itEnd; it++) {
+    printf("  material.%s = %s\n", it-&gt;first.c_str(), it-&gt;second.c_str());
+  }
+  printf("\n");
+}
+</code></pre>
+      </section>
+
+    </div>
+    <!--[if !IE]><script>fixScale(document);</script><![endif]-->
+    
+  </body>
+</html>
