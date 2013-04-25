@@ -61,6 +61,10 @@
 
 <p>Polygon is converted into triangle.</p>
 
+<h2>License</h2>
+
+<p>Licensed under 2 clause BSD.</p>
+
 <h2>Usage</h2>
 
 <pre><code>std::string inputfile = "cornell_box.obj";
@@ -70,6 +74,7 @@ std::string err = tinyobj::LoadObj(shapes, inputfile.c_str());
 
 if (!err.empty()) {
   std::cerr &lt;&lt; err &lt;&lt; std::endl;
+  exit(1);
 }
 
 std::cout &lt;&lt; "# of shapes : " &lt;&lt; shapes.size() &lt;&lt; std::endl;
