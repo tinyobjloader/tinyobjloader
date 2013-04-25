@@ -1,10 +1,11 @@
 //
-// Copyright 2012, Syoyo Fujita.
+// Copyright 2012-2013, Syoyo Fujita.
 // 
 // Licensed under 2-clause BSD liecense.
 //
 
 //
+// version 0.9.4: Initial suupport of group tag(g)
 // version 0.9.3: Fix parsing triple 'x/y/z'
 // version 0.9.2: Add more .mtl load support
 // version 0.9.1: Add initial .mtl load support
@@ -557,6 +558,29 @@ LoadObj(
         faceGroup.clear();  // for safety
         return err_mtl;
       }
+      continue;
+    }
+
+    // group name
+    if (token[0] == 'g' && isSpace((token[1]))) {
+
+      printf("group\n");
+
+      // flush previous face group.
+      shape_t shape;
+      bool ret = exportFaceGroupToShape(shape, v, vn, vt, faceGroup, material, name);
+      if (ret) {
+        shapes.push_back(shape);
+      }
+
+      faceGroup.clear();
+
+      // @todo { multiple group name. }
+      char namebuf[4096];
+      token += 2;
+      sscanf(token, "%s", namebuf);
+      name = std::string(namebuf);
+
       continue;
     }
 

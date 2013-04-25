@@ -5,22 +5,17 @@
 #include <cassert>
 #include <iostream>
 
-int
-main(
-  int argc,
-  char **argv)
+static bool
+TestLoadObj(const char* filename)
 {
-  std::string inputfile = "cornell_box.obj";
-  std::vector<tinyobj::shape_t> shapes;
+  std::cout << "Loading " << filename << std::endl;
 
-  if (argc > 1) {
-    inputfile = std::string(argv[1]);
-  }
-  
-  std::string err = tinyobj::LoadObj(shapes, inputfile.c_str());
+  std::vector<tinyobj::shape_t> shapes;
+  std::string err = tinyobj::LoadObj(shapes, filename);
 
   if (!err.empty()) {
     std::cerr << err << std::endl;
+    return false;
   }
 
   std::cout << "# of shapes : " << shapes.size() << std::endl;
@@ -59,6 +54,22 @@ main(
       printf("  material.%s = %s\n", it->first.c_str(), it->second.c_str());
     }
     printf("\n");
+  }
+
+  return true;
+}
+
+int
+main(
+  int argc,
+  char **argv)
+{
+
+  if (argc > 1) {
+    assert(true == TestLoadObj(argv[1]));
+  } else {
+    assert(true == TestLoadObj("cornell_box.obj"));
+    assert(true == TestLoadObj("cube.obj"));
   }
 
   return 0;
