@@ -11,7 +11,7 @@ Good for embedding .obj loader to your (global illumination) renderer ;-)
 Example
 -------
 
-https://raw.github.com/syoyo/tinyobjloader/master/images/rungholt.jpg
+![Rungholt](https://github.com/syoyo/tinyobjloader/blob/master/images/rungholt.jpg?raw=true)
 
 tinyobjloader can successfully load 6M triangles Rungholt scene.
 http://graphics.cs.williams.edu/data/meshes.xml
