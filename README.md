@@ -1,7 +1,9 @@
 tinyobjloader
 =============
 
-Tiny but poweful single file wavefront obj loader written in C++. no dependency except for C++ STL. Good for embedding .obj loader to your renderer ;-)
+Tiny but poweful single file wavefront obj loader written in C++. No dependency except for C++ STL. It can parse 10M over polygons with moderate memory and time.
+
+Good for embedding .obj loader to your (global illumination) renderer ;-)
 
 Features
 --------
