@@ -20,6 +20,10 @@ Notes
 
 Polygon is converted into triangle.
 
+License
+-------
+
+Licensed under 2 clause BSD.
 
 Usage
 -----
@@ -31,6 +35,7 @@ Usage
   
     if (!err.empty()) {
       std::cerr << err << std::endl;
+      exit(1);
     }
   
     std::cout << "# of shapes : " << shapes.size() << std::endl;
