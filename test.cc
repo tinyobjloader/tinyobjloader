@@ -6,12 +6,14 @@
 #include <iostream>
 
 static bool
-TestLoadObj(const char* filename)
+TestLoadObj(
+  const char* filename,
+  const char* basepath = NULL)
 {
   std::cout << "Loading " << filename << std::endl;
 
   std::vector<tinyobj::shape_t> shapes;
-  std::string err = tinyobj::LoadObj(shapes, filename);
+  std::string err = tinyobj::LoadObj(shapes, filename, basepath);
 
   if (!err.empty()) {
     std::cerr << err << std::endl;
@@ -66,7 +68,11 @@ main(
 {
 
   if (argc > 1) {
-    assert(true == TestLoadObj(argv[1]));
+    const char* basepath = NULL;
+    if (argc > 2) {
+      basepath = argv[2];
+    }
+    assert(true == TestLoadObj(argv[1], basepath));
   } else {
     assert(true == TestLoadObj("cornell_box.obj"));
     assert(true == TestLoadObj("cube.obj"));

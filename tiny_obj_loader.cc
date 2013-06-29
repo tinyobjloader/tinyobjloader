@@ -5,6 +5,8 @@
 //
 
 //
+// version 0.9.5: Parse multiple group name.
+//                Add support of specifying the base path to load material file.
 // version 0.9.4: Initial suupport of group tag(g)
 // version 0.9.3: Fix parsing triple 'x/y/z'
 // version 0.9.2: Add more .mtl load support
@@ -71,6 +73,17 @@ static inline int fixIndex(int idx, int n)
     i = n + idx;
   }
   return i;
+}
+
+static inline std::string parseString(const char*& token)
+{
+  std::string s;
+  int b = strspn(token, " \t");
+  int e = strcspn(token, " \t\r");
+  s = std::string(&token[b], &token[e]);
+
+  token += (e - b);
+  return s;
 }
 
 static inline float parseFloat(const char*& token)
@@ -259,14 +272,23 @@ void InitMaterial(material_t& material) {
 
 std::string LoadMtl (
   std::map<std::string, material_t>& material_map,
-  const char* filename)
+  const char* filename,
+  const char* mtl_basepath)
 {
   material_map.clear();
   std::stringstream err;
 
-  std::ifstream ifs(filename);
+  std::string filepath;
+
+  if (mtl_basepath) {
+    filepath = std::string(mtl_basepath) + std::string(filename);
+  } else {
+    filepath = std::string(filename);
+  }
+
+  std::ifstream ifs(filepath.c_str());
   if (!ifs) {
-    err << "Cannot open file [" << filename << "]" << std::endl;
+    err << "Cannot open file [" << filepath << "]" << std::endl;
     return err.str();
   }
 
@@ -428,7 +450,8 @@ std::string LoadMtl (
 std::string
 LoadObj(
   std::vector<shape_t>& shapes,
-  const char* filename)
+  const char* filename,
+  const char* mtl_basepath)
 {
 
   shapes.clear();
@@ -553,7 +576,7 @@ LoadObj(
       token += 7;
       sscanf(token, "%s", namebuf);
 
-      std::string err_mtl = LoadMtl(material_map, namebuf);
+      std::string err_mtl = LoadMtl(material_map, namebuf, mtl_basepath);
       if (!err_mtl.empty()) {
         faceGroup.clear();  // for safety
         return err_mtl;
@@ -564,8 +587,6 @@ LoadObj(
     // group name
     if (token[0] == 'g' && isSpace((token[1]))) {
 
-      printf("group\n");
-
       // flush previous face group.
       shape_t shape;
       bool ret = exportFaceGroupToShape(shape, v, vn, vt, faceGroup, material, name);
@@ -575,11 +596,21 @@ LoadObj(
 
       faceGroup.clear();
 
-      // @todo { multiple group name. }
-      char namebuf[4096];
-      token += 2;
-      sscanf(token, "%s", namebuf);
-      name = std::string(namebuf);
+      std::vector<std::string> names;
+      while (!isNewLine(token[0])) {
+        std::string str = parseString(token);
+        names.push_back(str);
+        token += strspn(token, " \t\r"); // skip tag
+      }
+
+      assert(names.size() > 0);
+
+      // names[0] must be 'g', so skipt 0th element.
+      if (names.size() > 1) {
+        name = names[1];
+      } else {
+        name = "";
+      }
 
       continue;
     }
@@ -596,6 +627,7 @@ LoadObj(
 
       faceGroup.clear();
 
+      // @todo { multiple object name? }
       char namebuf[4096];
       token += 2;
       sscanf(token, "%s", namebuf);
