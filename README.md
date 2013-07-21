@@ -16,10 +16,17 @@ Example
 tinyobjloader can successfully load 6M triangles Rungholt scene.
 http://graphics.cs.williams.edu/data/meshes.xml
 
+Use
+---
+
+TinyObjLoader is used in ...
+
+* bullet3 https://github.com/erwincoumans/bullet3
+
 Features
 --------
 
-* Group
+* Group(parse multiple group name)
 * Vertex
 * Texcoord
 * Normal
@@ -30,6 +37,11 @@ Notes
 -----
 
 Polygon is converted into triangle.
+
+TODO
+----
+
+* Support quad polygon and some tags for OpenSubdiv http://graphics.pixar.com/opensubdiv/
 
 License
 -------
