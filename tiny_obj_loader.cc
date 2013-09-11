@@ -5,6 +5,8 @@
 //
 
 //
+// version 0.9.6: Support Ni(index of refraction) mtl parameter.
+//                Parse transmittance material parameter correctly.
 // version 0.9.5: Parse multiple group name.
 //                Add support of specifying the base path to load material file.
 // version 0.9.4: Initial suupport of group tag(g)
@@ -372,14 +374,21 @@ std::string LoadMtl (
       continue;
     }
     
-    // specular
+    // transmittance
     if (token[0] == 'K' && token[1] == 't' && isSpace((token[2]))) {
       token += 2;
       float r, g, b;
       parseFloat3(r, g, b, token);
-      material.specular[0] = r;
-      material.specular[1] = g;
-      material.specular[2] = b;
+      material.transmittance[0] = r;
+      material.transmittance[1] = g;
+      material.transmittance[2] = b;
+      continue;
+    }
+
+    // ior(index of refraction)
+    if (token[0] == 'N' && token[1] == 'i' && isSpace((token[2]))) {
+      token += 2;
+      material.ior = parseFloat(token);
       continue;
     }
 

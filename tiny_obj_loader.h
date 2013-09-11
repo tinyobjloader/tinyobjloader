@@ -22,6 +22,7 @@ typedef struct
     float transmittance[3];
     float emission[3];
     float shininess;
+    float ior;                // index of refraction
 
     std::string ambient_texname;
     std::string diffuse_texname;
