@@ -7,6 +7,10 @@ Tiny but poweful single file wavefront obj loader written in C++. No dependency 
 
 Good for embedding .obj loader to your (global illumination) renderer ;-)
 
+What's new
+----------
+
+* Sep 12, 2013 : Added multiple .obj sticher example.
 
 Example
 -------
