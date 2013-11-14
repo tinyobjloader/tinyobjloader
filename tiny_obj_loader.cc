@@ -270,6 +270,7 @@ void InitMaterial(material_t& material) {
     material.emission[i] = 0.f;
   }
   material.shininess = 1.f;
+  material.unknown_parameter.clear();
 }
 
 std::string LoadMtl (
