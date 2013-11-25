@@ -196,12 +196,12 @@ updateVertex(
 static bool
 exportFaceGroupToShape(
   shape_t& shape,
-  const std::vector<float> in_positions,
-  const std::vector<float> in_normals,
-  const std::vector<float> in_texcoords,
+  const std::vector<float> &in_positions,
+  const std::vector<float> &in_normals,
+  const std::vector<float> &in_texcoords,
   const std::vector<std::vector<vertex_index> >& faceGroup,
-  const material_t material,
-  const std::string name)
+  const material_t &material,
+  const std::string &name)
 {
   if (faceGroup.empty()) {
     return false;
