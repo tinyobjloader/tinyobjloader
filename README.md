@@ -10,6 +10,7 @@ Good for embedding .obj loader to your (global illumination) renderer ;-)
 What's new
 ----------
 
+* Jan 27, 2014 : Added CMake project. Thanks bradc6!
 * Nov 26, 2013 : Performance optimization by NeuralSandwich. 9% improvement in his project, thanks!
 * Sep 12, 2013 : Added multiple .obj sticher example.
 
