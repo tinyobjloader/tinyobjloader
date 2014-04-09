@@ -47,6 +47,8 @@ TestLoadObj(
     printf("  material.Ke = (%f, %f ,%f)\n", shapes[i].material.emission[0], shapes[i].material.emission[1], shapes[i].material.emission[2]);
     printf("  material.Ns = %f\n", shapes[i].material.shininess);
     printf("  material.Ni = %f\n", shapes[i].material.ior);
+    printf("  material.dissolve = %f\n", shapes[i].material.dissolve);
+    printf("  material.illum = %d\n", shapes[i].material.illum);
     printf("  material.map_Ka = %s\n", shapes[i].material.ambient_texname.c_str());
     printf("  material.map_Kd = %s\n", shapes[i].material.diffuse_texname.c_str());
     printf("  material.map_Ks = %s\n", shapes[i].material.specular_texname.c_str());

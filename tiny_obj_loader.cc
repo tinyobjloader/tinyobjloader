@@ -88,6 +88,14 @@ static inline std::string parseString(const char*& token)
   return s;
 }
 
+static inline int parseInt(const char*& token)
+{
+  token += strspn(token, " \t");
+  int i = atoi(token);
+  token += strcspn(token, " \t\r");
+  return i;
+}
+
 static inline float parseFloat(const char*& token)
 {
   token += strspn(token, " \t");
@@ -269,6 +277,8 @@ void InitMaterial(material_t& material) {
     material.transmittance[i] = 0.f;
     material.emission[i] = 0.f;
   }
+  material.illum = 0;
+  material.dissolve = 1.f;
   material.shininess = 1.f;
   material.unknown_parameter.clear();
 }
@@ -408,6 +418,25 @@ std::string LoadMtl (
     if(token[0] == 'N' && token[1] == 's' && isSpace(token[2])) {
       token += 2;
       material.shininess = parseFloat(token);
+      continue;
+    }
+
+    // illum model
+    if (0 == strncmp(token, "illum", 5) && isSpace(token[5])) {
+      token += 6;
+      material.illum = parseInt(token);
+      continue;
+    }
+
+    // dissolve
+    if ((token[0] == 'd' && isSpace(token[1]))) {
+      token += 1;
+      material.dissolve = parseFloat(token);
+      continue;
+    }
+    if (token[0] == 'T' && token[1] == 'r' && isSpace(token[2])) {
+      token += 2;
+      material.dissolve = parseFloat(token);
       continue;
     }
 
