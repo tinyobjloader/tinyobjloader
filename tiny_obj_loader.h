@@ -23,6 +23,9 @@ typedef struct
     float emission[3];
     float shininess;
     float ior;                // index of refraction
+    float dissolve;           // 1 == opaque; 0 == fully transparent
+    // illumination model (see http://www.fileformat.info/format/material/)
+    int illum;
 
     std::string ambient_texname;
     std::string diffuse_texname;
