@@ -104,7 +104,7 @@ bool WriteObj(const std::string& filename, std::vector<tinyobj::shape_t> shapes)
       for (size_t k = 0; k < shapes[i].mesh.indices.size() / 3; k++) {
         for (int j = 0; j < 3; j++) {
           int idx = shapes[i].mesh.indices[3*k+j];
-          fprintf(fp, "vt %f %f %f\n",
+          fprintf(fp, "vt %f %f\n",
             shapes[i].mesh.texcoords[2*idx+0],
             shapes[i].mesh.texcoords[2*idx+1]);
         }
