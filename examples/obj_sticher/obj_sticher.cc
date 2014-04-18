@@ -6,6 +6,8 @@
 
 #include <cassert>
 #include <iostream>
+#include <cstdlib>
+#include <cstdio>
 
 typedef std::vector<tinyobj::shape_t> Shape;
 
