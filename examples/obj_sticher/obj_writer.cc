@@ -2,6 +2,7 @@
 // Simple wavefront .obj writer
 //
 #include "obj_writer.h"
+#include <cstdio>
 
 static std::string GetFileBasename(const std::string& FileName)
 {
