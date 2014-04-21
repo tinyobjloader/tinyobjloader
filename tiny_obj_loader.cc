@@ -201,6 +201,25 @@ updateVertex(
   return idx;
 }
 
+void InitMaterial(material_t& material) {
+  material.name = "";
+  material.ambient_texname = "";
+  material.diffuse_texname = "";
+  material.specular_texname = "";
+  material.normal_texname = "";
+  for (int i = 0; i < 3; i ++) {
+    material.ambient[i] = 0.f;
+    material.diffuse[i] = 0.f;
+    material.specular[i] = 0.f;
+    material.transmittance[i] = 0.f;
+    material.emission[i] = 0.f;
+  }
+  material.illum = 0;
+  material.dissolve = 1.f;
+  material.shininess = 1.f;
+  material.unknown_parameter.clear();
+}
+
 static bool
 exportFaceGroupToShape(
   shape_t& shape,
@@ -209,7 +228,8 @@ exportFaceGroupToShape(
   const std::vector<float> &in_texcoords,
   const std::vector<std::vector<vertex_index> >& faceGroup,
   const material_t &material,
-  const std::string &name)
+  const std::string &name,
+  const bool is_material_seted)
 {
   if (faceGroup.empty()) {
     return false;
@@ -257,31 +277,19 @@ exportFaceGroupToShape(
   shape.mesh.texcoords.swap(texcoords);
   shape.mesh.indices.swap(indices);
 
-  shape.material = material;
+  if(is_material_seted) {
+    shape.material = material;
+  } else {
+    InitMaterial(shape.material);
+    shape.material.diffuse[0] = 1.f;
+    shape.material.diffuse[1] = 1.f;
+    shape.material.diffuse[2] = 1.f;
+  }
 
   return true;
 
 }
 
-  
-void InitMaterial(material_t& material) {
-  material.name = "";
-  material.ambient_texname = "";
-  material.diffuse_texname = "";
-  material.specular_texname = "";
-  material.normal_texname = "";
-  for (int i = 0; i < 3; i ++) {
-    material.ambient[i] = 0.f;
-    material.diffuse[i] = 0.f;
-    material.specular[i] = 0.f;
-    material.transmittance[i] = 0.f;
-    material.emission[i] = 0.f;
-  }
-  material.illum = 0;
-  material.dissolve = 1.f;
-  material.shininess = 1.f;
-  material.unknown_parameter.clear();
-}
 
 std::string LoadMtl (
   std::map<std::string, material_t>& material_map,
@@ -512,6 +520,7 @@ LoadObj(
   // material
   std::map<std::string, material_t> material_map;
   material_t material;
+  bool is_material_seted = false;
 
   int maxchars = 8192;  // Alloc enough size.
   std::vector<char> buf(maxchars);  // Alloc enough size.
@@ -601,6 +610,7 @@ LoadObj(
 
       if (material_map.find(namebuf) != material_map.end()) {
         material = material_map[namebuf];
+        is_material_seted = true;
       } else {
         // { error!! material not found }
         InitMaterial(material);
@@ -628,11 +638,12 @@ LoadObj(
 
       // flush previous face group.
       shape_t shape;
-      bool ret = exportFaceGroupToShape(shape, v, vn, vt, faceGroup, material, name);
+      bool ret = exportFaceGroupToShape(shape, v, vn, vt, faceGroup, material, name, is_material_seted);
       if (ret) {
         shapes.push_back(shape);
       }
 
+      is_material_seted = false;
       faceGroup.clear();
 
       std::vector<std::string> names;
@@ -659,11 +670,12 @@ LoadObj(
 
       // flush previous face group.
       shape_t shape;
-      bool ret = exportFaceGroupToShape(shape, v, vn, vt, faceGroup, material, name);
+      bool ret = exportFaceGroupToShape(shape, v, vn, vt, faceGroup, material, name, is_material_seted);
       if (ret) {
         shapes.push_back(shape);
       }
 
+      is_material_seted = false;
       faceGroup.clear();
 
       // @todo { multiple object name? }
@@ -680,10 +692,11 @@ LoadObj(
   }
 
   shape_t shape;
-  bool ret = exportFaceGroupToShape(shape, v, vn, vt, faceGroup, material, name);
+  bool ret = exportFaceGroupToShape(shape, v, vn, vt, faceGroup, material, name, is_material_seted);
   if (ret) {
     shapes.push_back(shape);
   }
+  is_material_seted = false; // for safety
   faceGroup.clear();  // for safety
 
   return err.str();
