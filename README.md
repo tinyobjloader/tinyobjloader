@@ -10,6 +10,7 @@ Good for embedding .obj loader to your (global illumination) renderer ;-)
 What's new
 ----------
 
+* Apr 21, 2014 : Define default material if no material definition exists in .obj. Thanks YarmUI!
 * Apr 10, 2014 : Add support for parsing 'illum' and 'd'/'Tr' statements. Thanks mmp!
 * Jan 27, 2014 : Added CMake project. Thanks bradc6!
 * Nov 26, 2013 : Performance optimization by NeuralSandwich. 9% improvement in his project, thanks!
