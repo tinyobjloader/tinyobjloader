@@ -290,35 +290,19 @@ exportFaceGroupToShape(
 
 }
 
-
 std::string LoadMtl (
   std::map<std::string, material_t>& material_map,
-  const char* filename,
-  const char* mtl_basepath)
+  std::istream& inStream)
 {
   material_map.clear();
   std::stringstream err;
-
-  std::string filepath;
-
-  if (mtl_basepath) {
-    filepath = std::string(mtl_basepath) + std::string(filename);
-  } else {
-    filepath = std::string(filename);
-  }
-
-  std::ifstream ifs(filepath.c_str());
-  if (!ifs) {
-    err << "Cannot open file [" << filepath << "]" << std::endl;
-    return err.str();
-  }
 
   material_t material;
   
   int maxchars = 8192;  // Alloc enough size.
   std::vector<char> buf(maxchars);  // Alloc enough size.
-  while (ifs.peek() != -1) {
-    ifs.getline(&buf[0], maxchars);
+  while (inStream.peek() != -1) {
+    inStream.getline(&buf[0], maxchars);
 
     std::string linebuf(&buf[0]);
 
@@ -511,6 +495,31 @@ LoadObj(
     return err.str();
   }
 
+  auto getMatFileIStreamFunc = 
+    [&](const std::string& matId)
+    {
+      std::string filepath;
+
+      if (mtl_basepath) {
+        filepath = std::string(mtl_basepath) + matId;
+      } else {
+        filepath = matId;
+      }
+
+      std::unique_ptr<std::ifstream> ifs( new std::ifstream(filepath.c_str()) );
+      return ifs;      
+    };
+  
+  return LoadObj(shapes, ifs, getMatFileIStreamFunc);
+}
+
+std::string LoadObj(
+  std::vector<shape_t>& shapes,
+  std::istream& inStream,
+  GetMtlIStreamFn getMatFn)
+{
+  std::stringstream err;
+
   std::vector<float> v;
   std::vector<float> vn;
   std::vector<float> vt;
@@ -524,8 +533,8 @@ LoadObj(
 
   int maxchars = 8192;  // Alloc enough size.
   std::vector<char> buf(maxchars);  // Alloc enough size.
-  while (ifs.peek() != -1) {
-    ifs.getline(&buf[0], maxchars);
+  while (inStream.peek() != -1) {
+    inStream.getline(&buf[0], maxchars);
 
     std::string linebuf(&buf[0]);
 
@@ -625,11 +634,20 @@ LoadObj(
       token += 7;
       sscanf(token, "%s", namebuf);
 
-      std::string err_mtl = LoadMtl(material_map, namebuf, mtl_basepath);
-      if (!err_mtl.empty()) {
-        faceGroup.clear();  // for safety
-        return err_mtl;
+      if (!getMatFn) {
+          err << "Could not read material, no callable function target.";
+          return err.str();
       }
+        
+      std::unique_ptr<std::istream> matIStream = getMatFn(namebuf);
+      if (matIStream) {
+        std::string err_mtl = LoadMtl(material_map, *matIStream);
+        if (!err_mtl.empty()) {
+          faceGroup.clear();  // for safety
+          return err_mtl;
+        }
+      }
+      
       continue;
     }
 

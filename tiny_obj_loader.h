@@ -9,6 +9,8 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <functional>
+#include <memory>
 
 namespace tinyobj {
 
@@ -49,6 +51,13 @@ typedef struct
     mesh_t       mesh;
 } shape_t;
 
+/// typedef for a function that returns a pointer to an istream for
+/// the material identified by the const std::string&
+typedef std::function< 
+    std::unique_ptr<std::istream>(
+        const std::string&) 
+    > GetMtlIStreamFn;
+
 /// Loads .obj from a file.
 /// 'shapes' will be filled with parsed shape data
 /// The function returns error string.
@@ -59,6 +68,13 @@ std::string LoadObj(
     const char* filename,
     const char* mtl_basepath = NULL);
 
+/// Loads object from a std::istream, uses GetMtlIStreamFn to retrieve
+/// std::istream for materials.
+/// Returns empty string when loading .obj success.
+std::string LoadObj(
+    std::vector<shape_t>& shapes,   // [output]
+    std::istream& inStream,
+    GetMtlIStreamFn getMatFn);
 };
 
 #endif  // _TINY_OBJ_LOADER_H
