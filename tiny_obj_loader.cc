@@ -290,35 +290,19 @@ exportFaceGroupToShape(
 
 }
 
-
 std::string LoadMtl (
   std::map<std::string, material_t>& material_map,
-  const char* filename,
-  const char* mtl_basepath)
+  std::istream& inStream)
 {
   material_map.clear();
   std::stringstream err;
-
-  std::string filepath;
-
-  if (mtl_basepath) {
-    filepath = std::string(mtl_basepath) + std::string(filename);
-  } else {
-    filepath = std::string(filename);
-  }
-
-  std::ifstream ifs(filepath.c_str());
-  if (!ifs) {
-    err << "Cannot open file [" << filepath << "]" << std::endl;
-    return err.str();
-  }
 
   material_t material;
   
   int maxchars = 8192;  // Alloc enough size.
   std::vector<char> buf(maxchars);  // Alloc enough size.
-  while (ifs.peek() != -1) {
-    ifs.getline(&buf[0], maxchars);
+  while (inStream.peek() != -1) {
+    inStream.getline(&buf[0], maxchars);
 
     std::string linebuf(&buf[0]);
 
@@ -494,6 +478,22 @@ std::string LoadMtl (
   return err.str();
 }
 
+std::string MaterialFileReader::operator() (
+    const std::string& matId,
+    std::map<std::string, material_t>& matMap)
+{
+  std::string filepath;
+
+  if (!m_mtlBasePath.empty()) {
+    filepath = std::string(m_mtlBasePath) + matId;
+  } else {
+    filepath = matId;
+  }
+
+  std::ifstream matIStream(filepath.c_str());
+  return LoadMtl(matMap, matIStream);
+}
+
 std::string
 LoadObj(
   std::vector<shape_t>& shapes,
@@ -511,6 +511,22 @@ LoadObj(
     return err.str();
   }
 
+  std::string basePath;
+  if (mtl_basepath) {
+    basePath = mtl_basepath;
+  }
+  MaterialFileReader matFileReader( basePath );
+  
+  return LoadObj(shapes, ifs, matFileReader);
+}
+
+std::string LoadObj(
+  std::vector<shape_t>& shapes,
+  std::istream& inStream,
+  MaterialReader& readMatFn)
+{
+  std::stringstream err;
+
   std::vector<float> v;
   std::vector<float> vn;
   std::vector<float> vt;
@@ -524,8 +540,8 @@ LoadObj(
 
   int maxchars = 8192;  // Alloc enough size.
   std::vector<char> buf(maxchars);  // Alloc enough size.
-  while (ifs.peek() != -1) {
-    ifs.getline(&buf[0], maxchars);
+  while (inStream.peek() != -1) {
+    inStream.getline(&buf[0], maxchars);
 
     std::string linebuf(&buf[0]);
 
@@ -624,12 +640,13 @@ LoadObj(
       char namebuf[4096];
       token += 7;
       sscanf(token, "%s", namebuf);
-
-      std::string err_mtl = LoadMtl(material_map, namebuf, mtl_basepath);
+        
+      std::string err_mtl = readMatFn(namebuf, material_map);
       if (!err_mtl.empty()) {
         faceGroup.clear();  // for safety
         return err_mtl;
       }
+      
       continue;
     }
 
