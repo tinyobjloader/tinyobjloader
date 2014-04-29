@@ -3,12 +3,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cassert>
-#include <cstddef>
 #include <iostream>
 #include <sstream>
 #include <fstream>
-#include <functional>
-#include <memory>
 
 static void PrintInfo(const std::vector<tinyobj::shape_t>& shapes)
 {
@@ -45,8 +42,8 @@ static void PrintInfo(const std::vector<tinyobj::shape_t>& shapes)
     printf("  material.map_Kd = %s\n", shapes[i].material.diffuse_texname.c_str());
     printf("  material.map_Ks = %s\n", shapes[i].material.specular_texname.c_str());
     printf("  material.map_Ns = %s\n", shapes[i].material.normal_texname.c_str());
-    auto it = shapes[i].material.unknown_parameter.begin();
-    auto itEnd = shapes[i].material.unknown_parameter.end();
+    std::map<std::string, std::string>::const_iterator it(shapes[i].material.unknown_parameter.begin());
+    std::map<std::string, std::string>::const_iterator itEnd(shapes[i].material.unknown_parameter.end());
     for (; it != itEnd; it++) {
       printf("  material.%s = %s\n", it->first.c_str(), it->second.c_str());
     }
@@ -113,48 +110,54 @@ TestStreamLoadObj()
     "usemtl white\n"
     "f 2 6 7 3\n"
     "# 6 elements";
-   
-  auto getMatFileIStreamFunc = 
-    [](const std::string& matId)
-    {           
-      if (matId == "cube.mtl") {
-      
-        std::unique_ptr<std::stringstream> matStream( 
-          new std::stringstream(
-            "newmtl white\n"
-            "Ka 0 0 0\n"
-            "Kd 1 1 1\n"
-            "Ks 0 0 0\n"
-            "\n"
-            "newmtl red\n"
-            "Ka 0 0 0\n"
-            "Kd 1 0 0\n"
-            "Ks 0 0 0\n"
-            "\n"
-            "newmtl green\n"
-            "Ka 0 0 0\n"
-            "Kd 0 1 0\n"
-            "Ks 0 0 0\n"
-            "\n"
-            "newmtl blue\n"
-            "Ka 0 0 0\n"
-            "Kd 0 0 1\n"
-            "Ks 0 0 0\n"
-            "\n"
-            "newmtl light\n"
-            "Ka 20 20 20\n"
-            "Kd 1 1 1\n"
-            "Ks 0 0 0"));
 
-        return matStream;
-      }
+std::string matStream( 
+    "newmtl white\n"
+    "Ka 0 0 0\n"
+    "Kd 1 1 1\n"
+    "Ks 0 0 0\n"
+    "\n"
+    "newmtl red\n"
+    "Ka 0 0 0\n"
+    "Kd 1 0 0\n"
+    "Ks 0 0 0\n"
+    "\n"
+    "newmtl green\n"
+    "Ka 0 0 0\n"
+    "Kd 0 1 0\n"
+    "Ks 0 0 0\n"
+    "\n"
+    "newmtl blue\n"
+    "Ka 0 0 0\n"
+    "Kd 0 0 1\n"
+    "Ks 0 0 0\n"
+    "\n"
+    "newmtl light\n"
+    "Ka 20 20 20\n"
+    "Kd 1 1 1\n"
+    "Ks 0 0 0");
 
-      std::unique_ptr<std::stringstream> emptyUP( nullptr );
-      return emptyUP;
-    };
-    
+    using namespace tinyobj;
+    class MaterialStringStreamReader:
+        public MaterialReader
+    {
+        public:
+            MaterialStringStreamReader(const std::string& matSStream): m_matSStream(matSStream) {}
+            virtual ~MaterialStringStreamReader() {}
+            virtual std::string operator() (
+              const std::string& matId,
+              std::map<std::string, material_t>& matMap)
+            {
+                return LoadMtl(matMap, m_matSStream);
+            }
+
+        private:
+            std::stringstream m_matSStream;
+    };  
+
+  MaterialStringStreamReader matSSReader(matStream);
   std::vector<tinyobj::shape_t> shapes;
-  std::string err = tinyobj::LoadObj(shapes, objStream, getMatFileIStreamFunc);    
+  std::string err = tinyobj::LoadObj(shapes, objStream, matSSReader);    
   
   if (!err.empty()) {
     std::cerr << err << std::endl;

@@ -9,8 +9,6 @@
 #include <string>
 #include <vector>
 #include <map>
-#include <functional>
-#include <memory>
 
 namespace tinyobj {
 
@@ -51,12 +49,30 @@ typedef struct
     mesh_t       mesh;
 } shape_t;
 
-/// typedef for a function that returns a pointer to an istream for
-/// the material identified by the const std::string&
-typedef std::function< 
-    std::unique_ptr<std::istream>(
-        const std::string&) 
-    > GetMtlIStreamFn;
+class MaterialReader
+{
+public:
+    MaterialReader(){}
+    virtual ~MaterialReader(){}
+
+    virtual std::string operator() (
+        const std::string& matId,
+        std::map<std::string, material_t>& matMap) = 0;
+};
+
+class MaterialFileReader:
+  public MaterialReader
+{
+    public:
+        MaterialFileReader(const std::string& mtl_basepath): m_mtlBasePath(mtl_basepath) {}
+        virtual ~MaterialFileReader() {}
+        virtual std::string operator() (
+          const std::string& matId,
+          std::map<std::string, material_t>& matMap);
+
+    private:
+        std::string m_mtlBasePath;
+};
 
 /// Loads .obj from a file.
 /// 'shapes' will be filled with parsed shape data
@@ -74,7 +90,13 @@ std::string LoadObj(
 std::string LoadObj(
     std::vector<shape_t>& shapes,   // [output]
     std::istream& inStream,
-    GetMtlIStreamFn getMatFn);
+    MaterialReader& readMatFn);
+
+/// Loads materials into std::map
+/// Returns an empty string if successful
+std::string LoadMtl (
+  std::map<std::string, material_t>& material_map,
+  std::istream& inStream);
 };
 
 #endif  // _TINY_OBJ_LOADER_H
