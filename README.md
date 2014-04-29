@@ -10,6 +10,7 @@ Good for embedding .obj loader to your (global illumination) renderer ;-)
 What's new
 ----------
 
+* Apr 29, 2014 : Add API to read .obj from std::istream. Good for reading compressed .obj or connecting to procedural primitive generator. Thanks burnse!
 * Apr 21, 2014 : Define default material if no material definition exists in .obj. Thanks YarmUI!
 * Apr 10, 2014 : Add support for parsing 'illum' and 'd'/'Tr' statements. Thanks mmp!
 * Jan 27, 2014 : Added CMake project. Thanks bradc6!
@@ -24,12 +25,14 @@ Example
 tinyobjloader can successfully load 6M triangles Rungholt scene.
 http://graphics.cs.williams.edu/data/meshes.xml
 
-Use
----
+Use case
+--------
 
-TinyObjLoader is used in ...
+TinyObjLoader is successfully used in ...
 
 * bullet3 https://github.com/erwincoumans/bullet3
+* pbrt-v2 https://https://github.com/mmp/pbrt-v2
+* OpenGL game engine development http://swarminglogic.com/jotting/2013_10_gamedev01
 
 Features
 --------
