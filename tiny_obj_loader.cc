@@ -478,6 +478,22 @@ std::string LoadMtl (
   return err.str();
 }
 
+std::string MaterialFileReader::operator() (
+    const std::string& matId,
+    std::map<std::string, material_t>& matMap)
+{
+  std::string filepath;
+
+  if (!m_mtlBasePath.empty()) {
+    filepath = std::string(m_mtlBasePath) + matId;
+  } else {
+    filepath = matId;
+  }
+
+  std::ifstream matIStream(filepath.c_str());
+  return LoadMtl(matMap, matIStream);
+}
+
 std::string
 LoadObj(
   std::vector<shape_t>& shapes,
@@ -495,28 +511,19 @@ LoadObj(
     return err.str();
   }
 
-  auto getMatFileIStreamFunc = 
-    [&](const std::string& matId)
-    {
-      std::string filepath;
-
-      if (mtl_basepath) {
-        filepath = std::string(mtl_basepath) + matId;
-      } else {
-        filepath = matId;
-      }
-
-      std::unique_ptr<std::ifstream> ifs( new std::ifstream(filepath.c_str()) );
-      return ifs;      
-    };
+  std::string basePath;
+  if (mtl_basepath) {
+    basePath = mtl_basepath;
+  }
+  MaterialFileReader matFileReader( basePath );
   
-  return LoadObj(shapes, ifs, getMatFileIStreamFunc);
+  return LoadObj(shapes, ifs, matFileReader);
 }
 
 std::string LoadObj(
   std::vector<shape_t>& shapes,
   std::istream& inStream,
-  GetMtlIStreamFn getMatFn)
+  MaterialReader& readMatFn)
 {
   std::stringstream err;
 
@@ -633,19 +640,11 @@ std::string LoadObj(
       char namebuf[4096];
       token += 7;
       sscanf(token, "%s", namebuf);
-
-      if (!getMatFn) {
-          err << "Could not read material, no callable function target.";
-          return err.str();
-      }
         
-      std::unique_ptr<std::istream> matIStream = getMatFn(namebuf);
-      if (matIStream) {
-        std::string err_mtl = LoadMtl(material_map, *matIStream);
-        if (!err_mtl.empty()) {
-          faceGroup.clear();  // for safety
-          return err_mtl;
-        }
+      std::string err_mtl = readMatFn(namebuf, material_map);
+      if (!err_mtl.empty()) {
+        faceGroup.clear();  // for safety
+        return err_mtl;
       }
       
       continue;
