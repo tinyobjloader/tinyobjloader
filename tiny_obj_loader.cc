@@ -217,6 +217,7 @@ void InitMaterial(material_t& material) {
   material.illum = 0;
   material.dissolve = 1.f;
   material.shininess = 1.f;
+  material.ior = 1.f;
   material.unknown_parameter.clear();
 }
 
