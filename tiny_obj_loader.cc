@@ -307,12 +307,12 @@ std::string LoadMtl (
 
     std::string linebuf(&buf[0]);
 
-    // Trim newline '\r\n' or '\r'
+    // Trim newline '\r\n' or '\n'
     if (linebuf.size() > 0) {
       if (linebuf[linebuf.size()-1] == '\n') linebuf.erase(linebuf.size()-1);
     }
     if (linebuf.size() > 0) {
-      if (linebuf[linebuf.size()-1] == '\n') linebuf.erase(linebuf.size()-1);
+      if (linebuf[linebuf.size()-1] == '\r') linebuf.erase(linebuf.size()-1);
     }
 
     // Skip if empty line.
@@ -546,12 +546,12 @@ std::string LoadObj(
 
     std::string linebuf(&buf[0]);
 
-    // Trim newline '\r\n' or '\r'
+    // Trim newline '\r\n' or '\n'
     if (linebuf.size() > 0) {
       if (linebuf[linebuf.size()-1] == '\n') linebuf.erase(linebuf.size()-1);
     }
     if (linebuf.size() > 0) {
-      if (linebuf[linebuf.size()-1] == '\n') linebuf.erase(linebuf.size()-1);
+      if (linebuf[linebuf.size()-1] == '\r') linebuf.erase(linebuf.size()-1);
     }
 
     // Skip if empty line.
