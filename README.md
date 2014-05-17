@@ -10,6 +10,7 @@ Good for embedding .obj loader to your (global illumination) renderer ;-)
 What's new
 ----------
 
+* Mar 17, 2014 : Fixed trim newline bugs. Thanks ardneran!
 * Apr 29, 2014 : Add API to read .obj from std::istream. Good for reading compressed .obj or connecting to procedural primitive generator. Thanks burnse!
 * Apr 21, 2014 : Define default material if no material definition exists in .obj. Thanks YarmUI!
 * Apr 10, 2014 : Add support for parsing 'illum' and 'd'/'Tr' statements. Thanks mmp!
