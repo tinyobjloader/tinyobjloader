@@ -97,6 +97,6 @@ std::string LoadObj(
 std::string LoadMtl (
   std::map<std::string, material_t>& material_map,
   std::istream& inStream);
-};
+}
 
 #endif  // _TINY_OBJ_LOADER_H
