@@ -9,3 +9,4 @@ build:
                   chmod +x ./orebuildenv/build/linux/bin/premake4
                   ./orebuildenv/build/linux/bin/premake4 gmake
                   make
+                  ./test_tinyobjloader
