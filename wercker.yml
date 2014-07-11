@@ -6,6 +6,6 @@ build:
             name: build
             code: |
                   git clone https://github.com/syoyo/orebuildenv.git
-                  chmod +x ./orebuildenv/linux/bin/premake4
-                  ./orebuildenv/linux/bin/premake4 gmake
+                  chmod +x ./orebuildenv/build/linux/bin/premake4
+                  ./orebuildenv/build/linux/bin/premake4 gmake
                   make
