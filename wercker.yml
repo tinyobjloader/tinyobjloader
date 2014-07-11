@@ -5,6 +5,7 @@ build:
         - script:
             name: build
             code: |
-                  curl -o premake4 https://github.com/syoyo/orebuildenv/blob/master/build/linux/bin/premake4?raw=true
-                  ./premake4 gmake
+                  git clone https://github.com/syoyo/orebuildenv.git
+                  chmod +x ./orebuildenv/linux/bin/premake4
+                  ./orebuildenv/linux/bin/premake4 gmake
                   make
