@@ -1,0 +1,11 @@
+services:
+  - rioki/gcc-cpp@0.0.1
+build:
+  steps:
+    - compile
+    - script:
+      name: build
+      code: |
+          premake4 gmake 
+          make
+
