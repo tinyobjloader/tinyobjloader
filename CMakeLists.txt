@@ -31,3 +31,20 @@ target_link_libraries(test tinyobjloader)
 
 add_executable(obj_sticher ${tinyobjloader-examples-objsticher})
 target_link_libraries(obj_sticher tinyobjloader)
+
+#Installation
+install ( TARGETS
+  obj_sticher
+  DESTINATION
+  bin
+  )
+install ( TARGETS
+  tinyobjloader
+  DESTINATION
+  lib
+  )
+install ( FILES
+  tiny_obj_loader.h
+  DESTINATION
+  include
+  )
