@@ -7,16 +7,18 @@
 #include <sstream>
 #include <fstream>
 
-static void PrintInfo(const std::vector<tinyobj::shape_t>& shapes)
+static void PrintInfo(const std::vector<tinyobj::shape_t>& shapes, const std::vector<tinyobj::material_t>& materials)
 {
-  std::cout << "# of shapes : " << shapes.size() << std::endl;
+  std::cout << "# of shapes    : " << shapes.size() << std::endl;
+  std::cout << "# of materials : " << materials.size() << std::endl;
 
   for (size_t i = 0; i < shapes.size(); i++) {
     printf("shape[%ld].name = %s\n", i, shapes[i].name.c_str());
     printf("shape[%ld].indices: %ld\n", i, shapes[i].mesh.indices.size());
+    printf("shape[%ld].material_ids: %ld\n", i, shapes[i].mesh.material_ids.size());
     assert((shapes[i].mesh.indices.size() % 3) == 0);
-    for (size_t f = 0; f < shapes[i].mesh.indices.size(); f++) {
-      printf("  idx[%ld] = %d\n", f, shapes[i].mesh.indices[f]);
+    for (size_t f = 0; f < shapes[i].mesh.indices.size() / 3; f++) {
+      printf("  idx[%ld] = %d, %d, %d. mat_id = %d\n", f, shapes[i].mesh.indices[3*f+0], shapes[i].mesh.indices[3*f+1], shapes[i].mesh.indices[3*f+2], shapes[i].mesh.material_ids[f]);
     }
 
     printf("shape[%ld].vertices: %ld\n", i, shapes[i].mesh.positions.size());
@@ -28,6 +30,7 @@ static void PrintInfo(const std::vector<tinyobj::shape_t>& shapes)
         shapes[i].mesh.positions[3*v+2]);
     }
   
+#if 0
     printf("shape[%ld].material.name = %s\n", i, shapes[i].material.name.c_str());
     printf("  material.Ka = (%f, %f ,%f)\n", shapes[i].material.ambient[0], shapes[i].material.ambient[1], shapes[i].material.ambient[2]);
     printf("  material.Kd = (%f, %f ,%f)\n", shapes[i].material.diffuse[0], shapes[i].material.diffuse[1], shapes[i].material.diffuse[2]);
@@ -47,6 +50,7 @@ static void PrintInfo(const std::vector<tinyobj::shape_t>& shapes)
     for (; it != itEnd; it++) {
       printf("  material.%s = %s\n", it->first.c_str(), it->second.c_str());
     }
+#endif
     printf("\n");
   }
 }
@@ -59,19 +63,21 @@ TestLoadObj(
   std::cout << "Loading " << filename << std::endl;
 
   std::vector<tinyobj::shape_t> shapes;
-  std::string err = tinyobj::LoadObj(shapes, filename, basepath);
+  std::vector<tinyobj::material_t> materials;
+  std::string err = tinyobj::LoadObj(shapes, materials, filename, basepath);
 
   if (!err.empty()) {
     std::cerr << err << std::endl;
     return false;
   }
 
-  PrintInfo(shapes);
+  PrintInfo(shapes, materials);
 
   return true;
 }
 
 
+#if 0 // @todo
 static bool
 TestStreamLoadObj()
 {
@@ -168,6 +174,7 @@ std::string matStream(
     
   return true;
 }
+#endif
 
 int
 main(
@@ -184,7 +191,7 @@ main(
   } else {
     assert(true == TestLoadObj("cornell_box.obj"));
     assert(true == TestLoadObj("cube.obj"));
-    assert(true == TestStreamLoadObj());
+    //assert(true == TestStreamLoadObj()); @todo
   }
   
   return 0;

@@ -229,7 +229,7 @@ exportFaceGroupToShape(
   const std::vector<float> &in_normals,
   const std::vector<float> &in_texcoords,
   const std::vector<std::vector<vertex_index> >& faceGroup,
-  const int material,
+  const int material_id,
   const std::string &name,
   bool clearCache)
 {
@@ -263,18 +263,13 @@ exportFaceGroupToShape(
       shape.mesh.indices.push_back(v0);
       shape.mesh.indices.push_back(v1);
       shape.mesh.indices.push_back(v2);
+
+      shape.mesh.material_ids.push_back(material_id);
     }
 
   }
 
-  //
-  // Construct shape.
-  //
-  shape.submeshes.push_back(std::pair<int, int>(offset, shape.mesh.indices.size()-offset));
-
   shape.name = name;
-
-  shape.materials.push_back(material);
 
   if (clearCache)
       vertexCache.clear();
