@@ -40,14 +40,15 @@ typedef struct
     std::vector<float>          normals;
     std::vector<float>          texcoords;
     std::vector<unsigned int>   indices;
+    std::vector<int>            material_ids; // per-mesh material ID
 } mesh_t;
 
 typedef struct
 {
     std::string  name;
     mesh_t       mesh;
-    std::vector< std::pair<int, int> > submeshes;
-    std::vector< int > materials;
+    //std::vector< std::pair<int, int> > submeshes;
+    //std::vector< int > materials;
 } shape_t;
 
 class MaterialReader
