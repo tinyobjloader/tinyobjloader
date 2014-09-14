@@ -5,7 +5,7 @@
 //
 
 //
-// version 0.9.7: Support multi-materials(per-face material ID) per object/grou .
+// version 0.9.7: Support multi-materials(per-face material ID) per object/group.
 // version 0.9.6: Support Ni(index of refraction) mtl parameter.
 //                Parse transmittance material parameter correctly.
 // version 0.9.5: Parse multiple group name.
