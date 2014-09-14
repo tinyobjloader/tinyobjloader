@@ -11,22 +11,16 @@ static std::string GetFileBasename(const std::string& FileName)
     return "";
 }
 
-bool WriteMat(const std::string& filename, std::vector<tinyobj::shape_t> shapes) {
+bool WriteMat(const std::string& filename, const std::vector<tinyobj::material_t>& materials) {
   FILE* fp = fopen(filename.c_str(), "w");
   if (!fp) {
     fprintf(stderr, "Failed to open file [ %s ] for write.\n", filename.c_str());
     return false;
   }
 
-  std::map<std::string, tinyobj::material_t> mtl_table;
+  for (size_t i = 0; i < materials.size(); i++) {
 
-  for (size_t i = 0; i < shapes.size(); i++) {
-    mtl_table[shapes[i].material.name] = shapes[i].material;
-  }
-
-  for (std::map<std::string, tinyobj::material_t>::iterator it = mtl_table.begin(); it != mtl_table.end(); it++) {
-
-    tinyobj::material_t mat = it->second;
+    tinyobj::material_t mat = materials[i];
 
     fprintf(fp, "newmtl %s\n", mat.name.c_str());
     fprintf(fp, "Ka %f %f %f\n", mat.ambient[0], mat.ambient[1], mat.ambient[2]);
@@ -44,7 +38,7 @@ bool WriteMat(const std::string& filename, std::vector<tinyobj::shape_t> shapes)
   return true;
 }
 
-bool WriteObj(const std::string& filename, std::vector<tinyobj::shape_t> shapes) {
+bool WriteObj(const std::string& filename, const std::vector<tinyobj::shape_t>& shapes, const std::vector<tinyobj::material_t>& materials) {
   FILE* fp = fopen(filename.c_str(), "w");
   if (!fp) {
     fprintf(stderr, "Failed to open file [ %s ] for write.\n", filename.c_str());
@@ -57,6 +51,7 @@ bool WriteObj(const std::string& filename, std::vector<tinyobj::shape_t> shapes)
   int v_offset = 0;
   int vn_offset = 0;
   int vt_offset = 0;
+  int prev_material_id = -1;
 
   fprintf(fp, "mtllib %s\n", material_filename.c_str());
 
@@ -71,9 +66,9 @@ bool WriteObj(const std::string& filename, std::vector<tinyobj::shape_t> shapes)
       fprintf(fp, "g %s\n", shapes[i].name.c_str());
     }
 
-    if (!shapes[i].material.name.empty()) {
-      fprintf(fp, "usemtl %s\n", shapes[i].material.name.c_str());
-    }
+    //if (!shapes[i].material.name.empty()) {
+    //  fprintf(fp, "usemtl %s\n", shapes[i].material.name.c_str());
+    //}
 
     // facevarying vtx
     for (size_t k = 0; k < shapes[i].mesh.indices.size() / 3; k++) {
@@ -124,6 +119,13 @@ bool WriteObj(const std::string& filename, std::vector<tinyobj::shape_t> shapes)
       int v1 = (3*k + 1) + 1 + v_offset;
       int v2 = (3*k + 2) + 1 + v_offset;
 
+      int material_id = shapes[i].mesh.material_ids[k];
+      if (material_id != prev_material_id) {
+        std::string material_name = materials[material_id].name;
+        fprintf(fp, "usemtl %s\n", material_name.c_str());
+        prev_material_id = material_id;
+      }
+
       if (has_vn && has_vt) {
         fprintf(fp, "f %d/%d/%d %d/%d/%d %d/%d/%d\n",
           v0, v0, v0, v1, v1, v1, v2, v2, v2);
@@ -148,7 +150,7 @@ bool WriteObj(const std::string& filename, std::vector<tinyobj::shape_t> shapes)
   //
   // Write material file
   //
-  bool ret = WriteMat(material_filename, shapes);
+  bool ret = WriteMat(material_filename, materials);
 
   return ret;
 }

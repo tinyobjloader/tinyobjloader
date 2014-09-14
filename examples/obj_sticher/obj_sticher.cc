@@ -10,11 +10,14 @@
 #include <cstdio>
 
 typedef std::vector<tinyobj::shape_t> Shape;
+typedef std::vector<tinyobj::material_t> Material;
 
 void
 StichObjs(
-  std::vector<tinyobj::shape_t>& out,
-  const std::vector<Shape>& shapes)
+  std::vector<tinyobj::shape_t>& out_shape,
+  std::vector<tinyobj::material_t>& out_material,
+  const std::vector<Shape>& shapes,
+  const std::vector<Material>& materials)
 {
   int numShapes = 0;
   for (size_t i = 0; i < shapes.size(); i++) {
@@ -22,9 +25,11 @@ StichObjs(
   }
 
   printf("Total # of shapes = %d\n", numShapes);
+  int materialIdOffset = 0;
 
   size_t face_offset = 0;
   for (size_t i = 0; i < shapes.size(); i++) {
+
     for (size_t k = 0; k < shapes[i].size(); k++) {
 
       std::string new_name = shapes[i][k].name;
@@ -38,12 +43,26 @@ StichObjs(
       assert((shapes[i][k].mesh.positions.size() % 3) == 0);
 
       tinyobj::shape_t new_shape = shapes[i][k];
+      // Add offset.
+      for (size_t f = 0; f < new_shape.mesh.material_ids.size(); f++) {
+        new_shape.mesh.material_ids[f] += materialIdOffset;
+      }
+
       new_shape.name = new_name;
       printf("shape[%ld][%ld].new_name = %s\n", i, k, new_shape.name.c_str());
 
-      out.push_back(new_shape);
+      out_shape.push_back(new_shape);
+    }
+
+    materialIdOffset += materials[i].size();
+  }
+
+  for (size_t i = 0; i < materials.size(); i++) {
+    for (size_t k = 0; k < materials[i].size(); k++) {
+      out_material.push_back(materials[i][k]);
     }
   }
+
 }
 
 int
@@ -60,12 +79,13 @@ main(
   std::string out_filename = std::string(argv[argc-1]); // last element
 
   std::vector<Shape> shapes;
+  std::vector<Material> materials;
   shapes.resize(num_objfiles);
 
   for (int i = 0; i < num_objfiles; i++) {
     std::cout << "Loading " << argv[i+1] << " ... " << std::flush;
     
-    std::string err = tinyobj::LoadObj(shapes[i], argv[i+1]);
+    std::string err = tinyobj::LoadObj(shapes[i], materials[i], argv[i+1]);
     if (!err.empty()) {
       std::cerr << err << std::endl;
       exit(1);
@@ -74,10 +94,11 @@ main(
     std::cout << "DONE." << std::endl;
   }
 
-  std::vector<tinyobj::shape_t> out;
-  StichObjs(out, shapes);
+  std::vector<tinyobj::shape_t> out_shape;
+  std::vector<tinyobj::material_t> out_material;
+  StichObjs(out_shape, out_material, shapes, materials);
 
-  bool ret = WriteObj(out_filename, out);
+  bool ret = WriteObj(out_filename, out_shape, out_material);
   assert(ret);
 
   return 0;
