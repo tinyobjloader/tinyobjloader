@@ -14,8 +14,8 @@ static void PrintInfo(const std::vector<tinyobj::shape_t>& shapes, const std::ve
 
   for (size_t i = 0; i < shapes.size(); i++) {
     printf("shape[%ld].name = %s\n", i, shapes[i].name.c_str());
-    printf("shape[%ld].indices: %ld\n", i, shapes[i].mesh.indices.size());
-    printf("shape[%ld].material_ids: %ld\n", i, shapes[i].mesh.material_ids.size());
+    printf("Size of shape[%ld].indices: %ld\n", i, shapes[i].mesh.indices.size());
+    printf("Size of shape[%ld].material_ids: %ld\n", i, shapes[i].mesh.material_ids.size());
     assert((shapes[i].mesh.indices.size() % 3) == 0);
     for (size_t f = 0; f < shapes[i].mesh.indices.size() / 3; f++) {
       printf("  idx[%ld] = %d, %d, %d. mat_id = %d\n", f, shapes[i].mesh.indices[3*f+0], shapes[i].mesh.indices[3*f+1], shapes[i].mesh.indices[3*f+2], shapes[i].mesh.material_ids[f]);
@@ -29,28 +29,28 @@ static void PrintInfo(const std::vector<tinyobj::shape_t>& shapes, const std::ve
         shapes[i].mesh.positions[3*v+1],
         shapes[i].mesh.positions[3*v+2]);
     }
-  
-#if 0
-    printf("shape[%ld].material.name = %s\n", i, shapes[i].material.name.c_str());
-    printf("  material.Ka = (%f, %f ,%f)\n", shapes[i].material.ambient[0], shapes[i].material.ambient[1], shapes[i].material.ambient[2]);
-    printf("  material.Kd = (%f, %f ,%f)\n", shapes[i].material.diffuse[0], shapes[i].material.diffuse[1], shapes[i].material.diffuse[2]);
-    printf("  material.Ks = (%f, %f ,%f)\n", shapes[i].material.specular[0], shapes[i].material.specular[1], shapes[i].material.specular[2]);
-    printf("  material.Tr = (%f, %f ,%f)\n", shapes[i].material.transmittance[0], shapes[i].material.transmittance[1], shapes[i].material.transmittance[2]);
-    printf("  material.Ke = (%f, %f ,%f)\n", shapes[i].material.emission[0], shapes[i].material.emission[1], shapes[i].material.emission[2]);
-    printf("  material.Ns = %f\n", shapes[i].material.shininess);
-    printf("  material.Ni = %f\n", shapes[i].material.ior);
-    printf("  material.dissolve = %f\n", shapes[i].material.dissolve);
-    printf("  material.illum = %d\n", shapes[i].material.illum);
-    printf("  material.map_Ka = %s\n", shapes[i].material.ambient_texname.c_str());
-    printf("  material.map_Kd = %s\n", shapes[i].material.diffuse_texname.c_str());
-    printf("  material.map_Ks = %s\n", shapes[i].material.specular_texname.c_str());
-    printf("  material.map_Ns = %s\n", shapes[i].material.normal_texname.c_str());
-    std::map<std::string, std::string>::const_iterator it(shapes[i].material.unknown_parameter.begin());
-    std::map<std::string, std::string>::const_iterator itEnd(shapes[i].material.unknown_parameter.end());
+  }
+
+  for (size_t i = 0; i < materials.size(); i++) {
+    printf("material[%ld].name = %s\n", i, materials[i].name.c_str());
+    printf("  material.Ka = (%f, %f ,%f)\n", materials[i].ambient[0], materials[i].ambient[1], materials[i].ambient[2]);
+    printf("  material.Kd = (%f, %f ,%f)\n", materials[i].diffuse[0], materials[i].diffuse[1], materials[i].diffuse[2]);
+    printf("  material.Ks = (%f, %f ,%f)\n", materials[i].specular[0], materials[i].specular[1], materials[i].specular[2]);
+    printf("  material.Tr = (%f, %f ,%f)\n", materials[i].transmittance[0], materials[i].transmittance[1], materials[i].transmittance[2]);
+    printf("  material.Ke = (%f, %f ,%f)\n", materials[i].emission[0], materials[i].emission[1], materials[i].emission[2]);
+    printf("  material.Ns = %f\n", materials[i].shininess);
+    printf("  material.Ni = %f\n", materials[i].ior);
+    printf("  material.dissolve = %f\n", materials[i].dissolve);
+    printf("  material.illum = %d\n", materials[i].illum);
+    printf("  material.map_Ka = %s\n", materials[i].ambient_texname.c_str());
+    printf("  material.map_Kd = %s\n", materials[i].diffuse_texname.c_str());
+    printf("  material.map_Ks = %s\n", materials[i].specular_texname.c_str());
+    printf("  material.map_Ns = %s\n", materials[i].normal_texname.c_str());
+    std::map<std::string, std::string>::const_iterator it(materials[i].unknown_parameter.begin());
+    std::map<std::string, std::string>::const_iterator itEnd(materials[i].unknown_parameter.end());
     for (; it != itEnd; it++) {
       printf("  material.%s = %s\n", it->first.c_str(), it->second.c_str());
     }
-#endif
     printf("\n");
   }
 }
@@ -77,7 +77,6 @@ TestLoadObj(
 }
 
 
-#if 0 // @todo
 static bool
 TestStreamLoadObj()
 {
@@ -152,9 +151,10 @@ std::string matStream(
             virtual ~MaterialStringStreamReader() {}
             virtual std::string operator() (
               const std::string& matId,
-              std::map<std::string, material_t>& matMap)
+              std::vector<material_t>& materials,
+              std::map<std::string, int>& matMap)
             {
-                return LoadMtl(matMap, m_matSStream);
+                return LoadMtl(matMap, materials, m_matSStream);
             }
 
         private:
@@ -163,18 +163,18 @@ std::string matStream(
 
   MaterialStringStreamReader matSSReader(matStream);
   std::vector<tinyobj::shape_t> shapes;
-  std::string err = tinyobj::LoadObj(shapes, objStream, matSSReader);    
+  std::vector<tinyobj::material_t> materials;
+  std::string err = tinyobj::LoadObj(shapes, materials, objStream, matSSReader);    
   
   if (!err.empty()) {
     std::cerr << err << std::endl;
     return false;
   }
 
-  PrintInfo(shapes);
+  PrintInfo(shapes, materials);
     
   return true;
 }
-#endif
 
 int
 main(
@@ -189,9 +189,9 @@ main(
     }
     assert(true == TestLoadObj(argv[1], basepath));
   } else {
-    assert(true == TestLoadObj("cornell_box.obj"));
-    assert(true == TestLoadObj("cube.obj"));
-    //assert(true == TestStreamLoadObj()); @todo
+    //assert(true == TestLoadObj("cornell_box.obj"));
+    //assert(true == TestLoadObj("cube.obj"));
+    assert(true == TestStreamLoadObj());
   }
   
   return 0;

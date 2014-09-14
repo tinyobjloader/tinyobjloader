@@ -5,6 +5,7 @@
 //
 
 //
+// version 0.9.7: Support multi-materials(per-face material ID) per object/grou .
 // version 0.9.6: Support Ni(index of refraction) mtl parameter.
 //                Parse transmittance material parameter correctly.
 // version 0.9.5: Parse multiple group name.
@@ -663,7 +664,7 @@ std::string LoadObj(
 
       shape = shape_t();
 
-      material = -1;
+      //material = -1;
       faceGroup.clear();
 
       std::vector<std::string> names;
@@ -694,7 +695,7 @@ std::string LoadObj(
         shapes.push_back(shape);
       }
 
-      material = -1;
+      //material = -1;
       faceGroup.clear();
       shape = shape_t();
 

@@ -3,7 +3,7 @@
 
 #include "../../tiny_obj_loader.h"
 
-extern bool WriteObj(const std::string& filename, std::vector<tinyobj::shape_t> shapes);
+extern bool WriteObj(const std::string& filename, const std::vector<tinyobj::shape_t>& shapes, const std::vector<tinyobj::material_t>& materials);
 
 
 #endif // __OBJ_WRITER_H__

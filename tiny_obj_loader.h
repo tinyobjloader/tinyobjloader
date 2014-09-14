@@ -47,8 +47,6 @@ typedef struct
 {
     std::string  name;
     mesh_t       mesh;
-    //std::vector< std::pair<int, int> > submeshes;
-    //std::vector< int > materials;
 } shape_t;
 
 class MaterialReader
