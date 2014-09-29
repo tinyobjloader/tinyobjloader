@@ -37,6 +37,7 @@ TinyObjLoader is successfully used in ...
 * bullet3 https://github.com/erwincoumans/bullet3
 * pbrt-v2 https://https://github.com/mmp/pbrt-v2
 * OpenGL game engine development http://swarminglogic.com/jotting/2013_10_gamedev01
+* mallie https://lighttransport.github.io/mallie
 * Your project here!
 
 Features
