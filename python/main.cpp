@@ -7,7 +7,7 @@
 // print(model["materials"]
 #include <Python.h>
 #include <vector>
-#include "tiny_obj_loader.h"
+#include "../tiny_obj_loader.h"
 
 typedef std::vector<double> vectd;
 
