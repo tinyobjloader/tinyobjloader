@@ -5,6 +5,7 @@
 // model = tol.LoadObj(name)
 // print(model["shapes"])
 // print(model["materials"]
+
 #include <Python.h>
 #include <vector>
 #include "../tiny_obj_loader.h"
@@ -30,7 +31,7 @@ extern "C"
 static PyObject*
 pyLoadObj(PyObject* self, PyObject* args)
 {
-    PyObject *rtntpl, *pyshapes, *pymaterials;
+    PyObject *rtndict, *pyshapes, *pymaterials;
     char const* filename;
     std::vector<tinyobj::shape_t> shapes;
     std::vector<tinyobj::material_t> materials;
@@ -42,48 +43,46 @@ pyLoadObj(PyObject* self, PyObject* args)
 
     pyshapes = PyDict_New();
     pymaterials = PyDict_New();
-    rtntpl = PyDict_New();
+    rtndict = PyDict_New();
 
     for (std::vector<tinyobj::shape_t>::iterator shape = shapes.begin() ;
          shape != shapes.end(); shape++)
     {
-         PyObject *meshobj;
-         PyObject *positions, *normals, *texcoords, *indices, *material_ids;
+         PyObject *meshobj, *current;
+         char *current_name;
+         vectd vect;
 
-         meshobj = PyTuple_New(5);
-         positions = PyList_New(0);
-         normals = PyList_New(0);
-         texcoords = PyList_New(0);
-         indices = PyList_New(0);
-         material_ids = PyList_New(0);
-
+         meshobj = PyDict_New();
          tinyobj::mesh_t cm  = (*shape).mesh;
-         for (int i = 0; i <= 4 ; i++ )
+
+         for (int i = 0; i <= 4; i++ )
          {
-            PyObject *current;
-            vectd vect;
+            current = PyList_New(0);
 
-            switch  (i)
-            {
-                case 0: current = positions;
-                        vect = vectd(cm.positions.begin(), cm.positions.end());
-                case 1: current = normals;
-                        vect = vectd(cm.normals.begin(), cm.normals.end());
-                case 2: current = texcoords;
-                        vect = vectd(cm.texcoords.begin(), cm.texcoords.end());
-                case 3: current = indices;
-                        vect = vectd(cm.indices.begin(), cm.indices.end());
-                case 4: current = material_ids;
-                        vect = vectd(cm.material_ids.begin(), cm.material_ids.end());
-            }
+           if (i == 0){
+                current_name = "positions";
+                vect = vectd(cm.positions.begin(), cm.positions.end()); }
+           else if (i==1){
+                current_name = "normals";
+                vect = vectd(cm.normals.begin(), cm.normals.end()); }
+           else if (i == 2) {
+                current_name = "texcoords";
+                vect = vectd(cm.texcoords.begin(), cm.texcoords.end()); }
+           else if (i==3) {
+                current_name = "indicies";
+                vect = vectd(cm.indices.begin(), cm.indices.end()); }
+           else if (i == 4) {
+                current_name = "material_ids";
+                vect = vectd(cm.material_ids.begin(), cm.material_ids.end()); }
 
-            for (std::vector<double>::iterator it = vect.begin() ;
+            for (vectd::iterator it = vect.begin() ;
                 it != vect.end(); it++)
             {
                 PyList_Insert(current, it - vect.begin(), PyFloat_FromDouble(*it));
             }
 
-            PyTuple_SetItem(meshobj, i, current);
+            PyDict_SetItemString(meshobj, current_name, current);
+            
          }
 
          PyDict_SetItemString(pyshapes, (*shape).name.c_str(), meshobj);
@@ -111,10 +110,10 @@ pyLoadObj(PyObject* self, PyObject* args)
         PyDict_SetItemString(pymaterials, (*mat).name.c_str(), matobj);
     }
 
-    PyDict_SetItemString(rtntpl, "shapes", pyshapes);
-    PyDict_SetItemString(rtntpl, "materials", pymaterials);
+    PyDict_SetItemString(rtndict, "shapes", pyshapes);
+    PyDict_SetItemString(rtndict, "materials", pymaterials);
 
-    return rtntpl;
+    return rtndict;
 }
 
 
