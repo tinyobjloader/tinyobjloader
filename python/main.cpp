@@ -31,8 +31,13 @@ extern "C"
 static PyObject*
 pyLoadObj(PyObject* self, PyObject* args)
 {
-    PyObject *rtndict, *pyshapes, *pymaterials;
+    PyObject *rtndict, *pyshapes, *pymaterials, 
+             *current, *meshobj;
+
     char const* filename;
+    char *current_name;
+    vectd vect;
+
     std::vector<tinyobj::shape_t> shapes;
     std::vector<tinyobj::material_t> materials;
 
@@ -48,10 +53,6 @@ pyLoadObj(PyObject* self, PyObject* args)
     for (std::vector<tinyobj::shape_t>::iterator shape = shapes.begin() ;
          shape != shapes.end(); shape++)
     {
-         PyObject *meshobj, *current;
-         char *current_name;
-         vectd vect;
-
          meshobj = PyDict_New();
          tinyobj::mesh_t cm  = (*shape).mesh;
 
@@ -62,13 +63,13 @@ pyLoadObj(PyObject* self, PyObject* args)
            if (i == 0){
                 current_name = "positions";
                 vect = vectd(cm.positions.begin(), cm.positions.end()); }
-           else if (i==1){
+           else if (i == 1){
                 current_name = "normals";
                 vect = vectd(cm.normals.begin(), cm.normals.end()); }
            else if (i == 2) {
                 current_name = "texcoords";
                 vect = vectd(cm.texcoords.begin(), cm.texcoords.end()); }
-           else if (i==3) {
+           else if (i == 3) {
                 current_name = "indicies";
                 vect = vectd(cm.indices.begin(), cm.indices.end()); }
            else if (i == 4) {
