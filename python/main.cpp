@@ -60,23 +60,27 @@ pyLoadObj(PyObject* self, PyObject* args)
          {
             current = PyList_New(0);
 
-           if (i == 0){
-                current_name = "positions";
-                vect = vectd(cm.positions.begin(), cm.positions.end()); }
-           else if (i == 1){
-                current_name = "normals";
-                vect = vectd(cm.normals.begin(), cm.normals.end()); }
-           else if (i == 2) {
-                current_name = "texcoords";
-                vect = vectd(cm.texcoords.begin(), cm.texcoords.end()); }
-           else if (i == 3) {
-                current_name = "indicies";
-                vect = vectd(cm.indices.begin(), cm.indices.end()); }
-           else if (i == 4) {
-                current_name = "material_ids";
-                vect = vectd(cm.material_ids.begin(), cm.material_ids.end()); }
+           switch(i) {
 
-            for (vectd::iterator it = vect.begin() ;
+           case 0: 
+                current_name = "positions";
+                vect = vectd(cm.positions.begin(), cm.positions.end()); break;
+           case 1:
+                current_name = "normals";
+                vect = vectd(cm.normals.begin(), cm.normals.end()); break;
+           case 2:
+                current_name = "texcoords";
+                vect = vectd(cm.texcoords.begin(), cm.texcoords.end()); break;
+           case 3:
+                current_name = "indicies";
+                vect = vectd(cm.indices.begin(), cm.indices.end()); break;
+           case 4:
+                current_name = "material_ids";
+                vect = vectd(cm.material_ids.begin(), cm.material_ids.end()); break;
+            
+            }
+           
+           for (vectd::iterator it = vect.begin() ;
                 it != vect.end(); it++)
             {
                 PyList_Insert(current, it - vect.begin(), PyFloat_FromDouble(*it));
