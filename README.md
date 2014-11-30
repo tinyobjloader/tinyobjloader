@@ -38,6 +38,7 @@ TinyObjLoader is successfully used in ...
 * pbrt-v2 https://https://github.com/mmp/pbrt-v2
 * OpenGL game engine development http://swarminglogic.com/jotting/2013_10_gamedev01
 * mallie https://lighttransport.github.io/mallie
+* IBLBaker (Image Based Lighting Baker). http://www.derkreature.com/iblbaker/
 * Your project here!
 
 Features
@@ -58,7 +59,7 @@ Polygon is converted into triangle.
 TODO
 ----
 
-* Support quad polygon and some tags for OpenSubdiv http://graphics.pixar.com/opensubdiv/
+- [ ] Support quad polygon and some tags for OpenSubdiv http://graphics.pixar.com/opensubdiv/
 
 License
 -------
