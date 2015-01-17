@@ -39,6 +39,7 @@ TinyObjLoader is successfully used in ...
 * OpenGL game engine development http://swarminglogic.com/jotting/2013_10_gamedev01
 * mallie https://lighttransport.github.io/mallie
 * IBLBaker (Image Based Lighting Baker). http://www.derkreature.com/iblbaker/
+* Stanford CS148 http://web.stanford.edu/class/cs148/assignments/assignment3.pdf
 * Your project here!
 
 Features
