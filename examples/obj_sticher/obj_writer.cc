@@ -38,7 +38,7 @@ bool WriteMat(const std::string& filename, const std::vector<tinyobj::material_t
   return true;
 }
 
-bool WriteObj(const std::string& filename, const std::vector<tinyobj::shape_t>& shapes, const std::vector<tinyobj::material_t>& materials) {
+bool WriteObj(const std::string& filename, const std::vector<tinyobj::shape_t>& shapes, const std::vector<tinyobj::material_t>& materials, bool coordTransform) {
   FILE* fp = fopen(filename.c_str(), "w");
   if (!fp) {
     fprintf(stderr, "Failed to open file [ %s ] for write.\n", filename.c_str());
@@ -74,10 +74,17 @@ bool WriteObj(const std::string& filename, const std::vector<tinyobj::shape_t>& 
     for (size_t k = 0; k < shapes[i].mesh.indices.size() / 3; k++) {
       for (int j = 0; j < 3; j++) {
         int idx = shapes[i].mesh.indices[3*k+j];
-        fprintf(fp, "v %f %f %f\n",
-          shapes[i].mesh.positions[3*idx+0],
-          shapes[i].mesh.positions[3*idx+1],
-          shapes[i].mesh.positions[3*idx+2]);
+        if (coordTransform) {
+          fprintf(fp, "v %f %f %f\n",
+            shapes[i].mesh.positions[3*idx+0],
+            shapes[i].mesh.positions[3*idx+2],
+            -shapes[i].mesh.positions[3*idx+1]);
+        } else {
+          fprintf(fp, "v %f %f %f\n",
+            shapes[i].mesh.positions[3*idx+0],
+            shapes[i].mesh.positions[3*idx+1],
+            shapes[i].mesh.positions[3*idx+2]);
+        }
       }
     }
 
@@ -86,10 +93,17 @@ bool WriteObj(const std::string& filename, const std::vector<tinyobj::shape_t>& 
       for (size_t k = 0; k < shapes[i].mesh.indices.size() / 3; k++) {
         for (int j = 0; j < 3; j++) {
           int idx = shapes[i].mesh.indices[3*k+j];
-          fprintf(fp, "vn %f %f %f\n",
-            shapes[i].mesh.normals[3*idx+0],
-            shapes[i].mesh.normals[3*idx+1],
-            shapes[i].mesh.normals[3*idx+2]);
+          if (coordTransform) {
+            fprintf(fp, "vn %f %f %f\n",
+              shapes[i].mesh.normals[3*idx+0],
+              shapes[i].mesh.normals[3*idx+2],
+              -shapes[i].mesh.normals[3*idx+1]);
+          } else {
+            fprintf(fp, "vn %f %f %f\n",
+              shapes[i].mesh.normals[3*idx+0],
+              shapes[i].mesh.normals[3*idx+1],
+              shapes[i].mesh.normals[3*idx+2]);
+          }
         }
       }
     }
@@ -119,6 +133,10 @@ bool WriteObj(const std::string& filename, const std::vector<tinyobj::shape_t>& 
       int v1 = (3*k + 1) + 1 + v_offset;
       int v2 = (3*k + 2) + 1 + v_offset;
 
+      int vt0 = (3*k + 0) + 1 + vt_offset;
+      int vt1 = (3*k + 1) + 1 + vt_offset;
+      int vt2 = (3*k + 2) + 1 + vt_offset;
+
       int material_id = shapes[i].mesh.material_ids[k];
       if (material_id != prev_material_id) {
         std::string material_name = materials[material_id].name;
@@ -128,7 +146,7 @@ bool WriteObj(const std::string& filename, const std::vector<tinyobj::shape_t>& 
 
       if (has_vn && has_vt) {
         fprintf(fp, "f %d/%d/%d %d/%d/%d %d/%d/%d\n",
-          v0, v0, v0, v1, v1, v1, v2, v2, v2);
+          v0, vt0, v0, v1, vt1, v1, v2, vt2, v2);
       } else if (has_vn && !has_vt) {
         fprintf(fp, "f %d//%d %d//%d %d//%d\n", v0, v0, v1, v1, v2, v2);
       } else if (!has_vn && has_vt) {
@@ -141,7 +159,7 @@ bool WriteObj(const std::string& filename, const std::vector<tinyobj::shape_t>& 
 
     v_offset  += shapes[i].mesh.indices.size();
     //vn_offset += shapes[i].mesh.normals.size() / 3;
-    //vt_offset += shapes[i].mesh.texcoords.size() / 2;
+    vt_offset += shapes[i].mesh.texcoords.size() / 2;
 
   }
 

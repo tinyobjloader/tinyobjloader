@@ -1,6 +1,6 @@
 image: bradrydzewski/base
 script:
-  - curl -L -O premake4 https://github.com/syoyo/orebuildenv/blob/master/build/linux/bin/premake4?raw=true
+  - curl -L -o premake4 https://github.com/syoyo/orebuildenv/blob/master/build/linux/bin/premake4?raw=true
   - chmod +x ./premake4
   - ./premake4 gmake
   - make
