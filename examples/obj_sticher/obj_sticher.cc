@@ -81,6 +81,7 @@ main(
   std::vector<Shape> shapes;
   std::vector<Material> materials;
   shapes.resize(num_objfiles);
+  materials.resize(num_objfiles);
 
   for (int i = 0; i < num_objfiles; i++) {
     std::cout << "Loading " << argv[i+1] << " ... " << std::flush;
@@ -98,7 +99,8 @@ main(
   std::vector<tinyobj::material_t> out_material;
   StichObjs(out_shape, out_material, shapes, materials);
 
-  bool ret = WriteObj(out_filename, out_shape, out_material);
+  bool coordTransform = true;
+  bool ret = WriteObj(out_filename, out_shape, out_material, coordTransform);
   assert(ret);
 
   return 0;
