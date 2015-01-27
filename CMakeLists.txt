@@ -26,8 +26,8 @@ add_library(tinyobjloader
 			${tinyobjloader-Source}
 	)
 
-add_executable(test ${tinyobjloader-Test-Source})
-target_link_libraries(test tinyobjloader)
+add_executable(test_loader ${tinyobjloader-Test-Source})
+target_link_libraries(test_loader tinyobjloader)
 
 add_executable(obj_sticher ${tinyobjloader-examples-objsticher})
 target_link_libraries(obj_sticher tinyobjloader)
