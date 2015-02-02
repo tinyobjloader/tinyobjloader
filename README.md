@@ -7,7 +7,8 @@ http://syoyo.github.io/tinyobjloader/
 
 Tiny but poweful single file wavefront obj loader written in C++. No dependency except for C++ STL. It can parse 10M over polygons with moderate memory and time.
 
-Good for embedding .obj loader to your (global illumination) renderer ;-)
+`tinyobjloader` is good for embedding .obj loader to your (global illumination) renderer ;-)
+
 
 What's new
 ----------
@@ -50,7 +51,7 @@ Features
 * Texcoord
 * Normal
 * Material
-  * Unknown material attributes are treated as key-value.
+  * Unknown material attributes are treated as key-value(value is string).
 
 Notes
 -----
