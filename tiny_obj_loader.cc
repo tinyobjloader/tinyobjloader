@@ -1,10 +1,11 @@
 //
-// Copyright 2012-2013, Syoyo Fujita.
+// Copyright 2012-2015, Syoyo Fujita.
 // 
 // Licensed under 2-clause BSD liecense.
 //
 
 //
+// version 0.9.8: Fix multi-materials(per-face material ID).
 // version 0.9.7: Support multi-materials(per-face material ID) per object/group.
 // version 0.9.6: Support Ni(index of refraction) mtl parameter.
 //                Parse transmittance material parameter correctly.
@@ -620,7 +621,11 @@ std::string LoadObj(
       token += 7;
       sscanf(token, "%s", namebuf);
 
-      faceGroup.clear();
+      // Create face group per material.
+      bool ret = exportFaceGroupToShape(shape, vertexCache, v, vn, vt, faceGroup, material, name, true);
+      if (ret) {
+        faceGroup.clear();
+      }
 
       if (material_map.find(namebuf) != material_map.end()) {
         material = material_map[namebuf];
