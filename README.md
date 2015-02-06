@@ -13,6 +13,7 @@ Tiny but poweful single file wavefront obj loader written in C++. No dependency 
 What's new
 ----------
 
+* Feb 06, 2015 : Fix parsing multi-material object
 * Sep 14, 2014 : Add support for multi-material per object/group. Thanks Mykhailo!
 * Mar 17, 2014 : Fixed trim newline bugs. Thanks ardneran!
 * Apr 29, 2014 : Add API to read .obj from std::istream. Good for reading compressed .obj or connecting to procedural primitive generator. Thanks burnse!
