@@ -210,7 +210,7 @@ static bool exportFaceGroupToShape(
     const std::vector<float> &in_positions,
     const std::vector<float> &in_normals,
     const std::vector<float> &in_texcoords,
-    const std::vector<std::vector<vertex_index>> &faceGroup,
+    const std::vector<std::vector<vertex_index> > &faceGroup,
     const int material_id, const std::string &name, bool clearCache) {
   if (faceGroup.empty()) {
     return false;
@@ -501,7 +501,7 @@ std::string LoadObj(std::vector<shape_t> &shapes,
   std::vector<float> v;
   std::vector<float> vn;
   std::vector<float> vt;
-  std::vector<std::vector<vertex_index>> faceGroup;
+  std::vector<std::vector<vertex_index> > faceGroup;
   std::string name;
 
   // material
