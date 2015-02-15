@@ -4,6 +4,8 @@ script:
   - chmod +x ./premake4
   - ./premake4 gmake
   - make
+services:
+  - redis
 notify:
  email:
     recipients:
