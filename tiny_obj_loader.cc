@@ -66,16 +66,9 @@ static inline bool isNewLine(const char c) {
 
 // Make index zero-base, and also support relative index.
 static inline int fixIndex(int idx, int n) {
-  int i;
-
-  if (idx > 0) {
-    i = idx - 1;
-  } else if (idx == 0) {
-    i = 0;
-  } else { // negative value = relative
-    i = n + idx;
-  }
-  return i;
+  if (idx > 0) return idx - 1;
+  if (idx == 0) return 0;
+  return n + idx; // negative value = relative
 }
 
 static inline std::string parseString(const char *&token) {
