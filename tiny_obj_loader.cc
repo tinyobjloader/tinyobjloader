@@ -80,11 +80,10 @@ static inline int fixIndex(int idx, int n) {
 
 static inline std::string parseString(const char *&token) {
   std::string s;
-  int b = strspn(token, " \t");
+  token += strspn(token, " \t");
   int e = strcspn(token, " \t\r");
-  s = std::string(&token[b], &token[e]);
-
-  token += (e - b);
+  s = std::string(token, &token[e]);
+  token += e;
   return s;
 }
 
