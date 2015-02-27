@@ -650,7 +650,7 @@ std::string LoadObj(std::vector<shape_t> &shapes,
 
       assert(names.size() > 0);
 
-      // names[0] must be 'g', so skipt 0th element.
+      // names[0] must be 'g', so skip the 0th element.
       if (names.size() > 1) {
         name = names[1];
       } else {
