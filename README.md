@@ -52,7 +52,7 @@ Features
 * Texcoord
 * Normal
 * Material
-  * Unknown material attributes are treated as key-value(value is string).
+  * Unknown material attributes are returned as key-value(value is string) map.
 
 Notes
 -----
