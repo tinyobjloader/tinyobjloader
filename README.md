@@ -63,6 +63,7 @@ TODO
 ----
 
 - [ ] Support quad polygon and some tags for OpenSubdiv http://graphics.pixar.com/opensubdiv/
+- [ ] Add rubust parser to replace `atof()` #28
 
 License
 -------
