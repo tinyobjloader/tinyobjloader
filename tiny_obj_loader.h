@@ -1,5 +1,5 @@
 //
-// Copyright 2012-2013, Syoyo Fujita.
+// Copyright 2012-2015, Syoyo Fujita.
 //
 // Licensed under 2-clause BSD liecense.
 //
