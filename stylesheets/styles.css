@@ -529,8 +529,8 @@ table {
 }
 
 body {
-  padding: 0px 0 20px 0px;
-  margin: 0px;
+  padding: 0;
+  margin: 0;
   font: 14px/1.5 "OpenSansRegular", "Helvetica Neue", Helvetica, Arial, sans-serif;
   color: #f0e7d5;
   font-weight: normal;
@@ -605,7 +605,7 @@ strong {
 }
 
 .wrapper {
-  max-width: 650px;
+  max-width: 960px;
   margin: 0 auto;
   position: relative;
   padding: 0 20px;
@@ -709,7 +709,7 @@ dt {
   box-shadow: 0px 1px 3px rgba(0, 0, 0, 0.25);
 }
 #header nav {
-  max-width: 650px;
+  max-width: 960px;
   margin: 0 auto;
   padding: 0 10px;
   background: blue;
@@ -781,8 +781,8 @@ dt {
 }
 
 section {
-  max-width: 650px;
-  padding: 30px 0px 50px 0px;
+  max-width: 960px;
+  padding: 30px 0 0 0;
   margin: 20px 0;
   margin-top: 70px;
 }
@@ -819,6 +819,10 @@ section #title .credits.left {
 section #title .credits.right {
   float: right;
 }
+footer {
+  border-top: 2px solid #434343;
+  padding-top: 20px;
+}
 
 @media print, screen and (max-width: 720px) {
   #title .credits {
@@ -845,7 +849,12 @@ section #title .credits.right {
     margin-top: 40px;
   }
 
-  nav {
+  #header nav {
+    margin: 15px auto;
+    text-align: center;
+  }
+  
+  #header nav .downloads, #header nav .title {
     display: none;
   }
 }
