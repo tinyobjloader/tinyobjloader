@@ -5,6 +5,7 @@
 //
 
 //
+// version 0.9.9: Replace atof() with custom parser.
 // version 0.9.8: Fix multi-materials(per-face material ID).
 // version 0.9.7: Support multi-materials(per-face material ID) per
 // object/group.
