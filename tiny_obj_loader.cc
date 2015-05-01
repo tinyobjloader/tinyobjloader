@@ -406,7 +406,6 @@ static bool exportFaceGroupToShape(
 std::string LoadMtl(std::map<std::string, int> &material_map,
                     std::vector<material_t> &materials,
                     std::istream &inStream) {
-  material_map.clear();
   std::stringstream err;
 
   material_t material;
