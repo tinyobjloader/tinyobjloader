@@ -76,7 +76,7 @@ static inline int fixIndex(int idx, int n) {
 static inline std::string parseString(const char *&token) {
   std::string s;
   token += strspn(token, " \t");
-  int e = strcspn(token, " \t\r");
+  size_t e = strcspn(token, " \t\r");
   s = std::string(token, &token[e]);
   token += e;
   return s;
@@ -325,7 +325,7 @@ updateVertex(std::map<vertex_index, unsigned int> &vertexCache,
     texcoords.push_back(in_texcoords[2 * i.vt_idx + 1]);
   }
 
-  unsigned int idx = positions.size() / 3 - 1;
+  unsigned int idx = static_cast<unsigned int>(positions.size() / 3 - 1);
   vertexCache[i] = idx;
 
   return idx;
@@ -448,7 +448,7 @@ std::string LoadMtl(std::map<std::string, int> &material_map,
       // flush previous material.
       if (!material.name.empty()) {
         material_map.insert(
-            std::pair<std::string, int>(material.name, materials.size()));
+            std::pair<std::string, int>(material.name, static_cast<int>(materials.size())));
         materials.push_back(material);
       }
 
@@ -458,7 +458,11 @@ std::string LoadMtl(std::map<std::string, int> &material_map,
       // set new mtl name
       char namebuf[4096];
       token += 7;
+#ifdef _MSC_VER
+      sscanf_s(token, "%s", namebuf);
+#else
       sscanf(token, "%s", namebuf);
+#endif
       material.name = namebuf;
       continue;
     }
@@ -585,7 +589,7 @@ std::string LoadMtl(std::map<std::string, int> &material_map,
       _space = strchr(token, '\t');
     }
     if (_space) {
-      int len = _space - token;
+      ptrdiff_t len = _space - token;
       std::string key(token, len);
       std::string value = _space + 1;
       material.unknown_parameter.insert(
@@ -594,7 +598,7 @@ std::string LoadMtl(std::map<std::string, int> &material_map,
   }
   // flush last material.
   material_map.insert(
-      std::pair<std::string, int>(material.name, materials.size()));
+      std::pair<std::string, int>(material.name, static_cast<int>(materials.size())));
   materials.push_back(material);
 
   return err.str();
@@ -729,9 +733,9 @@ std::string LoadObj(std::vector<shape_t> &shapes,
       std::vector<vertex_index> face;
       while (!isNewLine(token[0])) {
         vertex_index vi =
-            parseTriple(token, v.size() / 3, vn.size() / 3, vt.size() / 2);
+            parseTriple(token, static_cast<int>(v.size() / 3), static_cast<int>(vn.size() / 3), static_cast<int>(vt.size() / 2));
         face.push_back(vi);
-        int n = strspn(token, " \t\r");
+        size_t n = strspn(token, " \t\r");
         token += n;
       }
 
@@ -745,7 +749,11 @@ std::string LoadObj(std::vector<shape_t> &shapes,
 
       char namebuf[4096];
       token += 7;
+#ifdef _MSC_VER
+      sscanf_s(token, "%s", namebuf);
+#else
       sscanf(token, "%s", namebuf);
+#endif
 
       // Create face group per material.
       bool ret = exportFaceGroupToShape(shape, vertexCache, v, vn, vt,
@@ -768,7 +776,11 @@ std::string LoadObj(std::vector<shape_t> &shapes,
     if ((0 == strncmp(token, "mtllib", 6)) && isSpace((token[6]))) {
       char namebuf[4096];
       token += 7;
+#ifdef _MSC_VER
+      sscanf_s(token, "%s", namebuf);
+#else
       sscanf(token, "%s", namebuf);
+#endif
 
       std::string err_mtl = readMatFn(namebuf, materials, material_map);
       if (!err_mtl.empty()) {
@@ -830,7 +842,11 @@ std::string LoadObj(std::vector<shape_t> &shapes,
       // @todo { multiple object name? }
       char namebuf[4096];
       token += 2;
+#ifdef _MSC_VER
+      sscanf_s(token, "%s", namebuf);
+#else
       sscanf(token, "%s", namebuf);
+#endif
       name = std::string(namebuf);
 
       continue;
