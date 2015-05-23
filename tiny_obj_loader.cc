@@ -24,6 +24,7 @@
 #include <cstring>
 #include <cassert>
 #include <cmath>
+#include <cstddef>
 
 #include <string>
 #include <vector>
@@ -589,7 +590,7 @@ std::string LoadMtl(std::map<std::string, int> &material_map,
       _space = strchr(token, '\t');
     }
     if (_space) {
-      ptrdiff_t len = _space - token;
+      std::ptrdiff_t len = _space - token;
       std::string key(token, len);
       std::string value = _space + 1;
       material.unknown_parameter.insert(
