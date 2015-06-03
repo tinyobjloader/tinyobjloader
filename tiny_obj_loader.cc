@@ -185,7 +185,7 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result)
 		while ((end_not_reached = (curr != s_end)) && isdigit(*curr))
 		{
 			// NOTE: Don't use powf here, it will absolutely murder precision.
-			mantissa += static_cast<int>(*curr - 0x30) * pow(10, -read);
+			mantissa += static_cast<int>(*curr - 0x30) * pow(10.0, -read);
 			read++; curr++;
 		}
 	}
@@ -228,7 +228,7 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result)
 	}
 
 assemble:
-	*result = (sign == '+'? 1 : -1) * ldexp(mantissa * pow(5, exponent), exponent);
+	*result = (sign == '+'? 1 : -1) * ldexp(mantissa * pow(5.0, exponent), exponent);
 	return true;
 fail:
 	return false;
