@@ -1,0 +1,12 @@
+version: 0.9.{build}
+
+# scripts that runs after repo cloning.
+install:
+  - vcsetup.bat
+
+platform: x64
+configuration: Release
+
+build:
+  parallel: true
+  project: TinyObjLoaderSolution.sln
