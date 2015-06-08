@@ -45,6 +45,8 @@ TinyObjLoader is successfully used in ...
 * mallie https://lighttransport.github.io/mallie
 * IBLBaker (Image Based Lighting Baker). http://www.derkreature.com/iblbaker/
 * Stanford CS148 http://web.stanford.edu/class/cs148/assignments/assignment3.pdf
+* Awesome Bump http://awesomebump.besaba.com/about/
+* sdlgl3-wavefront OpenGL .obj viewer https://github.com/chrisliebert/sdlgl3-wavefront
 * Your project here!
 
 Features
