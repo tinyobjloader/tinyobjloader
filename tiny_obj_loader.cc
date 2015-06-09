@@ -5,19 +5,20 @@
 //
 
 //
-// version 0.9.9: Replace atof() with custom parser.
-// version 0.9.8: Fix multi-materials(per-face material ID).
-// version 0.9.7: Support multi-materials(per-face material ID) per
+// version 0.9.10: Fix seg fault on windows.
+// version 0.9.9 : Replace atof() with custom parser.
+// version 0.9.8 : Fix multi-materials(per-face material ID).
+// version 0.9.7 : Support multi-materials(per-face material ID) per
 // object/group.
-// version 0.9.6: Support Ni(index of refraction) mtl parameter.
-//                Parse transmittance material parameter correctly.
-// version 0.9.5: Parse multiple group name.
-//                Add support of specifying the base path to load material file.
-// version 0.9.4: Initial suupport of group tag(g)
-// version 0.9.3: Fix parsing triple 'x/y/z'
-// version 0.9.2: Add more .mtl load support
-// version 0.9.1: Add initial .mtl load support
-// version 0.9.0: Initial
+// version 0.9.6 : Support Ni(index of refraction) mtl parameter.
+//                 Parse transmittance material parameter correctly.
+// version 0.9.5 : Parse multiple group name.
+//                 Add support of specifying the base path to load material file.
+// version 0.9.4 : Initial suupport of group tag(g)
+// version 0.9.3 : Fix parsing triple 'x/y/z'
+// version 0.9.2 : Add more .mtl load support
+// version 0.9.1 : Add initial .mtl load support
+// version 0.9.0 : Initial
 //
 
 #include <cstdlib>
@@ -35,6 +36,8 @@
 #include "tiny_obj_loader.h"
 
 namespace tinyobj {
+
+#define TINYOBJ_SSCANF_BUFFER_SIZE  (4096)
 
 struct vertex_index {
   int v_idx, vt_idx, vn_idx;
@@ -457,10 +460,10 @@ std::string LoadMtl(std::map<std::string, int> &material_map,
       InitMaterial(material);
 
       // set new mtl name
-      char namebuf[4096];
+      char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
       token += 7;
 #ifdef _MSC_VER
-      sscanf_s(token, "%s", namebuf);
+      sscanf_s(token, "%s", namebuf, _countof(namebuf));
 #else
       sscanf(token, "%s", namebuf);
 #endif
@@ -748,10 +751,10 @@ std::string LoadObj(std::vector<shape_t> &shapes,
     // use mtl
     if ((0 == strncmp(token, "usemtl", 6)) && isSpace((token[6]))) {
 
-      char namebuf[4096];
+      char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
       token += 7;
 #ifdef _MSC_VER
-      sscanf_s(token, "%s", namebuf);
+      sscanf_s(token, "%s", namebuf, _countof(namebuf));
 #else
       sscanf(token, "%s", namebuf);
 #endif
@@ -775,10 +778,10 @@ std::string LoadObj(std::vector<shape_t> &shapes,
 
     // load mtl
     if ((0 == strncmp(token, "mtllib", 6)) && isSpace((token[6]))) {
-      char namebuf[4096];
+      char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
       token += 7;
 #ifdef _MSC_VER
-      sscanf_s(token, "%s", namebuf);
+      sscanf_s(token, "%s", namebuf, _countof(namebuf));
 #else
       sscanf(token, "%s", namebuf);
 #endif
@@ -841,10 +844,10 @@ std::string LoadObj(std::vector<shape_t> &shapes,
       shape = shape_t();
 
       // @todo { multiple object name? }
-      char namebuf[4096];
+      char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
       token += 2;
 #ifdef _MSC_VER
-      sscanf_s(token, "%s", namebuf);
+      sscanf_s(token, "%s", namebuf, _countof(namebuf));
 #else
       sscanf(token, "%s", namebuf);
 #endif
