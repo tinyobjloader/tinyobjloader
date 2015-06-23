@@ -764,8 +764,10 @@ std::string LoadObj(std::vector<shape_t> &shapes,
       bool ret = exportFaceGroupToShape(shape, vertexCache, v, vn, vt,
                                         faceGroup, material, name, true);
       if (ret) {
-        faceGroup.clear();
+          shapes.push_back(shape);
       }
+      shape = shape_t();
+      faceGroup.clear();
 
       if (material_map.find(namebuf) != material_map.end()) {
         material = material_map[namebuf];
