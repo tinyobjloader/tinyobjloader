@@ -15,6 +15,7 @@ Tiny but poweful single file wavefront obj loader written in C++. No dependency 
 What's new
 ----------
 
+* Jun 23, 2015 : Various fixes and added more projects using tinyobjloader. Thanks many contributors!
 * Mar 03, 2015 : Replace atof() with hand-written parser for robust reading of numeric value. Thanks skurmedel!
 * Feb 06, 2015 : Fix parsing multi-material object
 * Sep 14, 2014 : Add support for multi-material per object/group. Thanks Mykhailo!
@@ -47,6 +48,7 @@ TinyObjLoader is successfully used in ...
 * Stanford CS148 http://web.stanford.edu/class/cs148/assignments/assignment3.pdf
 * Awesome Bump http://awesomebump.besaba.com/about/
 * sdlgl3-wavefront OpenGL .obj viewer https://github.com/chrisliebert/sdlgl3-wavefront
+* pbrt-v3 https://https://github.com/mmp/pbrt-v3
 * Your project here!
 
 Features
