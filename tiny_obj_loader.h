@@ -37,7 +37,9 @@ typedef struct {
   std::vector<float> positions;
   std::vector<float> normals;
   std::vector<float> texcoords;
-  std::vector<unsigned int> indices;
+  std::vector<unsigned int> indices; // indices for vertex
+  std::vector<unsigned int> normal_indices; // indices for normal
+  std::vector<unsigned int> texcoord_indices; // indices for texcoord
   std::vector<int> material_ids; // per-mesh material ID
 } mesh_t;
 

@@ -15,6 +15,8 @@ static void PrintInfo(const std::vector<tinyobj::shape_t>& shapes, const std::ve
   for (size_t i = 0; i < shapes.size(); i++) {
     printf("shape[%ld].name = %s\n", i, shapes[i].name.c_str());
     printf("Size of shape[%ld].indices: %ld\n", i, shapes[i].mesh.indices.size());
+    printf("Size of shape[%ld].normal_indices: %ld\n", i, shapes[i].mesh.normal_indices.size());
+    printf("Size of shape[%ld].texcoord_indices: %ld\n", i, shapes[i].mesh.texcoord_indices.size());
     printf("Size of shape[%ld].material_ids: %ld\n", i, shapes[i].mesh.material_ids.size());
     assert((shapes[i].mesh.indices.size() % 3) == 0);
     for (size_t f = 0; f < shapes[i].mesh.indices.size() / 3; f++) {

@@ -11,7 +11,7 @@ solution "TinyObjLoaderSolution"
    configurations { "Release", "Debug" }
 
    if (os.is("windows")) then
-      platforms { "x32", "x64" }
+      platforms { "x64", "x32" }
    else
       platforms { "native", "x32", "x64" }
    end
