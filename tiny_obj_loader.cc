@@ -300,14 +300,14 @@ static vertex_index parseTriple(const char *&token, int vsize, int vnsize,
   return vi;
 }
 
-static unsigned int
-updateVertex(std::map<vertex_index, unsigned int> &vertexCache,
+static vertex_index
+updateVertex(std::map<vertex_index, vertex_index> &vertexCache,
              std::vector<float> &positions, std::vector<float> &normals,
              std::vector<float> &texcoords,
              const std::vector<float> &in_positions,
              const std::vector<float> &in_normals,
              const std::vector<float> &in_texcoords, const vertex_index &i) {
-  const std::map<vertex_index, unsigned int>::iterator it = vertexCache.find(i);
+  const std::map<vertex_index, vertex_index>::iterator it = vertexCache.find(i);
 
   if (it != vertexCache.end()) {
     // found cache
@@ -331,10 +331,14 @@ updateVertex(std::map<vertex_index, unsigned int> &vertexCache,
     texcoords.push_back(in_texcoords[2 * i.vt_idx + 1]);
   }
 
-  unsigned int idx = static_cast<unsigned int>(positions.size() / 3 - 1);
-  vertexCache[i] = idx;
+  unsigned int v_idx = static_cast<unsigned int>(positions.size() / 3 - 1);
+  unsigned int vn_idx = static_cast<unsigned int>(normals.size() / 3 - 1);
+  unsigned int vt_idx = static_cast<unsigned int>(texcoords.size() / 2 - 1);
+  vertexCache[i].v_idx = v_idx;
+  vertexCache[i].vn_idx = vn_idx;
+  vertexCache[i].vt_idx = vt_idx;
 
-  return idx;
+  return vertexCache[i];
 }
 
 void InitMaterial(material_t &material) {
@@ -358,7 +362,7 @@ void InitMaterial(material_t &material) {
 }
 
 static bool exportFaceGroupToShape(
-    shape_t &shape, std::map<vertex_index, unsigned int> vertexCache,
+    shape_t &shape, std::map<vertex_index, vertex_index> vertexCache,
     const std::vector<float> &in_positions,
     const std::vector<float> &in_normals,
     const std::vector<float> &in_texcoords,
@@ -383,19 +387,19 @@ static bool exportFaceGroupToShape(
       i1 = i2;
       i2 = face[k];
 
-      unsigned int v0 = updateVertex(
+      vertex_index vi0 = updateVertex(
           vertexCache, shape.mesh.positions, shape.mesh.normals,
           shape.mesh.texcoords, in_positions, in_normals, in_texcoords, i0);
-      unsigned int v1 = updateVertex(
+      vertex_index vi1 = updateVertex(
           vertexCache, shape.mesh.positions, shape.mesh.normals,
           shape.mesh.texcoords, in_positions, in_normals, in_texcoords, i1);
-      unsigned int v2 = updateVertex(
+      vertex_index vi2 = updateVertex(
           vertexCache, shape.mesh.positions, shape.mesh.normals,
           shape.mesh.texcoords, in_positions, in_normals, in_texcoords, i2);
 
-      shape.mesh.indices.push_back(v0);
-      shape.mesh.indices.push_back(v1);
-      shape.mesh.indices.push_back(v2);
+      shape.mesh.indices.push_back(vi0.v_idx);
+      shape.mesh.indices.push_back(vi1.v_idx);
+      shape.mesh.indices.push_back(vi2.v_idx);
 
       shape.mesh.material_ids.push_back(material_id);
     }
@@ -662,7 +666,7 @@ std::string LoadObj(std::vector<shape_t> &shapes,
 
   // material
   std::map<std::string, int> material_map;
-  std::map<vertex_index, unsigned int> vertexCache;
+  std::map<vertex_index, vertex_index> vertexCache;
   int material = -1;
 
   shape_t shape;
