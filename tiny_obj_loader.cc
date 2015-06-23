@@ -5,6 +5,8 @@
 //
 
 //
+// version 0.9.12: Fix groups being ignored if they have 'usemtl' just before 'g' (#44)
+// version 0.9.11: Invert `Tr` parameter(#43)
 // version 0.9.10: Fix seg fault on windows.
 // version 0.9.9 : Replace atof() with custom parser.
 // version 0.9.8 : Fix multi-materials(per-face material ID).
