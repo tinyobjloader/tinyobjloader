@@ -414,7 +414,9 @@ std::string LoadMtl(std::map<std::string, int> &material_map,
                     std::istream &inStream) {
   std::stringstream err;
 
+  // Create a default material anyway.
   material_t material;
+  InitMaterial(material);
 
   int maxchars = 8192;             // Alloc enough size.
   std::vector<char> buf(maxchars); // Alloc enough size.
@@ -623,7 +625,13 @@ std::string MaterialFileReader::operator()(const std::string &matId,
   }
 
   std::ifstream matIStream(filepath.c_str());
-  return LoadMtl(matMap, materials, matIStream);
+  std::string err = LoadMtl(matMap, materials, matIStream);
+  if (!matIStream) {
+    std::stringstream ss;
+    ss << "WARN: Material file [ " << filepath << " ] not found. Created a default material.";
+    err += ss.str();
+  }
+  return err;
 }
 
 std::string LoadObj(std::vector<shape_t> &shapes,
