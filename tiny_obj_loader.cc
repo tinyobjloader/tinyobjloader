@@ -5,6 +5,7 @@
 //
 
 //
+// version 0.9.13: Report "Material file not found message" in `err`(#46)
 // version 0.9.12: Fix groups being ignored if they have 'usemtl' just before 'g' (#44)
 // version 0.9.11: Invert `Tr` parameter(#43)
 // version 0.9.10: Fix seg fault on windows.
