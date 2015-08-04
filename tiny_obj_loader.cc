@@ -29,6 +29,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstddef>
+#include <cctype>
 
 #include <string>
 #include <vector>
