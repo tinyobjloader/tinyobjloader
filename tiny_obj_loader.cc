@@ -469,7 +469,7 @@ std::string LoadMtl(std::map<std::string, int> &material_map,
       char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
       token += 7;
 #ifdef _MSC_VER
-      sscanf_s(token, "%s", namebuf, _countof(namebuf));
+      sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
 #else
       sscanf(token, "%s", namebuf);
 #endif
@@ -767,7 +767,7 @@ std::string LoadObj(std::vector<shape_t> &shapes,
       char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
       token += 7;
 #ifdef _MSC_VER
-      sscanf_s(token, "%s", namebuf, _countof(namebuf));
+      sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
 #else
       sscanf(token, "%s", namebuf);
 #endif
@@ -796,7 +796,7 @@ std::string LoadObj(std::vector<shape_t> &shapes,
       char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
       token += 7;
 #ifdef _MSC_VER
-      sscanf_s(token, "%s", namebuf, _countof(namebuf));
+      sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
 #else
       sscanf(token, "%s", namebuf);
 #endif
@@ -862,7 +862,7 @@ std::string LoadObj(std::vector<shape_t> &shapes,
       char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
       token += 2;
 #ifdef _MSC_VER
-      sscanf_s(token, "%s", namebuf, _countof(namebuf));
+      sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
 #else
       sscanf(token, "%s", namebuf);
 #endif
