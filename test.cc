@@ -7,9 +7,10 @@
 #include <sstream>
 #include <fstream>
 
-static void PrintInfo(const std::vector<tinyobj::shape_t>& shapes, const std::vector<tinyobj::material_t>& materials)
+static void PrintInfo(const std::vector<tinyobj::shape_t>& shapes, const std::vector<tinyobj::curve_t>& curves, const std::vector<tinyobj::material_t>& materials)
 {
   std::cout << "# of shapes    : " << shapes.size() << std::endl;
+  std::cout << "# of curves    : " << curves.size() << std::endl;
   std::cout << "# of materials : " << materials.size() << std::endl;
 
   for (size_t i = 0; i < shapes.size(); i++) {
@@ -30,6 +31,29 @@ static void PrintInfo(const std::vector<tinyobj::shape_t>& shapes, const std::ve
         shapes[i].mesh.positions[3*v+2]);
     }
   }
+
+  for (size_t i = 0; i < curves.size(); i++) {
+    printf("curve[%ld].name = %s\n", i, curves[i].name.c_str());
+    printf("Size of curve[%ld].indices: %ld\n", i, curves[i].indices.size());
+
+    printf("curves[%ld].vertices: %ld\n", i, curves[i].positions.size());
+    assert((curves[i].positions.size() % 3) == 0);
+    for (size_t v = 0; v < curves[i].positions.size() / 3; v++) {
+      printf("  v[%ld] = (%f, %f, %f)\n", v,
+        curves[i].positions[3*v+0],
+        curves[i].positions[3*v+1],
+        curves[i].positions[3*v+2]);
+    }
+
+    for (size_t v = 0; v < curves[i].u_params.size(); v++) {
+      printf("  u[%ld] = %f\n", v, curves[i].u_params[v]);
+    }
+
+    for (size_t v = 0; v < curves[i].v_params.size(); v++) {
+      printf("  u[%ld] = %f\n", v, curves[i].v_params[v]);
+    }
+  }
+
 
   for (size_t i = 0; i < materials.size(); i++) {
     printf("material[%ld].name = %s\n", i, materials[i].name.c_str());
@@ -63,15 +87,16 @@ TestLoadObj(
   std::cout << "Loading " << filename << std::endl;
 
   std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::curve_t> curves;
   std::vector<tinyobj::material_t> materials;
-  std::string err = tinyobj::LoadObj(shapes, materials, filename, basepath);
+  std::string err = tinyobj::LoadObj(shapes, curves, materials, filename, basepath);
 
   if (!err.empty()) {
     std::cerr << err << std::endl;
     return false;
   }
 
-  PrintInfo(shapes, materials);
+  PrintInfo(shapes, curves, materials);
 
   return true;
 }
@@ -163,15 +188,16 @@ std::string matStream(
 
   MaterialStringStreamReader matSSReader(matStream);
   std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::curve_t> curves;
   std::vector<tinyobj::material_t> materials;
-  std::string err = tinyobj::LoadObj(shapes, materials, objStream, matSSReader);    
+  std::string err = tinyobj::LoadObj(shapes, curves, materials, objStream, matSSReader);    
   
   if (!err.empty()) {
     std::cerr << err << std::endl;
     return false;
   }
 
-  PrintInfo(shapes, materials);
+  PrintInfo(shapes, curves, materials);
     
   return true;
 }

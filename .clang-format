@@ -1,0 +1,7 @@
+---
+BasedOnStyle: LLVM
+IndentWidth: 2
+TabWidth: 2
+UseTab: Always
+BreakBeforeBraces: Attach
+Standard: Cpp03
