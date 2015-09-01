@@ -5,6 +5,7 @@
 //
 
 //
+// version 0.9.14: Support specular highlight, bump, displacement and alpha map(#53)
 // version 0.9.13: Report "Material file not found message" in `err`(#46)
 // version 0.9.12: Fix groups being ignored if they have 'usemtl' just before 'g' (#44)
 // version 0.9.11: Invert `Tr` parameter(#43)
@@ -344,7 +345,10 @@ void InitMaterial(material_t &material) {
   material.ambient_texname = "";
   material.diffuse_texname = "";
   material.specular_texname = "";
-  material.normal_texname = "";
+  material.specular_highlight_texname = "";
+  material.bump_texname = "";
+  material.displacement_texname = "";
+  material.alpha_texname = "";
   for (int i = 0; i < 3; i++) {
     material.ambient[i] = 0.f;
     material.diffuse[i] = 0.f;
@@ -587,10 +591,38 @@ std::string LoadMtl(std::map<std::string, int> &material_map,
       continue;
     }
 
-    // normal texture
+    // specular highlight texture
     if ((0 == strncmp(token, "map_Ns", 6)) && isSpace(token[6])) {
       token += 7;
-      material.normal_texname = token;
+      material.specular_highlight_texname = token;
+      continue;
+    }
+
+    // bump texture
+    if ((0 == strncmp(token, "map_bump", 8)) && isSpace(token[8])) {
+      token += 9;
+      material.bump_texname = token;
+      continue;
+    }
+
+    // alpha texture
+    if ((0 == strncmp(token, "map_d", 5)) && isSpace(token[5])) {
+      token += 6;
+      material.bump_texname = token;
+      continue;
+    }
+
+    // bump texture
+    if ((0 == strncmp(token, "bump", 4)) && isSpace(token[4])) {
+      token += 5;
+      material.bump_texname = token;
+      continue;
+    }
+
+    // displacement texture
+    if ((0 == strncmp(token, "disp", 4)) && isSpace(token[4])) {
+      token += 5;
+      material.displacement_texname = token;
       continue;
     }
 
