@@ -45,7 +45,10 @@ static void PrintInfo(const std::vector<tinyobj::shape_t>& shapes, const std::ve
     printf("  material.map_Ka = %s\n", materials[i].ambient_texname.c_str());
     printf("  material.map_Kd = %s\n", materials[i].diffuse_texname.c_str());
     printf("  material.map_Ks = %s\n", materials[i].specular_texname.c_str());
-    printf("  material.map_Ns = %s\n", materials[i].normal_texname.c_str());
+    printf("  material.map_Ns = %s\n", materials[i].specular_highlight_texname.c_str());
+    printf("  material.map_bump = %s\n", materials[i].bump_texname.c_str());
+    printf("  material.map_d = %s\n", materials[i].alpha_texname.c_str());
+    printf("  material.disp = %s\n", materials[i].displacement_texname.c_str());
     std::map<std::string, std::string>::const_iterator it(materials[i].unknown_parameter.begin());
     std::map<std::string, std::string>::const_iterator itEnd(materials[i].unknown_parameter.end());
     for (; it != itEnd; it++) {
