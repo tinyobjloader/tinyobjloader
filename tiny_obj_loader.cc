@@ -608,7 +608,7 @@ std::string LoadMtl(std::map<std::string, int> &material_map,
     // alpha texture
     if ((0 == strncmp(token, "map_d", 5)) && isSpace(token[5])) {
       token += 6;
-      material.bump_texname = token;
+      material.alpha_texname = token;
       continue;
     }
 
