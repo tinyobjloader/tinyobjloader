@@ -44,7 +44,8 @@ pyLoadObj(PyObject* self, PyObject* args)
     if(!PyArg_ParseTuple(args, "s", &filename))
         return NULL;
 
-    tinyobj::LoadObj(shapes, materials, filename);
+    std::string err;
+    tinyobj::LoadObj(shapes, materials, err, filename);
 
     pyshapes = PyDict_New();
     pymaterials = PyDict_New();
