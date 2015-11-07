@@ -17,6 +17,7 @@ Tiny but poweful single file wavefront obj loader written in C++. No dependency 
 What's new
 ----------
 
+* Nov 08, 2015 : Improved API.
 * Jun 23, 2015 : Various fixes and added more projects using tinyobjloader. Thanks many contributors!
 * Mar 03, 2015 : Replace atof() with hand-written parser for robust reading of numeric value. Thanks skurmedel!
 * Feb 06, 2015 : Fix parsing multi-material object
@@ -85,10 +86,14 @@ Usage
     std::vector<tinyobj::shape_t> shapes;
     std::vector<tinyobj::material_t> materials;
   
-    std::string err = tinyobj::LoadObj(shapes, materials, inputfile.c_str());
+    std::string err;
+    bool ret = tinyobj::LoadObj(shapes, materials, inputfile.c_str());
   
-    if (!err.empty()) {
+    if (!err.empty()) { // `err` may contain warning message.
       std::cerr << err << std::endl;
+    }
+
+    if (!ret) {
       exit(1);
     }
 
