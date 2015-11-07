@@ -54,9 +54,10 @@ public:
   MaterialReader() {}
   virtual ~MaterialReader() {}
 
-  virtual std::string operator()(const std::string &matId,
-                                 std::vector<material_t> &materials,
-                                 std::map<std::string, int> &matMap) = 0;
+  virtual bool operator()(const std::string &matId,
+                          std::vector<material_t> &materials,
+                          std::map<std::string, int> &matMap,
+                          std::string &err) = 0;
 };
 
 class MaterialFileReader : public MaterialReader {
@@ -64,9 +65,10 @@ public:
   MaterialFileReader(const std::string &mtl_basepath)
       : m_mtlBasePath(mtl_basepath) {}
   virtual ~MaterialFileReader() {}
-  virtual std::string operator()(const std::string &matId,
-                                 std::vector<material_t> &materials,
-                                 std::map<std::string, int> &matMap);
+  virtual bool operator()(const std::string &matId,
+                                std::vector<material_t> &materials,
+                                std::map<std::string, int> &matMap,
+                                std::string &err);
 
 private:
   std::string m_mtlBasePath;
@@ -75,23 +77,27 @@ private:
 /// Loads .obj from a file.
 /// 'shapes' will be filled with parsed shape data
 /// The function returns error string.
-/// Returns empty string when loading .obj success.
+/// Returns true when loading .obj become success.
+/// Returns warning and error message into `err`
 /// 'mtl_basepath' is optional, and used for base path for .mtl file.
-std::string LoadObj(std::vector<shape_t> &shapes,       // [output]
-                    std::vector<material_t> &materials, // [output]
-                    const char *filename, const char *mtl_basepath = NULL);
+bool LoadObj(std::vector<shape_t> &shapes,       // [output]
+             std::vector<material_t> &materials, // [output]
+             std::string& err,                   // [output]
+             const char *filename, const char *mtl_basepath = NULL);
 
 /// Loads object from a std::istream, uses GetMtlIStreamFn to retrieve
 /// std::istream for materials.
-/// Returns empty string when loading .obj success.
-std::string LoadObj(std::vector<shape_t> &shapes,       // [output]
-                    std::vector<material_t> &materials, // [output]
-                    std::istream &inStream, MaterialReader &readMatFn);
+/// Returns true when loading .obj become success.
+/// Returns warning and error message into `err`
+bool LoadObj(std::vector<shape_t> &shapes,       // [output]
+             std::vector<material_t> &materials, // [output]
+             std::string& err,                   // [output]
+             std::istream &inStream, MaterialReader &readMatFn);
 
 /// Loads materials into std::map
-/// Returns an empty string if successful
-std::string LoadMtl(std::map<std::string, int> &material_map,
-                    std::vector<material_t> &materials, std::istream &inStream);
+void LoadMtl(std::map<std::string, int> &material_map, // [output]
+             std::vector<material_t> &materials,       // [output]
+             std::istream &inStream);
 }
 
 #endif // _TINY_OBJ_LOADER_H

@@ -5,6 +5,7 @@
 //
 
 //
+// version 0.9.15: Change API to handle no mtl file case correctly(#58)
 // version 0.9.14: Support specular highlight, bump, displacement and alpha map(#53)
 // version 0.9.13: Report "Material file not found message" in `err`(#46)
 // version 0.9.12: Fix groups being ignored if they have 'usemtl' just before 'g' (#44)
@@ -415,10 +416,9 @@ static bool exportFaceGroupToShape(
   return true;
 }
 
-std::string LoadMtl(std::map<std::string, int> &material_map,
-                    std::vector<material_t> &materials,
-                    std::istream &inStream) {
-  std::stringstream err;
+void LoadMtl(std::map<std::string, int> &material_map,
+             std::vector<material_t> &materials,
+             std::istream &inStream) {
 
   // Create a default material anyway.
   material_t material;
@@ -643,13 +643,12 @@ std::string LoadMtl(std::map<std::string, int> &material_map,
   material_map.insert(
       std::pair<std::string, int>(material.name, static_cast<int>(materials.size())));
   materials.push_back(material);
-
-  return err.str();
 }
 
-std::string MaterialFileReader::operator()(const std::string &matId,
-                                           std::vector<material_t> &materials,
-                                           std::map<std::string, int> &matMap) {
+bool MaterialFileReader::operator()(const std::string &matId,
+                                    std::vector<material_t> &materials,
+                                    std::map<std::string, int> &matMap,
+                                    std::string& err) {
   std::string filepath;
 
   if (!m_mtlBasePath.empty()) {
@@ -659,27 +658,29 @@ std::string MaterialFileReader::operator()(const std::string &matId,
   }
 
   std::ifstream matIStream(filepath.c_str());
-  std::string err = LoadMtl(matMap, materials, matIStream);
+  LoadMtl(matMap, materials, matIStream);
   if (!matIStream) {
     std::stringstream ss;
     ss << "WARN: Material file [ " << filepath << " ] not found. Created a default material.";
     err += ss.str();
   }
-  return err;
+  return true;
 }
 
-std::string LoadObj(std::vector<shape_t> &shapes,
-                    std::vector<material_t> &materials, // [output]
-                    const char *filename, const char *mtl_basepath) {
+bool LoadObj(std::vector<shape_t> &shapes, // [output]
+             std::vector<material_t> &materials, // [output]
+             std::string &err,
+             const char *filename, const char *mtl_basepath) {
 
   shapes.clear();
 
-  std::stringstream err;
+  std::stringstream errss;
 
   std::ifstream ifs(filename);
   if (!ifs) {
-    err << "Cannot open file [" << filename << "]" << std::endl;
-    return err.str();
+    errss << "Cannot open file [" << filename << "]" << std::endl;
+    err = errss.str();
+    return false;
   }
 
   std::string basePath;
@@ -688,13 +689,14 @@ std::string LoadObj(std::vector<shape_t> &shapes,
   }
   MaterialFileReader matFileReader(basePath);
 
-  return LoadObj(shapes, materials, ifs, matFileReader);
+  return LoadObj(shapes, materials, err, ifs, matFileReader);
 }
 
-std::string LoadObj(std::vector<shape_t> &shapes,
-                    std::vector<material_t> &materials, // [output]
-                    std::istream &inStream, MaterialReader &readMatFn) {
-  std::stringstream err;
+bool LoadObj(std::vector<shape_t> &shapes, // [output]
+             std::vector<material_t> &materials, // [output]
+             std::string& err,
+             std::istream &inStream, MaterialReader &readMatFn) {
+  std::stringstream errss;
 
   std::vector<float> v;
   std::vector<float> vn;
@@ -833,10 +835,13 @@ std::string LoadObj(std::vector<shape_t> &shapes,
       sscanf(token, "%s", namebuf);
 #endif
 
-      std::string err_mtl = readMatFn(namebuf, materials, material_map);
-      if (!err_mtl.empty()) {
+      std::string err_mtl;
+      bool ok = readMatFn(namebuf, materials, material_map, err_mtl);
+      err += err_mtl;
+      
+      if (!ok) {
         faceGroup.clear(); // for safety
-        return err_mtl;
+        return false;
       }
 
       continue;
@@ -913,6 +918,8 @@ std::string LoadObj(std::vector<shape_t> &shapes,
   }
   faceGroup.clear(); // for safety
 
-  return err.str();
+  err += errss.str();
+  return true;
 }
-}
+
+} // namespace
