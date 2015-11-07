@@ -86,9 +86,12 @@ main(
   for (int i = 0; i < num_objfiles; i++) {
     std::cout << "Loading " << argv[i+1] << " ... " << std::flush;
     
-    std::string err = tinyobj::LoadObj(shapes[i], materials[i], argv[i+1]);
+    std::string err;
+    bool ret = tinyobj::LoadObj(shapes[i], materials[i], err, argv[i+1]);
     if (!err.empty()) {
       std::cerr << err << std::endl;
+    }
+    if (!ret) {
       exit(1);
     }
 

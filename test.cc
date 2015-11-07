@@ -67,10 +67,15 @@ TestLoadObj(
 
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
-  std::string err = tinyobj::LoadObj(shapes, materials, filename, basepath);
+
+  std::string err;
+  bool ret = tinyobj::LoadObj(shapes, materials, err, filename, basepath);
 
   if (!err.empty()) {
     std::cerr << err << std::endl;
+  }
+
+  if (!ret) {
     return false;
   }
 
@@ -152,12 +157,14 @@ std::string matStream(
         public:
             MaterialStringStreamReader(const std::string& matSStream): m_matSStream(matSStream) {}
             virtual ~MaterialStringStreamReader() {}
-            virtual std::string operator() (
+            virtual bool operator() (
               const std::string& matId,
               std::vector<material_t>& materials,
-              std::map<std::string, int>& matMap)
+              std::map<std::string, int>& matMap,
+              std::string& err)
             {
-                return LoadMtl(matMap, materials, m_matSStream);
+                LoadMtl(matMap, materials, m_matSStream);
+                return true;
             }
 
         private:
@@ -167,10 +174,14 @@ std::string matStream(
   MaterialStringStreamReader matSSReader(matStream);
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
-  std::string err = tinyobj::LoadObj(shapes, materials, objStream, matSSReader);    
+  std::string err;
+  bool ret = tinyobj::LoadObj(shapes, materials, err, objStream, matSSReader);    
   
   if (!err.empty()) {
     std::cerr << err << std::endl;
+  }
+
+  if (!ret) {
     return false;
   }
 
