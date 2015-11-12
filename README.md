@@ -87,7 +87,7 @@ Usage
     std::vector<tinyobj::material_t> materials;
   
     std::string err;
-    bool ret = tinyobj::LoadObj(shapes, materials, inputfile.c_str());
+    bool ret = tinyobj::LoadObj(shapes, materials, err, inputfile.c_str());
   
     if (!err.empty()) { // `err` may contain warning message.
       std::cerr << err << std::endl;
@@ -133,7 +133,7 @@ Usage
       printf("  material.map_Ka = %s\n", materials[i].ambient_texname.c_str());
       printf("  material.map_Kd = %s\n", materials[i].diffuse_texname.c_str());
       printf("  material.map_Ks = %s\n", materials[i].specular_texname.c_str());
-      printf("  material.map_Ns = %s\n", materials[i].normal_texname.c_str());
+      printf("  material.map_Ns = %s\n", materials[i].specular_highlight_texname.c_str());
       std::map<std::string, std::string>::const_iterator it(materials[i].unknown_parameter.begin());
       std::map<std::string, std::string>::const_iterator itEnd(materials[i].unknown_parameter.end());
       for (; it != itEnd; it++) {
