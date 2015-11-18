@@ -1,7 +1,3 @@
-lib_sources = {
-   "tiny_obj_loader.cc"
-}
-
 sources = {
    "test.cc",
    }
@@ -20,7 +16,7 @@ solution "TinyObjLoaderSolution"
    project "tinyobjloader"
       kind "ConsoleApp"
       language "C++"
-      files { lib_sources, sources }
+      files { sources }
 
       configuration "Debug"
          defines { "DEBUG" } -- -DDEBUG

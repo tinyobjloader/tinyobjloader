@@ -17,6 +17,7 @@ Tiny but poweful single file wavefront obj loader written in C++. No dependency 
 What's new
 ----------
 
+* Nov 26, 2015 : Now single-header only!.
 * Nov 08, 2015 : Improved API.
 * Jun 23, 2015 : Various fixes and added more projects using tinyobjloader. Thanks many contributors!
 * Mar 03, 2015 : Replace atof() with hand-written parser for robust reading of numeric value. Thanks skurmedel!
@@ -52,6 +53,7 @@ TinyObjLoader is successfully used in ...
 * Awesome Bump http://awesomebump.besaba.com/about/
 * sdlgl3-wavefront OpenGL .obj viewer https://github.com/chrisliebert/sdlgl3-wavefront
 * pbrt-v3 https://https://github.com/mmp/pbrt-v3
+* cocos2d-x https://github.com/cocos2d/cocos2d-x/
 * Your project here!
 
 Features
@@ -81,6 +83,9 @@ Licensed under 2 clause BSD.
 
 Usage
 -----
+
+    #define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
+    #include "tiny_obj_loader.h"
 
     std::string inputfile = "cornell_box.obj";
     std::vector<tinyobj::shape_t> shapes;
