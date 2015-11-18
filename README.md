@@ -52,6 +52,7 @@ TinyObjLoader is successfully used in ...
 * Awesome Bump http://awesomebump.besaba.com/about/
 * sdlgl3-wavefront OpenGL .obj viewer https://github.com/chrisliebert/sdlgl3-wavefront
 * pbrt-v3 https://https://github.com/mmp/pbrt-v3
+* cocos2d-x https://github.com/cocos2d/cocos2d-x/
 * Your project here!
 
 Features
