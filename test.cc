@@ -164,6 +164,8 @@ std::string matStream(
               std::map<std::string, int>& matMap,
               std::string& err)
             {
+                (void)matId;
+                (void)err;
                 LoadMtl(matMap, materials, m_matSStream);
                 return true;
             }

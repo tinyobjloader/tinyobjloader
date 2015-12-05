@@ -33,8 +33,8 @@
 //   #include "tiny_obj_loader.h"
 // 
 
-#ifndef _TINY_OBJ_LOADER_H
-#define _TINY_OBJ_LOADER_H
+#ifndef TINY_OBJ_LOADER_H
+#define TINY_OBJ_LOADER_H
 
 #include <string>
 #include <vector>
@@ -55,6 +55,8 @@ typedef struct {
   float dissolve; // 1 == opaque; 0 == fully transparent
   // illumination model (see http://www.fileformat.info/format/material/)
   int illum;
+
+  int dummy; // Supress padding warning.
 
   std::string ambient_texname;            // map_Ka
   std::string diffuse_texname;            // map_Kd
@@ -82,7 +84,7 @@ typedef struct {
 class MaterialReader {
 public:
   MaterialReader() {}
-  virtual ~MaterialReader() {}
+  virtual ~MaterialReader();
 
   virtual bool operator()(const std::string &matId,
                           std::vector<material_t> &materials,
@@ -148,14 +150,16 @@ void LoadMtl(std::map<std::string, int> &material_map, // [output]
 
 namespace tinyobj {
 
+MaterialReader::~MaterialReader() {}
+
 #define TINYOBJ_SSCANF_BUFFER_SIZE  (4096)
 
 struct vertex_index {
   int v_idx, vt_idx, vn_idx;
-  vertex_index(){};
-  vertex_index(int idx) : v_idx(idx), vt_idx(idx), vn_idx(idx){};
+  vertex_index(){}
+  vertex_index(int idx) : v_idx(idx), vt_idx(idx), vn_idx(idx){}
   vertex_index(int vidx, int vtidx, int vnidx)
-      : v_idx(vidx), vt_idx(vtidx), vn_idx(vnidx){};
+      : v_idx(vidx), vt_idx(vtidx), vn_idx(vnidx){}
 };
 // for std::map
 static inline bool operator<(const vertex_index &a, const vertex_index &b) {
@@ -423,21 +427,21 @@ updateVertex(std::map<vertex_index, unsigned int> &vertexCache,
     return it->second;
   }
 
-  assert(in_positions.size() > (unsigned int)(3 * i.v_idx + 2));
+  assert(in_positions.size() > static_cast<unsigned int>(3 * i.v_idx + 2));
 
-  positions.push_back(in_positions[3 * i.v_idx + 0]);
-  positions.push_back(in_positions[3 * i.v_idx + 1]);
-  positions.push_back(in_positions[3 * i.v_idx + 2]);
+  positions.push_back(in_positions[3 * static_cast<size_t>(i.v_idx) + 0]);
+  positions.push_back(in_positions[3 * static_cast<size_t>(i.v_idx) + 1]);
+  positions.push_back(in_positions[3 * static_cast<size_t>(i.v_idx) + 2]);
 
   if (i.vn_idx >= 0) {
-    normals.push_back(in_normals[3 * i.vn_idx + 0]);
-    normals.push_back(in_normals[3 * i.vn_idx + 1]);
-    normals.push_back(in_normals[3 * i.vn_idx + 2]);
+    normals.push_back(in_normals[3 * static_cast<size_t>(i.vn_idx) + 0]);
+    normals.push_back(in_normals[3 * static_cast<size_t>(i.vn_idx) + 1]);
+    normals.push_back(in_normals[3 * static_cast<size_t>(i.vn_idx) + 2]);
   }
 
   if (i.vt_idx >= 0) {
-    texcoords.push_back(in_texcoords[2 * i.vt_idx + 0]);
-    texcoords.push_back(in_texcoords[2 * i.vt_idx + 1]);
+    texcoords.push_back(in_texcoords[2 * static_cast<size_t>(i.vt_idx) + 0]);
+    texcoords.push_back(in_texcoords[2 * static_cast<size_t>(i.vt_idx) + 1]);
   }
 
   unsigned int idx = static_cast<unsigned int>(positions.size() / 3 - 1);
@@ -446,7 +450,7 @@ updateVertex(std::map<vertex_index, unsigned int> &vertexCache,
   return idx;
 }
 
-void InitMaterial(material_t &material) {
+static void InitMaterial(material_t &material) {
   material.name = "";
   material.ambient_texname = "";
   material.diffuse_texname = "";
@@ -529,10 +533,10 @@ void LoadMtl(std::map<std::string, int> &material_map,
   material_t material;
   InitMaterial(material);
 
-  int maxchars = 8192;             // Alloc enough size.
+  size_t maxchars = 8192;             // Alloc enough size.
   std::vector<char> buf(maxchars); // Alloc enough size.
   while (inStream.peek() != -1) {
-    inStream.getline(&buf[0], maxchars);
+    inStream.getline(&buf[0], static_cast<std::streamsize>(maxchars));
 
     std::string linebuf(&buf[0]);
 
@@ -738,7 +742,7 @@ void LoadMtl(std::map<std::string, int> &material_map,
     }
     if (_space) {
       std::ptrdiff_t len = _space - token;
-      std::string key(token, len);
+      std::string key(token, static_cast<size_t>(len));
       std::string value = _space + 1;
       material.unknown_parameter.insert(
           std::pair<std::string, std::string>(key, value));
@@ -817,7 +821,7 @@ bool LoadObj(std::vector<shape_t> &shapes, // [output]
   shape_t shape;
 
   int maxchars = 8192;             // Alloc enough size.
-  std::vector<char> buf(maxchars); // Alloc enough size.
+  std::vector<char> buf(static_cast<size_t>(maxchars)); // Alloc enough size.
   while (inStream.peek() != -1) {
     inStream.getline(&buf[0], maxchars);
 
@@ -1032,4 +1036,4 @@ bool LoadObj(std::vector<shape_t> &shapes, // [output]
 
 #endif
 
-#endif // _TINY_OBJ_LOADER_H
+#endif // TINY_OBJ_LOADER_H
