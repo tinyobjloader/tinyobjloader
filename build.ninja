@@ -1,0 +1,16 @@
+# build.ninja
+cc     = clang
+cxx    = clang++
+cflags = -Werror -Weverything
+cxxflags = -Werror -Weverything
+
+rule compile
+  command = $cxx $cxxflags -c $in -o $out
+
+rule link
+  command = $cxx $in -o $out
+
+build test.o: compile test.cc
+build test: link test.o
+
+default test
