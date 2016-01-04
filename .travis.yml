@@ -1,0 +1,12 @@
+language: cpp
+
+compiler: gcc
+
+before_install:
+  - curl -L "https://dl.bintray.com/gogoprog/gengine/linux64/premake4" -o premake4
+  - chmod +x premake4
+
+script:
+  - ./premake4 gmake
+  - make
+  - ./test_tinyobjloader
