@@ -1,7 +1,7 @@
 //
 // Copyright 2012-2015, Syoyo Fujita.
 //
-// Licensed under 2-clause BSD liecense.
+// Licensed under 2-clause BSD license.
 //
 
 //
@@ -20,7 +20,7 @@
 //                 Parse transmittance material parameter correctly.
 // version 0.9.5 : Parse multiple group name.
 //                 Add support of specifying the base path to load material file.
-// version 0.9.4 : Initial suupport of group tag(g)
+// version 0.9.4 : Initial support of group tag(g)
 // version 0.9.3 : Fix parsing triple 'x/y/z'
 // version 0.9.2 : Add more .mtl load support
 // version 0.9.1 : Add initial .mtl load support
@@ -56,7 +56,7 @@ typedef struct {
   // illumination model (see http://www.fileformat.info/format/material/)
   int illum;
 
-  int dummy; // Supress padding warning.
+  int dummy; // Suppress padding warning.
 
   std::string ambient_texname;            // map_Ka
   std::string diffuse_texname;            // map_Kd
