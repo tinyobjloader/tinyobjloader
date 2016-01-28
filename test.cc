@@ -7,14 +7,16 @@
 #include <sstream>
 #include <fstream>
 
-static void PrintInfo(const std::vector<tinyobj::shape_t>& shapes)
+static void PrintInfo(const std::vector<tinyobj::shape_t>& shapes, bool triangulate = true)
 {
-  std::cout << "# of shapes : " << shapes.size() << std::endl;
 
   for (size_t i = 0; i < shapes.size(); i++) {
     printf("shape[%ld].name = %s\n", i, shapes[i].name.c_str());
     printf("shape[%ld].indices: %ld\n", i, shapes[i].mesh.indices.size());
-    assert((shapes[i].mesh.indices.size() % 3) == 0);
+    if (triangulate)
+    {
+        assert((shapes[i].mesh.indices.size() % 3) == 0);
+    }
     for (size_t f = 0; f < shapes[i].mesh.indices.size(); f++) {
       printf("  idx[%ld] = %d\n", f, shapes[i].mesh.indices[f]);
     }
@@ -27,7 +29,51 @@ static void PrintInfo(const std::vector<tinyobj::shape_t>& shapes)
         shapes[i].mesh.positions[3*v+1],
         shapes[i].mesh.positions[3*v+2]);
     }
-  
+
+    printf("shape[%ld].numFaces: %ld\n", i, shapes[i].mesh.numVertices.size());
+    for (size_t v = 0; v < shapes[i].mesh.numVertices.size(); v++) {
+      printf("  numVerts[%ld] = %ld\n", v,
+        (long) shapes[i].mesh.numVertices[v]);
+    }
+
+    printf("shape[%ld].numTags: %ld\n", i, shapes[i].mesh.tags.size());
+    for (size_t t = 0; t < shapes[i].mesh.tags.size(); t++) {
+      printf("  tag[%ld] = %s ", t, shapes[i].mesh.tags[t].name.c_str());
+      printf(" ints: [");
+      for (int j = 0; j < shapes[i].mesh.tags[t].intValues.size(); ++j)
+      {
+          printf("%ld", (long) shapes[i].mesh.tags[t].intValues[j]);
+          if (j < (shapes[i].mesh.tags[t].intValues.size()-1))
+          {
+              printf(", ");
+          }
+      }
+      printf("]");
+
+      printf(" floats: [");
+      for (int j = 0; j < shapes[i].mesh.tags[t].floatValues.size(); ++j)
+      {
+          printf("%f", shapes[i].mesh.tags[t].floatValues[j]);
+          if (j < (shapes[i].mesh.tags[t].floatValues.size()-1))
+          {
+              printf(", ");
+          }
+      }
+      printf("]");
+
+      printf(" strings: [");
+      for (int j = 0; j < shapes[i].mesh.tags[t].stringValues.size(); ++j)
+      {
+          printf("%s", shapes[i].mesh.tags[t].stringValues[j].c_str());
+          if (j < (shapes[i].mesh.tags[t].stringValues.size()-1))
+          {
+              printf(", ");
+          }
+      }
+      printf("]");
+      printf("\n");
+    }
+
     printf("shape[%ld].material.name = %s\n", i, shapes[i].material.name.c_str());
     printf("  material.Ka = (%f, %f ,%f)\n", shapes[i].material.ambient[0], shapes[i].material.ambient[1], shapes[i].material.ambient[2]);
     printf("  material.Kd = (%f, %f ,%f)\n", shapes[i].material.diffuse[0], shapes[i].material.diffuse[1], shapes[i].material.diffuse[2]);
@@ -54,19 +100,20 @@ static void PrintInfo(const std::vector<tinyobj::shape_t>& shapes)
 static bool
 TestLoadObj(
   const char* filename,
-  const char* basepath = NULL)
+  const char* basepath = NULL,
+  bool triangulate = true)
 {
   std::cout << "Loading " << filename << std::endl;
 
   std::vector<tinyobj::shape_t> shapes;
-  std::string err = tinyobj::LoadObj(shapes, filename, basepath);
+  std::string err = tinyobj::LoadObj(shapes, filename, basepath, triangulate);
 
   if (!err.empty()) {
     std::cerr << err << std::endl;
     return false;
   }
 
-  PrintInfo(shapes);
+  PrintInfo(shapes, triangulate);
 
   return true;
 }
@@ -78,7 +125,7 @@ TestStreamLoadObj()
   std::cout << "Stream Loading " << std::endl;
 
   std::stringstream objStream;
-  objStream 
+  objStream
     << "mtllib cube.mtl\n"
     "\n"
     "v 0.000000 2.000000 2.000000\n"
@@ -111,7 +158,7 @@ TestStreamLoadObj()
     "f 2 6 7 3\n"
     "# 6 elements";
 
-std::string matStream( 
+std::string matStream(
     "newmtl white\n"
     "Ka 0 0 0\n"
     "Kd 1 1 1\n"
@@ -153,19 +200,19 @@ std::string matStream(
 
         private:
             std::stringstream m_matSStream;
-    };  
+    };
 
   MaterialStringStreamReader matSSReader(matStream);
   std::vector<tinyobj::shape_t> shapes;
-  std::string err = tinyobj::LoadObj(shapes, objStream, matSSReader);    
-  
+  std::string err = tinyobj::LoadObj(shapes, objStream, matSSReader);
+
   if (!err.empty()) {
     std::cerr << err << std::endl;
     return false;
   }
 
   PrintInfo(shapes);
-    
+
   return true;
 }
 
@@ -174,7 +221,6 @@ main(
   int argc,
   char **argv)
 {
-
   if (argc > 1) {
     const char* basepath = NULL;
     if (argc > 2) {
@@ -185,7 +231,8 @@ main(
     assert(true == TestLoadObj("cornell_box.obj"));
     assert(true == TestLoadObj("cube.obj"));
     assert(true == TestStreamLoadObj());
+    assert(true == TestLoadObj("catmark_torus_creases0.obj", NULL, false));
   }
-  
+
   return 0;
 }

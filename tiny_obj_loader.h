@@ -36,10 +36,21 @@ typedef struct
 
 typedef struct
 {
+    std::string                 name;
+
+    std::vector<int>            intValues;
+    std::vector<float>          floatValues;
+    std::vector<std::string>    stringValues;
+} tag_t;
+
+typedef struct
+{
     std::vector<float>          positions;
     std::vector<float>          normals;
     std::vector<float>          texcoords;
     std::vector<unsigned int>   indices;
+    std::vector<unsigned char>  numVertices; //Is it worth it 255 faces
+    std::vector<tag_t>         tags;
 } mesh_t;
 
 typedef struct
@@ -82,7 +93,9 @@ class MaterialFileReader:
 std::string LoadObj(
     std::vector<shape_t>& shapes,   // [output]
     const char* filename,
-    const char* mtl_basepath = NULL);
+    const char* mtl_basepath = NULL,
+    bool triangulate = true
+);
 
 /// Loads object from a std::istream, uses GetMtlIStreamFn to retrieve
 /// std::istream for materials.
@@ -90,7 +103,8 @@ std::string LoadObj(
 std::string LoadObj(
     std::vector<shape_t>& shapes,   // [output]
     std::istream& inStream,
-    MaterialReader& readMatFn);
+    MaterialReader& readMatFn,
+    bool triangulate = true);
 
 /// Loads materials into std::map
 /// Returns an empty string if successful

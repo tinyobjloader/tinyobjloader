@@ -1,6 +1,6 @@
 //
 // Copyright 2012-2013, Syoyo Fujita.
-// 
+//
 // Licensed under 2-clause BSD liecense.
 //
 
@@ -38,6 +38,14 @@ struct vertex_index {
   vertex_index(int vidx, int vtidx, int vnidx) : v_idx(vidx), vt_idx(vtidx), vn_idx(vnidx) {};
 
 };
+
+struct tag_sizes {
+    tag_sizes() : num_ints(0), num_floats(0), num_strings(0) {}
+    int num_ints;
+    int num_floats;
+    int num_strings;
+};
+
 // for std::map
 static inline bool operator<(const vertex_index& a, const vertex_index& b)
 {
@@ -62,7 +70,7 @@ static inline bool isNewLine(const char c) {
   return (c == '\r') || (c == '\n') || (c == '\0');
 }
 
-// Make index zero-base, and also support relative index. 
+// Make index zero-base, and also support relative index.
 static inline int fixIndex(int idx, int n)
 {
   int i;
@@ -122,6 +130,30 @@ static inline void parseFloat3(
 }
 
 
+static tag_sizes parseTagTriple(const char* & token)
+{
+    tag_sizes ts;
+
+    ts.num_ints = atoi(token);
+    token += strcspn(token, "/ \t\r");
+    if (token[0] != '/') {
+        return ts;
+    }
+    token++;
+
+    ts.num_floats = atoi(token);
+    token += strcspn(token, "/ \t\r");
+    if (token[0] != '/') {
+        return ts;
+    }
+    token++;
+
+    ts.num_strings = atoi(token);
+    token += strcspn(token, "/ \t\r") + 1;
+
+    return ts;
+}
+
 // Parse triples: i, i/j/k, i//k, i/j
 static vertex_index parseTriple(
   const char* &token,
@@ -145,7 +177,7 @@ static vertex_index parseTriple(
       token += strcspn(token, "/ \t\r");
       return vi;
     }
-    
+
     // i/j/k or i/j
     vi.vt_idx = fixIndex(atoi(token), vtsize);
     token += strcspn(token, "/ \t\r");
@@ -157,7 +189,7 @@ static vertex_index parseTriple(
     token++;  // skip '/'
     vi.vn_idx = fixIndex(atoi(token), vnsize);
     token += strcspn(token, "/ \t\r");
-    return vi; 
+    return vi;
 }
 
 static unsigned int
@@ -184,13 +216,13 @@ updateVertex(
   positions.push_back(in_positions[3*i.v_idx+1]);
   positions.push_back(in_positions[3*i.v_idx+2]);
 
-  if (i.vn_idx >= 0) {
+  if (i.vn_idx >= 0 && (i.vn_idx * 3 + 2) < in_normals.size() ) {
     normals.push_back(in_normals[3*i.vn_idx+0]);
     normals.push_back(in_normals[3*i.vn_idx+1]);
     normals.push_back(in_normals[3*i.vn_idx+2]);
   }
 
-  if (i.vt_idx >= 0) {
+  if (i.vt_idx >= 0 && (i.vt_idx * 2 +1) < in_texcoords.size()) {
     texcoords.push_back(in_texcoords[2*i.vt_idx+0]);
     texcoords.push_back(in_texcoords[2*i.vt_idx+1]);
   }
@@ -228,9 +260,11 @@ exportFaceGroupToShape(
   const std::vector<float> &in_normals,
   const std::vector<float> &in_texcoords,
   const std::vector<std::vector<vertex_index> >& faceGroup,
+  std::vector<tag_t>& tags,
   const material_t &material,
   const std::string &name,
-  const bool is_material_seted)
+  const bool is_material_seted,
+  const bool triangulate)
 {
   if (faceGroup.empty()) {
     return false;
@@ -247,26 +281,38 @@ exportFaceGroupToShape(
   for (size_t i = 0; i < faceGroup.size(); i++) {
     const std::vector<vertex_index>& face = faceGroup[i];
 
-    vertex_index i0 = face[0];
-    vertex_index i1(-1);
-    vertex_index i2 = face[1];
-
     size_t npolys = face.size();
 
-    // Polygon -> triangle fan conversion
-    for (size_t k = 2; k < npolys; k++) {
-      i1 = i2;
-      i2 = face[k];
+    if (triangulate) {
+        vertex_index i0 = face[0];
+        vertex_index i1(-1);
+        vertex_index i2 = face[1];
 
-      unsigned int v0 = updateVertex(vertexCache, positions, normals, texcoords, in_positions, in_normals, in_texcoords, i0);
-      unsigned int v1 = updateVertex(vertexCache, positions, normals, texcoords, in_positions, in_normals, in_texcoords, i1);
-      unsigned int v2 = updateVertex(vertexCache, positions, normals, texcoords, in_positions, in_normals, in_texcoords, i2);
+        // Polygon -> triangle fan conversion
+        for (size_t k = 2; k < npolys; k++) {
+          i1 = i2;
+          i2 = face[k];
 
-      indices.push_back(v0);
-      indices.push_back(v1);
-      indices.push_back(v2);
+          unsigned int v0 = updateVertex(vertexCache, positions, normals, texcoords, in_positions, in_normals, in_texcoords, i0);
+          unsigned int v1 = updateVertex(vertexCache, positions, normals, texcoords, in_positions, in_normals, in_texcoords, i1);
+          unsigned int v2 = updateVertex(vertexCache, positions, normals, texcoords, in_positions, in_normals, in_texcoords, i2);
+
+          indices.push_back(v0);
+          indices.push_back(v1);
+          indices.push_back(v2);
+
+          shape.mesh.numVertices.push_back(3);
+        }
     }
+    else
+    {
+        for (size_t k = 0; k < npolys; k++) {
+          unsigned int v = updateVertex(vertexCache, positions, normals, texcoords, in_positions, in_normals, in_texcoords, face[k]);
+          indices.push_back(v);
 
+          shape.mesh.numVertices.push_back(npolys);
+        }
+    }
   }
 
   //
@@ -277,6 +323,7 @@ exportFaceGroupToShape(
   shape.mesh.normals.swap(normals);
   shape.mesh.texcoords.swap(texcoords);
   shape.mesh.indices.swap(indices);
+  shape.mesh.tags.swap(tags);
 
   if(is_material_seted) {
     shape.material = material;
@@ -299,7 +346,7 @@ std::string LoadMtl (
   std::stringstream err;
 
   material_t material;
-  
+
   int maxchars = 8192;  // Alloc enough size.
   std::vector<char> buf(maxchars);  // Alloc enough size.
   while (inStream.peek() != -1) {
@@ -326,9 +373,9 @@ std::string LoadMtl (
 
     assert(token);
     if (token[0] == '\0') continue; // empty line
-    
+
     if (token[0] == '#') continue;  // comment line
-    
+
     // new mtl
     if ((0 == strncmp(token, "newmtl", 6)) && isSpace((token[6]))) {
       // flush previous material.
@@ -344,7 +391,7 @@ std::string LoadMtl (
       material.name = namebuf;
       continue;
     }
-    
+
     // ambient
     if (token[0] == 'K' && token[1] == 'a' && isSpace((token[2]))) {
       token += 2;
@@ -355,7 +402,7 @@ std::string LoadMtl (
       material.ambient[2] = b;
       continue;
     }
-    
+
     // diffuse
     if (token[0] == 'K' && token[1] == 'd' && isSpace((token[2]))) {
       token += 2;
@@ -366,7 +413,7 @@ std::string LoadMtl (
       material.diffuse[2] = b;
       continue;
     }
-    
+
     // specular
     if (token[0] == 'K' && token[1] == 's' && isSpace((token[2]))) {
       token += 2;
@@ -377,7 +424,7 @@ std::string LoadMtl (
       material.specular[2] = b;
       continue;
     }
-    
+
     // transmittance
     if (token[0] == 'K' && token[1] == 't' && isSpace((token[2]))) {
       token += 2;
@@ -499,7 +546,8 @@ std::string
 LoadObj(
   std::vector<shape_t>& shapes,
   const char* filename,
-  const char* mtl_basepath)
+  const char* mtl_basepath,
+  bool triangulate)
 {
 
   shapes.clear();
@@ -517,20 +565,23 @@ LoadObj(
     basePath = mtl_basepath;
   }
   MaterialFileReader matFileReader( basePath );
-  
-  return LoadObj(shapes, ifs, matFileReader);
+
+  return LoadObj(shapes, ifs, matFileReader, triangulate);
 }
 
 std::string LoadObj(
   std::vector<shape_t>& shapes,
   std::istream& inStream,
-  MaterialReader& readMatFn)
+  MaterialReader& readMatFn,
+  bool triangulate)
 {
   std::stringstream err;
 
   std::vector<float> v;
   std::vector<float> vn;
   std::vector<float> vt;
+  std::vector<tag_t> tags;
+
   std::vector<std::vector<vertex_index> > faceGroup;
   std::string name;
 
@@ -565,7 +616,7 @@ std::string LoadObj(
 
     assert(token);
     if (token[0] == '\0') continue; // empty line
-    
+
     if (token[0] == '#') continue;  // comment line
 
     // vertex
@@ -614,7 +665,7 @@ std::string LoadObj(
       }
 
       faceGroup.push_back(face);
-      
+
       continue;
     }
 
@@ -641,13 +692,13 @@ std::string LoadObj(
       char namebuf[4096];
       token += 7;
       sscanf(token, "%s", namebuf);
-        
+
       std::string err_mtl = readMatFn(namebuf, material_map);
       if (!err_mtl.empty()) {
         faceGroup.clear();  // for safety
         return err_mtl;
       }
-      
+
       continue;
     }
 
@@ -656,7 +707,7 @@ std::string LoadObj(
 
       // flush previous face group.
       shape_t shape;
-      bool ret = exportFaceGroupToShape(shape, v, vn, vt, faceGroup, material, name, is_material_seted);
+      bool ret = exportFaceGroupToShape(shape, v, vn, vt, faceGroup, tags, material, name, is_material_seted, triangulate);
       if (ret) {
         shapes.push_back(shape);
       }
@@ -688,7 +739,7 @@ std::string LoadObj(
 
       // flush previous face group.
       shape_t shape;
-      bool ret = exportFaceGroupToShape(shape, v, vn, vt, faceGroup, material, name, is_material_seted);
+      bool ret = exportFaceGroupToShape(shape, v, vn, vt, faceGroup, tags, material, name, is_material_seted, triangulate);
       if (ret) {
         shapes.push_back(shape);
       }
@@ -706,11 +757,51 @@ std::string LoadObj(
       continue;
     }
 
+    if (token[0] == 't' && isSpace(token[1])) {
+        tag_t tag;
+
+        char namebuf[4096];
+        token += 2;
+        sscanf(token, "%s", namebuf);
+        tag.name = std::string(namebuf);
+
+        token += tag.name.size() + 1;
+
+        tag_sizes ts = parseTagTriple(token);
+
+        tag.intValues.resize(ts.num_ints);
+
+        for(int i = 0; i < ts.num_ints; ++i)
+        {
+            tag.intValues[i] = atoi(token);
+            token += strcspn(token, "/ \t\r") + 1;
+        }
+
+        tag.floatValues.resize(ts.num_floats);
+        for(int i = 0; i < ts.num_floats; ++i)
+        {
+            tag.floatValues[i] = parseFloat(token);
+            token += strcspn(token, "/ \t\r") + 1;
+        }
+
+        tag.stringValues.resize(ts.num_strings);
+        for(int i = 0; i < ts.num_strings; ++i)
+        {
+            char stringValueBuffer[4096];
+
+            sscanf(token, "%s", stringValueBuffer);
+            tag.stringValues[i] = stringValueBuffer;
+            token += tag.stringValues[i].size() + 1;
+        }
+
+        tags.push_back(tag);
+    }
+
     // Ignore unknown command.
   }
 
   shape_t shape;
-  bool ret = exportFaceGroupToShape(shape, v, vn, vt, faceGroup, material, name, is_material_seted);
+  bool ret = exportFaceGroupToShape(shape, v, vn, vt, faceGroup, tags, material, name, is_material_seted, triangulate);
   if (ret) {
     shapes.push_back(shape);
   }
