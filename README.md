@@ -19,6 +19,7 @@ Tiny but poweful single file wavefront obj loader written in C++. No dependency 
 What's new
 ----------
 
+* Jan 29, 2016 : Support n-polygon and OpenSubdiv crease tag! Thanks dboogert!
 * Nov 26, 2015 : Now single-header only!.
 * Nov 08, 2015 : Improved API.
 * Jun 23, 2015 : Various fixes and added more projects using tinyobjloader. Thanks many contributors!
@@ -67,16 +68,13 @@ Features
 * Normal
 * Material
   * Unknown material attributes are returned as key-value(value is string) map.
+* Crease tag('t'). This is OpenSubdiv specific(not in wavefront .obj specification)
 
-Notes
------
-
-Polygon is converted into triangle.
 
 TODO
 ----
 
-- [ ] Support quad polygon and some tags for OpenSubdiv http://graphics.pixar.com/opensubdiv/
+* [ ] Support different indices for vertex/normal/texcoord
 
 License
 -------
@@ -148,4 +146,43 @@ Usage
       }
       printf("\n");
     }
+
+
+Reading .obj without triangulation. Use `num_vertices[i]` to iterate over faces(indices). `num_vertices[i]` stores the number of vertices for ith face.
+
+    #define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
+    #include "tiny_obj_loader.h"
+
+    std::string inputfile = "cornell_box.obj";
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
   
+    std::string err;
+    bool triangulate = false;
+    bool ret = tinyobj::LoadObj(shapes, materials, err, inputfile.c_str(), triangulate);
+  
+    if (!err.empty()) { // `err` may contain warning message.
+      std::cerr << err << std::endl;
+    }
+
+    if (!ret) {
+      exit(1);
+    }
+
+    for (size_t i = 0; i < shapes.size(); i++) {
+
+      size_t indexOffset = 0;
+      for (size_t n = 0; n < shapes[i].mesh.num_vertices.size(); n++) {
+	int ngon = shapes[i].mesh.num_vertices[n];
+	for (size_t f = 0; f < ngon; f++) {
+          size_t v = shapes[i].mesh.indices[indexOffset + f];
+          printf("  face[%ld] v[%ld] = (%f, %f, %f)\n", n,
+            shapes[i].mesh.positions[3*v+0],
+            shapes[i].mesh.positions[3*v+1],
+            shapes[i].mesh.positions[3*v+2]);
+	     
+	}
+	indexOffset += ngon;
+      }
+
+    }
