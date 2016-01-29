@@ -84,8 +84,8 @@ typedef struct
     std::vector<float>          normals;
     std::vector<float>          texcoords;
     std::vector<unsigned int>   indices;
-    std::vector<unsigned char>  num_vertices; // up to 255 faces
-    std::vector<int>            material_ids; // per-mesh material ID
+    std::vector<unsigned char>  num_vertices; // The number of vertices per face. Up to 255.
+    std::vector<int>            material_ids; // per-face material ID
     std::vector<tag_t>          tags;         // SubD tag
 } mesh_t;
 
