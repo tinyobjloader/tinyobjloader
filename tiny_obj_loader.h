@@ -5,6 +5,7 @@
 //
 
 //
+// version 0.9.17: Support n-polygon and crease tag(OpenSubdiv extension)
 // version 0.9.16: Make tinyobjloader header-only
 // version 0.9.15: Change API to handle no mtl file case correctly(#58)
 // version 0.9.14: Support specular highlight, bump, displacement and alpha map(#53)
@@ -68,12 +69,24 @@ typedef struct {
   std::map<std::string, std::string> unknown_parameter;
 } material_t;
 
-typedef struct {
-  std::vector<float> positions;
-  std::vector<float> normals;
-  std::vector<float> texcoords;
-  std::vector<unsigned int> indices;
-  std::vector<int> material_ids; // per-mesh material ID
+typedef struct
+{
+    std::string                 name;
+
+    std::vector<int>            intValues;
+    std::vector<float>          floatValues;
+    std::vector<std::string>    stringValues;
+} tag_t;
+
+typedef struct
+{
+    std::vector<float>          positions;
+    std::vector<float>          normals;
+    std::vector<float>          texcoords;
+    std::vector<unsigned int>   indices;
+    std::vector<unsigned char>  num_vertices; // up to 255 faces
+    std::vector<int>            material_ids; // per-mesh material ID
+    std::vector<tag_t>          tags;         // SubD tag
 } mesh_t;
 
 typedef struct {
@@ -112,10 +125,11 @@ private:
 /// Returns true when loading .obj become success.
 /// Returns warning and error message into `err`
 /// 'mtl_basepath' is optional, and used for base path for .mtl file.
+/// 'triangulate' is optional, and used whether triangulate polygon face in .obj or not.
 bool LoadObj(std::vector<shape_t> &shapes,       // [output]
              std::vector<material_t> &materials, // [output]
              std::string& err,                   // [output]
-             const char *filename, const char *mtl_basepath = NULL);
+             const char *filename, const char *mtl_basepath = NULL, bool triangulate = true);
 
 /// Loads object from a std::istream, uses GetMtlIStreamFn to retrieve
 /// std::istream for materials.
@@ -124,7 +138,7 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
 bool LoadObj(std::vector<shape_t> &shapes,       // [output]
              std::vector<material_t> &materials, // [output]
              std::string& err,                   // [output]
-             std::istream &inStream, MaterialReader &readMatFn);
+             std::istream &inStream, MaterialReader &readMatFn, bool triangulate = true);
 
 /// Loads materials into std::map
 void LoadMtl(std::map<std::string, int> &material_map, // [output]
@@ -161,6 +175,14 @@ struct vertex_index {
   vertex_index(int vidx, int vtidx, int vnidx)
       : v_idx(vidx), vt_idx(vtidx), vn_idx(vnidx){}
 };
+
+struct tag_sizes {
+    tag_sizes() : num_ints(0), num_floats(0), num_strings(0) {}
+    int num_ints;
+    int num_floats;
+    int num_strings;
+};
+
 // for std::map
 static inline bool operator<(const vertex_index &a, const vertex_index &b) {
   if (a.v_idx != b.v_idx)
@@ -379,6 +401,30 @@ static inline void parseFloat3(float &x, float &y, float &z,
   z = parseFloat(token);
 }
 
+static tag_sizes parseTagTriple(const char* & token)
+{
+    tag_sizes ts;
+
+    ts.num_ints = atoi(token);
+    token += strcspn(token, "/ \t\r");
+    if (token[0] != '/') {
+        return ts;
+    }
+    token++;
+
+    ts.num_floats = atoi(token);
+    token += strcspn(token, "/ \t\r");
+    if (token[0] != '/') {
+        return ts;
+    }
+    token++;
+
+    ts.num_strings = atoi(token);
+    token += strcspn(token, "/ \t\r") + 1;
+
+    return ts;
+}
+
 // Parse triples: i, i/j/k, i//k, i/j
 static vertex_index parseTriple(const char *&token, int vsize, int vnsize,
                                 int vtsize) {
@@ -433,13 +479,13 @@ updateVertex(std::map<vertex_index, unsigned int> &vertexCache,
   positions.push_back(in_positions[3 * static_cast<size_t>(i.v_idx) + 1]);
   positions.push_back(in_positions[3 * static_cast<size_t>(i.v_idx) + 2]);
 
-  if (i.vn_idx >= 0) {
+  if ((i.vn_idx >= 0) && (static_cast<size_t>(i.vn_idx * 3 + 2) < in_normals.size())) {
     normals.push_back(in_normals[3 * static_cast<size_t>(i.vn_idx) + 0]);
     normals.push_back(in_normals[3 * static_cast<size_t>(i.vn_idx) + 1]);
     normals.push_back(in_normals[3 * static_cast<size_t>(i.vn_idx) + 2]);
   }
 
-  if (i.vt_idx >= 0) {
+  if ((i.vt_idx >= 0) && (static_cast<size_t>(i.vt_idx * 2 + 1) < in_texcoords.size())) {
     texcoords.push_back(in_texcoords[2 * static_cast<size_t>(i.vt_idx) + 0]);
     texcoords.push_back(in_texcoords[2 * static_cast<size_t>(i.vt_idx) + 1]);
   }
@@ -479,7 +525,8 @@ static bool exportFaceGroupToShape(
     const std::vector<float> &in_normals,
     const std::vector<float> &in_texcoords,
     const std::vector<std::vector<vertex_index> > &faceGroup,
-    const int material_id, const std::string &name, bool clearCache) {
+    std::vector<tag_t> &tags,
+    const int material_id, const std::string &name, bool clearCache, bool triangulate) {
   if (faceGroup.empty()) {
     return false;
   }
@@ -494,30 +541,50 @@ static bool exportFaceGroupToShape(
 
     size_t npolys = face.size();
 
-    // Polygon -> triangle fan conversion
-    for (size_t k = 2; k < npolys; k++) {
-      i1 = i2;
-      i2 = face[k];
+    if (triangulate) {
 
-      unsigned int v0 = updateVertex(
-          vertexCache, shape.mesh.positions, shape.mesh.normals,
-          shape.mesh.texcoords, in_positions, in_normals, in_texcoords, i0);
-      unsigned int v1 = updateVertex(
-          vertexCache, shape.mesh.positions, shape.mesh.normals,
-          shape.mesh.texcoords, in_positions, in_normals, in_texcoords, i1);
-      unsigned int v2 = updateVertex(
-          vertexCache, shape.mesh.positions, shape.mesh.normals,
-          shape.mesh.texcoords, in_positions, in_normals, in_texcoords, i2);
+      // Polygon -> triangle fan conversion
+      for (size_t k = 2; k < npolys; k++) {
+        i1 = i2;
+        i2 = face[k];
 
-      shape.mesh.indices.push_back(v0);
-      shape.mesh.indices.push_back(v1);
-      shape.mesh.indices.push_back(v2);
+        unsigned int v0 = updateVertex(
+            vertexCache, shape.mesh.positions, shape.mesh.normals,
+            shape.mesh.texcoords, in_positions, in_normals, in_texcoords, i0);
+        unsigned int v1 = updateVertex(
+            vertexCache, shape.mesh.positions, shape.mesh.normals,
+            shape.mesh.texcoords, in_positions, in_normals, in_texcoords, i1);
+        unsigned int v2 = updateVertex(
+            vertexCache, shape.mesh.positions, shape.mesh.normals,
+            shape.mesh.texcoords, in_positions, in_normals, in_texcoords, i2);
 
-      shape.mesh.material_ids.push_back(material_id);
+        shape.mesh.indices.push_back(v0);
+        shape.mesh.indices.push_back(v1);
+        shape.mesh.indices.push_back(v2);
+
+        shape.mesh.num_vertices.push_back(3);
+        shape.mesh.material_ids.push_back(material_id);
+
+      }
+    } else {
+
+      for (size_t k = 0; k < npolys; k++) {
+        unsigned int v = updateVertex(
+            vertexCache, shape.mesh.positions, shape.mesh.normals,
+            shape.mesh.texcoords, in_positions, in_normals, in_texcoords, face[k]);
+      
+        shape.mesh.indices.push_back(v);
+        
+      }
+
+      shape.mesh.num_vertices.push_back(static_cast<unsigned char>(npolys)); 
+      shape.mesh.material_ids.push_back(material_id); // per face
+
     }
   }
 
   shape.name = name;
+  shape.mesh.tags.swap(tags);
 
   if (clearCache)
     vertexCache.clear();
@@ -779,7 +846,7 @@ bool MaterialFileReader::operator()(const std::string &matId,
 bool LoadObj(std::vector<shape_t> &shapes, // [output]
              std::vector<material_t> &materials, // [output]
              std::string &err,
-             const char *filename, const char *mtl_basepath) {
+             const char *filename, const char *mtl_basepath, bool trianglulate) {
 
   shapes.clear();
 
@@ -798,18 +865,19 @@ bool LoadObj(std::vector<shape_t> &shapes, // [output]
   }
   MaterialFileReader matFileReader(basePath);
 
-  return LoadObj(shapes, materials, err, ifs, matFileReader);
+  return LoadObj(shapes, materials, err, ifs, matFileReader, trianglulate);
 }
 
 bool LoadObj(std::vector<shape_t> &shapes, // [output]
              std::vector<material_t> &materials, // [output]
              std::string& err,
-             std::istream &inStream, MaterialReader &readMatFn) {
+             std::istream &inStream, MaterialReader &readMatFn, bool triangulate) {
   std::stringstream errss;
 
   std::vector<float> v;
   std::vector<float> vn;
   std::vector<float> vt;
+  std::vector<tag_t> tags;
   std::vector<std::vector<vertex_index> > faceGroup;
   std::string name;
 
@@ -917,7 +985,7 @@ bool LoadObj(std::vector<shape_t> &shapes, // [output]
 
       // Create face group per material.
       bool ret = exportFaceGroupToShape(shape, vertexCache, v, vn, vt,
-                                        faceGroup, material, name, true);
+                                        faceGroup, tags, material, name, true, triangulate);
       if (ret) {
           shapes.push_back(shape);
       }
@@ -961,7 +1029,7 @@ bool LoadObj(std::vector<shape_t> &shapes, // [output]
 
       // flush previous face group.
       bool ret = exportFaceGroupToShape(shape, vertexCache, v, vn, vt,
-                                        faceGroup, material, name, true);
+                                        faceGroup, tags, material, name, true, triangulate);
       if (ret) {
         shapes.push_back(shape);
       }
@@ -995,7 +1063,7 @@ bool LoadObj(std::vector<shape_t> &shapes, // [output]
 
       // flush previous face group.
       bool ret = exportFaceGroupToShape(shape, vertexCache, v, vn, vt,
-                                        faceGroup, material, name, true);
+                                        faceGroup, tags, material, name, true, triangulate);
       if (ret) {
         shapes.push_back(shape);
       }
@@ -1017,11 +1085,51 @@ bool LoadObj(std::vector<shape_t> &shapes, // [output]
       continue;
     }
 
+    if (token[0] == 't' && isSpace(token[1])) {
+        tag_t tag;
+
+        char namebuf[4096];
+        token += 2;
+        sscanf(token, "%s", namebuf);
+        tag.name = std::string(namebuf);
+
+        token += tag.name.size() + 1;
+
+        tag_sizes ts = parseTagTriple(token);
+
+        tag.intValues.resize(static_cast<size_t>(ts.num_ints));
+
+        for(size_t i = 0; i < static_cast<size_t>(ts.num_ints); ++i)
+        {
+            tag.intValues[i] = atoi(token);
+            token += strcspn(token, "/ \t\r") + 1;
+        }
+
+        tag.floatValues.resize(static_cast<size_t>(ts.num_floats));
+        for(size_t i = 0; i < static_cast<size_t>(ts.num_floats); ++i)
+        {
+            tag.floatValues[i] = parseFloat(token);
+            token += strcspn(token, "/ \t\r") + 1;
+        }
+
+        tag.stringValues.resize(static_cast<size_t>(ts.num_strings));
+        for(size_t i = 0; i < static_cast<size_t>(ts.num_strings); ++i)
+        {
+            char stringValueBuffer[4096];
+
+            sscanf(token, "%s", stringValueBuffer);
+            tag.stringValues[i] = stringValueBuffer;
+            token += tag.stringValues[i].size() + 1;
+        }
+
+        tags.push_back(tag);
+    }
+
     // Ignore unknown command.
   }
 
-  bool ret = exportFaceGroupToShape(shape, vertexCache, v, vn, vt, faceGroup,
-                                    material, name, true);
+  bool ret = exportFaceGroupToShape(shape, vertexCache, v, vn, vt, faceGroup, tags,
+                                    material, name, true, triangulate);
   if (ret) {
     shapes.push_back(shape);
   }
