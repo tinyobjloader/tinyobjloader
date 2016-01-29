@@ -19,7 +19,7 @@ Tiny but poweful single file wavefront obj loader written in C++. No dependency 
 What's new
 ----------
 
-* Jan 29, 2016 : Support n-polygon and OpenSubdiv crease tag! Thanks dboogert!
+* Jan 29, 2016 : Support n-polygon(no triangulation) and OpenSubdiv crease tag! Thanks dboogert!
 * Nov 26, 2015 : Now single-header only!.
 * Nov 08, 2015 : Improved API.
 * Jun 23, 2015 : Various fixes and added more projects using tinyobjloader. Thanks many contributors!
@@ -83,6 +83,8 @@ Licensed under 2 clause BSD.
 
 Usage
 -----
+
+TinyObjLoader triangulate input .obj by default.
 
     #define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
     #include "tiny_obj_loader.h"
@@ -175,7 +177,7 @@ Reading .obj without triangulation. Use `num_vertices[i]` to iterate over faces(
       for (size_t n = 0; n < shapes[i].mesh.num_vertices.size(); n++) {
 	int ngon = shapes[i].mesh.num_vertices[n];
 	for (size_t f = 0; f < ngon; f++) {
-          size_t v = shapes[i].mesh.indices[indexOffset + f];
+          unsigend int v = shapes[i].mesh.indices[indexOffset + f];
           printf("  face[%ld] v[%ld] = (%f, %f, %f)\n", n,
             shapes[i].mesh.positions[3*v+0],
             shapes[i].mesh.positions[3*v+1],
