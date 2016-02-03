@@ -175,16 +175,16 @@ Reading .obj without triangulation. Use `num_vertices[i]` to iterate over faces(
 
       size_t indexOffset = 0;
       for (size_t n = 0; n < shapes[i].mesh.num_vertices.size(); n++) {
-	int ngon = shapes[i].mesh.num_vertices[n];
-	for (size_t f = 0; f < ngon; f++) {
+        int ngon = shapes[i].mesh.num_vertices[n];
+        for (size_t f = 0; f < ngon; f++) {
           unsigend int v = shapes[i].mesh.indices[indexOffset + f];
           printf("  face[%ld] v[%ld] = (%f, %f, %f)\n", n,
             shapes[i].mesh.positions[3*v+0],
             shapes[i].mesh.positions[3*v+1],
             shapes[i].mesh.positions[3*v+2]);
 	     
-	}
-	indexOffset += ngon;
+        }
+        indexOffset += ngon;
       }
 
     }
