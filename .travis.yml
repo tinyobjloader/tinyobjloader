@@ -13,7 +13,7 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install premake; fi
 
 script:
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; ./premake4 gmake; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; premake4 gmake; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./premake4 gmake; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then premake4 gmake; fi
   - make
   - ./test_tinyobjloader
