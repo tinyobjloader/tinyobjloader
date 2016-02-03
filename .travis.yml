@@ -1,12 +1,19 @@
 language: cpp
 
+os:
+  - linux
+  - osx
+
 compiler: gcc
 
 before_install:
-  - curl -L "https://dl.bintray.com/gogoprog/gengine/linux64/premake4" -o premake4
-  - chmod +x premake4
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then curl -L "https://dl.bintray.com/gogoprog/gengine/linux64/premake4" -o premake4; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then chmod +x premake4; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew upgrade; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install premake; fi
 
 script:
-  - ./premake4 gmake
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; ./premake4 gmake; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; premake4 gmake; fi
   - make
   - ./test_tinyobjloader
