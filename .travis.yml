@@ -4,16 +4,49 @@ os:
   - linux
   - osx
 
+matrix:
+  include:
+    # Clang 3.7
+    - addons: &clang37
+        apt:
+          sources:
+            - george-edison55-precise-backports
+            - ubuntu-toolchain-r-test
+            - llvm-toolchain-precise-3.7
+          packages:
+            - cmake
+            - cmake-data
+            - ninja-build
+            - g++-4.9
+            - clang-3.7
+      compiler: clang
+      env: COMPILER_VERSION=3.7 BUILD_TYPE=Debug
+
+    - addons: *clang37
+      compiler: clang
+      env: COMPILER_VERSION=3.7 BUILD_TYPE=Release
+
+    # Coverage with Clang 3.7
+    - addons: *clang37
+      compiler: clang
+      env: COMPILER_VERSION=3.7 BUILD_TYPE=Debug CFLAGS="-O0 --coverage" CXXFLAGS="-O0 --coverage" REPORT_COVERAGE=1
+
 compiler: gcc
 
 before_install:
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then curl -L "https://dl.bintray.com/gogoprog/gengine/linux64/premake4" -o premake4; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then chmod +x premake4; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew upgrade; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install premake; fi
+  - if [ -n "$REPORT_COVERAGE" ]; then
+      pip install --user cpp-coveralls;
+    fi
 
 script:
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./premake4 gmake; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then premake4 gmake; fi
+  - mkdir build && cd build
+  - export CC="${CC}-${COMPILER_VERSION}"
+  - export CXX="${CXX}-${COMPILER_VERSION}"
+  - cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DTINYOBJLOADER_BUILD_TEST_LOADER=On -G Ninja ..
   - make
+  - cd ..
   - ./test_tinyobjloader
+  - if [ -n "$REPORT_COVERAGE" ]; then
+      coveralls -b . -r . -e examples -e tools -e jni -e python -e images;
+    fi
