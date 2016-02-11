@@ -62,5 +62,5 @@ script:
   - ninja
   - ./test_loader ../cornell_box.obj
   - if [ -n "$REPORT_COVERAGE" ]; then
-      coveralls -b . -r . -e examples -e tools -e jni -e python -e images;
+      coveralls -b . -r . -e examples -e tools -e jni -e python -e images -E ".*CompilerId.*";
     fi
