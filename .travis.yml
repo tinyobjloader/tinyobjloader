@@ -59,7 +59,7 @@ script:
   - ${CC} -v
   - cmake --version
   - cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DTINYOBJLOADER_BUILD_TEST_LOADER=On -G Ninja ..
-  - make
+  - ninja -1
   - cd ..
   - ./test_tinyobjloader
   - if [ -n "$REPORT_COVERAGE" ]; then
