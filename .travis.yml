@@ -63,6 +63,8 @@ script:
   - mkdir build && cd build
   - export CC="${CC}-${COMPILER_VERSION}"
   - export CXX="${CXX}-${COMPILER_VERSION}"
+  - ${CC} -v
+  - cmake --version
   - cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DTINYOBJLOADER_BUILD_TEST_LOADER=On -G Ninja ..
   - make
   - cd ..
