@@ -1,10 +1,14 @@
 language: cpp
+sudo: false
 
 os:
   - linux
   - osx
 
 matrix:
+  allow_failures:
+    - os: osx
+
   include:
     # Clang 3.7
     - addons: &clang37
@@ -26,12 +30,28 @@ matrix:
       compiler: clang
       env: COMPILER_VERSION=3.7 BUILD_TYPE=Release
 
+    # GCC 4.9
+    - addons: &gcc49
+        apt:
+          sources:
+            - george-edison55-precise-backports
+            - ubuntu-toolchain-r-test
+          packages:
+            - cmake
+            - cmake-data
+            - ninja-build
+            - g++-4.9
+      compiler: gcc
+      env: COMPILER_VERSION=4.9 BUILD_TYPE=Debug
+
+    - addons: *gcc49
+      compiler: gcc
+      env: COMPILER_VERSION=4.9 BUILD_TYPE=Release
+
     # Coverage with Clang 3.7
     - addons: *clang37
       compiler: clang
       env: COMPILER_VERSION=3.7 BUILD_TYPE=Debug CFLAGS="-O0 --coverage" CXXFLAGS="-O0 --coverage" REPORT_COVERAGE=1
-
-compiler: gcc
 
 before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew upgrade; fi
