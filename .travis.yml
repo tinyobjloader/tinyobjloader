@@ -60,8 +60,7 @@ script:
   - cmake --version
   - cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DTINYOBJLOADER_BUILD_TEST_LOADER=On -G Ninja ..
   - ninja
-  - cd ..
-  - ./test_tinyobjloader
+  - ./test_tinyobjloader ../cornell_box.obj
   - if [ -n "$REPORT_COVERAGE" ]; then
       coveralls -b . -r . -e examples -e tools -e jni -e python -e images;
     fi
