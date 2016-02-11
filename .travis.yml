@@ -1,14 +1,7 @@
 language: cpp
 sudo: false
 
-os:
-  - linux
-  - osx
-
 matrix:
-  allow_failures:
-    - os: osx
-
   include:
     # Clang 3.7
     - addons: &clang37
