@@ -1,66 +1,63 @@
 language: cpp
 sudo: false
-
 matrix:
   include:
-    # Clang 3.7
-    - addons: &clang37
-        apt:
-          sources:
-            - george-edison55-precise-backports
-            - ubuntu-toolchain-r-test
-            - llvm-toolchain-precise-3.7
-          packages:
-            - cmake
-            - cmake-data
-            - ninja-build
-            - g++-4.9
-            - clang-3.7
-      compiler: clang
-      env: COMPILER_VERSION=3.7 BUILD_TYPE=Debug
-
-    - addons: *clang37
-      compiler: clang
-      env: COMPILER_VERSION=3.7 BUILD_TYPE=Release
-
-    # GCC 4.9
-    - addons: &gcc49
-        apt:
-          sources:
-            - george-edison55-precise-backports
-            - ubuntu-toolchain-r-test
-          packages:
-            - cmake
-            - cmake-data
-            - ninja-build
-            - g++-4.9
-      compiler: gcc
-      env: COMPILER_VERSION=4.9 BUILD_TYPE=Debug
-
-    - addons: *gcc49
-      compiler: gcc
-      env: COMPILER_VERSION=4.9 BUILD_TYPE=Release
-
-    # Coverage with Clang 3.7
-    - addons: *clang37
-      compiler: clang
-      env: COMPILER_VERSION=3.7 BUILD_TYPE=Debug CFLAGS="-O0 --coverage" CXXFLAGS="-O0 --coverage" REPORT_COVERAGE=1
-
+  - addons: &1
+      apt:
+        sources:
+        - george-edison55-precise-backports
+        - ubuntu-toolchain-r-test
+        - llvm-toolchain-precise-3.7
+        packages:
+        - cmake
+        - cmake-data
+        - ninja-build
+        - g++-4.9
+        - clang-3.7
+    compiler: clang
+    env: COMPILER_VERSION=3.7 BUILD_TYPE=Debug
+  - addons: *1
+    compiler: clang
+    env: COMPILER_VERSION=3.7 BUILD_TYPE=Release
+  - addons: &2
+      apt:
+        sources:
+        - george-edison55-precise-backports
+        - ubuntu-toolchain-r-test
+        packages:
+        - cmake
+        - cmake-data
+        - ninja-build
+        - g++-4.9
+    compiler: gcc
+    env: COMPILER_VERSION=4.9 BUILD_TYPE=Debug
+  - addons: *2
+    compiler: gcc
+    env: COMPILER_VERSION=4.9 BUILD_TYPE=Release
+  - addons: *1
+    compiler: clang
+    env: COMPILER_VERSION=3.7 BUILD_TYPE=Debug CFLAGS="-O0 --coverage" CXXFLAGS="-O0
+      --coverage" REPORT_COVERAGE=1
 before_install:
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew upgrade; fi
-  - if [ -n "$REPORT_COVERAGE" ]; then
-      pip install --user cpp-coveralls;
-    fi
-
+- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew upgrade; fi
+- if [ -n "$REPORT_COVERAGE" ]; then pip install --user cpp-coveralls; fi
 script:
-  - mkdir build && cd build
-  - export CC="${CC}-${COMPILER_VERSION}"
-  - export CXX="${CXX}-${COMPILER_VERSION}"
-  - ${CC} -v
-  - cmake --version
-  - cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DTINYOBJLOADER_BUILD_TEST_LOADER=On -G Ninja ..
-  - ninja
-  - ./test_loader ../cornell_box.obj
-  - if [ -n "$REPORT_COVERAGE" ]; then
-      coveralls -b . -r . -e examples -e tools -e jni -e python -e images -E ".*CompilerId.*";
-    fi
+- mkdir build && cd build
+- export CC="${CC}-${COMPILER_VERSION}"
+- export CXX="${CXX}-${COMPILER_VERSION}"
+- ${CC} -v
+- cmake --version
+- cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DTINYOBJLOADER_BUILD_TEST_LOADER=On -G Ninja
+  ..
+- ninja
+- ./test_loader ../cornell_box.obj
+- if [ -n "$REPORT_COVERAGE" ]; then coveralls -b . -r . -e examples -e tools -e jni
+  -e python -e images -E ".*CompilerId.*"; fi
+deploy:
+  provider: releases
+  api_key:
+    secure: AsXameK4GJn6h6wMmDrKTr7q/o9EI7hX7zWg1W6VaFBQKfkBvOmjJolWimjl6HMoRZ1NpMmK5GDm3zBlTUeABtgVBIyNWgE9vWS39ff6D5iQKcgScFsJkyILt0GikBqbN2pLGQ2t/M1Qh6n1sEIfzqekiCcF5Qvy5yYlYvHtaRGV02QeYAej/xx15/9SMuKTncHhjf63ClYPu8ODid7QUegJUvlQUeXoPsBDbaXMH2uDWoBWF7etX7G2Iob4NE8GX+ZP6dj+Ogi7p4HXThK650mzLL/pUl584EjjY/vePqx0cFhtpiRwvrW8SNPI1aJ1Phwa1enLRUgfS3bnkwQAMw/SCXSK2lnCvkUAXyTgpG03HWrZURj4vhEPXc7qHooO+dsfmi+JanYLaSDyrGpgQznLGjCMnVATimry0KxSufUY8Wt72Wh+nf7N0IgTUCjl32sWnQd/MRZPkxFuaf1h7r9RoH9KZY0yIOV09gABEFCGrOIZA2FcyhC2G26Bc4zyNrfMFpZ2DI76qdcWNdJGkRkpxtH9sGU8JgZu6Em2f1e6+SLgkBsPxbhRk5PwdhA9AXE2p9PmQqhO3jJKusGBZSoHAF7TlwagRY2J01yJxF7ge6zG9U8QuBqs1bB1zdnE34fHWOgs4st3inC+oBDOhvnEg1Nm/qeYVWMBzpwclSg=
+  file: tiny_obj_loader.h
+  on:
+    repo: syoyo/tinyobjloader
+    tags: true
