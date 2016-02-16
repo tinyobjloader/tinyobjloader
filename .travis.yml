@@ -51,8 +51,8 @@ script:
   ..
 - ninja
 - ./test_loader ../cornell_box.obj
-- if [ -n "$REPORT_COVERAGE" ]; then coveralls -b . -r . -e examples -e tools -e jni
-  -e python -e images -E ".*CompilerId.*" -E feature_tests.* ; fi
+- if [ -n "$REPORT_COVERAGE" ]; then coveralls -b . -r .. -e examples -e tools -e jni
+  -e python -e images -E ".*CompilerId.*" -E ".*feature_tests.*" ; fi
 - cd ..
 deploy:
   provider: releases
