@@ -63,3 +63,4 @@ deploy:
   on:
     repo: syoyo/tinyobjloader
     tags: true
+  skip_cleanup: true
