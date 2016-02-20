@@ -205,11 +205,9 @@ struct obj_shape {
   std::vector<float> vt;
 };
 
-static inline bool isSpace(const char c) { return (c == ' ') || (c == '\t'); }
-
-static inline bool isNewLine(const char c) {
-  return (c == '\r') || (c == '\n') || (c == '\0');
-}
+#define IS_SPACE( x ) ( ( (x) == ' ') || ( (x) == '\t') )
+#define IS_DIGIT( x ) ( (unsigned int)( (x) - '0' ) < (unsigned int)10 )
+#define IS_NEW_LINE( x ) ( ( (x) == '\r') || ( (x) == '\n') || ( (x) == '\0') )
 
 // Make index zero-base, and also support relative index.
 static inline int fixIndex(int idx, int n) {
@@ -297,13 +295,13 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result) {
   if (*curr == '+' || *curr == '-') {
     sign = *curr;
     curr++;
-  } else if (isdigit(*curr)) { /* Pass through. */
+  } else if (IS_DIGIT(*curr)) { /* Pass through. */
   } else {
     goto fail;
   }
 
   // Read the integer part.
-  while ((end_not_reached = (curr != s_end)) && isdigit(*curr)) {
+  while ((end_not_reached = (curr != s_end)) && IS_DIGIT(*curr)) {
     mantissa *= 10;
     mantissa += static_cast<int>(*curr - 0x30);
     curr++;
@@ -321,7 +319,7 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result) {
   if (*curr == '.') {
     curr++;
     read = 1;
-    while ((end_not_reached = (curr != s_end)) && isdigit(*curr)) {
+    while ((end_not_reached = (curr != s_end)) && IS_DIGIT(*curr)) {
       // NOTE: Don't use powf here, it will absolutely murder precision.
       mantissa += static_cast<int>(*curr - 0x30) * pow(10.0, -read);
       read++;
@@ -342,14 +340,14 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result) {
     if ((end_not_reached = (curr != s_end)) && (*curr == '+' || *curr == '-')) {
       exp_sign = *curr;
       curr++;
-    } else if (isdigit(*curr)) { /* Pass through. */
+    } else if (IS_DIGIT(*curr)) { /* Pass through. */
     } else {
       // Empty E is not allowed.
       goto fail;
     }
 
     read = 0;
-    while ((end_not_reached = (curr != s_end)) && isdigit(*curr)) {
+    while ((end_not_reached = (curr != s_end)) && IS_DIGIT(*curr)) {
       exponent *= 10;
       exponent += static_cast<int>(*curr - 0x30);
       curr++;
@@ -625,7 +623,7 @@ void LoadMtl(std::map<std::string, int> &material_map,
       continue; // comment line
 
     // new mtl
-    if ((0 == strncmp(token, "newmtl", 6)) && isSpace((token[6]))) {
+    if ((0 == strncmp(token, "newmtl", 6)) && IS_SPACE((token[6]))) {
       // flush previous material.
       if (!material.name.empty()) {
         material_map.insert(std::pair<std::string, int>(
@@ -649,7 +647,7 @@ void LoadMtl(std::map<std::string, int> &material_map,
     }
 
     // ambient
-    if (token[0] == 'K' && token[1] == 'a' && isSpace((token[2]))) {
+    if (token[0] == 'K' && token[1] == 'a' && IS_SPACE((token[2]))) {
       token += 2;
       float r, g, b;
       parseFloat3(r, g, b, token);
@@ -660,7 +658,7 @@ void LoadMtl(std::map<std::string, int> &material_map,
     }
 
     // diffuse
-    if (token[0] == 'K' && token[1] == 'd' && isSpace((token[2]))) {
+    if (token[0] == 'K' && token[1] == 'd' && IS_SPACE((token[2]))) {
       token += 2;
       float r, g, b;
       parseFloat3(r, g, b, token);
@@ -671,7 +669,7 @@ void LoadMtl(std::map<std::string, int> &material_map,
     }
 
     // specular
-    if (token[0] == 'K' && token[1] == 's' && isSpace((token[2]))) {
+    if (token[0] == 'K' && token[1] == 's' && IS_SPACE((token[2]))) {
       token += 2;
       float r, g, b;
       parseFloat3(r, g, b, token);
@@ -682,7 +680,7 @@ void LoadMtl(std::map<std::string, int> &material_map,
     }
 
     // transmittance
-    if (token[0] == 'K' && token[1] == 't' && isSpace((token[2]))) {
+    if (token[0] == 'K' && token[1] == 't' && IS_SPACE((token[2]))) {
       token += 2;
       float r, g, b;
       parseFloat3(r, g, b, token);
@@ -693,14 +691,14 @@ void LoadMtl(std::map<std::string, int> &material_map,
     }
 
     // ior(index of refraction)
-    if (token[0] == 'N' && token[1] == 'i' && isSpace((token[2]))) {
+    if (token[0] == 'N' && token[1] == 'i' && IS_SPACE((token[2]))) {
       token += 2;
       material.ior = parseFloat(token);
       continue;
     }
 
     // emission
-    if (token[0] == 'K' && token[1] == 'e' && isSpace(token[2])) {
+    if (token[0] == 'K' && token[1] == 'e' && IS_SPACE(token[2])) {
       token += 2;
       float r, g, b;
       parseFloat3(r, g, b, token);
@@ -711,26 +709,26 @@ void LoadMtl(std::map<std::string, int> &material_map,
     }
 
     // shininess
-    if (token[0] == 'N' && token[1] == 's' && isSpace(token[2])) {
+    if (token[0] == 'N' && token[1] == 's' && IS_SPACE(token[2])) {
       token += 2;
       material.shininess = parseFloat(token);
       continue;
     }
 
     // illum model
-    if (0 == strncmp(token, "illum", 5) && isSpace(token[5])) {
+    if (0 == strncmp(token, "illum", 5) && IS_SPACE(token[5])) {
       token += 6;
       material.illum = parseInt(token);
       continue;
     }
 
     // dissolve
-    if ((token[0] == 'd' && isSpace(token[1]))) {
+    if ((token[0] == 'd' && IS_SPACE(token[1]))) {
       token += 1;
       material.dissolve = parseFloat(token);
       continue;
     }
-    if (token[0] == 'T' && token[1] == 'r' && isSpace(token[2])) {
+    if (token[0] == 'T' && token[1] == 'r' && IS_SPACE(token[2])) {
       token += 2;
       // Invert value of Tr(assume Tr is in range [0, 1])
       material.dissolve = 1.0f - parseFloat(token);
@@ -738,56 +736,56 @@ void LoadMtl(std::map<std::string, int> &material_map,
     }
 
     // ambient texture
-    if ((0 == strncmp(token, "map_Ka", 6)) && isSpace(token[6])) {
+    if ((0 == strncmp(token, "map_Ka", 6)) && IS_SPACE(token[6])) {
       token += 7;
       material.ambient_texname = token;
       continue;
     }
 
     // diffuse texture
-    if ((0 == strncmp(token, "map_Kd", 6)) && isSpace(token[6])) {
+    if ((0 == strncmp(token, "map_Kd", 6)) && IS_SPACE(token[6])) {
       token += 7;
       material.diffuse_texname = token;
       continue;
     }
 
     // specular texture
-    if ((0 == strncmp(token, "map_Ks", 6)) && isSpace(token[6])) {
+    if ((0 == strncmp(token, "map_Ks", 6)) && IS_SPACE(token[6])) {
       token += 7;
       material.specular_texname = token;
       continue;
     }
 
     // specular highlight texture
-    if ((0 == strncmp(token, "map_Ns", 6)) && isSpace(token[6])) {
+    if ((0 == strncmp(token, "map_Ns", 6)) && IS_SPACE(token[6])) {
       token += 7;
       material.specular_highlight_texname = token;
       continue;
     }
 
     // bump texture
-    if ((0 == strncmp(token, "map_bump", 8)) && isSpace(token[8])) {
+    if ((0 == strncmp(token, "map_bump", 8)) && IS_SPACE(token[8])) {
       token += 9;
       material.bump_texname = token;
       continue;
     }
 
     // alpha texture
-    if ((0 == strncmp(token, "map_d", 5)) && isSpace(token[5])) {
+    if ((0 == strncmp(token, "map_d", 5)) && IS_SPACE(token[5])) {
       token += 6;
       material.alpha_texname = token;
       continue;
     }
 
     // bump texture
-    if ((0 == strncmp(token, "bump", 4)) && isSpace(token[4])) {
+    if ((0 == strncmp(token, "bump", 4)) && IS_SPACE(token[4])) {
       token += 5;
       material.bump_texname = token;
       continue;
     }
 
     // displacement texture
-    if ((0 == strncmp(token, "disp", 4)) && isSpace(token[4])) {
+    if ((0 == strncmp(token, "disp", 4)) && IS_SPACE(token[4])) {
       token += 5;
       material.displacement_texname = token;
       continue;
@@ -914,7 +912,7 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
       continue; // comment line
 
     // vertex
-    if (token[0] == 'v' && isSpace((token[1]))) {
+    if (token[0] == 'v' && IS_SPACE((token[1]))) {
       token += 2;
       float x, y, z;
       parseFloat3(x, y, z, token);
@@ -925,7 +923,7 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
     }
 
     // normal
-    if (token[0] == 'v' && token[1] == 'n' && isSpace((token[2]))) {
+    if (token[0] == 'v' && token[1] == 'n' && IS_SPACE((token[2]))) {
       token += 3;
       float x, y, z;
       parseFloat3(x, y, z, token);
@@ -936,7 +934,7 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
     }
 
     // texcoord
-    if (token[0] == 'v' && token[1] == 't' && isSpace((token[2]))) {
+    if (token[0] == 'v' && token[1] == 't' && IS_SPACE((token[2]))) {
       token += 3;
       float x, y;
       parseFloat2(x, y, token);
@@ -946,12 +944,14 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
     }
 
     // face
-    if (token[0] == 'f' && isSpace((token[1]))) {
+    if (token[0] == 'f' && IS_SPACE((token[1]))) {
       token += 2;
       token += strspn(token, " \t");
 
       std::vector<vertex_index> face;
-      while (!isNewLine(token[0])) {
+      face.reserve(3);
+
+      while (!IS_NEW_LINE(token[0])) {
         vertex_index vi = parseTriple(token, static_cast<int>(v.size() / 3),
                                       static_cast<int>(vn.size() / 3),
                                       static_cast<int>(vt.size() / 2));
@@ -960,13 +960,15 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
         token += n;
       }
 
-      faceGroup.push_back(face);
+      // replace with emplace_back + std::move on C++11
+      faceGroup.push_back(std::vector<vertex_index>());
+      faceGroup[faceGroup.size() - 1].swap(face);
 
       continue;
     }
 
     // use mtl
-    if ((0 == strncmp(token, "usemtl", 6)) && isSpace((token[6]))) {
+    if ((0 == strncmp(token, "usemtl", 6)) && IS_SPACE((token[6]))) {
 
       char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
       token += 7;
@@ -997,7 +999,7 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
     }
 
     // load mtl
-    if ((0 == strncmp(token, "mtllib", 6)) && isSpace((token[6]))) {
+    if ((0 == strncmp(token, "mtllib", 6)) && IS_SPACE((token[6]))) {
       char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
       token += 7;
 #ifdef _MSC_VER
@@ -1019,7 +1021,7 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
     }
 
     // group name
-    if (token[0] == 'g' && isSpace((token[1]))) {
+    if (token[0] == 'g' && IS_SPACE((token[1]))) {
 
       // flush previous face group.
       bool ret =
@@ -1035,7 +1037,9 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
       faceGroup.clear();
 
       std::vector<std::string> names;
-      while (!isNewLine(token[0])) {
+      names.reserve(2);
+
+      while (!IS_NEW_LINE(token[0])) {
         std::string str = parseString(token);
         names.push_back(str);
         token += strspn(token, " \t\r"); // skip tag
@@ -1054,7 +1058,7 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
     }
 
     // object name
-    if (token[0] == 'o' && isSpace((token[1]))) {
+    if (token[0] == 'o' && IS_SPACE((token[1]))) {
 
       // flush previous face group.
       bool ret =
@@ -1081,7 +1085,7 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
       continue;
     }
 
-    if (token[0] == 't' && isSpace(token[1])) {
+    if (token[0] == 't' && IS_SPACE(token[1])) {
       tag_t tag;
 
       char namebuf[4096];
