@@ -50,14 +50,14 @@ Use case
 TinyObjLoader is successfully used in ...
 
 * bullet3 https://github.com/erwincoumans/bullet3
-* pbrt-v2 https://https://github.com/mmp/pbrt-v2
+* pbrt-v2 https://github.com/mmp/pbrt-v2
 * OpenGL game engine development http://swarminglogic.com/jotting/2013_10_gamedev01
 * mallie https://lighttransport.github.io/mallie
 * IBLBaker (Image Based Lighting Baker). http://www.derkreature.com/iblbaker/
 * Stanford CS148 http://web.stanford.edu/class/cs148/assignments/assignment3.pdf
 * Awesome Bump http://awesomebump.besaba.com/about/
 * sdlgl3-wavefront OpenGL .obj viewer https://github.com/chrisliebert/sdlgl3-wavefront
-* pbrt-v3 https://https://github.com/mmp/pbrt-v3
+* pbrt-v3 https://github.com/mmp/pbrt-v3
 * cocos2d-x https://github.com/cocos2d/cocos2d-x/
 * Android Vulkan demo https://github.com/SaschaWillems/Vulkan
 * Your project here!
