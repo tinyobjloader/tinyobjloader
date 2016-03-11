@@ -5,6 +5,7 @@
 //
 
 //
+// version 0.9.20: Fixes creating per-face material using `usemtl`(#68)
 // version 0.9.17: Support n-polygon and crease tag(OpenSubdiv extension)
 // version 0.9.16: Make tinyobjloader header-only
 // version 0.9.15: Change API to handle no mtl file case correctly(#58)
@@ -978,21 +979,19 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
       sscanf(token, "%s", namebuf);
 #endif
 
-      // Create face group per material.
-      bool ret =
-          exportFaceGroupToShape(shape, vertexCache, v, vn, vt, faceGroup, tags,
-                                 material, name, true, triangulate);
-      if (ret) {
-        shapes.push_back(shape);
-      }
-      shape = shape_t();
-      faceGroup.clear();
-
+      int newMaterialId = -1;
       if (material_map.find(namebuf) != material_map.end()) {
-        material = material_map[namebuf];
+        newMaterialId = material_map[namebuf];
       } else {
         // { error!! material not found }
-        material = -1;
+      }
+
+      if (newMaterialId != material) {
+        // Create per-face material
+        exportFaceGroupToShape(shape, vertexCache, v, vn, vt, faceGroup, tags,
+                               material, name, true, triangulate);
+        faceGroup.clear();
+        material = newMaterialId;
       }
 
       continue;
