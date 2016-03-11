@@ -139,6 +139,7 @@ TestLoadObj(
   }
 
   if (!ret) {
+    printf("Failed to load/parse .obj.\n");
     return false;
   }
 
