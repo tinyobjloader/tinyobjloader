@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DATEVAL=`date +%b-%d-%Y`
+DATEVAL=`date +%Y-%m-%d`
 VERSIONVAL=master
 
 # Use tag as version
