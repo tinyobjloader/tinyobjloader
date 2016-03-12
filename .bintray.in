@@ -37,7 +37,7 @@
     Note: Regular expressions defined as part of the includePattern property must be wrapped with brackets. */
 
     "files":
-        [ "tiny_obj_loader.h" ],
+        [ {"includePattern": "(tiny_obj_loader\.h)", "uploadPattern": "$1"} ],
     "publish": true
 }
 
