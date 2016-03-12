@@ -54,6 +54,9 @@ script:
 - if [ -n "$REPORT_COVERAGE" ]; then coveralls -b . -r .. -e examples -e tools -e
   jni -e python -e images -E ".*CompilerId.*" -E ".*feature_tests.*" ; fi
 - cd ..
+- rm -rf dist
+- mkdir dist
+- cp tiny_obj_loader.h dist/
 
 before_deploy:
   - echo "Creating description file for bintray."

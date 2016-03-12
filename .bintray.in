@@ -28,16 +28,10 @@
     excludePattern: Optional. Pattern in the form of Ruby regular expression, indicating the path of files to be removed from the list of files specified by the includePattern.
     uploadPattern: Upload path on Bintray. The path can contain symbols in the form of $1, $2,... that are replaced with capturing groups defined in the include pattern.
 
-    In the example below, the following files are uploaded,
-    1. All gem files located under build/bin/ (including sub directories),
-    except for files under a the do-not-deploy directory.
-    The files will be uploaded to Bintray under the gems folder.
-    2. All files under build/docs. The files will be uploaded to Bintray under the docs folder.
-
     Note: Regular expressions defined as part of the includePattern property must be wrapped with brackets. */
 
     "files":
-        [ {"includePattern": "(tiny_obj_loader\.h)", "uploadPattern": "$1"} ],
+        [ {"includePattern": "dist/(.*)", "uploadPattern": "$1"} ],
     "publish": true
 }
 
