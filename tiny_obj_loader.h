@@ -38,8 +38,8 @@
 //   #include "tiny_obj_loader.h"
 //
 
-#ifndef TINY_OBJ_LOADER_H
-#define TINY_OBJ_LOADER_H
+#ifndef TINY_OBJ_LOADER_H_
+#define TINY_OBJ_LOADER_H_
 
 #include <string>
 #include <vector>
@@ -159,9 +159,6 @@ void LoadMtl(std::map<std::string, int> &material_map, // [output]
 #include <cstddef>
 #include <cctype>
 
-#include <string>
-#include <vector>
-#include <map>
 #include <fstream>
 #include <sstream>
 
@@ -1147,4 +1144,4 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
 
 #endif
 
-#endif // TINY_OBJ_LOADER_H
+#endif // TINY_OBJ_LOADER_H_
