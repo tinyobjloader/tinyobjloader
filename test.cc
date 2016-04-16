@@ -8,10 +8,34 @@
 #include <sstream>
 #include <fstream>
 
-static void PrintInfo(const std::vector<tinyobj::shape_t>& shapes, const std::vector<tinyobj::material_t>& materials, bool triangulate = true)
+static void PrintInfo(const tinyobj::attrib_t &attrib, const std::vector<tinyobj::shape_t>& shapes, const std::vector<tinyobj::material_t>& materials, bool triangulate = true)
 {
+  std::cout << "# of positions : " << (attrib.positions.size() / 3) << std::endl;
+  std::cout << "# of normals   : " << (attrib.normals.size() / 3) << std::endl;
+  std::cout << "# of texcoords : " << (attrib.texcoords.size() / 2) << std::endl;
+
   std::cout << "# of shapes    : " << shapes.size() << std::endl;
   std::cout << "# of materials : " << materials.size() << std::endl;
+
+  for (size_t v = 0; v < attrib.positions.size() / 3; v++) {
+    printf("  v[%ld] = (%f, %f, %f)\n", v,
+      static_cast<const double>(attrib.positions[3*v+0]),
+      static_cast<const double>(attrib.positions[3*v+1]),
+      static_cast<const double>(attrib.positions[3*v+2]));
+  }
+
+  for (size_t v = 0; v < attrib.normals.size() / 3; v++) {
+    printf("  n[%ld] = (%f, %f, %f)\n", v,
+      static_cast<const double>(attrib.normals[3*v+0]),
+      static_cast<const double>(attrib.normals[3*v+1]),
+      static_cast<const double>(attrib.normals[3*v+2]));
+  }
+
+  for (size_t v = 0; v < attrib.texcoords.size() / 2; v++) {
+    printf("  uv[%ld] = (%f, %f)\n", v,
+      static_cast<const double>(attrib.texcoords[2*v+0]),
+      static_cast<const double>(attrib.texcoords[2*v+1]));
+  }
 
   for (size_t i = 0; i < shapes.size(); i++) {
     printf("shape[%ld].name = %s\n", i, shapes[i].name.c_str());
@@ -22,11 +46,19 @@ static void PrintInfo(const std::vector<tinyobj::shape_t>& shapes, const std::ve
         printf("Size of shape[%ld].material_ids: %ld\n", i, shapes[i].mesh.material_ids.size());
         assert((shapes[i].mesh.indices.size() % 3) == 0);
         for (size_t f = 0; f < shapes[i].mesh.indices.size() / 3; f++) {
-          printf("  idx[%ld] = %d, %d, %d. mat_id = %d\n", f, shapes[i].mesh.indices[3*f+0], shapes[i].mesh.indices[3*f+1], shapes[i].mesh.indices[3*f+2], shapes[i].mesh.material_ids[f]);
+          tinyobj::index_t i0 = shapes[i].mesh.indices[3*f+0];
+          tinyobj::index_t i1 = shapes[i].mesh.indices[3*f+1];
+          tinyobj::index_t i2 = shapes[i].mesh.indices[3*f+2];
+          printf("  idx[%ld] = %d/%d/%d, %d/%d/%d, %d/%d/%d. mat_id = %d\n", f,
+            i0.vertex_index, i0.normal_index, i0.texcoord_index,
+            i1.vertex_index, i1.normal_index, i1.texcoord_index,
+            i2.vertex_index, i2.normal_index, i2.texcoord_index,
+            shapes[i].mesh.material_ids[f]);
         }
     } else {
       for (size_t f = 0; f < shapes[i].mesh.indices.size(); f++) {
-        printf("  idx[%ld] = %d\n", f, shapes[i].mesh.indices[f]);
+        tinyobj::index_t idx = shapes[i].mesh.indices[f];
+        printf("  idx[%ld] = %d/%d/%d\n", f, idx.vertex_index, idx.normal_index, idx.texcoord_index);
       }
 
       printf("Size of shape[%ld].material_ids: %ld\n", i, shapes[i].mesh.material_ids.size());
@@ -44,14 +76,14 @@ static void PrintInfo(const std::vector<tinyobj::shape_t>& shapes, const std::ve
         static_cast<long>(shapes[i].mesh.num_vertices[v]));
     }
 
-    printf("shape[%ld].vertices: %ld\n", i, shapes[i].mesh.positions.size());
-    assert((shapes[i].mesh.positions.size() % 3) == 0);
-    for (size_t v = 0; v < shapes[i].mesh.positions.size() / 3; v++) {
-      printf("  v[%ld] = (%f, %f, %f)\n", v,
-        shapes[i].mesh.positions[3*v+0],
-        shapes[i].mesh.positions[3*v+1],
-        shapes[i].mesh.positions[3*v+2]);
-    }
+    //printf("shape[%ld].vertices: %ld\n", i, shapes[i].mesh.positions.size());
+    //assert((shapes[i].mesh.positions.size() % 3) == 0);
+    //for (size_t v = 0; v < shapes[i].mesh.positions.size() / 3; v++) {
+    //  printf("  v[%ld] = (%f, %f, %f)\n", v,
+    //    static_cast<const double>(shapes[i].mesh.positions[3*v+0]),
+    //    static_cast<const double>(shapes[i].mesh.positions[3*v+1]),
+    //    static_cast<const double>(shapes[i].mesh.positions[3*v+2]));
+    //}
 
     printf("shape[%ld].num_tags: %ld\n", i, shapes[i].mesh.tags.size());
     for (size_t t = 0; t < shapes[i].mesh.tags.size(); t++) {
@@ -70,7 +102,7 @@ static void PrintInfo(const std::vector<tinyobj::shape_t>& shapes, const std::ve
       printf(" floats: [");
       for (size_t j = 0; j < shapes[i].mesh.tags[t].floatValues.size(); ++j)
       {
-          printf("%f", shapes[i].mesh.tags[t].floatValues[j]);
+          printf("%f", static_cast<const double>(shapes[i].mesh.tags[t].floatValues[j]));
           if (j < (shapes[i].mesh.tags[t].floatValues.size()-1))
           {
               printf(", ");
@@ -128,11 +160,12 @@ TestLoadObj(
 {
   std::cout << "Loading " << filename << std::endl;
 
+  tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
 
   std::string err;
-  bool ret = tinyobj::LoadObj(shapes, materials, err, filename, basepath, triangulate);
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, filename, basepath, triangulate);
 
   if (!err.empty()) {
     std::cerr << err << std::endl;
@@ -143,7 +176,7 @@ TestLoadObj(
     return false;
   }
 
-  PrintInfo(shapes, materials, triangulate);
+  PrintInfo(attrib, shapes, materials, triangulate);
 
   return true;
 }
@@ -223,13 +256,13 @@ std::string matStream(
             virtual ~MaterialStringStreamReader() {}
             virtual bool operator() (
               const std::string& matId,
-              std::vector<material_t>& materials,
-              std::map<std::string, int>& matMap,
-              std::string& err)
+              std::vector<material_t>* materials,
+              std::map<std::string, int>* matMap,
+              std::string* err)
             {
                 (void)matId;
                 (void)err;
-                LoadMtl(matMap, materials, m_matSStream);
+                LoadMtl(matMap, materials, &m_matSStream);
                 return true;
             }
 
@@ -238,10 +271,11 @@ std::string matStream(
     };
 
   MaterialStringStreamReader matSSReader(matStream);
+  tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
   std::string err;
-  bool ret = tinyobj::LoadObj(shapes, materials, err, objStream, matSSReader);    
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, &objStream, &matSSReader);    
   
   if (!err.empty()) {
     std::cerr << err << std::endl;
@@ -251,7 +285,7 @@ std::string matStream(
     return false;
   }
 
-  PrintInfo(shapes, materials);
+  PrintInfo(attrib, shapes, materials);
     
   return true;
 }
