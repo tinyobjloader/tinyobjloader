@@ -21,6 +21,7 @@ Tiny but powerful single file wavefront obj loader written in C++. No dependency
 What's new
 ----------
 
+* XX  YY, ZZZZ : New data strcutre and API!
 * Jan 29, 2016 : Support n-polygon(no triangulation) and OpenSubdiv crease tag! Thanks dboogert!
 * Nov 26, 2015 : Now single-header only!.
 * Nov 08, 2015 : Improved API.
