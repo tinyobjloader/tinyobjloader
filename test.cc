@@ -10,18 +10,18 @@
 
 static void PrintInfo(const tinyobj::attrib_t &attrib, const std::vector<tinyobj::shape_t>& shapes, const std::vector<tinyobj::material_t>& materials, bool triangulate = true)
 {
-  std::cout << "# of positions : " << (attrib.positions.size() / 3) << std::endl;
+  std::cout << "# of vertices  : " << (attrib.vertices.size() / 3) << std::endl;
   std::cout << "# of normals   : " << (attrib.normals.size() / 3) << std::endl;
   std::cout << "# of texcoords : " << (attrib.texcoords.size() / 2) << std::endl;
 
   std::cout << "# of shapes    : " << shapes.size() << std::endl;
   std::cout << "# of materials : " << materials.size() << std::endl;
 
-  for (size_t v = 0; v < attrib.positions.size() / 3; v++) {
+  for (size_t v = 0; v < attrib.vertices.size() / 3; v++) {
     printf("  v[%ld] = (%f, %f, %f)\n", v,
-      static_cast<const double>(attrib.positions[3*v+0]),
-      static_cast<const double>(attrib.positions[3*v+1]),
-      static_cast<const double>(attrib.positions[3*v+2]));
+      static_cast<const double>(attrib.vertices[3*v+0]),
+      static_cast<const double>(attrib.vertices[3*v+1]),
+      static_cast<const double>(attrib.vertices[3*v+2]));
   }
 
   for (size_t v = 0; v < attrib.normals.size() / 3; v++) {
@@ -126,15 +126,15 @@ static void PrintInfo(const tinyobj::attrib_t &attrib, const std::vector<tinyobj
 
   for (size_t i = 0; i < materials.size(); i++) {
     printf("material[%ld].name = %s\n", i, materials[i].name.c_str());
-    printf("  material.Ka = (%f, %f ,%f)\n", materials[i].ambient[0], materials[i].ambient[1], materials[i].ambient[2]);
-    printf("  material.Kd = (%f, %f ,%f)\n", materials[i].diffuse[0], materials[i].diffuse[1], materials[i].diffuse[2]);
-    printf("  material.Ks = (%f, %f ,%f)\n", materials[i].specular[0], materials[i].specular[1], materials[i].specular[2]);
-    printf("  material.Tr = (%f, %f ,%f)\n", materials[i].transmittance[0], materials[i].transmittance[1], materials[i].transmittance[2]);
-    printf("  material.Ke = (%f, %f ,%f)\n", materials[i].emission[0], materials[i].emission[1], materials[i].emission[2]);
-    printf("  material.Ns = %f\n", materials[i].shininess);
-    printf("  material.Ni = %f\n", materials[i].ior);
-    printf("  material.dissolve = %f\n", materials[i].dissolve);
-    printf("  material.illum = %d\n", materials[i].illum);
+    printf("  material.Ka = (%f, %f ,%f)\n", static_cast<const double>(materials[i].ambient[0]),       static_cast<const double>(materials[i].ambient[1]),       static_cast<const double>(materials[i].ambient[2]));
+    printf("  material.Kd = (%f, %f ,%f)\n", static_cast<const double>(materials[i].diffuse[0]),       static_cast<const double>(materials[i].diffuse[1]),       static_cast<const double>(materials[i].diffuse[2]));
+    printf("  material.Ks = (%f, %f ,%f)\n", static_cast<const double>(materials[i].specular[0]),      static_cast<const double>(materials[i].specular[1]),      static_cast<const double>(materials[i].specular[2]));
+    printf("  material.Tr = (%f, %f ,%f)\n", static_cast<const double>(materials[i].transmittance[0]), static_cast<const double>(materials[i].transmittance[1]), static_cast<const double>(materials[i].transmittance[2]));
+    printf("  material.Ke = (%f, %f ,%f)\n", static_cast<const double>(materials[i].emission[0]),      static_cast<const double>(materials[i].emission[1]),      static_cast<const double>(materials[i].emission[2]));
+    printf("  material.Ns = %f\n", static_cast<const double>(materials[i].shininess));
+    printf("  material.Ni = %f\n", static_cast<const double>(materials[i].ior));
+    printf("  material.dissolve = %f\n", static_cast<const double>(materials[i].dissolve));
+    printf("  material.illum = %d\n",  materials[i].illum);
     printf("  material.map_Ka = %s\n", materials[i].ambient_texname.c_str());
     printf("  material.map_Kd = %s\n", materials[i].diffuse_texname.c_str());
     printf("  material.map_Ks = %s\n", materials[i].specular_texname.c_str());
