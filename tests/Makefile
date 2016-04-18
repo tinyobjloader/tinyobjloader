@@ -1,7 +1,10 @@
 .PHONY: clean
 
+CXX ?= g++
+CXXFLAGS ?= -g -O2
+
 tester: tester.cc
-	g++ -g -O0 -o tester tester.cc
+	$(CXX) $(CXXFLAGS) -o tester tester.cc
 
 all: tester
 
