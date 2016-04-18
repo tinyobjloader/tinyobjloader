@@ -193,3 +193,8 @@ for (size_t i = 0; i < shapes.size(); i++) {
 
 }
 ```
+
+Tests
+-----
+
+Unit tests are provided. see `tests` directory for details.
