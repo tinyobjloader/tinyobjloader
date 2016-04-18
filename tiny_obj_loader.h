@@ -493,7 +493,7 @@ static vertex_index parseTriple(const char **token, int vsize, int vnsize,
 
 // Parse raw triples: i, i/j/k, i//k, i/j
 static vertex_index parseRawTriple(const char **token) {
-  vertex_index vi(0x8000000);  // -2147483648 = invalid
+  vertex_index vi(0x80000000);  // 0x80000000 = -2147483648 = invalid
 
   vi.v_idx = atoi((*token));
   (*token) += strcspn((*token), "/ \t\r");
