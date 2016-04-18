@@ -117,8 +117,9 @@ typedef struct callback_t_ {
   void (*texcoord_cb)(void *user_data, float x, float y);
   // -2147483648 will be passed for undefined index
   void (*index_cb)(void *user_data, int v_idx, int vn_idx, int vt_idx);
-  // Index to material
-  void (*usemtl_cb)(void *user_data, int material_idx);
+  // `name` material name, `materialId` = the array index of material_t[]. -1 if a material not found in .mtl
+  void (*usemtl_cb)(void *user_data, const char* name, int materialId);
+  // `materials` = parsed material data.
   void (*mtllib_cb)(void *user_data, const material_t *materials,
                     int num_materials);
   // There may be multiple group names
@@ -1178,13 +1179,9 @@ bool LoadObjWithCallback(void *user_data, const callback_t &callback,
                          MaterialReader *readMatFn) {
   std::stringstream errss;
 
-  std::string name;
-
   // material
   std::map<std::string, int> material_map;
-  int material = -1;
-
-  shape_t shape;
+  int materialId = -1; // -1 = invalid
 
   int maxchars = 8192;                                   // Alloc enough size.
   std::vector<char> buf(static_cast<size_t>(maxchars));  // Alloc enough size.
@@ -1284,12 +1281,12 @@ bool LoadObjWithCallback(void *user_data, const callback_t &callback,
         // { error!! material not found }
       }
 
-      if (newMaterialId != material) {
-        material = newMaterialId;
+      if (newMaterialId != materialId) {
+        materialId = newMaterialId;
       }
 
       if (callback.usemtl_cb) {
-        callback.usemtl_cb(user_data, material);
+        callback.usemtl_cb(user_data, namebuf, materialId);
       }
 
       continue;
@@ -1337,6 +1334,7 @@ bool LoadObjWithCallback(void *user_data, const callback_t &callback,
 
       assert(names.size() > 0);
 
+      std::string name;
       // names[0] must be 'g', so skip the 0th element.
       if (names.size() > 1) {
         name = names[1];
