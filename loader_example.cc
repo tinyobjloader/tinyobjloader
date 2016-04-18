@@ -296,7 +296,7 @@ main(
   char **argv)
 {
   if (argc > 1) {
-    const char* basepath = NULL;
+    const char* basepath = "models/";
     if (argc > 2) {
       basepath = argv[2];
     }
@@ -305,7 +305,7 @@ main(
     //assert(true == TestLoadObj("cornell_box.obj"));
     //assert(true == TestLoadObj("cube.obj"));
     assert(true == TestStreamLoadObj());
-    assert(true == TestLoadObj("catmark_torus_creases0.obj", NULL, false));
+    assert(true == TestLoadObj("models/catmark_torus_creases0.obj", "models/", false));
   }
 
   return 0;

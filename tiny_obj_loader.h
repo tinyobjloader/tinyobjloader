@@ -111,6 +111,33 @@ typedef struct {
   std::vector<float> texcoords;  // 'vt'
 } attrib_t;
 
+typedef struct callback_t_ {
+  void (*vertex_cb)(void *user_data, float x, float y, float z);
+  void (*normal_cb)(void *user_data, float x, float y, float z);
+  void (*texcoord_cb)(void *user_data, float x, float y);
+  // -2147483648 will be passed for undefined index
+  void (*index_cb)(void *user_data, int v_idx, int vn_idx, int vt_idx);
+  // Index to material
+  void (*usemtl_cb)(void *user_data, int material_idx);
+  void (*mtllib_cb)(void *user_data, const material_t *materials,
+                    int num_materials);
+  // There may be multiple group names
+  void (*group_cb)(void *user_data, const char **names, int num_names);
+  void (*object_cb)(void *user_data, const char *name);
+
+  callback_t_() :
+    vertex_cb(NULL),
+    normal_cb(NULL),
+    texcoord_cb(NULL),
+    index_cb(NULL),
+    usemtl_cb(NULL),
+    mtllib_cb(NULL),
+    group_cb(NULL),
+    object_cb(NULL) {
+  }
+  
+} callback_t;
+
 class MaterialReader {
  public:
   MaterialReader() {}
@@ -138,7 +165,6 @@ class MaterialFileReader : public MaterialReader {
 /// Loads .obj from a file.
 /// 'attrib', 'shapes' and 'materials' will be filled with parsed shape data
 /// 'shapes' will be filled with parsed shape data
-/// The function returns error string.
 /// Returns true when loading .obj become success.
 /// Returns warning and error message into `err`
 /// 'mtl_basepath' is optional, and used for base path for .mtl file.
@@ -148,6 +174,18 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              std::vector<material_t> *materials, std::string *err,
              const char *filename, const char *mtl_basepath = NULL,
              bool triangulate = true);
+
+/// Loads .obj from a file with custom user callback.
+/// .mtl is loaded as usual and parsed material_t data will be passed to
+/// `callback.mtllib_cb`.
+/// Returns true when loading .obj/.mtl become success.
+/// Returns warning and error message into `err`
+/// 'mtl_basepath' is optional, and used for base path for .mtl file.
+/// 'triangulate' is optional, and used whether triangulate polygon face in .obj
+/// or not.
+bool LoadObjWithCallback(void *user_data, const callback_t &callback,
+                         std::string *err, std::istream *inStream,
+                         MaterialReader *readMatFn);
 
 /// Loads object from a std::istream, uses GetMtlIStreamFn to retrieve
 /// std::istream for materials.
@@ -418,7 +456,7 @@ static tag_sizes parseTagTriple(const char **token) {
   return ts;
 }
 
-// Parse triples: i, i/j/k, i//k, i/j
+// Parse triples with index offsets: i, i/j/k, i//k, i/j
 static vertex_index parseTriple(const char **token, int vsize, int vnsize,
                                 int vtsize) {
   vertex_index vi(-1);
@@ -448,6 +486,39 @@ static vertex_index parseTriple(const char **token, int vsize, int vnsize,
   // i/j/k
   (*token)++;  // skip '/'
   vi.vn_idx = fixIndex(atoi((*token)), vnsize);
+  (*token) += strcspn((*token), "/ \t\r");
+  return vi;
+}
+
+// Parse raw triples: i, i/j/k, i//k, i/j
+static vertex_index parseRawTriple(const char **token) {
+  vertex_index vi(0x8000000);  // -2147483648 = invalid
+
+  vi.v_idx = atoi((*token));
+  (*token) += strcspn((*token), "/ \t\r");
+  if ((*token)[0] != '/') {
+    return vi;
+  }
+  (*token)++;
+
+  // i//k
+  if ((*token)[0] == '/') {
+    (*token)++;
+    vi.vn_idx = atoi((*token));
+    (*token) += strcspn((*token), "/ \t\r");
+    return vi;
+  }
+
+  // i/j/k or i/j
+  vi.vt_idx = atoi((*token));
+  (*token) += strcspn((*token), "/ \t\r");
+  if ((*token)[0] != '/') {
+    return vi;
+  }
+
+  // i/j/k
+  (*token)++;  // skip '/'
+  vi.vn_idx = atoi((*token));
   (*token) += strcspn((*token), "/ \t\r");
   return vi;
 }
@@ -831,7 +902,6 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
   // material
   std::map<std::string, int> material_map;
-  // std::map<vertex_index, unsigned int> vertexCache;
   int material = -1;
 
   shape_t shape;
@@ -1103,6 +1173,270 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   return true;
 }
 
+bool LoadObjWithCallback(void *user_data, const callback_t &callback,
+                         std::string *err, std::istream *inStream,
+                         MaterialReader *readMatFn) {
+  std::stringstream errss;
+
+  std::string name;
+
+  // material
+  std::map<std::string, int> material_map;
+  int material = -1;
+
+  shape_t shape;
+
+  int maxchars = 8192;                                   // Alloc enough size.
+  std::vector<char> buf(static_cast<size_t>(maxchars));  // Alloc enough size.
+  while (inStream->peek() != -1) {
+    inStream->getline(&buf[0], maxchars);
+
+    std::string linebuf(&buf[0]);
+
+    // Trim newline '\r\n' or '\n'
+    if (linebuf.size() > 0) {
+      if (linebuf[linebuf.size() - 1] == '\n')
+        linebuf.erase(linebuf.size() - 1);
+    }
+    if (linebuf.size() > 0) {
+      if (linebuf[linebuf.size() - 1] == '\r')
+        linebuf.erase(linebuf.size() - 1);
+    }
+
+    // Skip if empty line.
+    if (linebuf.empty()) {
+      continue;
+    }
+
+    // Skip leading space.
+    const char *token = linebuf.c_str();
+    token += strspn(token, " \t");
+
+    assert(token);
+    if (token[0] == '\0') continue;  // empty line
+
+    if (token[0] == '#') continue;  // comment line
+
+    // vertex
+    if (token[0] == 'v' && IS_SPACE((token[1]))) {
+      token += 2;
+      float x, y, z;
+      parseFloat3(&x, &y, &z, &token);
+      if (callback.vertex_cb) {
+        callback.vertex_cb(user_data, x, y, z);
+      }
+      continue;
+    }
+
+    // normal
+    if (token[0] == 'v' && token[1] == 'n' && IS_SPACE((token[2]))) {
+      token += 3;
+      float x, y, z;
+      parseFloat3(&x, &y, &z, &token);
+      if (callback.normal_cb) {
+        callback.normal_cb(user_data, x, y, z);
+      }
+      continue;
+    }
+
+    // texcoord
+    if (token[0] == 'v' && token[1] == 't' && IS_SPACE((token[2]))) {
+      token += 3;
+      float x, y;
+      parseFloat2(&x, &y, &token);
+      if (callback.texcoord_cb) {
+        callback.texcoord_cb(user_data, x, y);
+      }
+      continue;
+    }
+
+    // face
+    if (token[0] == 'f' && IS_SPACE((token[1]))) {
+      token += 2;
+      token += strspn(token, " \t");
+
+      while (!IS_NEW_LINE(token[0])) {
+        vertex_index vi = parseRawTriple(&token);
+        if (callback.index_cb) {
+          callback.index_cb(user_data, vi.v_idx, vi.vn_idx, vi.vt_idx);
+        }
+        size_t n = strspn(token, " \t\r");
+        token += n;
+      }
+
+      continue;
+    }
+
+    // use mtl
+    if ((0 == strncmp(token, "usemtl", 6)) && IS_SPACE((token[6]))) {
+      char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
+      token += 7;
+#ifdef _MSC_VER
+      sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
+#else
+      sscanf(token, "%s", namebuf);
+#endif
+
+      int newMaterialId = -1;
+      if (material_map.find(namebuf) != material_map.end()) {
+        newMaterialId = material_map[namebuf];
+      } else {
+        // { error!! material not found }
+      }
+
+      if (newMaterialId != material) {
+        material = newMaterialId;
+      }
+
+      if (callback.usemtl_cb) {
+        callback.usemtl_cb(user_data, material);
+      }
+
+      continue;
+    }
+
+    // load mtl
+    if ((0 == strncmp(token, "mtllib", 6)) && IS_SPACE((token[6]))) {
+      char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
+      token += 7;
+#ifdef _MSC_VER
+      sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
+#else
+      sscanf(token, "%s", namebuf);
+#endif
+
+      std::string err_mtl;
+      std::vector<material_t> materials;
+      bool ok = (*readMatFn)(namebuf, &materials, &material_map, &err_mtl);
+      if (err) {
+        (*err) += err_mtl;
+      }
+
+      if (!ok) {
+        return false;
+      }
+
+      if (callback.mtllib_cb) {
+        callback.mtllib_cb(user_data, &materials.at(0),
+                           static_cast<int>(materials.size()));
+      }
+
+      continue;
+    }
+
+    // group name
+    if (token[0] == 'g' && IS_SPACE((token[1]))) {
+      std::vector<std::string> names;
+      names.reserve(2);
+
+      while (!IS_NEW_LINE(token[0])) {
+        std::string str = parseString(&token);
+        names.push_back(str);
+        token += strspn(token, " \t\r");  // skip tag
+      }
+
+      assert(names.size() > 0);
+
+      // names[0] must be 'g', so skip the 0th element.
+      if (names.size() > 1) {
+        name = names[1];
+      } else {
+        name = "";
+      }
+
+      if (callback.group_cb) {
+        if (names.size() > 1) {
+          // create const char* array.
+          std::vector<const char *> tmp(names.size() - 1);
+          for (size_t j = 0; j < tmp.size(); j++) {
+            tmp[j] = names[j + 1].c_str();
+          }
+          callback.group_cb(user_data, &tmp.at(0),
+                            static_cast<int>(tmp.size()));
+
+        } else {
+          callback.group_cb(user_data, NULL, 0);
+        }
+
+        continue;
+      }
+
+      // object name
+      if (token[0] == 'o' && IS_SPACE((token[1]))) {
+        // @todo { multiple object name? }
+        char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
+        token += 2;
+#ifdef _MSC_VER
+        sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
+#else
+        sscanf(token, "%s", namebuf);
+#endif
+        name = std::string(namebuf);
+
+        if (callback.object_cb) {
+          callback.object_cb(user_data, name.c_str());
+        }
+
+        continue;
+      }
+
+#if 0  // @todo
+    if (token[0] == 't' && IS_SPACE(token[1])) {
+      tag_t tag;
+
+      char namebuf[4096];
+      token += 2;
+#ifdef _MSC_VER
+      sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
+#else
+      sscanf(token, "%s", namebuf);
+#endif
+      tag.name = std::string(namebuf);
+
+      token += tag.name.size() + 1;
+
+      tag_sizes ts = parseTagTriple(&token);
+
+      tag.intValues.resize(static_cast<size_t>(ts.num_ints));
+
+      for (size_t i = 0; i < static_cast<size_t>(ts.num_ints); ++i) {
+        tag.intValues[i] = atoi(token);
+        token += strcspn(token, "/ \t\r") + 1;
+      }
+
+      tag.floatValues.resize(static_cast<size_t>(ts.num_floats));
+      for (size_t i = 0; i < static_cast<size_t>(ts.num_floats); ++i) {
+        tag.floatValues[i] = parseFloat(&token);
+        token += strcspn(token, "/ \t\r") + 1;
+      }
+
+      tag.stringValues.resize(static_cast<size_t>(ts.num_strings));
+      for (size_t i = 0; i < static_cast<size_t>(ts.num_strings); ++i) {
+        char stringValueBuffer[4096];
+
+#ifdef _MSC_VER
+        sscanf_s(token, "%s", stringValueBuffer,
+                 (unsigned)_countof(stringValueBuffer));
+#else
+        sscanf(token, "%s", stringValueBuffer);
+#endif
+        tag.stringValues[i] = stringValueBuffer;
+        token += tag.stringValues[i].size() + 1;
+      }
+
+      tags.push_back(tag);
+#endif
+    }
+
+    // Ignore unknown command.
+  }
+
+  if (err) {
+    (*err) += errss.str();
+  }
+
+  return true;
+}
 }  // namespace tinyobj
 
 #endif

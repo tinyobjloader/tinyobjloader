@@ -3,6 +3,8 @@ cc     = clang
 cxx    = clang++
 cflags = -Werror -Weverything
 cxxflags = -Werror -Weverything
+#cflags = -O2
+#cxxflags = -O2
 
 rule compile
   command = $cxx $cxxflags -c $in -o $out
@@ -10,7 +12,7 @@ rule compile
 rule link
   command = $cxx $in -o $out
 
-build test.o: compile test.cc
-build test: link test.o
+build loader_example.o: compile loader_example.cc
+build loader_example: link loader_example.o
 
-default test
+default loader_example
