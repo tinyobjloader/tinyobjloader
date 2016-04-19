@@ -40,6 +40,7 @@ matrix:
       --coverage" REPORT_COVERAGE=1
 before_install:
 - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew upgrade; fi
+- if [ -n "$REPORT_COVERAGE" ]; then pip install --user requests[security]; fi
 - if [ -n "$REPORT_COVERAGE" ]; then pip install --user cpp-coveralls; fi
 script:
 - cd tests
