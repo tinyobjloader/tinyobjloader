@@ -1,5 +1,5 @@
 language: cpp
-sudo: false
+sudo: required
 matrix:
   include:
   - addons: &1
