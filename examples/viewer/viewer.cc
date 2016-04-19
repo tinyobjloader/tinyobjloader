@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <limits>
 #include <cmath>
@@ -345,6 +346,7 @@ int main(int argc, char **argv)
   }
 
   glfwMakeContextCurrent(window);
+  glfwSwapInterval(1);
 
   // Callback
   glfwSetWindowSizeCallback(window, reshapeFunc);

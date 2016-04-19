@@ -1,6 +1,12 @@
 GLFW_INC=-I/usr/local/include 
-GLFW_LIBS=-L/usr/local/lib -lglfw3 -lglew
-GL_LIBS=-framework OpenGL
+
+# OSX
+#GLFW_LIBS=-L/usr/local/lib -lglfw3 -lGLEW
+#GL_LIBS=-framework OpenGL
+
+# Linux
+GLFW_LIBS=-L/usr/local/lib -lglfw3 -lGLEW
+GL_LIBS=-lGL -lGLU -lX11 -lXrandr -lXi -lXxf86vm -lXcursor -lXinerama -ldl -pthread
 
 CXX_FLAGS=-Wno-deprecated-declarations
 
