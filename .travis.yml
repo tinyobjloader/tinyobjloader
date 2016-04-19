@@ -42,8 +42,8 @@ before_install:
 - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew upgrade; fi
 - if [ -n "$REPORT_COVERAGE" ]; then sudo apt-get install python-dev libffi-dev libssl-dev; fi
 - if [ -n "$REPORT_COVERAGE" ]; then sudo pip install --upgrade pip; fi
-- if [ -n "$REPORT_COVERAGE" ]; then pip install --user requests[security]; fi
-- if [ -n "$REPORT_COVERAGE" ]; then pip install --user cpp-coveralls; fi
+- if [ -n "$REPORT_COVERAGE" ]; then CXX=g++ pip install --user requests[security]; fi
+- if [ -n "$REPORT_COVERAGE" ]; then CXX=g++ pip install --user cpp-coveralls; fi
 script:
 - cd tests
 - make check
