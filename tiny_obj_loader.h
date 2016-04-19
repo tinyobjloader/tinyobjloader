@@ -236,15 +236,6 @@ struct tag_sizes {
   int num_strings;
 };
 
-// for std::map
-static inline bool operator<(const vertex_index &a, const vertex_index &b) {
-  if (a.v_idx != b.v_idx) return (a.v_idx < b.v_idx);
-  if (a.vn_idx != b.vn_idx) return (a.vn_idx < b.vn_idx);
-  if (a.vt_idx != b.vt_idx) return (a.vt_idx < b.vt_idx);
-
-  return false;
-}
-
 struct obj_shape {
   std::vector<float> v;
   std::vector<float> vn;
@@ -346,11 +337,13 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result) {
   }
 
   // Read the integer part.
-  while ((end_not_reached = (curr != s_end)) && IS_DIGIT(*curr)) {
+  end_not_reached = (curr != s_end);
+  while (end_not_reached && IS_DIGIT(*curr)) {
     mantissa *= 10;
     mantissa += static_cast<int>(*curr - 0x30);
     curr++;
     read++;
+    end_not_reached = (curr != s_end);
   }
 
   // We must make sure we actually got something.
@@ -362,11 +355,13 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result) {
   if (*curr == '.') {
     curr++;
     read = 1;
-    while ((end_not_reached = (curr != s_end)) && IS_DIGIT(*curr)) {
+    end_not_reached = (curr != s_end);
+    while (end_not_reached && IS_DIGIT(*curr)) {
       // NOTE: Don't use powf here, it will absolutely murder precision.
       mantissa += static_cast<int>(*curr - 0x30) * pow(10.0, -read);
       read++;
       curr++;
+      end_not_reached = (curr != s_end);
     }
   } else if (*curr == 'e' || *curr == 'E') {
   } else {
@@ -379,7 +374,8 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result) {
   if (*curr == 'e' || *curr == 'E') {
     curr++;
     // Figure out if a sign is present and if it is.
-    if ((end_not_reached = (curr != s_end)) && (*curr == '+' || *curr == '-')) {
+    end_not_reached = (curr != s_end);
+    if (end_not_reached && (*curr == '+' || *curr == '-')) {
       exp_sign = *curr;
       curr++;
     } else if (IS_DIGIT(*curr)) { /* Pass through. */
@@ -389,11 +385,13 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result) {
     }
 
     read = 0;
-    while ((end_not_reached = (curr != s_end)) && IS_DIGIT(*curr)) {
+    end_not_reached = (curr != s_end);
+    while (end_not_reached && IS_DIGIT(*curr)) {
       exponent *= 10;
       exponent += static_cast<int>(*curr - 0x30);
       curr++;
       read++;
+      end_not_reached = (curr != s_end);
     }
     exponent *= (exp_sign == '+' ? 1 : -1);
     if (read == 0) goto fail;
@@ -493,7 +491,7 @@ static vertex_index parseTriple(const char **token, int vsize, int vnsize,
 
 // Parse raw triples: i, i/j/k, i//k, i/j
 static vertex_index parseRawTriple(const char **token) {
-  vertex_index vi(-2147483648);  // 0x80000000 = -2147483648 = invalid
+  vertex_index vi(static_cast<int>(0x80000000));  // 0x80000000 = -2147483648 = invalid
 
   vi.v_idx = atoi((*token));
   (*token) += strcspn((*token), "/ \t\r");

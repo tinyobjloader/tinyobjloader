@@ -300,6 +300,29 @@ TEST_CASE("cornell_box", "[Loader]") {
     REQUIRE(true == TestLoadObj("../models/cornell_box.obj", gMtlBasePath));
 }
 
+TEST_CASE("catmark_torus_creases0", "[Loader]") {
+
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "../models/catmark_torus_creases0.obj", gMtlBasePath, /*triangulate*/false);
+
+  if (!err.empty()) {
+    std::cerr << err << std::endl;
+  }
+
+  REQUIRE(true == ret);
+
+  REQUIRE(1 == shapes.size());
+  REQUIRE(8 == shapes[0].mesh.tags.size());
+}
+
+TEST_CASE("stream_load", "[Stream]") {
+    REQUIRE(true == TestStreamLoadObj());
+}
+
 #if 0
 int
 main(

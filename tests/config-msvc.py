@@ -32,7 +32,7 @@ cflags = {
 
 cxxflags = {
     "gnu" : [ "-O2", "-g" ]
-  , "msvc" : [ "/O2" ]
+  , "msvc" : [ "/O2", "/W4", "/EHsc"]
   , "clang" : [ "-O2", "-g", "-fsanitize=address" ]
     }
 
