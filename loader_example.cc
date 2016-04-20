@@ -1,3 +1,6 @@
+//
+// g++ loader_example.cc
+//
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 

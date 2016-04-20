@@ -30,8 +30,8 @@ typedef struct {
 
 std::vector<DrawObject> gDrawObjects;
 
-int width = 512;
-int height = 512;
+int width = 768;
+int height = 768;
 
 double prevMouseX, prevMouseY;
 bool mouseLeftPressed;
@@ -92,8 +92,11 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], std::vector<DrawObject>& dr
     return false;
   }
 
+  printf("# of vertices  = %d\n", (int)(attrib.vertices.size()) / 3);
+  printf("# of normals   = %d\n", (int)(attrib.normals.size()) / 3);
+  printf("# of texcoords = %d\n", (int)(attrib.texcoords.size()) / 2);
   printf("# of materials = %d\n", (int)materials.size());
-  printf("# of shapes = %d\n", (int)shapes.size());
+  printf("# of shapes    = %d\n", (int)shapes.size());
 
   bmin[0] = bmin[1] = bmin[2] = std::numeric_limits<float>::max();
   bmax[0] = bmax[1] = bmax[2] = -std::numeric_limits<float>::max();
@@ -101,7 +104,7 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], std::vector<DrawObject>& dr
   {
       for (size_t s = 0; s < shapes.size(); s++) {
         DrawObject o;
-        std::vector<float> vb; // pos(3float), normal(3float)
+        std::vector<float> vb; // pos(3float), normal(3float), color(3float)
         for (size_t f = 0; f < shapes[s].mesh.indices.size()/3; f++) {
 
           tinyobj::index_t idx0 = shapes[s].mesh.indices[3*f+0];
@@ -150,6 +153,19 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], std::vector<DrawObject>& dr
             vb.push_back(n[k][0]);
             vb.push_back(n[k][1]);
             vb.push_back(n[k][2]);
+            // Use normal as color.
+            float c[3] = {n[k][0], n[k][1], n[k][2]};
+            float len2 = c[0] * c[0] + c[1] * c[1] + c[2] * c[2];
+            if (len2 > 0.0f) {
+              float len = sqrtf(len2);
+              
+              c[0] /= len;
+              c[1] /= len;
+              c[2] /= len;
+            }
+            vb.push_back(c[0] * 0.5 + 0.5);
+            vb.push_back(c[1] * 0.5 + 0.5);
+            vb.push_back(c[2] * 0.5 + 0.5);
           }
           
         }
@@ -160,7 +176,8 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], std::vector<DrawObject>& dr
           glGenBuffers(1, &o.vb);
           glBindBuffer(GL_ARRAY_BUFFER, o.vb);
           glBufferData(GL_ARRAY_BUFFER, vb.size() * sizeof(float), &vb.at(0), GL_STATIC_DRAW);
-          o.numTriangles = vb.size() / 6 / 3;
+          o.numTriangles = vb.size() / 9 / 3;
+          printf("shape[%d] # of triangles = %d\n", static_cast<int>(s), o.numTriangles);
         }
 
         gDrawObjects.push_back(o);
@@ -243,8 +260,8 @@ void motionFunc(GLFWwindow* window, double mouse_x, double mouse_y){
 
       add_quats(prev_quat, curr_quat, curr_quat);
     } else if (mouseMiddlePressed) {
-      eye[0] += transScale * (mouse_x - prevMouseX) / (float)width;
-      lookat[0] += transScale * (mouse_x - prevMouseX) / (float)width;
+      eye[0] -= transScale * (mouse_x - prevMouseX) / (float)width;
+      lookat[0] -= transScale * (mouse_x - prevMouseX) / (float)width;
       eye[1] += transScale * (mouse_y - prevMouseY) / (float)height;
       lookat[1] += transScale * (mouse_y - prevMouseY) / (float)height;
     } else if (mouseRightPressed) {
@@ -274,8 +291,10 @@ void Draw(const std::vector<DrawObject>& drawObjects)
     glBindBuffer(GL_ARRAY_BUFFER, o.vb);
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);
-    glVertexPointer(3, GL_FLOAT, 24, (const void*)0);
-    glNormalPointer(GL_FLOAT, 24, (const void*)(sizeof(float)*3));
+    glEnableClientState(GL_COLOR_ARRAY);
+    glVertexPointer(3, GL_FLOAT, 36, (const void*)0);
+    glNormalPointer(GL_FLOAT, 36, (const void*)(sizeof(float)*3));
+    glColorPointer(3, GL_FLOAT, 36, (const void*)(sizeof(float)*6));
 
     glDrawArrays(GL_TRIANGLES, 0, 3 * o.numTriangles);
     CheckErrors("drawarrays");
@@ -296,8 +315,9 @@ void Draw(const std::vector<DrawObject>& drawObjects)
     glBindBuffer(GL_ARRAY_BUFFER, o.vb);
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);
-    glVertexPointer(3, GL_FLOAT, 24, (const void*)0);
-    glNormalPointer(GL_FLOAT, 24, (const void*)(sizeof(float)*3));
+    glDisableClientState(GL_COLOR_ARRAY);
+    glVertexPointer(3, GL_FLOAT, 36, (const void*)0);
+    glNormalPointer(GL_FLOAT, 36, (const void*)(sizeof(float)*3));
 
     glDrawArrays(GL_TRIANGLES, 0, 3 * o.numTriangles);
     CheckErrors("drawarrays");

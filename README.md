@@ -79,12 +79,13 @@ Features
 TODO
 ----
 
-* [ ] Read .obj/.mtl from memory
+* [ ] Read .obj/.mtl from memory.
+* [ ] Fix Python binding.
 
 License
 -------
 
-Licensed under 2 clause BSD.
+Licensed under MIT license.
 
 Usage
 -----
@@ -94,11 +95,12 @@ Usage
 #include "tiny_obj_loader.h"
 
 std::string inputfile = "cornell_box.obj";
+tinyobj::attrib_t attrib;
 std::vector<tinyobj::shape_t> shapes;
 std::vector<tinyobj::material_t> materials;
   
 std::string err;
-bool ret = tinyobj::LoadObj(shapes, materials, err, inputfile.c_str());
+bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, inputfile.c_str());
   
 if (!err.empty()) { // `err` may contain warning message.
   std::cerr << err << std::endl;

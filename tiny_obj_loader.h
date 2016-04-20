@@ -1,11 +1,30 @@
-//
-// Copyright 2012-2016, Syoyo Fujita.
-//
-// Licensed under 2-clause BSD license.
-//
+/*
+The MIT License (MIT)
+
+Copyright (c) 2012-2016 Syoyo Fujita and many contributors.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+*/
 
 //
-// version devel : Change data structure. Support different index for
+// version 1.0.0 : Change data structure. Change license from BSD to MIT.
+// Support different index for
 // vertex/normal/texcoord(#73, #39)
 // version 0.9.20: Fixes creating per-face material using `usemtl`(#68)
 // version 0.9.17: Support n-polygon and crease tag(OpenSubdiv extension)
@@ -117,8 +136,9 @@ typedef struct callback_t_ {
   void (*texcoord_cb)(void *user_data, float x, float y);
   // -2147483648 will be passed for undefined index
   void (*index_cb)(void *user_data, int v_idx, int vn_idx, int vt_idx);
-  // `name` material name, `materialId` = the array index of material_t[]. -1 if a material not found in .mtl
-  void (*usemtl_cb)(void *user_data, const char* name, int materialId);
+  // `name` material name, `materialId` = the array index of material_t[]. -1 if
+  // a material not found in .mtl
+  void (*usemtl_cb)(void *user_data, const char *name, int materialId);
   // `materials` = parsed material data.
   void (*mtllib_cb)(void *user_data, const material_t *materials,
                     int num_materials);
@@ -126,17 +146,16 @@ typedef struct callback_t_ {
   void (*group_cb)(void *user_data, const char **names, int num_names);
   void (*object_cb)(void *user_data, const char *name);
 
-  callback_t_() :
-    vertex_cb(NULL),
-    normal_cb(NULL),
-    texcoord_cb(NULL),
-    index_cb(NULL),
-    usemtl_cb(NULL),
-    mtllib_cb(NULL),
-    group_cb(NULL),
-    object_cb(NULL) {
-  }
-  
+  callback_t_()
+      : vertex_cb(NULL),
+        normal_cb(NULL),
+        texcoord_cb(NULL),
+        index_cb(NULL),
+        usemtl_cb(NULL),
+        mtllib_cb(NULL),
+        group_cb(NULL),
+        object_cb(NULL) {}
+
 } callback_t;
 
 class MaterialReader {
@@ -491,7 +510,8 @@ static vertex_index parseTriple(const char **token, int vsize, int vnsize,
 
 // Parse raw triples: i, i/j/k, i//k, i/j
 static vertex_index parseRawTriple(const char **token) {
-  vertex_index vi(static_cast<int>(0x80000000));  // 0x80000000 = -2147483648 = invalid
+  vertex_index vi(
+      static_cast<int>(0x80000000));  // 0x80000000 = -2147483648 = invalid
 
   vi.v_idx = atoi((*token));
   (*token) += strcspn((*token), "/ \t\r");
@@ -1179,7 +1199,7 @@ bool LoadObjWithCallback(void *user_data, const callback_t &callback,
 
   // material
   std::map<std::string, int> material_map;
-  int materialId = -1; // -1 = invalid
+  int materialId = -1;  // -1 = invalid
 
   int maxchars = 8192;                                   // Alloc enough size.
   std::vector<char> buf(static_cast<size_t>(maxchars));  // Alloc enough size.

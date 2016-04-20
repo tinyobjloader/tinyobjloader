@@ -1,12 +1,16 @@
 GLFW_INC=-I/usr/local/include 
 
-# OSX
-#GLFW_LIBS=-L/usr/local/lib -lglfw3 -lGLEW
-#GL_LIBS=-framework OpenGL
+UNAME=$(shell uname -s)
 
-# Linux
+ifeq ($(UNAME),Darwin)
+# OSX
+GLFW_LIBS=-L/usr/local/lib -lglfw3 -lGLEW
+GL_LIBS=-framework OpenGL
+else
+# Assume Linux
 GLFW_LIBS=-L/usr/local/lib -lglfw3 -lGLEW
 GL_LIBS=-lGL -lGLU -lX11 -lXrandr -lXi -lXxf86vm -lXcursor -lXinerama -ldl -pthread
+endif
 
 CXX_FLAGS=-Wno-deprecated-declarations
 
