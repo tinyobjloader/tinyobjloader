@@ -81,6 +81,7 @@ TODO
 
 * [ ] Read .obj/.mtl from memory.
 * [ ] Fix Python binding.
+* [ ] Unit test codes.
 
 License
 -------
