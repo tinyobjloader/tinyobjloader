@@ -65,7 +65,7 @@ static void PrintInfo(const tinyobj::attrib_t &attrib, const std::vector<tinyobj
       }
 
       printf("Size of shape[%ld].material_ids: %ld\n", i, shapes[i].mesh.material_ids.size());
-      assert(shapes[i].mesh.material_ids.size() == shapes[i].mesh.num_vertices.size());
+      assert(shapes[i].mesh.material_ids.size() == shapes[i].mesh.num_face_vertices.size());
       for (size_t m = 0; m < shapes[i].mesh.material_ids.size(); m++) {
         printf("  material_id[%ld] = %d\n", m,
           shapes[i].mesh.material_ids[m]);
@@ -73,10 +73,10 @@ static void PrintInfo(const tinyobj::attrib_t &attrib, const std::vector<tinyobj
 
     }
 
-    printf("shape[%ld].num_faces: %ld\n", i, shapes[i].mesh.num_vertices.size());
-    for (size_t v = 0; v < shapes[i].mesh.num_vertices.size(); v++) {
-      printf("  num_vertices[%ld] = %ld\n", v,
-        static_cast<long>(shapes[i].mesh.num_vertices[v]));
+    printf("shape[%ld].num_faces: %ld\n", i, shapes[i].mesh.num_face_vertices.size());
+    for (size_t v = 0; v < shapes[i].mesh.num_face_vertices.size(); v++) {
+      printf("  num_face_vertices[%ld] = %ld\n", v,
+        static_cast<long>(shapes[i].mesh.num_face_vertices[v]));
     }
 
     //printf("shape[%ld].vertices: %ld\n", i, shapes[i].mesh.positions.size());
