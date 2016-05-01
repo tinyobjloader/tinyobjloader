@@ -613,6 +613,7 @@ static bool exportFaceGroupToShape(
         idx.vertex_index = face[k].v_idx;
         idx.normal_index = face[k].vn_idx;
         idx.texcoord_index = face[k].vt_idx;
+        shape->mesh.indices.push_back(idx);
       }
 
       shape->mesh.num_face_vertices.push_back(static_cast<unsigned char>(npolys));

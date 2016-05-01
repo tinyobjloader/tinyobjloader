@@ -11,7 +11,7 @@
 #include <sstream>
 #include <fstream>
 
-static void PrintInfo(const tinyobj::attrib_t &attrib, const std::vector<tinyobj::shape_t>& shapes, const std::vector<tinyobj::material_t>& materials, bool triangulate = true)
+static void PrintInfo(const tinyobj::attrib_t &attrib, const std::vector<tinyobj::shape_t>& shapes, const std::vector<tinyobj::material_t>& materials)
 {
   std::cout << "# of vertices  : " << (attrib.vertices.size() / 3) << std::endl;
   std::cout << "# of normals   : " << (attrib.normals.size() / 3) << std::endl;
@@ -21,76 +21,54 @@ static void PrintInfo(const tinyobj::attrib_t &attrib, const std::vector<tinyobj
   std::cout << "# of materials : " << materials.size() << std::endl;
 
   for (size_t v = 0; v < attrib.vertices.size() / 3; v++) {
-    printf("  v[%ld] = (%f, %f, %f)\n", v,
+    printf("  v[%ld] = (%f, %f, %f)\n", static_cast<long>(v),
       static_cast<const double>(attrib.vertices[3*v+0]),
       static_cast<const double>(attrib.vertices[3*v+1]),
       static_cast<const double>(attrib.vertices[3*v+2]));
   }
 
   for (size_t v = 0; v < attrib.normals.size() / 3; v++) {
-    printf("  n[%ld] = (%f, %f, %f)\n", v,
+    printf("  n[%ld] = (%f, %f, %f)\n", static_cast<long>(v),
       static_cast<const double>(attrib.normals[3*v+0]),
       static_cast<const double>(attrib.normals[3*v+1]),
       static_cast<const double>(attrib.normals[3*v+2]));
   }
 
   for (size_t v = 0; v < attrib.texcoords.size() / 2; v++) {
-    printf("  uv[%ld] = (%f, %f)\n", v,
+    printf("  uv[%ld] = (%f, %f)\n", static_cast<long>(v),
       static_cast<const double>(attrib.texcoords[2*v+0]),
       static_cast<const double>(attrib.texcoords[2*v+1]));
   }
 
+  // For each shape
   for (size_t i = 0; i < shapes.size(); i++) {
-    printf("shape[%ld].name = %s\n", i, shapes[i].name.c_str());
-    printf("Size of shape[%ld].indices: %ld\n", i, shapes[i].mesh.indices.size());
+    printf("shape[%ld].name = %s\n", static_cast<long>(i), shapes[i].name.c_str());
+    printf("Size of shape[%ld].indices: %lu\n", static_cast<long>(i), static_cast<unsigned long>(shapes[i].mesh.indices.size()));
 
-    if (triangulate)
-    {
-        printf("Size of shape[%ld].material_ids: %ld\n", i, shapes[i].mesh.material_ids.size());
-        assert((shapes[i].mesh.indices.size() % 3) == 0);
-        for (size_t f = 0; f < shapes[i].mesh.indices.size() / 3; f++) {
-          tinyobj::index_t i0 = shapes[i].mesh.indices[3*f+0];
-          tinyobj::index_t i1 = shapes[i].mesh.indices[3*f+1];
-          tinyobj::index_t i2 = shapes[i].mesh.indices[3*f+2];
-          printf("  idx[%ld] = %d/%d/%d, %d/%d/%d, %d/%d/%d. mat_id = %d\n", f,
-            i0.vertex_index, i0.normal_index, i0.texcoord_index,
-            i1.vertex_index, i1.normal_index, i1.texcoord_index,
-            i2.vertex_index, i2.normal_index, i2.texcoord_index,
-            shapes[i].mesh.material_ids[f]);
-        }
-    } else {
-      for (size_t f = 0; f < shapes[i].mesh.indices.size(); f++) {
-        tinyobj::index_t idx = shapes[i].mesh.indices[f];
-        printf("  idx[%ld] = %d/%d/%d\n", f, idx.vertex_index, idx.normal_index, idx.texcoord_index);
-      }
+	size_t index_offset = 0;
 
-      printf("Size of shape[%ld].material_ids: %ld\n", i, shapes[i].mesh.material_ids.size());
-      assert(shapes[i].mesh.material_ids.size() == shapes[i].mesh.num_face_vertices.size());
-      for (size_t m = 0; m < shapes[i].mesh.material_ids.size(); m++) {
-        printf("  material_id[%ld] = %d\n", m,
-          shapes[i].mesh.material_ids[m]);
-      }
+	assert(shapes[i].mesh.num_face_vertices.size() == shapes[i].mesh.material_ids.size());
 
+	printf("shape[%ld].num_faces: %lu\n", static_cast<long>(i), static_cast<unsigned long>(shapes[i].mesh.num_face_vertices.size()));
+
+	// For each face
+    for (size_t f = 0; f < shapes[i].mesh.num_face_vertices.size(); f++) {
+		size_t fnum = shapes[i].mesh.num_face_vertices[f];
+
+		// For each vertex in the face
+		for (size_t v = 0; v < fnum; v++) {
+			tinyobj::index_t idx = shapes[i].mesh.indices[index_offset + v];
+			printf("  face[%ld].v[%ld].idx = %d/%d/%d\n", static_cast<long>(f), static_cast<long>(v), idx.vertex_index, idx.normal_index, idx.texcoord_index);
+		}
+
+		printf("  face[%ld].material_id = %d\n", static_cast<long>(f), shapes[i].mesh.material_ids[f]);
+
+		index_offset += fnum;
     }
 
-    printf("shape[%ld].num_faces: %ld\n", i, shapes[i].mesh.num_face_vertices.size());
-    for (size_t v = 0; v < shapes[i].mesh.num_face_vertices.size(); v++) {
-      printf("  num_face_vertices[%ld] = %ld\n", v,
-        static_cast<long>(shapes[i].mesh.num_face_vertices[v]));
-    }
-
-    //printf("shape[%ld].vertices: %ld\n", i, shapes[i].mesh.positions.size());
-    //assert((shapes[i].mesh.positions.size() % 3) == 0);
-    //for (size_t v = 0; v < shapes[i].mesh.positions.size() / 3; v++) {
-    //  printf("  v[%ld] = (%f, %f, %f)\n", v,
-    //    static_cast<const double>(shapes[i].mesh.positions[3*v+0]),
-    //    static_cast<const double>(shapes[i].mesh.positions[3*v+1]),
-    //    static_cast<const double>(shapes[i].mesh.positions[3*v+2]));
-    //}
-
-    printf("shape[%ld].num_tags: %ld\n", i, shapes[i].mesh.tags.size());
+    printf("shape[%ld].num_tags: %lu\n", static_cast<long>(i), static_cast<unsigned long>(shapes[i].mesh.tags.size()));
     for (size_t t = 0; t < shapes[i].mesh.tags.size(); t++) {
-      printf("  tag[%ld] = %s ", t, shapes[i].mesh.tags[t].name.c_str());
+      printf("  tag[%ld] = %s ", static_cast<long>(t), shapes[i].mesh.tags[t].name.c_str());
       printf(" ints: [");
       for (size_t j = 0; j < shapes[i].mesh.tags[t].intValues.size(); ++j)
       {
@@ -128,7 +106,7 @@ static void PrintInfo(const tinyobj::attrib_t &attrib, const std::vector<tinyobj
   }
 
   for (size_t i = 0; i < materials.size(); i++) {
-    printf("material[%ld].name = %s\n", i, materials[i].name.c_str());
+    printf("material[%ld].name = %s\n", static_cast<long>(i), materials[i].name.c_str());
     printf("  material.Ka = (%f, %f ,%f)\n", static_cast<const double>(materials[i].ambient[0]),       static_cast<const double>(materials[i].ambient[1]),       static_cast<const double>(materials[i].ambient[2]));
     printf("  material.Kd = (%f, %f ,%f)\n", static_cast<const double>(materials[i].diffuse[0]),       static_cast<const double>(materials[i].diffuse[1]),       static_cast<const double>(materials[i].diffuse[2]));
     printf("  material.Ks = (%f, %f ,%f)\n", static_cast<const double>(materials[i].specular[0]),      static_cast<const double>(materials[i].specular[1]),      static_cast<const double>(materials[i].specular[2]));
@@ -179,7 +157,7 @@ TestLoadObj(
     return false;
   }
 
-  PrintInfo(attrib, shapes, materials, triangulate);
+  PrintInfo(attrib, shapes, materials);
 
   return true;
 }
