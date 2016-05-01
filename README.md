@@ -79,9 +79,9 @@ Features
 TODO
 ----
 
-* [ ] Read .obj/.mtl from memory.
 * [ ] Fix Python binding.
-* [ ] Unit test codes.
+* [ ] Fix obj_sticker example.
+* [ ] More unit test codes.
 
 License
 -------
@@ -90,6 +90,10 @@ Licensed under MIT license.
 
 Usage
 -----
+
+`attrib_t` contains single and linear array of vertex data(position, normal and texcoord).
+Each `shape_t` does not contain vertex data but contains array index to `attrib_t`.
+See `loader_example.cc` for more details.
 
 ```c++
 #define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
@@ -111,7 +115,33 @@ if (!ret) {
   exit(1);
 }
 
-// See loader_example.cc for more details.
+// Loop over shapes
+for (size_t s = 0; s < shapes.size(); s++) {
+  // Loop over faces(polygon)
+  size_t index_offset = 0;
+  for (size_t f = 0; f < shapes[i].mesh.num_face_vertices; f++) {
+    int fv = shapes[i].mesh.num_face_vertices[f];
+
+    // Loop over vertices in the face.
+    for (size_t v = 0; v < fv; f++) {
+      // access to vertex
+      tinyobj::index_t idx = shapes[i].mesh.indices[index_offset + v];
+      float vx = attrib.positions[3*idx.vertex_index+0];
+      float vy = attrib.positions[3*idx.vertex_index+1];
+      float vz = attrib.positions[3*idx.vertex_index+2];
+      float nx = attrib.normals[3*idx.normal_index+0];
+      float ny = attrib.normals[3*idx.normal_index+1];
+      float nz = attrib.normals[3*idx.normal_index+2];
+      float tx = attrib.texcoords[2*idx.texcoord_index+0];
+      float ty = attrib.texcoords[2*idx.texcoord_index+1];
+    }
+    index_offset += fv;
+
+    // per-face material
+    shapes[i].mesh.material_ids[f];
+  }
+}
+
 ```
 
 

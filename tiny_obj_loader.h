@@ -113,7 +113,7 @@ typedef struct {
 typedef struct {
   std::vector<index_t> indices;
   std::vector<unsigned char>
-      num_vertices;               // The number of vertices per face. Up to 255.
+      num_face_vertices;               // The number of vertices per face. 3 = polygon, 4 = quad, ... Up to 255.
   std::vector<int> material_ids;  // per-face material ID
   std::vector<tag_t> tags;        // SubD tag
 } mesh_t;
@@ -604,7 +604,7 @@ static bool exportFaceGroupToShape(
         shape->mesh.indices.push_back(idx1);
         shape->mesh.indices.push_back(idx2);
 
-        shape->mesh.num_vertices.push_back(3);
+        shape->mesh.num_face_vertices.push_back(3);
         shape->mesh.material_ids.push_back(material_id);
       }
     } else {
@@ -615,7 +615,7 @@ static bool exportFaceGroupToShape(
         idx.texcoord_index = face[k].vt_idx;
       }
 
-      shape->mesh.num_vertices.push_back(static_cast<unsigned char>(npolys));
+      shape->mesh.num_face_vertices.push_back(static_cast<unsigned char>(npolys));
       shape->mesh.material_ids.push_back(material_id);  // per face
     }
   }
