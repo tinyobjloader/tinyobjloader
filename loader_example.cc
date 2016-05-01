@@ -55,10 +55,12 @@ static void PrintInfo(const tinyobj::attrib_t &attrib, const std::vector<tinyobj
     for (size_t f = 0; f < shapes[i].mesh.num_face_vertices.size(); f++) {
 		size_t fnum = shapes[i].mesh.num_face_vertices[f];
 
+		printf("  face[%ld].fnum = %d\n", static_cast<long>(f), static_cast<unsigned long>(fnum));
+
 		// For each vertex in the face
 		for (size_t v = 0; v < fnum; v++) {
 			tinyobj::index_t idx = shapes[i].mesh.indices[index_offset + v];
-			printf("  face[%ld].v[%ld].idx = %d/%d/%d\n", static_cast<long>(f), static_cast<long>(v), idx.vertex_index, idx.normal_index, idx.texcoord_index);
+			printf("    face[%ld].v[%ld].idx = %d/%d/%d\n", static_cast<long>(f), static_cast<long>(v), idx.vertex_index, idx.normal_index, idx.texcoord_index);
 		}
 
 		printf("  face[%ld].material_id = %d\n", static_cast<long>(f), shapes[i].mesh.material_ids[f]);
