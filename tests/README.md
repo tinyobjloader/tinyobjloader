@@ -20,6 +20,18 @@ Are installed.
 
 ### Windows
 
+Visual Studio 2013 is required to build tester.
+
+On Windows console.
+
     > python kuroga.py config-msvc.py
     > vcbuild.bat
+
+
+Or on msys2 bash,
+
+    $ python kuroga.py config-msvc.py
+    $ cmd //c vcbuild.bat
+
+ 
 
