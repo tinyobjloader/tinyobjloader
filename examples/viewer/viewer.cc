@@ -8,6 +8,7 @@
 #include <iostream>
 #include <limits>
 #include <cmath>
+#include <algorithm>	
 
 #include <GL/glew.h>
 
@@ -19,6 +20,7 @@
 
 #include <GLFW/glfw3.h>
 
+#define TINYOBJLOADER_IMPLEMENTATION
 #include "../../tiny_obj_loader.h"
 
 #include "trackball.h"
