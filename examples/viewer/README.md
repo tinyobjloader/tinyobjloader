@@ -1,10 +1,31 @@
 # Simple .obj viewer with glew + glfw3 + OpenGL
 
-## Build on Windows.
-
-### Requirements
+## Requirements
 
 * premake5
+* glfw3
+* glew
+
+
+## Build on MaCOSX
+
+Install glfw3 and glew using brew.
+Then,
+
+    $ premake5 gmake
+    $ make
+
+## Build on Linux
+
+Set `PKG_CONFIG_PATH` or Edit path to glfw3 and glew in `premake4.lua`
+
+Then,
+
+    $ premake5 gmake
+    $ make
+
+## Build on Windows.
+
 * Visual Studio 2013
 * Windows 64bit
   * 32bit may work.
