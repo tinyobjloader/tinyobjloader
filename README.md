@@ -40,10 +40,14 @@ What's new
 Example
 -------
 
-![Rungholt](https://github.com/syoyo/tinyobjloader/blob/master/images/rungholt.jpg?raw=true)
+![Rungholt](images/rungholt.jpg)
 
 tinyobjloader can successfully load 6M triangles Rungholt scene.
 http://graphics.cs.williams.edu/data/meshes.xml
+
+![](images/sanmugel.png) 
+
+* [examples/viewer/](examples/viewer) OpenGL .obj viewer 
 
 Use case
 --------
