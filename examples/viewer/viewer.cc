@@ -8,6 +8,7 @@
 #include <iostream>
 #include <limits>
 #include <cmath>
+#include <cassert>
 
 #include <GL/glew.h>
 
@@ -116,6 +117,9 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], std::vector<DrawObject>& dr
             int f0 = idx0.vertex_index;
             int f1 = idx1.vertex_index;
             int f2 = idx2.vertex_index;
+            assert(f0 >= 0);
+            assert(f1 >= 0);
+            assert(f2 >= 0);
 
             v[0][k] = attrib.vertices[3*f0+k];
             v[1][k] = attrib.vertices[3*f1+k];
@@ -134,6 +138,9 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], std::vector<DrawObject>& dr
             int f0 = idx0.normal_index;
             int f1 = idx1.normal_index;
             int f2 = idx2.normal_index;
+            assert(f0 >= 0);
+            assert(f1 >= 0);
+            assert(f2 >= 0);
             for (int k = 0; k < 3; k++) {
               n[0][k] = attrib.normals[3*f0+k];
               n[1][k] = attrib.normals[3*f1+k];
