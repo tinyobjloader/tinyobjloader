@@ -97,6 +97,69 @@ typedef struct {
   mesh_t mesh;
 } shape_t;
 
+typedef enum
+{
+  triangulation = 1,        // used whether triangulate polygon face in .obj
+  calculate_normals = 2,    // used whether calculate the normals if the .obj normals are empty
+  // Some nice stuff here
+} load_flags_t;
+
+class float3
+{
+public:
+  float3()
+    : x( 0.0f )
+    , y( 0.0f )
+    , z( 0.0f )
+  {
+  }
+
+  float3(float coord_x, float coord_y, float coord_z)
+    : x( coord_x )
+    , y( coord_y )
+    , z( coord_z )
+  {
+  }
+
+  float3(const float3& from, const float3& to)
+  {
+    coord[0] = to.coord[0] - from.coord[0];
+    coord[1] = to.coord[1] - from.coord[1];
+    coord[2] = to.coord[2] - from.coord[2];
+  }
+
+  float3 crossproduct ( const float3 & vec )
+  {
+    float a = y * vec.z - z * vec.y ;
+    float b = z * vec.x - x * vec.z ;
+    float c = x * vec.y - y * vec.x ;
+    return float3( a , b , c );
+  }
+
+  void normalize()
+  {
+    const float length = sqrt( ( coord[0] * coord[0] ) +
+                               ( coord[1] * coord[1] ) +
+                               ( coord[2] * coord[2] ) );
+    if( length != 1 )
+    {
+      coord[0] = (coord[0] / length);
+      coord[1] = (coord[1] / length);
+      coord[2] = (coord[2] / length);
+    }
+  }
+
+private:
+  union
+  {
+    float coord[3];
+    struct
+    {
+      float x,y,z;
+    };
+  };
+};
+
 class MaterialReader {
 public:
   MaterialReader() {}
@@ -127,13 +190,12 @@ private:
 /// Returns true when loading .obj become success.
 /// Returns warning and error message into `err`
 /// 'mtl_basepath' is optional, and used for base path for .mtl file.
-/// 'triangulate' is optional, and used whether triangulate polygon face in .obj
-/// or not.
+/// 'optional flags
 bool LoadObj(std::vector<shape_t> &shapes,       // [output]
              std::vector<material_t> &materials, // [output]
              std::string &err,                   // [output]
              const char *filename, const char *mtl_basepath = NULL,
-             bool triangulate = true);
+             unsigned int flags = 1 );
 
 /// Loads object from a std::istream, uses GetMtlIStreamFn to retrieve
 /// std::istream for materials.
@@ -143,7 +205,7 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
              std::vector<material_t> &materials, // [output]
              std::string &err,                   // [output]
              std::istream &inStream, MaterialReader &readMatFn,
-             bool triangulate = true);
+             unsigned int flags = 1);
 
 /// Loads materials into std::map
 void LoadMtl(std::map<std::string, int> &material_map, // [output]
@@ -516,10 +578,13 @@ static bool exportFaceGroupToShape(
     const std::vector<float> &in_texcoords,
     const std::vector<std::vector<vertex_index> > &faceGroup,
     std::vector<tag_t> &tags, const int material_id, const std::string &name,
-    bool clearCache, bool triangulate) {
+    bool clearCache, unsigned int flags, std::string& err ) {
   if (faceGroup.empty()) {
     return false;
   }
+
+  bool triangulate( ( flags & triangulation ) == triangulation );
+  bool normals_calculation( ( flags & calculate_normals ) == calculate_normals );
 
   // Flatten vertices and indices
   for (size_t i = 0; i < faceGroup.size(); i++) {
@@ -568,6 +633,38 @@ static bool exportFaceGroupToShape(
 
       shape.mesh.num_vertices.push_back(static_cast<unsigned char>(npolys));
       shape.mesh.material_ids.push_back(material_id); // per face
+    }
+
+    if( normals_calculation && shape.mesh.normals.empty() )
+    {
+      const unsigned int nIndexs = shape.mesh.indices.size();
+      shape.mesh.normals.resize(shape.mesh.positions.size());
+      if( nIndexs % 3 == 0 )
+      {
+        for ( register unsigned int iIndices = 0; iIndices < nIndexs; iIndices+=3 )
+        {
+          float3 v1, v2, v3;
+          memcpy(&v1, &shape.mesh.positions[shape.mesh.indices[iIndices] * 3], sizeof(float3));
+          memcpy(&v2, &shape.mesh.positions[shape.mesh.indices[iIndices + 1] * 3], sizeof(float3));
+          memcpy(&v3, &shape.mesh.positions[shape.mesh.indices[iIndices + 2] * 3], sizeof(float3));
+
+          float3 v12( v1,v2 );
+          float3 v13( v1,v3 );
+
+          float3 normal = v12.crossproduct(v13);
+          normal.normalize();
+
+          memcpy(&shape.mesh.normals[shape.mesh.indices[iIndices] * 3],     &normal, sizeof(float3));
+          memcpy(&shape.mesh.normals[shape.mesh.indices[iIndices + 1] * 3], &normal, sizeof(float3));
+          memcpy(&shape.mesh.normals[shape.mesh.indices[iIndices + 2] * 3], &normal, sizeof(float3));
+        }
+      }
+      else
+      {
+        std::stringstream ss;
+        ss << "WARN: The shape " << name << " does not have a topology of triangles, therfore the normals calculation could not be performed. Select the tinyobj::triangulation flag for this object." << std::endl;
+        err += ss.str();
+      }
     }
   }
 
@@ -834,7 +931,7 @@ bool MaterialFileReader::operator()(const std::string &matId,
 bool LoadObj(std::vector<shape_t> &shapes,       // [output]
              std::vector<material_t> &materials, // [output]
              std::string &err, const char *filename, const char *mtl_basepath,
-             bool trianglulate) {
+             unsigned int flags) {
 
   shapes.clear();
 
@@ -853,13 +950,14 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
   }
   MaterialFileReader matFileReader(basePath);
 
-  return LoadObj(shapes, materials, err, ifs, matFileReader, trianglulate);
+  return LoadObj(shapes, materials, err, ifs, matFileReader, flags);
 }
 
 bool LoadObj(std::vector<shape_t> &shapes,       // [output]
              std::vector<material_t> &materials, // [output]
              std::string &err, std::istream &inStream,
-             MaterialReader &readMatFn, bool triangulate) {
+             MaterialReader &readMatFn, unsigned int flags) {
+
   std::stringstream errss;
 
   std::vector<float> v;
@@ -986,7 +1084,7 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
       if (newMaterialId != material) {
         // Create per-face material
         exportFaceGroupToShape(shape, vertexCache, v, vn, vt, faceGroup, tags,
-                               material, name, true, triangulate);
+                               material, name, true, flags, err );
         faceGroup.clear();
         material = newMaterialId;
       }
@@ -1022,7 +1120,7 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
       // flush previous face group.
       bool ret =
           exportFaceGroupToShape(shape, vertexCache, v, vn, vt, faceGroup, tags,
-                                 material, name, true, triangulate);
+                                 material, name, true, flags, err );
       if (ret) {
         shapes.push_back(shape);
       }
@@ -1059,7 +1157,7 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
       // flush previous face group.
       bool ret =
           exportFaceGroupToShape(shape, vertexCache, v, vn, vt, faceGroup, tags,
-                                 material, name, true, triangulate);
+                                 material, name, true, flags, err );
       if (ret) {
         shapes.push_back(shape);
       }
@@ -1130,13 +1228,14 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
   }
 
   bool ret = exportFaceGroupToShape(shape, vertexCache, v, vn, vt, faceGroup,
-                                    tags, material, name, true, triangulate);
+                                    tags, material, name, true, flags, err );
   if (ret) {
     shapes.push_back(shape);
   }
   faceGroup.clear(); // for safety
 
   err += errss.str();
+
   return true;
 }
 
