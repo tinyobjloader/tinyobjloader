@@ -73,14 +73,12 @@
         <p>First, load your mesh from file, storing the shapes and materials separately.</p>
 
 <pre><code>std::string inputfile = "cornell_box.obj";
-std::vector<tinyobj::shape_t> shapes;
-std::vector<tinyobj::material_t> materials;
+std::vector&lt;tinyobj::shape_t&gt; shapes;
+std::vector&lt;tinyobj::material_t&gt; materials;
+std::string err;
 
-std::string err = tinyobj::LoadObj(shapes, materials, inputfile.c_str());
-
-if (!err.empty()) {
-  std::cerr << err << std::endl;
-  exit(1);
+if(!tinyobj::LoadObj(shapes, materials, err, inputfile.c_str()))
+	std::cerr << err << std::endl;
 }
 
 std::cout << "# of shapes    : " << shapes.size() << std::endl;
