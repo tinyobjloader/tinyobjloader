@@ -1,10 +1,11 @@
 //
-// Copyright 2012-2015, Syoyo Fujita.
+// Copyright 2012-2016, Syoyo Fujita.
 //
 // Licensed under 2-clause BSD license.
 //
 
 //
+// version 0.9.21: Flat normal creation flag for .obj files that do not have normals
 // version 0.9.20: Fixes creating per-face material using `usemtl`(#68)
 // version 0.9.17: Support n-polygon and crease tag(OpenSubdiv extension)
 // version 0.9.16: Make tinyobjloader header-only
@@ -635,38 +636,34 @@ static bool exportFaceGroupToShape(
       shape.mesh.num_vertices.push_back(static_cast<unsigned char>(npolys));
       shape.mesh.material_ids.push_back(material_id); // per face
     }
+  }
 
-    if( normals_calculation && shape.mesh.normals.empty() )
-    {
-      const unsigned int nIndexs = shape.mesh.indices.size();
-      shape.mesh.normals.resize(shape.mesh.positions.size());
-      if( nIndexs % 3 == 0 )
-      {
-        for ( register unsigned int iIndices = 0; iIndices < nIndexs; iIndices+=3 )
-        {
-          float3 v1, v2, v3;
-          memcpy(&v1, &shape.mesh.positions[shape.mesh.indices[iIndices] * 3], sizeof(float3));
-          memcpy(&v2, &shape.mesh.positions[shape.mesh.indices[iIndices + 1] * 3], sizeof(float3));
-          memcpy(&v3, &shape.mesh.positions[shape.mesh.indices[iIndices + 2] * 3], sizeof(float3));
+  if (normals_calculation && shape.mesh.normals.empty()) {
+	  const size_t nIndexs = shape.mesh.indices.size();
+	  if (nIndexs % 3 == 0) {
+		  shape.mesh.normals.resize(shape.mesh.positions.size());
+		  for (register size_t iIndices = 0; iIndices < nIndexs; iIndices += 3) {
+			  float3 v1, v2, v3;
+			  memcpy(&v1, &shape.mesh.positions[shape.mesh.indices[iIndices] * 3], sizeof(float3));
+			  memcpy(&v2, &shape.mesh.positions[shape.mesh.indices[iIndices + 1] * 3], sizeof(float3));
+			  memcpy(&v3, &shape.mesh.positions[shape.mesh.indices[iIndices + 2] * 3], sizeof(float3));
 
-          float3 v12( v1,v2 );
-          float3 v13( v1,v3 );
+			  float3 v12(v1, v2);
+			  float3 v13(v1, v3);
 
-          float3 normal = v12.crossproduct(v13);
-          normal.normalize();
+			  float3 normal = v12.crossproduct(v13);
+			  normal.normalize();
 
-          memcpy(&shape.mesh.normals[shape.mesh.indices[iIndices] * 3],     &normal, sizeof(float3));
-          memcpy(&shape.mesh.normals[shape.mesh.indices[iIndices + 1] * 3], &normal, sizeof(float3));
-          memcpy(&shape.mesh.normals[shape.mesh.indices[iIndices + 2] * 3], &normal, sizeof(float3));
-        }
-      }
-      else
-      {
-        std::stringstream ss;
-        ss << "WARN: The shape " << name << " does not have a topology of triangles, therfore the normals calculation could not be performed. Select the tinyobj::triangulation flag for this object." << std::endl;
-        err += ss.str();
-      }
-    }
+			  memcpy(&shape.mesh.normals[shape.mesh.indices[iIndices] * 3], &normal, sizeof(float3));
+			  memcpy(&shape.mesh.normals[shape.mesh.indices[iIndices + 1] * 3], &normal, sizeof(float3));
+			  memcpy(&shape.mesh.normals[shape.mesh.indices[iIndices + 2] * 3], &normal, sizeof(float3));
+		  }
+	  } else {
+
+		  std::stringstream ss;
+		  ss << "WARN: The shape " << name << " does not have a topology of triangles, therfore the normals calculation could not be performed. Select the tinyobj::triangulation flag for this object." << std::endl;
+		  err += ss.str();
+	  }
   }
 
   shape.name = name;
