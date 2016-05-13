@@ -272,7 +272,7 @@ main(
     //assert(true == TestLoadObj("cornell_box.obj"));
     //assert(true == TestLoadObj("cube.obj"));
     assert(true == TestStreamLoadObj());
-    assert(true == TestLoadObj("catmark_torus_creases0.obj", NULL, false));
+    assert(true == TestLoadObj("catmark_torus_creases0.obj", NULL,  0));
   }
 
   return 0;
