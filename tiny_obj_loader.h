@@ -1375,27 +1375,29 @@ bool LoadObjWithCallback(void *user_data, const callback_t &callback,
           callback.group_cb(user_data, NULL, 0);
         }
 
-        continue;
       }
 
-      // object name
-      if (token[0] == 'o' && IS_SPACE((token[1]))) {
-        // @todo { multiple object name? }
-        char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
-        token += 2;
+      continue;
+		}
+
+		// object name
+		if (token[0] == 'o' && IS_SPACE((token[1]))) {
+			// @todo { multiple object name? }
+			char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
+			token += 2;
 #ifdef _MSC_VER
-        sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
+			sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
 #else
-        sscanf(token, "%s", namebuf);
+			sscanf(token, "%s", namebuf);
 #endif
-        name = std::string(namebuf);
+			std::string name = std::string(namebuf);
 
-        if (callback.object_cb) {
-          callback.object_cb(user_data, name.c_str());
-        }
+			if (callback.object_cb) {
+				callback.object_cb(user_data, name.c_str());
+			}
 
-        continue;
-      }
+			continue;
+		}
 
 #if 0  // @todo
     if (token[0] == 't' && IS_SPACE(token[1])) {
@@ -1442,8 +1444,8 @@ bool LoadObjWithCallback(void *user_data, const callback_t &callback,
       }
 
       tags.push_back(tag);
-#endif
     }
+#endif
 
     // Ignore unknown command.
   }
