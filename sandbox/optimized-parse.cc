@@ -239,6 +239,29 @@ typedef StackVector<char, 256> ShortString;
   (static_cast<unsigned int>((x) - '0') < static_cast<unsigned int>(10))
 #define IS_NEW_LINE(x) (((x) == '\r') || ((x) == '\n') || ((x) == '\0'))
 
+static inline void skip_space(const char **token)
+{
+  while ((*token)[0] == ' ' || (*token)[0] == '\t') {
+    (*token)++;
+  }
+}
+
+// http://stackoverflow.com/questions/5710091/how-does-atoi-function-in-c-work
+int my_atoi( const char *c ) {
+    int value = 0;
+    int sign = 1;
+    if( *c == '+' || *c == '-' ) {
+       if( *c == '-' ) sign = -1;
+       c++;
+    }
+    while ( isdigit( *c ) ) {
+        value *= 10;
+        value += (int) (*c-'0');
+        c++;
+    }
+    return value * sign;
+}
+
 struct vertex_index {
   int v_idx, vt_idx, vn_idx;
   vertex_index() : v_idx(-1), vt_idx(-1), vn_idx(-1) {}
@@ -259,8 +282,12 @@ static vertex_index parseTriple(const char **token, int vsize, int vnsize,
                                 int vtsize) {
   vertex_index vi(-1);
 
-  vi.v_idx = fixIndex(atoi((*token)), vsize);
-  (*token) += strcspn((*token), "/ \t\r");
+  vi.v_idx = fixIndex(my_atoi((*token)), vsize);
+
+  //(*token) += strcspn((*token), "/ \t\r");
+  while ((*token)[0] != '\0' && (*token)[0] != '/' && (*token)[0] != ' ' && (*token)[0] != '\t' && (*token)[0] != '\r') {
+    (*token)++;
+  }
   if ((*token)[0] != '/') {
     return vi;
   }
@@ -269,22 +296,31 @@ static vertex_index parseTriple(const char **token, int vsize, int vnsize,
   // i//k
   if ((*token)[0] == '/') {
     (*token)++;
-    vi.vn_idx = fixIndex(atoi((*token)), vnsize);
-    (*token) += strcspn((*token), "/ \t\r");
+    vi.vn_idx = fixIndex(my_atoi((*token)), vnsize);
+    //(*token) += strcspn((*token), "/ \t\r");
+    while ((*token)[0] != '\0' && (*token)[0] != '/' && (*token)[0] != ' ' && (*token)[0] != '\t' && (*token)[0] != '\r') {
+      (*token)++;
+    }
     return vi;
   }
 
   // i/j/k or i/j
-  vi.vt_idx = fixIndex(atoi((*token)), vtsize);
-  (*token) += strcspn((*token), "/ \t\r");
+  vi.vt_idx = fixIndex(my_atoi((*token)), vtsize);
+  //(*token) += strcspn((*token), "/ \t\r");
+  while ((*token)[0] != '\0' && (*token)[0] != '/' && (*token)[0] != ' ' && (*token)[0] != '\t' && (*token)[0] != '\r') {
+    (*token)++;
+  }
   if ((*token)[0] != '/') {
     return vi;
   }
 
   // i/j/k
   (*token)++;  // skip '/'
-  vi.vn_idx = fixIndex(atoi((*token)), vnsize);
-  (*token) += strcspn((*token), "/ \t\r");
+  vi.vn_idx = fixIndex(my_atoi((*token)), vnsize);
+  //(*token) += strcspn((*token), "/ \t\r");
+  while ((*token)[0] != '\0' && (*token)[0] != '/' && (*token)[0] != ' ' && (*token)[0] != '\t' && (*token)[0] != '\r') {
+    (*token)++;
+  }
   return vi;
 }
 
@@ -293,8 +329,11 @@ static vertex_index parseRawTriple(const char **token) {
   vertex_index vi(
       static_cast<int>(0x80000000));  // 0x80000000 = -2147483648 = invalid
 
-  vi.v_idx = atoi((*token));
-  (*token) += strcspn((*token), "/ \t\r");
+  vi.v_idx = my_atoi((*token));
+  //(*token) += strcspn((*token), "/ \t\r");
+  while ((*token)[0] != '\0' && (*token)[0] != '/' && (*token)[0] != ' ' && (*token)[0] != '\t' && (*token)[0] != '\r') {
+    (*token)++;
+  }
   if ((*token)[0] != '/') {
     return vi;
   }
@@ -303,27 +342,36 @@ static vertex_index parseRawTriple(const char **token) {
   // i//k
   if ((*token)[0] == '/') {
     (*token)++;
-    vi.vn_idx = atoi((*token));
-    (*token) += strcspn((*token), "/ \t\r");
+    vi.vn_idx = my_atoi((*token));
+    //(*token) += strcspn((*token), "/ \t\r");
+    while ((*token)[0] != '\0' && (*token)[0] != '/' && (*token)[0] != ' ' && (*token)[0] != '\t' && (*token)[0] != '\r') {
+      (*token)++;
+    }
     return vi;
   }
 
   // i/j/k or i/j
-  vi.vt_idx = atoi((*token));
-  (*token) += strcspn((*token), "/ \t\r");
+  vi.vt_idx = my_atoi((*token));
+  //(*token) += strcspn((*token), "/ \t\r");
+  while ((*token)[0] != '\0' && (*token)[0] != '/' && (*token)[0] != ' ' && (*token)[0] != '\t' && (*token)[0] != '\r') {
+    (*token)++;
+  }
   if ((*token)[0] != '/') {
     return vi;
   }
 
   // i/j/k
   (*token)++;  // skip '/'
-  vi.vn_idx = atoi((*token));
-  (*token) += strcspn((*token), "/ \t\r");
+  vi.vn_idx = my_atoi((*token));
+  //(*token) += strcspn((*token), "/ \t\r");
+  while ((*token)[0] != '\0' && (*token)[0] != '/' && (*token)[0] != ' ' && (*token)[0] != '\t' && (*token)[0] != '\r') {
+    (*token)++;
+  }
   return vi;
 }
 
 static inline bool parseString(ShortString *s, const char **token) {
-  (*token) += strspn((*token), " \t");
+  skip_space(token); //(*token) += strspn((*token), " \t");
   size_t e = strcspn((*token), " \t\r");
   (*s)->insert((*s)->end(), (*token), (*token) + e);
   (*token) += e;
@@ -331,8 +379,8 @@ static inline bool parseString(ShortString *s, const char **token) {
 }
 
 static inline int parseInt(const char **token) {
-  (*token) += strspn((*token), " \t");
-  int i = atoi((*token));
+  skip_space(token); //(*token) += strspn((*token), " \t");
+  int i = my_atoi((*token));
   (*token) += strcspn((*token), " \t\r");
   return i;
 }
@@ -473,7 +521,7 @@ fail:
 }
 
 static inline float parseFloat(const char **token) {
-  (*token) += strspn((*token), " \t");
+  skip_space(token); //(*token) += strspn((*token), " \t");
 #ifdef TINY_OBJ_LOADER_OLD_FLOAT_PARSER
   float f = static_cast<float>(atof(*token));
   (*token) += strcspn((*token), " \t\r");
@@ -528,13 +576,16 @@ typedef struct
 
 bool test(Command *command, const char *p, size_t p_len)
 {
-    std::vector<char> linebuf(p_len + 1, '\0');
-    memcpy(&linebuf.at(0), p, p_len);
+    StackVector<char, 256> linebuf;
+    linebuf->resize(p_len + 1);
+    memcpy(&linebuf->at(0), p, p_len);
+    linebuf[p_len] = '\0';
 
-    const char *token = &linebuf.at(0);
+    const char *token = &linebuf->at(0);
 
     // Skip leading space.
-    token += strspn(token, " \t");
+    //token += strspn(token, " \t");
+    skip_space(&token); //(*token) += strspn((*token), " \t");
 
     assert(token);
     if (token[0] == '\0') { // empty line
