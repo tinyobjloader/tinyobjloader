@@ -44,6 +44,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <cmath>
 
 namespace tinyobj {
 
@@ -138,9 +139,9 @@ public:
 
   void normalize()
   {
-    const float length = sqrt( ( coord[0] * coord[0] ) +
-                               ( coord[1] * coord[1] ) +
-                               ( coord[2] * coord[2] ) );
+    const float length = std::sqrt( ( coord[0] * coord[0] ) +
+                                               ( coord[1] * coord[1] ) +
+                                               ( coord[2] * coord[2] ) );
     if( length != 1 )
     {
       coord[0] = (coord[0] / length);
