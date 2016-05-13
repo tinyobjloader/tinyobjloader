@@ -14,6 +14,7 @@ solution "objview"
 		configuration { "linux" }
 			linkoptions { "`pkg-config --libs glfw3`" }
 			links { "GL", "GLU", "m", "GLEW", "X11", "Xrandr", "Xinerama", "Xi", "Xxf86vm", "Xcursor", "dl" }
+			linkoptions { "-pthread" }
 
 		configuration { "windows" }
 			-- Path to GLFW3
