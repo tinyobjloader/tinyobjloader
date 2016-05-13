@@ -124,7 +124,7 @@ static bool
 TestLoadObj(
   const char* filename,
   const char* basepath = NULL,
-  bool triangulate = true)
+  unsigned int flags = 1 )
 {
   std::cout << "Loading " << filename << std::endl;
 
@@ -132,7 +132,7 @@ TestLoadObj(
   std::vector<tinyobj::material_t> materials;
 
   std::string err;
-  bool ret = tinyobj::LoadObj(shapes, materials, err, filename, basepath, triangulate);
+  bool ret = tinyobj::LoadObj(shapes, materials, err, filename, basepath, flags);
 
   if (!err.empty()) {
     std::cerr << err << std::endl;
@@ -143,7 +143,8 @@ TestLoadObj(
     return false;
   }
 
-  PrintInfo(shapes, materials, triangulate);
+  bool triangulate( ( flags & tinyobj::triangulation ) == tinyobj::triangulation );
+  PrintInfo(shapes, materials, triangulate );
 
   return true;
 }
