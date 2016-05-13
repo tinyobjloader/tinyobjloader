@@ -5,7 +5,7 @@
 //
 
 //
-// version 0.9.21: Flat normal creation flag for .obj files that do not have normals
+// version 0.9.22: Introduce `load_flags_t`.
 // version 0.9.20: Fixes creating per-face material using `usemtl`(#68)
 // version 0.9.17: Support n-polygon and crease tag(OpenSubdiv extension)
 // version 0.9.16: Make tinyobjloader header-only
