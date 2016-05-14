@@ -584,7 +584,9 @@ typedef struct
   float nx, ny, nz;
   float tx, ty;
 
+  // for f
   std::vector<vertex_index> f;
+
   const char* group_name;
   const char* object_name;
   const char* material_name;
@@ -657,6 +659,7 @@ bool parseLine(Command *command, const char *p, size_t p_len)
       //token += strspn(token, " \t");
       skip_space(&token);
 
+      int num_verts = 0;
       while (!IS_NEW_LINE(token[0])) {
         vertex_index vi = parseRawTriple(&token);
         //printf("v = %d, %d, %d\n", vi.v_idx, vi.vn_idx, vi.vt_idx);
@@ -813,45 +816,104 @@ typedef struct
 // 3. Do parallel parsing for each line.
 // 4. Reconstruct final mesh data structure.
 
+#define kMaxThreads (32)
+
 void parse(const char* buf, size_t len)
 {
+
   std::vector<char> newline_marker(len, 0);
 
-  auto num_threads = std::thread::hardware_concurrency();
+  auto num_threads = std::max(1, std::min(static_cast<int>(std::thread::hardware_concurrency()), kMaxThreads));
   std::cout << "# of threads = " << num_threads << std::endl;
 
   auto t1 = std::chrono::high_resolution_clock::now();
 
   std::atomic<size_t> newline_counter(0);
-  std::vector<std::thread> workers;
 
-  std::vector<LineInfo> line_infos;
-  line_infos.reserve(len / 1024); // len / 1024 = heuristics
+  std::vector<LineInfo> line_infos[kMaxThreads];
+  for (auto t = 0; t < num_threads; t++) {
+    // Pre allocate enough memory. len / 1024 / num_threads is just a heuristic value.
+    line_infos[t].reserve(len / 1024 / num_threads);
+  }
 
   // 1. Find '\n' and create line data.
-  // @todo { parallelize lineinfo construction ? }
-  size_t prev_pos = 0;
-  for (size_t i = 0; i < len - 1; i++) {
-    if (buf[i] == '\n') {
-      LineInfo info;
-      info.pos = prev_pos;
-      info.len = i - prev_pos;
-
-      if (info.len > 0) {
-        line_infos.push_back(info);
-      }
-
-      prev_pos = i+1;
-    }
-  }
-
   {
-    auto t = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> ms = t - t1;
-    std::cout << "line split: " << ms.count() << " ms\n";
+    std::vector<std::thread> workers;
+
+    auto start_time = std::chrono::high_resolution_clock::now();
+    auto chunk_size = len / num_threads;
+
+    for (auto t = 0; t < num_threads; t++) {
+      workers.push_back(std::thread([&, t]() {
+        auto start_idx = (t + 0) * chunk_size;
+        auto end_idx   = std::min((t + 1) * chunk_size, len - 1);
+        if (t == (num_threads - 1)) {
+          end_idx = len - 1;
+        }
+
+        size_t prev_pos = start_idx;
+        for (size_t i = start_idx; i < end_idx; i++) {
+          if (buf[i] == '\n') {
+            if ((t > 0) && (prev_pos == start_idx) && (buf[start_idx-1] != '\n')) { 
+              // first linebreak found in (chunk > 0), and a line before this linebreak belongs to previous chunk, so skip it.
+              prev_pos = i + 1;
+              continue;
+            } else {
+              LineInfo info;
+              info.pos = prev_pos;
+              info.len = i - prev_pos;
+
+              if (info.len > 0) {
+                line_infos[t].push_back(info);
+              }
+
+              prev_pos = i+1;
+            }
+          }
+        }
+
+        // Find extra line which spand across chunk boundary.
+        if ((t < num_threads) && (buf[end_idx-1] != '\n')) {
+          auto extra_span_idx = std::min(end_idx-1+chunk_size, len - 1);
+          for (size_t i = end_idx; i < extra_span_idx; i++) {
+            if (buf[i] == '\n') {
+              LineInfo info;
+              info.pos = prev_pos;
+              info.len = i - prev_pos;
+
+              if (info.len > 0) {
+                line_infos[t].push_back(info);
+              }
+
+              break;
+            }
+          }
+        }
+      }));
+    }
+
+    for (auto &t : workers) {
+      t.join();
+    }
+
+    auto end_time = std::chrono::high_resolution_clock::now();
+
+    std::chrono::duration<double, std::milli> ms = end_time - start_time;
+    std::cout << "line detection:" << ms.count() << " ms\n";
   }
 
-  std::vector<Command> commands(line_infos.size());
+  auto line_sum = 0;
+  for (auto t = 0; t < num_threads; t++) {
+    std::cout << t << ": # of lines = " << line_infos[t].size() << std::endl;
+    line_sum += line_infos[t].size();
+  }
+  std::cout << "# of lines = " << line_sum << std::endl;
+
+  std::vector<Command> commands[kMaxThreads];
+
+  for (size_t t = 0; t < num_threads; t++) {
+    commands[t].reserve(line_infos[t].size());
+  }  
 
   auto t2 = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double, std::milli> ms1 = t2 - t1;
@@ -859,19 +921,18 @@ void parse(const char* buf, size_t len)
   std::cout << ms1.count() << " ms\n";
 
   // 2. parse each line in parallel.
-  auto chunk = line_infos.size() / num_threads;
-
   {
+    std::vector<std::thread> workers;
     auto t_start = std::chrono::high_resolution_clock::now();
 
     for (auto t = 0; t < num_threads; t++) {
       workers.push_back(std::thread([&, t]() {
-        auto start_idx = (t + 0) * chunk;
-        auto end_idx   = std::min((t + 1) * chunk, line_infos.size());
 
-        for (auto i = start_idx; i < end_idx; i++) {
-          bool ret = parseLine(&commands[i], &buf[line_infos[i].pos], line_infos[i].len);
+        for (auto i = 0; i < line_infos[t].size(); i++) {
+          Command command;
+          bool ret = parseLine(&command, &buf[line_infos[t][i].pos], line_infos[t][i].len);
           if (ret) {
+            commands[t].push_back(command);
           }
         }
 
@@ -888,42 +949,47 @@ void parse(const char* buf, size_t len)
     std::cout << "parse:" << ms.count() << " ms\n";
   }
 
-  auto t3 = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<double, std::milli> ms2 = t3 - t1;
-
-  std::cout << ms2.count() << " ms\n";
+  auto command_sum = 0;
+  for (auto t = 0; t < num_threads; t++) {
+    //std::cout << t << ": # of commands = " << commands[t].size() << std::endl;
+    command_sum += commands[t].size();
+  }
+  //std::cout << "# of commands = " << command_sum << std::endl;
 
   std::vector<float> vertices;
   std::vector<float> normals;
   std::vector<float> texcoords;
   std::vector<vertex_index> faces;
 
+  // merge
   {
     auto t_start = std::chrono::high_resolution_clock::now();
 
-    for (size_t i = 0; i < commands.size(); i++) {
-      if (commands[i].type == COMMAND_EMPTY) {
-        continue;
-      } else if (commands[i].type == COMMAND_V) {
-        vertices.push_back(commands[i].vx);
-        vertices.push_back(commands[i].vy);
-        vertices.push_back(commands[i].vz);
-      } else if (commands[i].type == COMMAND_VN) {
-        normals.push_back(commands[i].nx);
-        normals.push_back(commands[i].ny);
-        normals.push_back(commands[i].nz);
-      } else if (commands[i].type == COMMAND_VT) {
-        texcoords.push_back(commands[i].tx);
-        texcoords.push_back(commands[i].ty);
-      } else if (commands[i].type == COMMAND_F) {
-        int v_size = vertices.size() / 3;
-        int vn_size = normals.size() / 3;
-        int vt_size = texcoords.size() / 2;
-        for (size_t k = 0; k < commands[i].f.size(); k++) {
-          int v_idx = fixIndex(commands[i].f[k].v_idx, v_size);
-          int vn_idx = fixIndex(commands[i].f[k].vn_idx, v_size);
-          int vt_idx = fixIndex(commands[i].f[k].vt_idx, v_size);
-          faces.push_back(vertex_index(v_idx, vn_idx, vt_idx));
+    for (size_t t = 0; t < num_threads; t++) {
+      for (size_t i = 0; i < commands[t].size(); i++) {
+        if (commands[t][i].type == COMMAND_EMPTY) {
+          continue;
+        } else if (commands[t][i].type == COMMAND_V) {
+          vertices.push_back(commands[t][i].vx);
+          vertices.push_back(commands[t][i].vy);
+          vertices.push_back(commands[t][i].vz);
+        } else if (commands[t][i].type == COMMAND_VN) {
+          normals.push_back(commands[t][i].nx);
+          normals.push_back(commands[t][i].ny);
+          normals.push_back(commands[t][i].nz);
+        } else if (commands[t][i].type == COMMAND_VT) {
+          texcoords.push_back(commands[t][i].tx);
+          texcoords.push_back(commands[t][i].ty);
+        } else if (commands[t][i].type == COMMAND_F) {
+          int v_size = vertices.size() / 3;
+          int vn_size = normals.size() / 3;
+          int vt_size = texcoords.size() / 2;
+          for (size_t k = 0; k < commands[t][i].f.size(); k++) {
+            int v_idx = fixIndex(commands[t][i].f[k].v_idx, v_size);
+            int vn_idx = fixIndex(commands[t][i].f[k].vn_idx, v_size);
+            int vt_idx = fixIndex(commands[t][i].f[k].vt_idx, v_size);
+            faces.push_back(vertex_index(v_idx, vn_idx, vt_idx));
+          }
         }
       }
     }
@@ -933,18 +999,16 @@ void parse(const char* buf, size_t len)
     std::cout << "merge:" << ms.count() << " ms\n";
   }
 
+  std::cout << "# of vertices = " << vertices.size() << std::endl;
+  std::cout << "# of normals = " << normals.size() << std::endl;
+  std::cout << "# of texcoords = " << texcoords.size() << std::endl;
+  std::cout << "# of faces = " << faces.size() << std::endl;
+
   auto t4 = std::chrono::high_resolution_clock::now();
  
   std::chrono::duration<double, std::milli> ms_total = t4 - t1;
   std::cout << "total: " << ms_total.count() << " ms\n";
 
-  std::cout << "# of newlines = " << newline_counter << std::endl;
-  std::cout << "# of lines = " << line_infos.size() << std::endl;
-
-  std::cout << "# of vertices = " << vertices.size() << std::endl;
-  std::cout << "# of normals = " << normals.size() << std::endl;
-  std::cout << "# of texcoords = " << texcoords.size() << std::endl;
-  std::cout << "# of faces = " << faces.size() << std::endl;
 }
 
 int
