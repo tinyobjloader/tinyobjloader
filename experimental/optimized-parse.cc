@@ -271,7 +271,7 @@ static inline int my_atoi( const char *c ) {
        if( *c == '-' ) sign = -1;
        c++;
     }
-    while ( isdigit( *c ) ) {
+    while ( ((*c) >= '0') && ((*c) <= '9') ) { // isdigit(*c)
         value *= 10;
         value += (int) (*c-'0');
         c++;
@@ -596,12 +596,14 @@ typedef struct
 
 bool parseLine(Command *command, const char *p, size_t p_len)
 {
-    StackVector<char, 256> linebuf;
-    linebuf->resize(p_len + 1);
-    memcpy(&linebuf->at(0), p, p_len);
+    char linebuf[4096];
+    assert(p_len < 4095);
+    //StackVector<char, 256> linebuf;
+    //linebuf->resize(p_len + 1);
+    memcpy(&linebuf, p, p_len);
     linebuf[p_len] = '\0';
 
-    const char *token = &linebuf->at(0);
+    const char *token = linebuf;
 
     command->type = COMMAND_EMPTY;
 
