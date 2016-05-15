@@ -9,7 +9,12 @@
 #include <limits>
 #include <cmath>
 #include <cassert>
+#include <cstring>	
 #include <algorithm>	
+
+#if defined(ENABLE_ZLIB)
+#include <zlib.h>
+#endif
 
 #include <GL/glew.h>
 
@@ -135,6 +140,78 @@ const char *mmap_file(size_t *len, const char* filename)
 #endif
 }
 
+bool gz_load(std::vector<char>* buf, const char* filename)
+{
+    gzFile file;
+    file = gzopen (filename, "r");
+    if (! file) {
+        fprintf (stderr, "gzopen of '%s' failed: %s.\n", filename,
+                 strerror (errno));
+        exit (EXIT_FAILURE);
+        return false;
+    }
+    while (1) {
+        int err;                    
+        int bytes_read;
+        unsigned char buffer[1024];
+        bytes_read = gzread (file, buffer, 1024);
+        buf->insert(buf->end(), buffer, buffer + 1024); 
+        //printf ("%s", buffer);
+        if (bytes_read < 1024) {
+            if (gzeof (file)) {
+                break;
+            }
+            else {
+                const char * error_string;
+                error_string = gzerror (file, & err);
+                if (err) {
+                    fprintf (stderr, "Error: %s.\n", error_string);
+                    exit (EXIT_FAILURE);
+                    return false;
+                }
+            }
+        }
+    }
+    gzclose (file);
+    return true;
+}
+
+const char* get_file_data(size_t *len, const char* filename)
+{
+
+  char *ext = strrchr(filename, '.');
+
+  size_t data_len = 0;
+  const char* data = nullptr;
+
+#if defined(ENABLE_ZLIB)
+  if (strcmp(ext, ".gz") == 0) {
+    // gzipped data.
+    printf("compressed\n");
+
+    std::vector<char> buf;
+    bool ret = gz_load(&buf, filename);
+
+    if (ret) {
+      char *p = static_cast<char*>(malloc(buf.size() + 1));  // @fixme { implement deleter }
+      memcpy(p, &buf.at(0), buf.size());
+      p[buf.size()] = '\0';
+      data = p;
+      data_len = buf.size();
+    }
+
+  } else {
+#else
+  {
+#endif
+    
+    data = mmap_file(&data_len, filename);
+  }
+
+  (*len) = data_len;
+  return data;
+}
+
 
 bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename)
 {
@@ -144,8 +221,7 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename)
   std::vector<vertex_index> faces;
 
   size_t data_len = 0;
-  const char* data = nullptr;
-  data = mmap_file(&data_len, filename);
+  const char* data = get_file_data(&data_len, filename);
   if (data == nullptr) {
     exit(-1);
     return false;

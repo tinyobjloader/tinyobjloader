@@ -1,3 +1,8 @@
+newoption {
+   trigger     = "with-zlib",
+   description = "Build with zlib."
+}
+
 solution "objview"
 	-- location ( "build" )
 	configurations { "Release", "Debug" }
@@ -5,44 +10,51 @@ solution "objview"
 	
 	project "objview"
 
-		kind "ConsoleApp"
-		language "C++"
-		files { "viewer.cc", "trackball.cc" }
-		includedirs { "./" }
-		includedirs { "../../" }
+	kind "ConsoleApp"
+	language "C++"
+	files { "viewer.cc", "trackball.cc" }
+	includedirs { "./" }
+	includedirs { "../../" }
 
-      buildoptions { "-std=c++11" }
-      --buildoptions { "-fsanitize=address" }
-      --linkoptions { "-fsanitize=address" }
+	buildoptions { "-std=c++11" }
 
-		configuration { "linux" }
-			linkoptions { "`pkg-config --libs glfw3`" }
-			links { "GL", "GLU", "m", "GLEW", "X11", "Xrandr", "Xinerama", "Xi", "Xxf86vm", "Xcursor", "dl" }
-			linkoptions { "-pthread" }
+	if _OPTIONS['with-zlib'] then
+		defines { 'ENABLE_ZLIB' }
+		links { 'z' }
+	end	
 
-		configuration { "windows" }
-			-- Path to GLFW3
-			includedirs { '../../../../local/glfw-3.1.2.bin.WIN64/include' }
-			libdirs { '../../../../local/glfw-3.1.2.bin.WIN64/lib-vc2013' }
-			-- Path to GLEW
-			includedirs { '../../../../local/glew-1.13.0/include' }
-			libdirs { '../../../../local/glew-1.13.0/lib/Release/x64' }
+	-- Uncomment if you want address sanitizer(gcc/clang only)
+	--buildoptions { "-fsanitize=address" }
+	--linkoptions { "-fsanitize=address" }
 
-			links { "glfw3", "glew32", "gdi32", "winmm", "user32", "glu32","opengl32", "kernel32" }
-			defines { "_CRT_SECURE_NO_WARNINGS" }
+	configuration { "linux" }
+		linkoptions { "`pkg-config --libs glfw3`" }
+		links { "GL", "GLU", "m", "GLEW", "X11", "Xrandr", "Xinerama", "Xi", "Xxf86vm", "Xcursor", "dl" }
+		linkoptions { "-pthread" }
 
-		configuration { "macosx" }
-			includedirs { "/usr/local/include" }
-			buildoptions { "-Wno-deprecated-declarations" }
-			libdirs { "/usr/local/lib" }
-			links { "glfw3", "GLEW" }
-			linkoptions { "-framework OpenGL", "-framework Cocoa", "-framework IOKit", "-framework CoreVideo" }
+	configuration { "windows" }
+		-- Path to GLFW3
+		includedirs { '../../../../local/glfw-3.1.2.bin.WIN64/include' }
+		libdirs { '../../../../local/glfw-3.1.2.bin.WIN64/lib-vc2013' }
+		-- Path to GLEW
+		includedirs { '../../../../local/glew-1.13.0/include' }
+		libdirs { '../../../../local/glew-1.13.0/lib/Release/x64' }
 
-		configuration "Debug"
-			defines { "DEBUG" }
-			flags { "Symbols"}
+		links { "glfw3", "glew32", "gdi32", "winmm", "user32", "glu32","opengl32", "kernel32" }
+		defines { "_CRT_SECURE_NO_WARNINGS" }
 
-		configuration "Release"
-			defines { "NDEBUG" }
-			flags { "Optimize"}
+	configuration { "macosx" }
+		includedirs { "/usr/local/include" }
+		buildoptions { "-Wno-deprecated-declarations" }
+		libdirs { "/usr/local/lib" }
+		links { "glfw3", "GLEW" }
+		linkoptions { "-framework OpenGL", "-framework Cocoa", "-framework IOKit", "-framework CoreVideo" }
+
+	configuration "Debug"
+		defines { "DEBUG" }
+		flags { "Symbols"}
+
+	configuration "Release"
+		defines { "NDEBUG" }
+		flags { "Optimize"}
 
