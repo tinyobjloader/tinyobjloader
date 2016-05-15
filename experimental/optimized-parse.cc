@@ -495,7 +495,7 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result) {
       // NOTE: Don't use powf here, it will absolutely murder precision.
 
       // pow(10.0, -read)
-      double frac_value = 10.0;
+      double frac_value = 1.0;
       for (int f = 0; f < read; f++) {
         frac_value *= 0.1;
       }
@@ -762,7 +762,7 @@ static bool parseLine(Command *command, const char *p, size_t p_len)
 
     // group name
     if (token[0] == 'g' && IS_SPACE((token[1]))) {
-      std::vector<ShortString> names;
+      ShortString names[16];
       
       int num_names = 0;
 
@@ -856,6 +856,13 @@ static inline bool is_line_ending(const char* p, size_t i, size_t end_i)
 
 void parse(std::vector<float> &vertices, std::vector<float> &normals, std::vector<float> &texcoords, std::vector<vertex_index> &faces, const char* buf, size_t len, int req_num_threads)
 {
+
+  vertices.clear();
+  normals.clear();
+  texcoords.clear();
+  faces.clear();
+
+  if (len < 1) return;
 
   std::vector<char> newline_marker(len, 0);
 
@@ -1047,11 +1054,29 @@ void parse(std::vector<float> &vertices, std::vector<float> &normals, std::vecto
           int v_size = vertices.size() / 3;
           int vn_size = normals.size() / 3;
           int vt_size = texcoords.size() / 2;
-          for (size_t k = 0; k < commands[t][i].f.size(); k++) {
-            int v_idx = fixIndex(commands[t][i].f[k].v_idx, v_size);
-            int vn_idx = fixIndex(commands[t][i].f[k].vn_idx, vn_size);
-            int vt_idx = fixIndex(commands[t][i].f[k].vt_idx, vt_size);
-            faces.emplace_back(std::move(vertex_index(v_idx, vn_idx, vt_idx)));
+
+          // triangulate.
+          {
+            vertex_index i0 = commands[t][i].f[0];
+            vertex_index i1(-1);
+            vertex_index i2 = commands[t][i].f[1];
+
+            for (size_t k = 2; k < commands[t][i].f.size(); k++) {
+              i1 = i2;
+              i2 = commands[t][i].f[k];
+              int v_idx = fixIndex(i0.v_idx, v_size);
+              int vn_idx = fixIndex(i0.vn_idx, vn_size);
+              int vt_idx = fixIndex(i0.vt_idx, vt_size);
+              faces.emplace_back(vertex_index(v_idx, vn_idx, vt_idx));
+              v_idx = fixIndex(i1.v_idx, v_size);
+              vn_idx = fixIndex(i1.vn_idx, vn_size);
+              vt_idx = fixIndex(i1.vt_idx, vt_size);
+              faces.emplace_back(vertex_index(v_idx, vn_idx, vt_idx));
+              v_idx = fixIndex(i2.v_idx, v_size);
+              vn_idx = fixIndex(i2.vn_idx, vn_size);
+              vt_idx = fixIndex(i2.vt_idx, vt_size);
+              faces.emplace_back(vertex_index(v_idx, vn_idx, vt_idx));
+            }
           }
         }
       }
