@@ -491,7 +491,13 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result) {
     end_not_reached = (curr != s_end);
     while (end_not_reached && IS_DIGIT(*curr)) {
       // NOTE: Don't use powf here, it will absolutely murder precision.
-      mantissa += static_cast<int>(*curr - 0x30) * pow(10.0, -read);
+
+      // pow(10.0, -read)
+      double frac_value = 10.0;
+      for (int f = 0; f < read; f++) {
+        frac_value *= 0.1;
+      }
+      mantissa += static_cast<int>(*curr - 0x30) * frac_value;
       read++;
       curr++;
       end_not_reached = (curr != s_end);
@@ -820,12 +826,13 @@ typedef struct
 
 #define kMaxThreads (32)
 
-void parse(const char* buf, size_t len)
+void parse(const char* buf, size_t len, int req_num_threads)
 {
 
   std::vector<char> newline_marker(len, 0);
 
-  auto num_threads = std::max(1, std::min(static_cast<int>(std::thread::hardware_concurrency()), kMaxThreads));
+  auto num_threads = (req_num_threads < 0) ? std::thread::hardware_concurrency() : req_num_threads;
+  num_threads = std::max(1, std::min(static_cast<int>(num_threads), kMaxThreads));
   std::cout << "# of threads = " << num_threads << std::endl;
 
   auto t1 = std::chrono::high_resolution_clock::now();
@@ -1022,6 +1029,11 @@ main(int argc, char **argv)
     return EXIT_FAILURE;
   }
 
+  int req_num_threads = -1;
+  if (argc > 2) {
+    req_num_threads = atoi(argv[2]);
+  }
+
 #ifdef _WIN64
   HANDLE file = CreateFileA("lineitem.tbl", GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, NULL);
     assert(file != INVALID_HANDLE_VALUE);
@@ -1074,7 +1086,7 @@ main(int argc, char **argv)
   printf("fsize: %lu\n", fileSize);
 #endif
 
-  parse(p, fileSize);
+  parse(p, fileSize, req_num_threads);
   
   return EXIT_SUCCESS;
 }
