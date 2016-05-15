@@ -267,6 +267,40 @@ struct obj_shape {
   std::vector<float> vt;
 };
 
+//See http://stackoverflow.com/questions/6089231/getting-std-ifstream-to-handle-lf-cr-and-crlf
+std::istream& safeGetline(std::istream& is, std::string& t)
+{
+    t.clear();
+
+    // The characters in the stream are read one-by-one using a std::streambuf.
+    // That is faster than reading them one-by-one using the std::istream.
+    // Code that uses streambuf this way must be guarded by a sentry object.
+    // The sentry object performs various tasks,
+    // such as thread synchronization and updating the stream state.
+
+    std::istream::sentry se(is, true);
+    std::streambuf* sb = is.rdbuf();
+
+    for(;;) {
+        int c = sb->sbumpc();
+        switch (c) {
+        case '\n':
+            return is;
+        case '\r':
+            if(sb->sgetc() == '\n')
+                sb->sbumpc();
+            return is;
+        case EOF:
+            // Also handle the case when the last line has no line ending
+            if(t.empty())
+                is.setstate(std::ios::eofbit);
+            return is;
+        default:
+            t += (char)c;
+        }
+    }
+}
+
 #define IS_SPACE( x ) ( ( (x) == ' ') || ( (x) == '\t') )
 #define IS_DIGIT( x ) ( (unsigned int)( (x) - '0' ) < (unsigned int)10 )
 #define IS_NEW_LINE( x ) ( ( (x) == '\r') || ( (x) == '\n') || ( (x) == '\0') )
@@ -682,12 +716,9 @@ void LoadMtl(std::map<std::string, int> &material_map,
   material_t material;
   InitMaterial(material);
 
-  size_t maxchars = 8192;          // Alloc enough size.
-  std::vector<char> buf(maxchars); // Alloc enough size.
   while (inStream.peek() != -1) {
-    inStream.getline(&buf[0], static_cast<std::streamsize>(maxchars));
-
-    std::string linebuf(&buf[0]);
+    std::string linebuf;
+    safeGetline(inStream, linebuf);
 
     // Trim newline '\r\n' or '\n'
     if (linebuf.size() > 0) {
@@ -972,12 +1003,9 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
 
   shape_t shape;
 
-  int maxchars = 8192;                                  // Alloc enough size.
-  std::vector<char> buf(static_cast<size_t>(maxchars)); // Alloc enough size.
   while (inStream.peek() != -1) {
-    inStream.getline(&buf[0], maxchars);
-
-    std::string linebuf(&buf[0]);
+    std::string linebuf;
+    safeGetline(inStream, linebuf);
 
     // Trim newline '\r\n' or '\n'
     if (linebuf.size() > 0) {
