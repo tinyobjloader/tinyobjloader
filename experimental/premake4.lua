@@ -1,6 +1,6 @@
 solution "objview"
 	-- location ( "build" )
-	configurations { "Debug", "Release" }
+	configurations { "Release", "Debug" }
 	platforms {"native", "x64", "x32"}
 	
 	project "objview"
@@ -12,8 +12,8 @@ solution "objview"
 		includedirs { "../../" }
 
       buildoptions { "-std=c++11" }
-      buildoptions { "-fsanitize=address" }
-      linkoptions { "-fsanitize=address" }
+      --buildoptions { "-fsanitize=address" }
+      --linkoptions { "-fsanitize=address" }
 
 		configuration { "linux" }
 			linkoptions { "`pkg-config --libs glfw3`" }
@@ -40,9 +40,9 @@ solution "objview"
 
 		configuration "Debug"
 			defines { "DEBUG" }
-			flags { "Symbols", "ExtraWarnings"}
+			flags { "Symbols"}
 
 		configuration "Release"
 			defines { "NDEBUG" }
-			flags { "Optimize", "ExtraWarnings"}
+			flags { "Optimize"}
 
