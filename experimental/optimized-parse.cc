@@ -294,6 +294,7 @@ static inline int fixIndex(int idx, int n) {
   return n + idx;  // negative value = relative
 }
 
+#if 0
 // Parse triples with index offsets: i, i/j/k, i//k, i/j
 static vertex_index parseTriple(const char **token, int vsize, int vnsize,
                                 int vtsize) {
@@ -340,6 +341,7 @@ static vertex_index parseTriple(const char **token, int vsize, int vnsize,
   }
   return vi;
 }
+#endif
 
 // Parse raw triples: i, i/j/k, i//k, i/j
 static vertex_index parseRawTriple(const char **token) {
@@ -600,7 +602,21 @@ typedef struct
   CommandType type;
 } Command;
 
-bool parseLine(Command *command, const char *p, size_t p_len)
+struct CommandCount
+{
+  size_t num_v;
+  size_t num_vn;
+  size_t num_vt;
+  size_t num_f;
+  CommandCount() {
+    num_v = 0;
+    num_vn = 0;
+    num_vt = 0;
+    num_f = 0;
+  }
+};
+
+static bool parseLine(Command *command, const char *p, size_t p_len)
 {
     char linebuf[4096];
     assert(p_len < 4095);
@@ -667,7 +683,6 @@ bool parseLine(Command *command, const char *p, size_t p_len)
       //token += strspn(token, " \t");
       skip_space(&token);
 
-      int num_verts = 0;
       while (!IS_NEW_LINE(token[0])) {
         vertex_index vi = parseRawTriple(&token);
         //printf("v = %d, %d, %d\n", vi.v_idx, vi.vn_idx, vi.vt_idx);
@@ -747,7 +762,8 @@ bool parseLine(Command *command, const char *p, size_t p_len)
 
     // group name
     if (token[0] == 'g' && IS_SPACE((token[1]))) {
-      ShortString names[16];
+      std::vector<ShortString> names;
+      
       int num_names = 0;
 
       while (!IS_NEW_LINE(token[0])) {
@@ -759,10 +775,10 @@ bool parseLine(Command *command, const char *p, size_t p_len)
 
       assert(num_names > 0);
 
-      int name_idx = 0;
+      //int name_idx = 0;
       // names[0] must be 'g', so skip the 0th element.
       if (num_names > 1) {
-        name_idx = 1;
+        //name_idx = 1;
       }
 
       //command->group_name->assign(names[name_idx]);
@@ -820,13 +836,25 @@ typedef struct
 
 // Idea come from https://github.com/antonmks/nvParse
 // 1. mmap file
-// 2. find newline(\n) and list of line data.
+// 2. find newline(\n, \r\n, \r) and list of line data.
 // 3. Do parallel parsing for each line.
 // 4. Reconstruct final mesh data structure.
 
 #define kMaxThreads (32)
 
-void parse(const char* buf, size_t len, int req_num_threads)
+static inline bool is_line_ending(const char* p, size_t i, size_t end_i)
+{
+  if (p[i] == '\0') return true;
+  if (p[i] == '\n') return true; // this includes \r\n 
+  if (p[i] == '\r') {
+    if (((i+1) < end_i) && (p[i+1] != '\n')) { // detect only \r case
+      return true;
+    }
+  }
+  return false;
+}
+
+void parse(std::vector<float> &vertices, std::vector<float> &normals, std::vector<float> &texcoords, std::vector<vertex_index> &faces, const char* buf, size_t len, int req_num_threads)
 {
 
   std::vector<char> newline_marker(len, 0);
@@ -840,7 +868,7 @@ void parse(const char* buf, size_t len, int req_num_threads)
   std::atomic<size_t> newline_counter(0);
 
   std::vector<LineInfo> line_infos[kMaxThreads];
-  for (auto t = 0; t < num_threads; t++) {
+  for (size_t t = 0; t < static_cast<size_t>(num_threads); t++) {
     // Pre allocate enough memory. len / 1024 / num_threads is just a heuristic value.
     line_infos[t].reserve(len / 1024 / num_threads);
   }
@@ -852,18 +880,18 @@ void parse(const char* buf, size_t len, int req_num_threads)
     auto start_time = std::chrono::high_resolution_clock::now();
     auto chunk_size = len / num_threads;
 
-    for (auto t = 0; t < num_threads; t++) {
+    for (size_t t = 0; t < static_cast<size_t>(num_threads); t++) {
       workers.push_back(std::thread([&, t]() {
         auto start_idx = (t + 0) * chunk_size;
         auto end_idx   = std::min((t + 1) * chunk_size, len - 1);
-        if (t == (num_threads - 1)) {
+        if (t == static_cast<size_t>((num_threads - 1))) {
           end_idx = len - 1;
         }
 
         size_t prev_pos = start_idx;
         for (size_t i = start_idx; i < end_idx; i++) {
-          if (buf[i] == '\n') {
-            if ((t > 0) && (prev_pos == start_idx) && (buf[start_idx-1] != '\n')) { 
+          if (is_line_ending(buf, i, end_idx)) {
+            if ((t > 0) && (prev_pos == start_idx) && (!is_line_ending(buf, start_idx-1, end_idx))) { 
               // first linebreak found in (chunk > 0), and a line before this linebreak belongs to previous chunk, so skip it.
               prev_pos = i + 1;
               continue;
@@ -885,7 +913,7 @@ void parse(const char* buf, size_t len, int req_num_threads)
         if ((t < num_threads) && (buf[end_idx-1] != '\n')) {
           auto extra_span_idx = std::min(end_idx-1+chunk_size, len - 1);
           for (size_t i = end_idx; i < extra_span_idx; i++) {
-            if (buf[i] == '\n') {
+            if (is_line_ending(buf, i, extra_span_idx)) {
               LineInfo info;
               info.pos = prev_pos;
               info.len = i - prev_pos;
@@ -912,7 +940,7 @@ void parse(const char* buf, size_t len, int req_num_threads)
   }
 
   auto line_sum = 0;
-  for (auto t = 0; t < num_threads; t++) {
+  for (size_t t = 0; t < num_threads; t++) {
     std::cout << t << ": # of lines = " << line_infos[t].size() << std::endl;
     line_sum += line_infos[t].size();
   }
@@ -929,19 +957,30 @@ void parse(const char* buf, size_t len, int req_num_threads)
 
   std::cout << ms1.count() << " ms\n";
 
+  CommandCount command_count[kMaxThreads];
+
   // 2. parse each line in parallel.
   {
     std::vector<std::thread> workers;
     auto t_start = std::chrono::high_resolution_clock::now();
 
-    for (auto t = 0; t < num_threads; t++) {
+    for (size_t t = 0; t < num_threads; t++) {
       workers.push_back(std::thread([&, t]() {
 
-        for (auto i = 0; i < line_infos[t].size(); i++) {
+        for (size_t i = 0; i < line_infos[t].size(); i++) {
           Command command;
           bool ret = parseLine(&command, &buf[line_infos[t][i].pos], line_infos[t][i].len);
           if (ret) {
-            commands[t].push_back(command);
+            if (command.type == COMMAND_V) {
+              command_count[t].num_v++;
+            } else if (command.type == COMMAND_VN) {
+              command_count[t].num_vn++;
+            } else if (command.type == COMMAND_VT) {
+              command_count[t].num_vt++;
+            } else if (command.type == COMMAND_F) {
+              command_count[t].num_f++;
+            } 
+            commands[t].emplace_back(std::move(command));
           }
         }
 
@@ -959,16 +998,31 @@ void parse(const char* buf, size_t len, int req_num_threads)
   }
 
   auto command_sum = 0;
-  for (auto t = 0; t < num_threads; t++) {
+  for (size_t t = 0; t < num_threads; t++) {
     //std::cout << t << ": # of commands = " << commands[t].size() << std::endl;
     command_sum += commands[t].size();
   }
   //std::cout << "# of commands = " << command_sum << std::endl;
 
-  std::vector<float> vertices;
-  std::vector<float> normals;
-  std::vector<float> texcoords;
-  std::vector<vertex_index> faces;
+  size_t num_v = 0;
+  size_t num_vn = 0;
+  size_t num_vt = 0;
+  size_t num_f = 0;
+  for (size_t t = 0; t < num_threads; t++) {
+      num_v += command_count[t].num_v;
+      num_vn += command_count[t].num_vn;
+      num_vt += command_count[t].num_vt;
+      num_f += command_count[t].num_f;
+  }
+  std::cout << "# v " << num_v << std::endl;
+  std::cout << "# vn " << num_vn << std::endl;
+  std::cout << "# vt " << num_vt << std::endl;
+  std::cout << "# f " << num_f << std::endl;
+
+  vertices.reserve(num_v * 3);
+  normals.reserve(num_vn * 3);
+  texcoords.reserve(num_vt * 2);
+  faces.reserve(num_f);
 
   // merge
   {
@@ -979,25 +1033,25 @@ void parse(const char* buf, size_t len, int req_num_threads)
         if (commands[t][i].type == COMMAND_EMPTY) {
           continue;
         } else if (commands[t][i].type == COMMAND_V) {
-          vertices.push_back(commands[t][i].vx);
-          vertices.push_back(commands[t][i].vy);
-          vertices.push_back(commands[t][i].vz);
+          vertices.emplace_back(commands[t][i].vx);
+          vertices.emplace_back(commands[t][i].vy);
+          vertices.emplace_back(commands[t][i].vz);
         } else if (commands[t][i].type == COMMAND_VN) {
-          normals.push_back(commands[t][i].nx);
-          normals.push_back(commands[t][i].ny);
-          normals.push_back(commands[t][i].nz);
+          normals.emplace_back(commands[t][i].nx);
+          normals.emplace_back(commands[t][i].ny);
+          normals.emplace_back(commands[t][i].nz);
         } else if (commands[t][i].type == COMMAND_VT) {
-          texcoords.push_back(commands[t][i].tx);
-          texcoords.push_back(commands[t][i].ty);
+          texcoords.emplace_back(commands[t][i].tx);
+          texcoords.emplace_back(commands[t][i].ty);
         } else if (commands[t][i].type == COMMAND_F) {
           int v_size = vertices.size() / 3;
           int vn_size = normals.size() / 3;
           int vt_size = texcoords.size() / 2;
           for (size_t k = 0; k < commands[t][i].f.size(); k++) {
             int v_idx = fixIndex(commands[t][i].f[k].v_idx, v_size);
-            int vn_idx = fixIndex(commands[t][i].f[k].vn_idx, v_size);
-            int vt_idx = fixIndex(commands[t][i].f[k].vt_idx, v_size);
-            faces.push_back(vertex_index(v_idx, vn_idx, vt_idx));
+            int vn_idx = fixIndex(commands[t][i].f[k].vn_idx, vn_size);
+            int vt_idx = fixIndex(commands[t][i].f[k].vt_idx, vt_size);
+            faces.emplace_back(std::move(vertex_index(v_idx, vn_idx, vt_idx)));
           }
         }
       }
@@ -1020,6 +1074,7 @@ void parse(const char* buf, size_t len, int req_num_threads)
 
 }
 
+#ifdef CONSOLE_TEST
 int
 main(int argc, char **argv)
 {
@@ -1035,7 +1090,7 @@ main(int argc, char **argv)
   }
 
 #ifdef _WIN64
-  HANDLE file = CreateFileA("lineitem.tbl", GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, NULL);
+  HANDLE file = CreateFileA(argv[1], GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, NULL);
     assert(file != INVALID_HANDLE_VALUE);
 
     HANDLE fileMapping = CreateFileMapping(file, NULL, PAGE_READONLY, 0, 0, NULL);
@@ -1090,3 +1145,4 @@ main(int argc, char **argv)
   
   return EXIT_SUCCESS;
 }
+#endif
