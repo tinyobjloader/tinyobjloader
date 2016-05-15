@@ -1,3 +1,7 @@
+//
+//@todo { parse material. assign material id }
+//@todo { support object&group }
+//
 #ifdef _WIN64
 #define atoll(S) _atoi64(S)
 #include <windows.h>
@@ -943,15 +947,15 @@ void parse(std::vector<float> &vertices, std::vector<float> &normals, std::vecto
     auto end_time = std::chrono::high_resolution_clock::now();
 
     std::chrono::duration<double, std::milli> ms = end_time - start_time;
-    std::cout << "line detection:" << ms.count() << " ms\n";
+    //std::cout << "line detection:" << ms.count() << " ms\n";
   }
 
   auto line_sum = 0;
   for (size_t t = 0; t < num_threads; t++) {
-    std::cout << t << ": # of lines = " << line_infos[t].size() << std::endl;
+    //std::cout << t << ": # of lines = " << line_infos[t].size() << std::endl;
     line_sum += line_infos[t].size();
   }
-  std::cout << "# of lines = " << line_sum << std::endl;
+  //std::cout << "# of lines = " << line_sum << std::endl;
 
   std::vector<Command> commands[kMaxThreads];
 
@@ -962,7 +966,7 @@ void parse(std::vector<float> &vertices, std::vector<float> &normals, std::vecto
   auto t2 = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double, std::milli> ms1 = t2 - t1;
 
-  std::cout << ms1.count() << " ms\n";
+  //std::cout << ms1.count() << " ms\n";
 
   CommandCount command_count[kMaxThreads];
 
@@ -1001,7 +1005,7 @@ void parse(std::vector<float> &vertices, std::vector<float> &normals, std::vecto
     auto t_end = std::chrono::high_resolution_clock::now();
 
     std::chrono::duration<double, std::milli> ms = t_end - t_start;
-    std::cout << "parse:" << ms.count() << " ms\n";
+    //std::cout << "parse:" << ms.count() << " ms\n";
   }
 
   auto command_sum = 0;
@@ -1021,10 +1025,10 @@ void parse(std::vector<float> &vertices, std::vector<float> &normals, std::vecto
       num_vt += command_count[t].num_vt;
       num_f += command_count[t].num_f;
   }
-  std::cout << "# v " << num_v << std::endl;
-  std::cout << "# vn " << num_vn << std::endl;
-  std::cout << "# vt " << num_vt << std::endl;
-  std::cout << "# f " << num_f << std::endl;
+  //std::cout << "# v " << num_v << std::endl;
+  //std::cout << "# vn " << num_vn << std::endl;
+  //std::cout << "# vt " << num_vt << std::endl;
+  //std::cout << "# f " << num_f << std::endl;
 
   vertices.reserve(num_v * 3);
   normals.reserve(num_vn * 3);
@@ -1067,15 +1071,15 @@ void parse(std::vector<float> &vertices, std::vector<float> &normals, std::vecto
               int v_idx = fixIndex(i0.v_idx, v_size);
               int vn_idx = fixIndex(i0.vn_idx, vn_size);
               int vt_idx = fixIndex(i0.vt_idx, vt_size);
-              faces.emplace_back(vertex_index(v_idx, vn_idx, vt_idx));
+              faces.emplace_back(vertex_index(v_idx, vt_idx, vn_idx));
               v_idx = fixIndex(i1.v_idx, v_size);
               vn_idx = fixIndex(i1.vn_idx, vn_size);
               vt_idx = fixIndex(i1.vt_idx, vt_size);
-              faces.emplace_back(vertex_index(v_idx, vn_idx, vt_idx));
+              faces.emplace_back(vertex_index(v_idx, vt_idx, vn_idx));
               v_idx = fixIndex(i2.v_idx, v_size);
               vn_idx = fixIndex(i2.vn_idx, vn_size);
               vt_idx = fixIndex(i2.vt_idx, vt_size);
-              faces.emplace_back(vertex_index(v_idx, vn_idx, vt_idx));
+              faces.emplace_back(vertex_index(v_idx, vt_idx, vn_idx));
             }
           }
         }
@@ -1084,18 +1088,18 @@ void parse(std::vector<float> &vertices, std::vector<float> &normals, std::vecto
 
     auto t_end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> ms = t_end - t_start;
-    std::cout << "merge:" << ms.count() << " ms\n";
+    //std::cout << "merge:" << ms.count() << " ms\n";
   }
 
+  auto t4 = std::chrono::high_resolution_clock::now();
+ 
+  std::chrono::duration<double, std::milli> ms_total = t4 - t1;
+  std::cout << "total parsing time: " << ms_total.count() << " ms\n";
   std::cout << "# of vertices = " << vertices.size() << std::endl;
   std::cout << "# of normals = " << normals.size() << std::endl;
   std::cout << "# of texcoords = " << texcoords.size() << std::endl;
   std::cout << "# of faces = " << faces.size() << std::endl;
 
-  auto t4 = std::chrono::high_resolution_clock::now();
- 
-  std::chrono::duration<double, std::milli> ms_total = t4 - t1;
-  std::cout << "total: " << ms_total.count() << " ms\n";
 
 }
 

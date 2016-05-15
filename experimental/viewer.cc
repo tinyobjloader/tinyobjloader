@@ -194,6 +194,9 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename)
             assert(f0 >= 0);
             assert(f1 >= 0);
             assert(f2 >= 0);
+            assert(3*f0+2 < normals.size());
+            assert(3*f1+2 < normals.size());
+            assert(3*f2+2 < normals.size());
             for (int k = 0; k < 3; k++) {
               n[0][k] = normals[3*f0+k];
               n[1][k] = normals[3*f1+k];
