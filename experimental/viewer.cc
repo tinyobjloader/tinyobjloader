@@ -78,6 +78,7 @@ void CalcNormal(float N[3], float v0[3], float v1[3], float v2[3]) {
 
 const char *mmap_file(size_t *len, const char* filename)
 {
+  (*len) = 0;
 #ifdef _WIN64
   HANDLE file = CreateFileA(filename, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, NULL);
     assert(file != INVALID_HANDLE_VALUE);
@@ -127,9 +128,10 @@ const char *mmap_file(size_t *len, const char* filename)
     return NULL;
   }
 
-  return p;
-
   (*len) = fileSize;
+
+  return p;
+  
 #endif
 }
 
@@ -148,7 +150,8 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename)
     exit(-1);
     return false;
   }
-  parse(vertices, normals, texcoords, faces,  data, data_len, 1);
+  printf("filesize: %d\n", (int)data_len);
+  parse(vertices, normals, texcoords, faces,  data, data_len, /* num_threads */-1);
 
   bmin[0] = bmin[1] = bmin[2] = std::numeric_limits<float>::max();
   bmax[0] = bmax[1] = bmax[2] = -std::numeric_limits<float>::max();
@@ -248,8 +251,11 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename)
 void reshapeFunc(GLFWwindow* window, int w, int h)
 {
   (void)window;
-  printf("reshape\n");
-  glViewport(0, 0, w, h);
+  // for retinal display.
+  int fb_w, fb_h;
+  glfwGetFramebufferSize(window, &fb_w, &fb_h);
+
+  glViewport(0, 0, fb_w, fb_h);
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
   gluPerspective(45.0, (float)w / (float)h, 0.01f, 100.0f);
