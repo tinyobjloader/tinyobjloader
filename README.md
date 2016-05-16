@@ -123,7 +123,7 @@ if (!ret) {
 for (size_t s = 0; s < shapes.size(); s++) {
   // Loop over faces(polygon)
   size_t index_offset = 0;
-  for (size_t f = 0; f < shapes[i].mesh.num_face_vertices; f++) {
+  for (size_t f = 0; f < shapes[i].mesh.num_face_vertices.size(); f++) {
     int fv = shapes[i].mesh.num_face_vertices[f];
 
     // Loop over vertices in the face.
