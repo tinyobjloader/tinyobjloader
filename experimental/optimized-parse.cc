@@ -26,6 +26,8 @@
 #include <thread> // C++11
 #include <atomic> // C++11
 
+#include "ltalloc.hpp"
+
 // ----------------------------------------------------------------------------
 // Small vector class useful for multi-threaded environment.
 //
@@ -597,7 +599,8 @@ typedef struct
   float tx, ty;
 
   // for f
-  std::vector<vertex_index> f;
+  std::vector<vertex_index, lt::allocator<vertex_index> > f;
+  //std::vector<vertex_index> f;
 
   const char* group_name;
   const char* object_name;
@@ -858,7 +861,7 @@ static inline bool is_line_ending(const char* p, size_t i, size_t end_i)
   return false;
 }
 
-void parse(std::vector<float> &vertices, std::vector<float> &normals, std::vector<float> &texcoords, std::vector<vertex_index> &faces, const char* buf, size_t len, int req_num_threads)
+bool parse(std::vector<float, lt::allocator<float>> &vertices, std::vector<float, lt::allocator<float>> &normals, std::vector<float, lt::allocator<float>> &texcoords, std::vector<vertex_index, lt::allocator<vertex_index>> &faces, const char* buf, size_t len, int req_num_threads)
 {
 
   vertices.clear();
@@ -866,9 +869,9 @@ void parse(std::vector<float> &vertices, std::vector<float> &normals, std::vecto
   texcoords.clear();
   faces.clear();
 
-  if (len < 1) return;
+  if (len < 1) return false;
 
-  std::vector<char> newline_marker(len, 0);
+  std::cout << "parse" << std::endl;
 
   auto num_threads = (req_num_threads < 0) ? std::thread::hardware_concurrency() : req_num_threads;
   num_threads = std::max(1, std::min(static_cast<int>(num_threads), kMaxThreads));
@@ -878,21 +881,27 @@ void parse(std::vector<float> &vertices, std::vector<float> &normals, std::vecto
 
   std::atomic<size_t> newline_counter(0);
 
-  std::vector<LineInfo> line_infos[kMaxThreads];
+  std::vector<LineInfo, lt::allocator<LineInfo>> line_infos[kMaxThreads];
   for (size_t t = 0; t < static_cast<size_t>(num_threads); t++) {
     // Pre allocate enough memory. len / 1024 / num_threads is just a heuristic value.
     line_infos[t].reserve(len / 1024 / num_threads);
   }
 
+  std::chrono::duration<double, std::milli> ms_linedetection;
+  std::chrono::duration<double, std::milli> ms_alloc;
+  std::chrono::duration<double, std::milli> ms_parse;
+  std::chrono::duration<double, std::milli> ms_merge;
+
+
   // 1. Find '\n' and create line data.
   {
-    std::vector<std::thread> workers;
+    StackVector<std::thread, 16> workers;
 
     auto start_time = std::chrono::high_resolution_clock::now();
     auto chunk_size = len / num_threads;
 
     for (size_t t = 0; t < static_cast<size_t>(num_threads); t++) {
-      workers.push_back(std::thread([&, t]() {
+      workers->push_back(std::thread([&, t]() {
         auto start_idx = (t + 0) * chunk_size;
         auto end_idx   = std::min((t + 1) * chunk_size, len - 1);
         if (t == static_cast<size_t>((num_threads - 1))) {
@@ -940,14 +949,13 @@ void parse(std::vector<float> &vertices, std::vector<float> &normals, std::vecto
       }));
     }
 
-    for (auto &t : workers) {
-      t.join();
+    for (size_t t = 0; t < workers->size(); t++) {
+      workers[t].join();
     }
 
     auto end_time = std::chrono::high_resolution_clock::now();
 
-    std::chrono::duration<double, std::milli> ms = end_time - start_time;
-    //std::cout << "line detection:" << ms.count() << " ms\n";
+    ms_linedetection = end_time - start_time;
   }
 
   auto line_sum = 0;
@@ -957,26 +965,30 @@ void parse(std::vector<float> &vertices, std::vector<float> &normals, std::vecto
   }
   //std::cout << "# of lines = " << line_sum << std::endl;
 
-  std::vector<Command> commands[kMaxThreads];
+  //std::vector<Command> commands[kMaxThreads];
+  std::vector<Command, lt::allocator<Command> > commands[kMaxThreads];
 
-  for (size_t t = 0; t < num_threads; t++) {
-    commands[t].reserve(line_infos[t].size());
-  }  
+  // 2. allocate buffer 
+  auto t_alloc_start = std::chrono::high_resolution_clock::now();
+  { 
 
-  auto t2 = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<double, std::milli> ms1 = t2 - t1;
+    for (size_t t = 0; t < num_threads; t++) {
+      commands[t].reserve(line_infos[t].size());
+    }  
 
-  //std::cout << ms1.count() << " ms\n";
+  }
 
   CommandCount command_count[kMaxThreads];
 
+  ms_alloc = std::chrono::high_resolution_clock::now() - t_alloc_start;
+
   // 2. parse each line in parallel.
   {
-    std::vector<std::thread> workers;
+    StackVector<std::thread, 16> workers;
     auto t_start = std::chrono::high_resolution_clock::now();
 
     for (size_t t = 0; t < num_threads; t++) {
-      workers.push_back(std::thread([&, t]() {
+      workers->push_back(std::thread([&, t]() {
 
         for (size_t i = 0; i < line_infos[t].size(); i++) {
           Command command;
@@ -998,14 +1010,13 @@ void parse(std::vector<float> &vertices, std::vector<float> &normals, std::vecto
       }));
     }
 
-    for (auto &t : workers) {
-      t.join();
+    for (size_t t = 0; t < workers->size(); t++) {
+      workers[t].join();
     }
 
     auto t_end = std::chrono::high_resolution_clock::now();
 
-    std::chrono::duration<double, std::milli> ms = t_end - t_start;
-    //std::cout << "parse:" << ms.count() << " ms\n";
+    ms_parse = t_end - t_start;
   }
 
   auto command_sum = 0;
@@ -1030,14 +1041,15 @@ void parse(std::vector<float> &vertices, std::vector<float> &normals, std::vecto
   //std::cout << "# vt " << num_vt << std::endl;
   //std::cout << "# f " << num_f << std::endl;
 
-  vertices.reserve(num_v * 3);
-  normals.reserve(num_vn * 3);
-  texcoords.reserve(num_vt * 2);
-  faces.reserve(num_f);
-
-  // merge
+  // 4. merge
+  // @todo { parallelize merge. }
   {
     auto t_start = std::chrono::high_resolution_clock::now();
+
+    vertices.reserve(num_v * 3);
+    normals.reserve(num_vn * 3);
+    texcoords.reserve(num_vt * 2);
+    faces.reserve(num_f);
 
     for (size_t t = 0; t < num_threads; t++) {
       for (size_t i = 0; i < commands[t].size(); i++) {
@@ -1071,15 +1083,15 @@ void parse(std::vector<float> &vertices, std::vector<float> &normals, std::vecto
               int v_idx = fixIndex(i0.v_idx, v_size);
               int vn_idx = fixIndex(i0.vn_idx, vn_size);
               int vt_idx = fixIndex(i0.vt_idx, vt_size);
-              faces.emplace_back(vertex_index(v_idx, vt_idx, vn_idx));
+              faces.emplace_back(std::move(vertex_index(v_idx, vt_idx, vn_idx)));
               v_idx = fixIndex(i1.v_idx, v_size);
               vn_idx = fixIndex(i1.vn_idx, vn_size);
               vt_idx = fixIndex(i1.vt_idx, vt_size);
-              faces.emplace_back(vertex_index(v_idx, vt_idx, vn_idx));
+              faces.emplace_back(std::move(vertex_index(v_idx, vt_idx, vn_idx)));
               v_idx = fixIndex(i2.v_idx, v_size);
               vn_idx = fixIndex(i2.vn_idx, vn_size);
               vt_idx = fixIndex(i2.vt_idx, vt_size);
-              faces.emplace_back(vertex_index(v_idx, vt_idx, vn_idx));
+              faces.emplace_back(std::move(vertex_index(v_idx, vt_idx, vn_idx)));
             }
           }
         }
@@ -1087,20 +1099,24 @@ void parse(std::vector<float> &vertices, std::vector<float> &normals, std::vecto
     }
 
     auto t_end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> ms = t_end - t_start;
-    //std::cout << "merge:" << ms.count() << " ms\n";
+    ms_merge = t_end - t_start;
   }
 
   auto t4 = std::chrono::high_resolution_clock::now();
  
   std::chrono::duration<double, std::milli> ms_total = t4 - t1;
   std::cout << "total parsing time: " << ms_total.count() << " ms\n";
+  std::cout << "  line detection :" << ms_linedetection.count() << " ms\n";
+  std::cout << "  alloc buf      :" << ms_alloc.count() << " ms\n";
+  std::cout << "  parse          :" << ms_parse.count() << " ms\n";
+  std::cout << "  merge          :" << ms_merge.count() << " ms\n";
   std::cout << "# of vertices = " << vertices.size() << std::endl;
   std::cout << "# of normals = " << normals.size() << std::endl;
   std::cout << "# of texcoords = " << texcoords.size() << std::endl;
   std::cout << "# of faces = " << faces.size() << std::endl;
 
 
+  return true;
 }
 
 #ifdef CONSOLE_TEST
