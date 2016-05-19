@@ -12,7 +12,7 @@ solution "objview"
 
 	kind "ConsoleApp"
 	language "C++"
-	files { "viewer.cc", "trackball.cc" }
+	files { "viewer.cc", "trackball.cc", "ltalloc.cc" }
 	includedirs { "./" }
 	includedirs { "../../" }
 

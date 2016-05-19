@@ -142,6 +142,7 @@ const char *mmap_file(size_t *len, const char* filename)
 
 bool gz_load(std::vector<char>* buf, const char* filename)
 {
+#ifdef ENABLE_ZLIB
     gzFile file;
     file = gzopen (filename, "r");
     if (! file) {
@@ -174,6 +175,9 @@ bool gz_load(std::vector<char>* buf, const char* filename)
     }
     gzclose (file);
     return true;
+#else
+  return false;
+#endif
 }
 
 const char* get_file_data(size_t *len, const char* filename)
@@ -184,10 +188,8 @@ const char* get_file_data(size_t *len, const char* filename)
   size_t data_len = 0;
   const char* data = nullptr;
 
-#if defined(ENABLE_ZLIB)
   if (strcmp(ext, ".gz") == 0) {
     // gzipped data.
-    printf("compressed\n");
 
     std::vector<char> buf;
     bool ret = gz_load(&buf, filename);
@@ -201,9 +203,6 @@ const char* get_file_data(size_t *len, const char* filename)
     }
 
   } else {
-#else
-  {
-#endif
     
     data = mmap_file(&data_len, filename);
   }
@@ -213,12 +212,12 @@ const char* get_file_data(size_t *len, const char* filename)
 }
 
 
-bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename)
+bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int num_threads)
 {
-  std::vector<float> vertices;
-  std::vector<float> normals;
-  std::vector<float> texcoords;
-  std::vector<vertex_index> faces;
+  std::vector<float, lt::allocator<float>> vertices;
+  std::vector<float, lt::allocator<float>> normals;
+  std::vector<float, lt::allocator<float>> texcoords;
+  std::vector<vertex_index, lt::allocator<vertex_index>> faces;
 
   size_t data_len = 0;
   const char* data = get_file_data(&data_len, filename);
@@ -227,7 +226,7 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename)
     return false;
   }
   printf("filesize: %d\n", (int)data_len);
-  parse(vertices, normals, texcoords, faces,  data, data_len, /* num_threads */-1);
+  bool ret = parse(vertices, normals, texcoords, faces,  data, data_len, num_threads);
 
   bmin[0] = bmin[1] = bmin[2] = std::numeric_limits<float>::max();
   bmax[0] = bmax[1] = bmax[2] = -std::numeric_limits<float>::max();
@@ -495,15 +494,42 @@ int main(int argc, char **argv)
     return 0;
   }
 
+  bool benchmark_only = false;
+  int num_threads = -1;
+  if (argc > 2) {
+    num_threads = atoi(argv[2]);
+  }
+
+  if (argc > 3) {
+    benchmark_only = true;
+  }
+
+  if (benchmark_only) {
+
+    std::vector<float, lt::allocator<float>> vertices;
+    std::vector<float, lt::allocator<float>> normals;
+    std::vector<float, lt::allocator<float>> texcoords;
+    std::vector<vertex_index, lt::allocator<vertex_index>> faces;
+
+    size_t data_len = 0;
+    const char* data = get_file_data(&data_len, argv[1]);
+    if (data == nullptr) {
+      exit(-1);
+      return false;
+    }
+    printf("filesize: %d\n", (int)data_len);
+    bool ret = parse(vertices, normals, texcoords, faces,  data, data_len, num_threads);
+
+    return ret;
+  }
+
   Init();
- 
 
   if(!glfwInit()){
     std::cerr << "Failed to initialize GLFW." << std::endl;
     return -1;
   }
 
-  
 
   window = glfwCreateWindow(width, height, "Obj viewer", NULL, NULL);
   if(window == NULL){
@@ -530,7 +556,7 @@ int main(int argc, char **argv)
   reshapeFunc(window, width, height);
 
   float bmin[3], bmax[3];
-  if (false == LoadObjAndConvert(bmin, bmax, argv[1])) {
+  if (false == LoadObjAndConvert(bmin, bmax, argv[1], num_threads)) {
     return -1;
   }
 
