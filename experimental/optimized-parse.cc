@@ -269,6 +269,23 @@ static inline int until_space(const char *token)
   return p - token;
 }
 
+static inline int length_until_newline(const char *token, int n)
+{
+  int len = 0;
+
+  // Assume token[n-1] = '\0'
+  for (len = 0; len < n -1; len++) {
+    if (token[len] == '\n') {
+      break;
+    }
+    if ((token[len] == '\r') && ((len < (n-2)) && (token[len+1] != '\n'))) {
+      break;
+    }
+  }
+
+  return len;
+}
+
 // http://stackoverflow.com/questions/5710091/how-does-atoi-function-in-c-work
 static inline int my_atoi( const char *c ) {
     int value = 0;
@@ -603,8 +620,11 @@ typedef struct
   //std::vector<vertex_index> f;
 
   const char* group_name;
+  unsigned int group_name_len;
   const char* object_name;
+  unsigned int object_name_len;
   const char* material_name;
+  unsigned int material_name_len;
 
   CommandType type;
 } Command;
@@ -710,13 +730,7 @@ static bool parseLine(Command *command, const char *p, size_t p_len)
 
     // use mtl
     if ((0 == strncmp(token, "usemtl", 6)) && IS_SPACE((token[6]))) {
-      char namebuf[8192];
       token += 7;
-#ifdef _MSC_VER
-      sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
-#else
-      sscanf(token, "%s", namebuf);
-#endif
 
       //int newMaterialId = -1;
       //if (material_map.find(namebuf) != material_map.end()) {
@@ -731,15 +745,18 @@ static bool parseLine(Command *command, const char *p, size_t p_len)
       
       //command->material_name = .insert(command->material_name->end(), namebuf, namebuf + strlen(namebuf));
       //command->material_name->push_back('\0');
+      skip_space(&token);
+      command->material_name = token;
+      command->material_name_len = length_until_newline(token, p_len - (token - p));
       command->type = COMMAND_USEMTL;
       
       return true;
     }
 
-#if 0
     // load mtl
     if ((0 == strncmp(token, "mtllib", 6)) && IS_SPACE((token[6]))) {
-      char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
+      // By specification, `mtllib` should be appaar only once in .obj
+      char namebuf[8192];
       token += 7;
 #ifdef _MSC_VER
       sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
@@ -747,28 +764,28 @@ static bool parseLine(Command *command, const char *p, size_t p_len)
       sscanf(token, "%s", namebuf);
 #endif
 
-      std::string err_mtl;
-      std::vector<material_t> materials;
-      bool ok = (*readMatFn)(namebuf, &materials, &material_map, &err_mtl);
-      if (err) {
-        (*err) += err_mtl;
-      }
+      //std::string err_mtl;
+      //std::vector<material_t> materials;
+      //bool ok = (*readMatFn)(namebuf, &materials, &material_map, &err_mtl);
+      //if (err) {
+      //  (*err) += err_mtl;
+      //}
 
-      if (!ok) {
-        return false;
-      }
+      //if (!ok) {
+      //  return false;
+      //}
 
-      if (callback.mtllib_cb) {
-        callback.mtllib_cb(user_data, &materials.at(0),
-                           static_cast<int>(materials.size()));
-      }
+      //if (callback.mtllib_cb) {
+      //  callback.mtllib_cb(user_data, &materials.at(0),
+      //                     static_cast<int>(materials.size()));
+      //}
 
-      continue;
+      return true;
     }
-#endif
 
     // group name
     if (token[0] == 'g' && IS_SPACE((token[1]))) {
+#if 0
       ShortString names[16];
       
       int num_names = 0;
@@ -782,35 +799,24 @@ static bool parseLine(Command *command, const char *p, size_t p_len)
 
       assert(num_names > 0);
 
-      //int name_idx = 0;
+      int name_idx = 0;
       // names[0] must be 'g', so skip the 0th element.
       if (num_names > 1) {
-        //name_idx = 1;
+        name_idx = 1;
       }
+#endif
+      token += 2;
 
-      //command->group_name->assign(names[name_idx]);
+      command->group_name = token;
+      command->group_name_len = length_until_newline(token, p_len - (token - p));
       command->type = COMMAND_G;
 
-      //if (callback.group_cb) {
-      //  if (names.size() > 1) {
-      //    // create const char* array.
-      //    std::vector<const char *> tmp(names.size() - 1);
-      //    for (size_t j = 0; j < tmp.size(); j++) {
-      //      tmp[j] = names[j + 1].c_str();
-      //    }
-      //    callback.group_cb(user_data, &tmp.at(0),
-      //                      static_cast<int>(tmp.size()));
-
-      //  } else {
-      //    callback.group_cb(user_data, NULL, 0);
-      //  }
-
-      //}
       return true;
     }
 
     // object name
     if (token[0] == 'o' && IS_SPACE((token[1]))) {
+#if 0
       // @todo { multiple object name? }
       char namebuf[8192];
       token += 2;
@@ -820,12 +826,12 @@ static bool parseLine(Command *command, const char *p, size_t p_len)
       sscanf(token, "%s", namebuf);
 #endif
 
-      //if (callback.object_cb) {
-      //  callback.object_cb(user_data, name.c_str());
-      //}
+#endif
+
+      token += 2;
       
-      //command->object_name->insert(command->object_name->end(), namebuf, namebuf + strlen(namebuf));
-      //command->object_name->push_back('\0');
+      command->object_name = token;
+      command->object_name_len = length_until_newline(token, p_len - (token - p));
       command->type = COMMAND_O;
 
       return true;
@@ -879,12 +885,10 @@ bool parse(std::vector<float, lt::allocator<float>> &vertices, std::vector<float
 
   auto t1 = std::chrono::high_resolution_clock::now();
 
-  std::atomic<size_t> newline_counter(0);
-
   std::vector<LineInfo, lt::allocator<LineInfo>> line_infos[kMaxThreads];
   for (size_t t = 0; t < static_cast<size_t>(num_threads); t++) {
-    // Pre allocate enough memory. len / 1024 / num_threads is just a heuristic value.
-    line_infos[t].reserve(len / 1024 / num_threads);
+    // Pre allocate enough memory. len / 128 / num_threads is just a heuristic value.
+    line_infos[t].reserve(len / 128 / num_threads);
   }
 
   std::chrono::duration<double, std::milli> ms_linedetection;
@@ -1049,7 +1053,7 @@ bool parse(std::vector<float, lt::allocator<float>> &vertices, std::vector<float
     vertices.reserve(num_v * 3);
     normals.reserve(num_vn * 3);
     texcoords.reserve(num_vt * 2);
-    faces.reserve(num_f);
+    faces.reserve(num_f*3*6); // 3*6 = heuristic value.
 
     for (size_t t = 0; t < num_threads; t++) {
       for (size_t i = 0; i < commands[t].size(); i++) {
