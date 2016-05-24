@@ -214,10 +214,11 @@ const char* get_file_data(size_t *len, const char* filename)
 
 bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int num_threads)
 {
+#if 0
   std::vector<float, lt::allocator<float>> vertices;
   std::vector<float, lt::allocator<float>> normals;
   std::vector<float, lt::allocator<float>> texcoords;
-  std::vector<vertex_index, lt::allocator<vertex_index>> faces;
+  std::vector<int, lt::allocator<vertex_index>> faces;
 
   size_t data_len = 0;
   const char* data = get_file_data(&data_len, filename);
@@ -324,6 +325,9 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int n
   printf("bmax = %f, %f, %f\n", bmax[0], bmax[1], bmax[2]);
 
   return true;
+#else
+  return false;
+#endif
 }
 
 void reshapeFunc(GLFWwindow* window, int w, int h)
