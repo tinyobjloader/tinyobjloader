@@ -183,7 +183,7 @@ bool gz_load(std::vector<char>* buf, const char* filename)
 const char* get_file_data(size_t *len, const char* filename)
 {
 
-  char *ext = strrchr(filename, '.');
+  const char *ext = strrchr(filename, '.');
 
   size_t data_len = 0;
   const char* data = nullptr;
