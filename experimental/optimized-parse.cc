@@ -273,8 +273,6 @@ static inline int length_until_newline(const char *token, int n)
 {
   int len = 0;
 
-  assert(n < 4095);
-
   // Assume token[n-1] = '\0'
   for (len = 0; len < n -1; len++) {
     if (token[len] == '\n') {

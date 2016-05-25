@@ -214,11 +214,11 @@ const char* get_file_data(size_t *len, const char* filename)
 
 bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int num_threads)
 {
-#if 0
+#if 1
   std::vector<float, lt::allocator<float>> vertices;
   std::vector<float, lt::allocator<float>> normals;
   std::vector<float, lt::allocator<float>> texcoords;
-  std::vector<int, lt::allocator<vertex_index>> faces;
+  std::vector<vertex_index, lt::allocator<vertex_index>> faces;
 
   size_t data_len = 0;
   const char* data = get_file_data(&data_len, filename);
@@ -529,10 +529,14 @@ int main(int argc, char **argv)
 
   Init();
 
+  std::cout << "Initialize GLFW..." << std::endl;
+
   if(!glfwInit()){
     std::cerr << "Failed to initialize GLFW." << std::endl;
     return -1;
   }
+
+  std::cout << "GLFW OK." << std::endl;
 
 
   window = glfwCreateWindow(width, height, "Obj viewer", NULL, NULL);
@@ -561,6 +565,7 @@ int main(int argc, char **argv)
 
   float bmin[3], bmax[3];
   if (false == LoadObjAndConvert(bmin, bmax, argv[1], num_threads)) {
+    printf("failed to load & conv\n");
     return -1;
   }
 
