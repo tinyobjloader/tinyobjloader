@@ -1,6 +1,6 @@
 solution "objview"
 	-- location ( "build" )
-	configurations { "Debug", "Release" }
+	configurations { "Release", "Debug" }
 	platforms {"native", "x64", "x32"}
 	
 	project "objview"
