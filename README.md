@@ -21,6 +21,7 @@ Tiny but powerful single file wavefront obj loader written in C++. No dependency
 What's new
 ----------
 
+* Mar 13, 2016 : Introduce `load_flag_t` and flat normal calculation flag! Thanks Vazquinhos!
 * Jan 29, 2016 : Support n-polygon(no triangulation) and OpenSubdiv crease tag! Thanks dboogert!
 * Nov 26, 2015 : Now single-header only!.
 * Nov 08, 2015 : Improved API.
@@ -164,8 +165,8 @@ std::vector<tinyobj::shape_t> shapes;
 std::vector<tinyobj::material_t> materials;
   
 std::string err;
-bool triangulate = false;
-bool ret = tinyobj::LoadObj(shapes, materials, err, inputfile.c_str(), triangulate);
+int flags = 1; // see load_flags_t enum for more information.
+bool ret = tinyobj::LoadObj(shapes, materials, err, inputfile.c_str(), flags);
   
 if (!err.empty()) { // `err` may contain warning message.
   std::cerr << err << std::endl;
