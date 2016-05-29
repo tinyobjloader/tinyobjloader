@@ -63,6 +63,10 @@ TinyObjLoader is successfully used in ...
 * Android Vulkan demo https://github.com/SaschaWillems/Vulkan
 * voxelizer https://github.com/karimnaaji/voxelizer
 * Probulator https://github.com/kayru/Probulator
+* OptiX Prime baking https://github.com/nvpro-samples/optix_prime_baking
+* FireRays SDK https://github.com/GPUOpen-LibrariesAndSDKs/FireRays_SDK
+* parg, tiny C library of various graphics utilities and GL demos https://github.com/prideout/parg
+* Opengl unit of ChronoEngine https://github.com/projectchrono/chrono-opengl
 * Your project here!
 
 Features
