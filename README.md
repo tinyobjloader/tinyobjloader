@@ -60,6 +60,7 @@ TinyObjLoader is successfully used in ...
 * pbrt-v3 https://github.com/mmp/pbrt-v3
 * cocos2d-x https://github.com/cocos2d/cocos2d-x/
 * Android Vulkan demo https://github.com/SaschaWillems/Vulkan
+* voxelizer https://github.com/karimnaaji/voxelizer
 * Your project here!
 
 Features
