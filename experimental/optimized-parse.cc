@@ -515,7 +515,6 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result) {
     read = 1;
     end_not_reached = (curr != s_end);
     while (end_not_reached && IS_DIGIT(*curr)) {
-      // NOTE: Don't use powf here, it will absolutely murder precision.
 
       // pow(10.0, -read)
       double frac_value = 1.0;
@@ -562,8 +561,18 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result) {
   }
 
 assemble:
-  *result =
-      (sign == '+' ? 1 : -1) * ldexp(mantissa * pow(5.0, exponent), exponent);
+
+  {
+    // = pow(5.0, exponent);
+    double a = 5.0;
+    for (int i = 0; i < exponent; i++) {
+      a = a * a;
+    }
+    *result =
+        //(sign == '+' ? 1 : -1) * ldexp(mantissa * pow(5.0, exponent), exponent);
+        (sign == '+' ? 1 : -1) * (mantissa * a) * static_cast<double>(1ULL << exponent); // 5.0^exponent * 2^exponent
+  }
+
   return true;
 fail:
   return false;
@@ -618,6 +627,7 @@ typedef struct
   // for f
   std::vector<vertex_index, lt::allocator<vertex_index> > f;
   //std::vector<vertex_index> f;
+  std::vector<int, lt::allocator<int> > f_num_verts;
 
   const char* group_name;
   unsigned int group_name_len;
@@ -738,6 +748,8 @@ static bool parseLine(Command *command, const char *p, size_t p_len, bool triang
           command->f.emplace_back(i0);
           command->f.emplace_back(i1);
           command->f.emplace_back(i2);
+
+          command->f_num_verts.emplace_back(3);
         }
 
       } else {
@@ -745,6 +757,8 @@ static bool parseLine(Command *command, const char *p, size_t p_len, bool triang
         for (size_t k = 0; k < f->size(); k++) {
           command->f.emplace_back(f[k]);
         }
+
+        command->f_num_verts.emplace_back(f->size());
       }
 
       return true;
@@ -1077,70 +1091,66 @@ bool parse(std::vector<float, lt::allocator<float>> &vertices, std::vector<float
     texcoords.resize(num_vt * 2);
     faces.resize(num_f);
 
-    size_t v_count = 0;
-    size_t n_count = 0;
-    size_t t_count = 0;
-    size_t f_count = 0;
+    size_t v_offsets[kMaxThreads];
+    size_t n_offsets[kMaxThreads];
+    size_t t_offsets[kMaxThreads];
+    size_t f_offsets[kMaxThreads];
+
+    v_offsets[0] = 0;
+    n_offsets[0] = 0;
+    t_offsets[0] = 0;
+    f_offsets[0] = 0;
+
+    for (size_t t = 1; t < num_threads; t++) {
+      v_offsets[t] = v_offsets[t-1] + command_count[t-1].num_v;  
+      n_offsets[t] = n_offsets[t-1] + command_count[t-1].num_vn;  
+      t_offsets[t] = t_offsets[t-1] + command_count[t-1].num_vt;  
+      f_offsets[t] = f_offsets[t-1] + command_count[t-1].num_f;  
+    }
+
+    StackVector<std::thread, 16> workers;
+
     for (size_t t = 0; t < num_threads; t++) {
-      for (size_t i = 0; i < commands[t].size(); i++) {
-        if (commands[t][i].type == COMMAND_EMPTY) {
-          continue;
-        } else if (commands[t][i].type == COMMAND_V) {
-          vertices[3*v_count+0] = commands[t][i].vx;
-          vertices[3*v_count+1] = commands[t][i].vy;
-          vertices[3*v_count+2] = commands[t][i].vz;
-          v_count++;
-        } else if (commands[t][i].type == COMMAND_VN) {
-          normals[3*n_count+0] = commands[t][i].nx;
-          normals[3*n_count+1] = commands[t][i].ny;
-          normals[3*n_count+2] = commands[t][i].nz;
-          n_count++;
-        } else if (commands[t][i].type == COMMAND_VT) {
-          texcoords[2*t_count+0] = commands[t][i].tx;
-          texcoords[2*t_count+1] = commands[t][i].ty;
-          t_count++;
-        } else if (commands[t][i].type == COMMAND_F) {
-#if 0
-          int v_size = vertices.size() / 3;
-          int vn_size = normals.size() / 3;
-          int vt_size = texcoords.size() / 2;
+      workers->push_back(std::thread([&, t]() {
+        size_t v_count = v_offsets[t];
+        size_t n_count = n_offsets[t];
+        size_t t_count = t_offsets[t];
+        size_t f_count = f_offsets[t];
 
-          // triangulate.
-          {
-            vertex_index i0 = commands[t][i].f[0];
-            vertex_index i1(-1);
-            vertex_index i2 = commands[t][i].f[1];
-
-            for (size_t k = 2; k < commands[t][i].f.size(); k++) {
-              i1 = i2;
-              i2 = commands[t][i].f[k];
-              int v_idx = fixIndex(i0.v_idx, v_size);
-              int vn_idx = fixIndex(i0.vn_idx, vn_size);
-              int vt_idx = fixIndex(i0.vt_idx, vt_size);
-              faces.emplace_back(std::move(vertex_index(v_idx, vt_idx, vn_idx)));
-              v_idx = fixIndex(i1.v_idx, v_size);
-              vn_idx = fixIndex(i1.vn_idx, vn_size);
-              vt_idx = fixIndex(i1.vt_idx, vt_size);
-              faces.emplace_back(std::move(vertex_index(v_idx, vt_idx, vn_idx)));
-              v_idx = fixIndex(i2.v_idx, v_size);
-              vn_idx = fixIndex(i2.vn_idx, vn_size);
-              vt_idx = fixIndex(i2.vt_idx, vt_size);
-              faces.emplace_back(std::move(vertex_index(v_idx, vt_idx, vn_idx)));
+        for (size_t i = 0; i < commands[t].size(); i++) {
+          if (commands[t][i].type == COMMAND_EMPTY) {
+            continue;
+          } else if (commands[t][i].type == COMMAND_V) {
+            vertices[3*v_count+0] = commands[t][i].vx;
+            vertices[3*v_count+1] = commands[t][i].vy;
+            vertices[3*v_count+2] = commands[t][i].vz;
+            v_count++;
+          } else if (commands[t][i].type == COMMAND_VN) {
+            normals[3*n_count+0] = commands[t][i].nx;
+            normals[3*n_count+1] = commands[t][i].ny;
+            normals[3*n_count+2] = commands[t][i].nz;
+            n_count++;
+          } else if (commands[t][i].type == COMMAND_VT) {
+            texcoords[2*t_count+0] = commands[t][i].tx;
+            texcoords[2*t_count+1] = commands[t][i].ty;
+            t_count++;
+          } else if (commands[t][i].type == COMMAND_F) {
+            for (size_t k = 0; k < commands[t][i].f.size(); k++) {
+              vertex_index &vi = commands[t][i].f[k];
+              int v_idx =  fixIndex(vi.v_idx, v_count);
+              int vn_idx = fixIndex(vi.vn_idx, n_count);
+              int vt_idx = fixIndex(vi.vt_idx, t_count);
+              faces[f_count + k] = vertex_index(v_idx, vn_idx, vt_idx);
             }
-          }
-#else
-          for (size_t k = 0; k < commands[t][i].f.size(); k++) {
-            vertex_index &vi = commands[t][i].f[k];
-            int v_idx =  fixIndex(vi.v_idx, v_count);
-            int vn_idx = fixIndex(vi.vn_idx, n_count);
-            int vt_idx = fixIndex(vi.vt_idx, t_count);
-            faces[f_count + k] = vertex_index(v_idx, vn_idx, vt_idx);
-          }
 
-          f_count += commands[t][i].f.size();
-#endif
+            f_count += commands[t][i].f.size();
+          }
         }
-      }
+      }));
+    }
+
+    for (size_t t = 0; t < workers->size(); t++) {
+      workers[t].join();
     }
 
     auto t_end = std::chrono::high_resolution_clock::now();
