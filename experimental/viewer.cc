@@ -219,6 +219,8 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int n
   std::vector<float, lt::allocator<float>> normals;
   std::vector<float, lt::allocator<float>> texcoords;
   std::vector<vertex_index, lt::allocator<vertex_index>> faces;
+  std::vector<int, lt::allocator<int>> material_ids;
+  std::vector<shape_t> shapes;
 
   size_t data_len = 0;
   const char* data = get_file_data(&data_len, filename);
@@ -227,7 +229,7 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int n
     return false;
   }
   printf("filesize: %d\n", (int)data_len);
-  bool ret = parse(vertices, normals, texcoords, faces,  data, data_len, num_threads);
+  bool ret = parse(vertices, normals, texcoords, faces, material_ids, shapes, data, data_len, num_threads);
 
   bmin[0] = bmin[1] = bmin[2] = std::numeric_limits<float>::max();
   bmax[0] = bmax[1] = bmax[2] = -std::numeric_limits<float>::max();
@@ -514,6 +516,8 @@ int main(int argc, char **argv)
     std::vector<float, lt::allocator<float>> normals;
     std::vector<float, lt::allocator<float>> texcoords;
     std::vector<vertex_index, lt::allocator<vertex_index>> faces;
+    std::vector<int, lt::allocator<int>> material_ids;
+    std::vector<shape_t> shapes;
 
     size_t data_len = 0;
     const char* data = get_file_data(&data_len, argv[1]);
@@ -522,7 +526,7 @@ int main(int argc, char **argv)
       return false;
     }
     printf("filesize: %d\n", (int)data_len);
-    bool ret = parse(vertices, normals, texcoords, faces,  data, data_len, num_threads);
+    bool ret = parse(vertices, normals, texcoords, faces, material_ids, shapes, data, data_len, num_threads);
 
     return ret;
   }
