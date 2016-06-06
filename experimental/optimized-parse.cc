@@ -21,6 +21,8 @@
 #include <cassert>
 #include <vector>
 #include <iostream>
+#include <fstream>
+#include <map>
 
 #include <chrono> // C++11
 #include <thread> // C++11
@@ -237,6 +239,38 @@ class StackVector
 };
 
 // ----------------------------------------------------------------------------
+
+typedef struct {
+  std::string name;
+
+  float ambient[3];
+  float diffuse[3];
+  float specular[3];
+  float transmittance[3];
+  float emission[3];
+  float shininess;
+  float ior;       // index of refraction
+  float dissolve;  // 1 == opaque; 0 == fully transparent
+  // illumination model (see http://www.fileformat.info/format/material/)
+  int illum;
+
+  int dummy;  // Suppress padding warning.
+
+  std::string ambient_texname;             // map_Ka
+  std::string diffuse_texname;             // map_Kd
+  std::string specular_texname;            // map_Ks
+  std::string specular_highlight_texname;  // map_Ns
+  std::string bump_texname;                // map_bump, bump
+  std::string displacement_texname;        // disp
+  std::string alpha_texname;               // map_d
+  std::map<std::string, std::string> unknown_parameter;
+} material_t;
+
+typedef struct {
+  std::string name;       // group name or object name.
+  unsigned int face_offset;
+  unsigned int length;
+} shape_t;
 
 typedef StackVector<char, 256> ShortString;
 
@@ -605,6 +639,254 @@ static inline void parseFloat3(float *x, float *y, float *z,
   (*z) = parseFloat(token);
 }
 
+static void InitMaterial(material_t *material) {
+  material->name = "";
+  material->ambient_texname = "";
+  material->diffuse_texname = "";
+  material->specular_texname = "";
+  material->specular_highlight_texname = "";
+  material->bump_texname = "";
+  material->displacement_texname = "";
+  material->alpha_texname = "";
+  for (int i = 0; i < 3; i++) {
+    material->ambient[i] = 0.f;
+    material->diffuse[i] = 0.f;
+    material->specular[i] = 0.f;
+    material->transmittance[i] = 0.f;
+    material->emission[i] = 0.f;
+  }
+  material->illum = 0;
+  material->dissolve = 1.f;
+  material->shininess = 1.f;
+  material->ior = 1.f;
+  material->unknown_parameter.clear();
+}
+
+static void LoadMtl(std::map<std::string, int> *material_map,
+             std::vector<material_t> *materials, std::istream *inStream) {
+  // Create a default material anyway.
+  material_t material;
+  InitMaterial(&material);
+
+  size_t maxchars = 8192;           // Alloc enough size.
+  std::vector<char> buf(maxchars);  // Alloc enough size.
+  while (inStream->peek() != -1) {
+    inStream->getline(&buf[0], static_cast<std::streamsize>(maxchars));
+
+    std::string linebuf(&buf[0]);
+
+    // Trim newline '\r\n' or '\n'
+    if (linebuf.size() > 0) {
+      if (linebuf[linebuf.size() - 1] == '\n')
+        linebuf.erase(linebuf.size() - 1);
+    }
+    if (linebuf.size() > 0) {
+      if (linebuf[linebuf.size() - 1] == '\r')
+        linebuf.erase(linebuf.size() - 1);
+    }
+
+    // Skip if empty line.
+    if (linebuf.empty()) {
+      continue;
+    }
+
+    // Skip leading space.
+    const char *token = linebuf.c_str();
+    token += strspn(token, " \t");
+
+    assert(token);
+    if (token[0] == '\0') continue;  // empty line
+
+    if (token[0] == '#') continue;  // comment line
+
+    // new mtl
+    if ((0 == strncmp(token, "newmtl", 6)) && IS_SPACE((token[6]))) {
+      // flush previous material.
+      if (!material.name.empty()) {
+        material_map->insert(std::pair<std::string, int>(
+            material.name, static_cast<int>(materials->size())));
+        materials->push_back(material);
+      }
+
+      // initial temporary material
+      InitMaterial(&material);
+
+      // set new mtl name
+      char namebuf[4096];
+      token += 7;
+#ifdef _MSC_VER
+      sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
+#else
+      sscanf(token, "%s", namebuf);
+#endif
+      material.name = namebuf;
+      continue;
+    }
+
+    // ambient
+    if (token[0] == 'K' && token[1] == 'a' && IS_SPACE((token[2]))) {
+      token += 2;
+      float r, g, b;
+      parseFloat3(&r, &g, &b, &token);
+      material.ambient[0] = r;
+      material.ambient[1] = g;
+      material.ambient[2] = b;
+      continue;
+    }
+
+    // diffuse
+    if (token[0] == 'K' && token[1] == 'd' && IS_SPACE((token[2]))) {
+      token += 2;
+      float r, g, b;
+      parseFloat3(&r, &g, &b, &token);
+      material.diffuse[0] = r;
+      material.diffuse[1] = g;
+      material.diffuse[2] = b;
+      continue;
+    }
+
+    // specular
+    if (token[0] == 'K' && token[1] == 's' && IS_SPACE((token[2]))) {
+      token += 2;
+      float r, g, b;
+      parseFloat3(&r, &g, &b, &token);
+      material.specular[0] = r;
+      material.specular[1] = g;
+      material.specular[2] = b;
+      continue;
+    }
+
+    // transmittance
+    if (token[0] == 'K' && token[1] == 't' && IS_SPACE((token[2]))) {
+      token += 2;
+      float r, g, b;
+      parseFloat3(&r, &g, &b, &token);
+      material.transmittance[0] = r;
+      material.transmittance[1] = g;
+      material.transmittance[2] = b;
+      continue;
+    }
+
+    // ior(index of refraction)
+    if (token[0] == 'N' && token[1] == 'i' && IS_SPACE((token[2]))) {
+      token += 2;
+      material.ior = parseFloat(&token);
+      continue;
+    }
+
+    // emission
+    if (token[0] == 'K' && token[1] == 'e' && IS_SPACE(token[2])) {
+      token += 2;
+      float r, g, b;
+      parseFloat3(&r, &g, &b, &token);
+      material.emission[0] = r;
+      material.emission[1] = g;
+      material.emission[2] = b;
+      continue;
+    }
+
+    // shininess
+    if (token[0] == 'N' && token[1] == 's' && IS_SPACE(token[2])) {
+      token += 2;
+      material.shininess = parseFloat(&token);
+      continue;
+    }
+
+    // illum model
+    if (0 == strncmp(token, "illum", 5) && IS_SPACE(token[5])) {
+      token += 6;
+      material.illum = parseInt(&token);
+      continue;
+    }
+
+    // dissolve
+    if ((token[0] == 'd' && IS_SPACE(token[1]))) {
+      token += 1;
+      material.dissolve = parseFloat(&token);
+      continue;
+    }
+    if (token[0] == 'T' && token[1] == 'r' && IS_SPACE(token[2])) {
+      token += 2;
+      // Invert value of Tr(assume Tr is in range [0, 1])
+      material.dissolve = 1.0f - parseFloat(&token);
+      continue;
+    }
+
+    // ambient texture
+    if ((0 == strncmp(token, "map_Ka", 6)) && IS_SPACE(token[6])) {
+      token += 7;
+      material.ambient_texname = token;
+      continue;
+    }
+
+    // diffuse texture
+    if ((0 == strncmp(token, "map_Kd", 6)) && IS_SPACE(token[6])) {
+      token += 7;
+      material.diffuse_texname = token;
+      continue;
+    }
+
+    // specular texture
+    if ((0 == strncmp(token, "map_Ks", 6)) && IS_SPACE(token[6])) {
+      token += 7;
+      material.specular_texname = token;
+      continue;
+    }
+
+    // specular highlight texture
+    if ((0 == strncmp(token, "map_Ns", 6)) && IS_SPACE(token[6])) {
+      token += 7;
+      material.specular_highlight_texname = token;
+      continue;
+    }
+
+    // bump texture
+    if ((0 == strncmp(token, "map_bump", 8)) && IS_SPACE(token[8])) {
+      token += 9;
+      material.bump_texname = token;
+      continue;
+    }
+
+    // alpha texture
+    if ((0 == strncmp(token, "map_d", 5)) && IS_SPACE(token[5])) {
+      token += 6;
+      material.alpha_texname = token;
+      continue;
+    }
+
+    // bump texture
+    if ((0 == strncmp(token, "bump", 4)) && IS_SPACE(token[4])) {
+      token += 5;
+      material.bump_texname = token;
+      continue;
+    }
+
+    // displacement texture
+    if ((0 == strncmp(token, "disp", 4)) && IS_SPACE(token[4])) {
+      token += 5;
+      material.displacement_texname = token;
+      continue;
+    }
+
+    // unknown parameter
+    const char *_space = strchr(token, ' ');
+    if (!_space) {
+      _space = strchr(token, '\t');
+    }
+    if (_space) {
+      std::ptrdiff_t len = _space - token;
+      std::string key(token, static_cast<size_t>(len));
+      std::string value = _space + 1;
+      material.unknown_parameter.insert(
+          std::pair<std::string, std::string>(key, value));
+    }
+  }
+  // flush last material.
+  material_map->insert(std::pair<std::string, int>(
+      material.name, static_cast<int>(materials->size())));
+  materials->push_back(material);
+}
+
 typedef enum
 {
   COMMAND_EMPTY,
@@ -615,6 +897,7 @@ typedef enum
   COMMAND_G,
   COMMAND_O,
   COMMAND_USEMTL,
+  COMMAND_MTLLIB,
 
 } CommandType;
 
@@ -636,6 +919,9 @@ typedef struct
   const char* material_name;
   unsigned int material_name_len;
 
+  const char* mtllib_name;
+  unsigned int mtllib_name_len;
+
   CommandType type;
 } Command;
 
@@ -645,11 +931,13 @@ struct CommandCount
   size_t num_vn;
   size_t num_vt;
   size_t num_f;
+  size_t num_faces;
   CommandCount() {
     num_v = 0;
     num_vn = 0;
     num_vt = 0;
     num_f = 0;
+    num_faces = 0;
   }
 };
 
@@ -782,8 +1070,8 @@ static bool parseLine(Command *command, const char *p, size_t p_len, bool triang
       //command->material_name = .insert(command->material_name->end(), namebuf, namebuf + strlen(namebuf));
       //command->material_name->push_back('\0');
       skip_space(&token);
-      command->material_name = token;
-      command->material_name_len = length_until_newline(token, p_len - (token - linebuf));
+      command->material_name = p + (token - linebuf);
+      command->material_name_len = length_until_newline(token, p_len - (token - linebuf)) + 1;
       command->type = COMMAND_USEMTL;
       
       return true;
@@ -791,60 +1079,24 @@ static bool parseLine(Command *command, const char *p, size_t p_len, bool triang
 
     // load mtl
     if ((0 == strncmp(token, "mtllib", 6)) && IS_SPACE((token[6]))) {
-      // By specification, `mtllib` should be appaar only once in .obj
-      char namebuf[8192];
+      // By specification, `mtllib` should be appear only once in .obj
       token += 7;
-#ifdef _MSC_VER
-      sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
-#else
-      sscanf(token, "%s", namebuf);
-#endif
 
-      //std::string err_mtl;
-      //std::vector<material_t> materials;
-      //bool ok = (*readMatFn)(namebuf, &materials, &material_map, &err_mtl);
-      //if (err) {
-      //  (*err) += err_mtl;
-      //}
-
-      //if (!ok) {
-      //  return false;
-      //}
-
-      //if (callback.mtllib_cb) {
-      //  callback.mtllib_cb(user_data, &materials.at(0),
-      //                     static_cast<int>(materials.size()));
-      //}
+      skip_space(&token);
+      command->mtllib_name = p + (token - linebuf);
+      command->mtllib_name_len = length_until_newline(token, p_len - (token - linebuf)) + 1;
+      command->type = COMMAND_MTLLIB;
 
       return true;
     }
 
     // group name
     if (token[0] == 'g' && IS_SPACE((token[1]))) {
-#if 0
-      ShortString names[16];
-      
-      int num_names = 0;
-
-      while (!IS_NEW_LINE(token[0])) {
-        bool ret = parseString(&(names[num_names]), &token);
-        assert(ret);
-        token += strspn(token, " \t\r");  // skip tag
-        num_names++;
-      }
-
-      assert(num_names > 0);
-
-      int name_idx = 0;
-      // names[0] must be 'g', so skip the 0th element.
-      if (num_names > 1) {
-        name_idx = 1;
-      }
-#endif
+      // @todo { multiple group name. }
       token += 2;
 
-      command->group_name = token;
-      command->group_name_len = length_until_newline(token, p_len - (token - linebuf));
+      command->group_name = p + (token - linebuf);
+      command->group_name_len = length_until_newline(token, p_len - (token - linebuf)) + 1;
       command->type = COMMAND_G;
 
       return true;
@@ -852,22 +1104,11 @@ static bool parseLine(Command *command, const char *p, size_t p_len, bool triang
 
     // object name
     if (token[0] == 'o' && IS_SPACE((token[1]))) {
-#if 0
       // @todo { multiple object name? }
-      char namebuf[8192];
-      token += 2;
-#ifdef _MSC_VER
-      sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
-#else
-      sscanf(token, "%s", namebuf);
-#endif
-
-#endif
-
       token += 2;
       
-      command->object_name = token;
-      command->object_name_len = length_until_newline(token, p_len - (token - linebuf));
+      command->object_name = p + (token - linebuf);
+      command->object_name_len = length_until_newline(token, p_len - (token - linebuf)) + 1;
       command->type = COMMAND_O;
 
       return true;
@@ -903,13 +1144,15 @@ static inline bool is_line_ending(const char* p, size_t i, size_t end_i)
   return false;
 }
 
-bool parse(std::vector<float, lt::allocator<float>> &vertices, std::vector<float, lt::allocator<float>> &normals, std::vector<float, lt::allocator<float>> &texcoords, std::vector<vertex_index, lt::allocator<vertex_index>> &faces, const char* buf, size_t len, int req_num_threads)
+bool parse(std::vector<float, lt::allocator<float>> &vertices, std::vector<float, lt::allocator<float>> &normals, std::vector<float, lt::allocator<float>> &texcoords, std::vector<vertex_index, lt::allocator<vertex_index>> &faces, std::vector<int, lt::allocator<int> > &material_ids, std::vector<shape_t>& shapes, const char* buf, size_t len, int req_num_threads)
 {
 
   vertices.clear();
   normals.clear();
   texcoords.clear();
   faces.clear();
+  material_ids.clear();
+  shapes.clear();
 
   if (len < 1) return false;
 
@@ -930,7 +1173,9 @@ bool parse(std::vector<float, lt::allocator<float>> &vertices, std::vector<float
   std::chrono::duration<double, std::milli> ms_linedetection;
   std::chrono::duration<double, std::milli> ms_alloc;
   std::chrono::duration<double, std::milli> ms_parse;
+  std::chrono::duration<double, std::milli> ms_load_mtl;
   std::chrono::duration<double, std::milli> ms_merge;
+  std::chrono::duration<double, std::milli> ms_construct;
 
 
   // 1. Find '\n' and create line data.
@@ -1019,6 +1264,9 @@ bool parse(std::vector<float, lt::allocator<float>> &vertices, std::vector<float
   }
 
   CommandCount command_count[kMaxThreads];
+  // Array index to `mtllib` line. According to wavefront .obj spec, `mtllib' should appear only once in .obj.
+  int mtllib_t_index = -1;
+  int mtllib_i_index = -1;
 
   ms_alloc = std::chrono::high_resolution_clock::now() - t_alloc_start;
 
@@ -1042,8 +1290,16 @@ bool parse(std::vector<float, lt::allocator<float>> &vertices, std::vector<float
               command_count[t].num_vt++;
             } else if (command.type == COMMAND_F) {
               command_count[t].num_f += command.f.size();
+              command_count[t].num_faces++;
             } 
+
+            if (command.type == COMMAND_MTLLIB) {
+              mtllib_t_index = t;
+              mtllib_i_index = commands->size();
+            }
+
             commands[t].emplace_back(std::move(command));
+
           }
         }
 
@@ -1057,6 +1313,31 @@ bool parse(std::vector<float, lt::allocator<float>> &vertices, std::vector<float
     auto t_end = std::chrono::high_resolution_clock::now();
 
     ms_parse = t_end - t_start;
+
+  }
+
+  std::map<std::string, int> material_map;
+  std::vector<material_t>    materials;
+
+  // Load material(if exits)
+  if (mtllib_i_index >= 0 && mtllib_t_index >= 0 && commands[mtllib_t_index][mtllib_i_index].mtllib_name && commands[mtllib_t_index][mtllib_i_index].mtllib_name_len > 0) {
+    std::string material_filename = std::string(commands[mtllib_t_index][mtllib_i_index].mtllib_name, commands[mtllib_t_index][mtllib_i_index].mtllib_name_len);
+    std::cout << "mtllib :" << material_filename << std::endl;
+
+    auto t1 = std::chrono::high_resolution_clock::now();
+
+    std::ifstream ifs(material_filename);
+    if (ifs.good()) {
+      LoadMtl(&material_map, &materials, &ifs);
+
+      std::cout << "maetrials = " << materials.size() << std::endl;
+
+      ifs.close();
+    }
+    
+    auto t2 = std::chrono::high_resolution_clock::now();
+
+    ms_load_mtl = t2 - t1;
   }
 
   auto command_sum = 0;
@@ -1070,11 +1351,13 @@ bool parse(std::vector<float, lt::allocator<float>> &vertices, std::vector<float
   size_t num_vn = 0;
   size_t num_vt = 0;
   size_t num_f = 0;
+  size_t num_faces = 0;
   for (size_t t = 0; t < num_threads; t++) {
       num_v += command_count[t].num_v;
       num_vn += command_count[t].num_vn;
       num_vt += command_count[t].num_vt;
       num_f += command_count[t].num_f;
+      num_faces += command_count[t].num_faces;
   }
   //std::cout << "# v " << num_v << std::endl;
   //std::cout << "# vn " << num_vn << std::endl;
@@ -1090,36 +1373,53 @@ bool parse(std::vector<float, lt::allocator<float>> &vertices, std::vector<float
     normals.resize(num_vn * 3);
     texcoords.resize(num_vt * 2);
     faces.resize(num_f);
+    material_ids.resize(num_faces);
 
     size_t v_offsets[kMaxThreads];
     size_t n_offsets[kMaxThreads];
     size_t t_offsets[kMaxThreads];
     size_t f_offsets[kMaxThreads];
+    size_t face_offsets[kMaxThreads];
 
     v_offsets[0] = 0;
     n_offsets[0] = 0;
     t_offsets[0] = 0;
     f_offsets[0] = 0;
+    face_offsets[0] = 0;
 
     for (size_t t = 1; t < num_threads; t++) {
       v_offsets[t] = v_offsets[t-1] + command_count[t-1].num_v;  
       n_offsets[t] = n_offsets[t-1] + command_count[t-1].num_vn;  
       t_offsets[t] = t_offsets[t-1] + command_count[t-1].num_vt;  
       f_offsets[t] = f_offsets[t-1] + command_count[t-1].num_f;  
+      face_offsets[t] = face_offsets[t-1] + command_count[t-1].num_faces;
     }
 
     StackVector<std::thread, 16> workers;
 
     for (size_t t = 0; t < num_threads; t++) {
+      int material_id = -1; // -1 = default unknown material.
       workers->push_back(std::thread([&, t]() {
         size_t v_count = v_offsets[t];
         size_t n_count = n_offsets[t];
         size_t t_count = t_offsets[t];
         size_t f_count = f_offsets[t];
+        size_t face_count = face_offsets[t];
 
         for (size_t i = 0; i < commands[t].size(); i++) {
           if (commands[t][i].type == COMMAND_EMPTY) {
             continue;
+          } else if (commands[t][i].type == COMMAND_USEMTL) {
+            if (commands[t][i].material_name && commands[t][i].material_name_len > 0) {
+              std::string material_name(commands[t][i].material_name, commands[t][i].material_name_len); 
+
+              if (material_map.find(material_name) != material_map.end()) {
+                material_id = material_map[material_name];
+              } else {
+                // Assign invalid material ID
+                material_id = -1;
+              }
+            }
           } else if (commands[t][i].type == COMMAND_V) {
             vertices[3*v_count+0] = commands[t][i].vx;
             vertices[3*v_count+1] = commands[t][i].vy;
@@ -1142,8 +1442,10 @@ bool parse(std::vector<float, lt::allocator<float>> &vertices, std::vector<float
               int vt_idx = fixIndex(vi.vt_idx, t_count);
               faces[f_count + k] = vertex_index(v_idx, vn_idx, vt_idx);
             }
+            material_ids[face_count] = material_id;
 
             f_count += commands[t][i].f.size();
+            face_count++;
           }
         }
       }));
@@ -1158,6 +1460,78 @@ bool parse(std::vector<float, lt::allocator<float>> &vertices, std::vector<float
   }
 
   auto t4 = std::chrono::high_resolution_clock::now();
+
+  // 5. Construct shape information.
+  {
+    auto t_start = std::chrono::high_resolution_clock::now();
+
+    // @todo { Can we boost the performance by multi-threaded execution? }
+    int face_count = 0;
+    shape_t shape;
+    shape.face_offset = 0;
+    shape.length = 0;
+    int face_prev_offset = 0;
+    for (size_t t = 0; t < num_threads; t++) {
+      for (size_t i = 0; i < commands[t].size(); i++) {
+        if (commands[t][i].type == COMMAND_O || commands[t][i].type == COMMAND_G) {
+          std::string name;
+          if (commands[t][i].type == COMMAND_O) {
+            name = std::string(commands[t][i].object_name, commands[t][i].object_name_len); 
+          } else {
+            name = std::string(commands[t][i].group_name, commands[t][i].group_name_len); 
+          }
+
+          if (face_count == 0) {
+            // 'o' or 'g' appears before any 'f'
+            shape.name = name;
+            shape.face_offset = face_count;
+            face_prev_offset = face_count;
+          } else {
+            if (shapes.size() == 0) {
+              // 'o' or 'g' after some 'v' lines.
+              // create a shape with null name
+              shape.length = face_count - face_prev_offset;
+              face_prev_offset = face_count;
+
+              shapes.push_back(shape);
+
+            } else {
+              if ((face_count - face_prev_offset) > 0) {
+                // push previous shape
+                shape.length = face_count - face_prev_offset;
+                shapes.push_back(shape);
+                face_prev_offset = face_count;
+              }
+            }
+
+            // redefine shape.
+            shape.name = name;
+            shape.face_offset = face_count;
+            shape.length = 0;
+          }
+        } else if (commands[t][i].type == COMMAND_G) {
+          std::cout << "g" << std::endl;
+        }
+        if (commands[t][i].type == COMMAND_F) {
+          face_count++;
+        }
+      }
+    }
+
+    if ((face_count - face_prev_offset) > 0) {
+      shape.length = face_count - shape.face_offset;
+      if (shape.length > 0) {
+        shapes.push_back(shape);  
+      }
+    } else {
+      // Guess no 'v' line occurrence after 'o' or 'g', so discards current shape information.
+      std::cout << "remainder " << shape.name << ", " << shape.face_offset << ", " << face_prev_offset << ", " << face_count << std::endl;
+    }
+
+    auto t_end = std::chrono::high_resolution_clock::now();
+
+    ms_construct = t_end - t_start;
+  }
  
   std::chrono::duration<double, std::milli> ms_total = t4 - t1;
   std::cout << "total parsing time: " << ms_total.count() << " ms\n";
@@ -1165,10 +1539,14 @@ bool parse(std::vector<float, lt::allocator<float>> &vertices, std::vector<float
   std::cout << "  alloc buf      :" << ms_alloc.count() << " ms\n";
   std::cout << "  parse          :" << ms_parse.count() << " ms\n";
   std::cout << "  merge          :" << ms_merge.count() << " ms\n";
+  std::cout << "  construct      :" << ms_construct.count() << " ms\n";
+  std::cout << "  mtl load       :" << ms_load_mtl.count() << " ms\n";
   std::cout << "# of vertices = " << vertices.size() << std::endl;
   std::cout << "# of normals = " << normals.size() << std::endl;
   std::cout << "# of texcoords = " << texcoords.size() << std::endl;
-  std::cout << "# of faces = " << faces.size() << std::endl;
+  std::cout << "# of face indices = " << faces.size() << std::endl;
+  std::cout << "# of faces = " << material_ids.size() << std::endl;
+  std::cout << "# of shapes = " << shapes.size() << std::endl;
 
 
   return true;
