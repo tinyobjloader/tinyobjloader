@@ -27,7 +27,9 @@
 #include <GLFW/glfw3.h>
 
 #include "trackball.h"
-#include "optimized-parse.cc"
+
+#define TINYOBJ_LOADER_OPT_IMPLEMENTATION
+#include "tinyobj_loader_opt.h"
 
 typedef struct {
   GLuint vb;    // vertex buffer
@@ -215,12 +217,8 @@ const char* get_file_data(size_t *len, const char* filename)
 bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int num_threads)
 {
 #if 1
-  std::vector<float, lt::allocator<float>> vertices;
-  std::vector<float, lt::allocator<float>> normals;
-  std::vector<float, lt::allocator<float>> texcoords;
-  std::vector<vertex_index, lt::allocator<vertex_index>> faces;
-  std::vector<int, lt::allocator<int>> material_ids;
-  std::vector<shape_t> shapes;
+  tinyobj_opt::attrib_t attrib;
+  std::vector<tinyobj_opt::shape_t> shapes;
 
   size_t data_len = 0;
   const char* data = get_file_data(&data_len, filename);
@@ -229,7 +227,7 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int n
     return false;
   }
   printf("filesize: %d\n", (int)data_len);
-  bool ret = parse(vertices, normals, texcoords, faces, material_ids, shapes, data, data_len, num_threads);
+  bool ret = parseObj(&attrib, &shapes, data, data_len, num_threads);
 
   bmin[0] = bmin[1] = bmin[2] = std::numeric_limits<float>::max();
   bmax[0] = bmax[1] = bmax[2] = -std::numeric_limits<float>::max();
@@ -237,78 +235,81 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int n
   {
         DrawObject o;
         std::vector<float> vb; // pos(3float), normal(3float), color(3float)
-        for (size_t f = 0; f < faces.size()/3; f++) {
+        size_t face_offset = 0;
+        for (size_t v = 0; v < attrib.face_num_verts.size(); v++) {
+          assert(attrib.face_num_verts[v] % 3 == 0); // assume all triangle face.
+          for (size_t f = 0; f < attrib.face_num_verts[v] / 3; f++) {
+            tinyobj_opt::vertex_index idx0 = attrib.faces[face_offset+3*f+0];
+            tinyobj_opt::vertex_index idx1 = attrib.faces[face_offset+3*f+1];
+            tinyobj_opt::vertex_index idx2 = attrib.faces[face_offset+3*f+2];
 
-          vertex_index idx0 = faces[3*f+0];
-          vertex_index idx1 = faces[3*f+1];
-          vertex_index idx2 = faces[3*f+2];
-
-          float v[3][3];
-          for (int k = 0; k < 3; k++) {
-            int f0 = idx0.v_idx;
-            int f1 = idx1.v_idx;
-            int f2 = idx2.v_idx;
-            assert(f0 >= 0);
-            assert(f1 >= 0);
-            assert(f2 >= 0);
-
-            v[0][k] = vertices[3*f0+k];
-            v[1][k] = vertices[3*f1+k];
-            v[2][k] = vertices[3*f2+k];
-            bmin[k] = std::min(v[0][k], bmin[k]);
-            bmin[k] = std::min(v[1][k], bmin[k]);
-            bmin[k] = std::min(v[2][k], bmin[k]);
-            bmax[k] = std::max(v[0][k], bmax[k]);
-            bmax[k] = std::max(v[1][k], bmax[k]);
-            bmax[k] = std::max(v[2][k], bmax[k]);
-          }
-
-          float n[3][3];
-
-          if (normals.size() > 0) { 
-            int f0 = idx0.vn_idx;
-            int f1 = idx1.vn_idx;
-            int f2 = idx2.vn_idx;
-            assert(f0 >= 0);
-            assert(f1 >= 0);
-            assert(f2 >= 0);
-            assert(3*f0+2 < normals.size());
-            assert(3*f1+2 < normals.size());
-            assert(3*f2+2 < normals.size());
+            float v[3][3];
             for (int k = 0; k < 3; k++) {
-              n[0][k] = normals[3*f0+k];
-              n[1][k] = normals[3*f1+k];
-              n[2][k] = normals[3*f2+k];
-            }
-          } else {
-            // compute geometric normal
-            CalcNormal(n[0], v[0], v[1], v[2]);
-            n[1][0] = n[0][0]; n[1][1] = n[0][1]; n[1][2] = n[0][2];
-            n[2][0] = n[0][0]; n[2][1] = n[0][1]; n[2][2] = n[0][2];
-          }
+              int f0 = idx0.v_idx;
+              int f1 = idx1.v_idx;
+              int f2 = idx2.v_idx;
+              assert(f0 >= 0);
+              assert(f1 >= 0);
+              assert(f2 >= 0);
 
-          for (int k = 0; k < 3; k++) {
-            vb.push_back(v[k][0]);
-            vb.push_back(v[k][1]);
-            vb.push_back(v[k][2]);
-            vb.push_back(n[k][0]);
-            vb.push_back(n[k][1]);
-            vb.push_back(n[k][2]);
-            // Use normal as color.
-            float c[3] = {n[k][0], n[k][1], n[k][2]};
-            float len2 = c[0] * c[0] + c[1] * c[1] + c[2] * c[2];
-            if (len2 > 0.0f) {
-              float len = sqrtf(len2);
-              
-              c[0] /= len;
-              c[1] /= len;
-              c[2] /= len;
+              v[0][k] = attrib.vertices[3*f0+k];
+              v[1][k] = attrib.vertices[3*f1+k];
+              v[2][k] = attrib.vertices[3*f2+k];
+              bmin[k] = std::min(v[0][k], bmin[k]);
+              bmin[k] = std::min(v[1][k], bmin[k]);
+              bmin[k] = std::min(v[2][k], bmin[k]);
+              bmax[k] = std::max(v[0][k], bmax[k]);
+              bmax[k] = std::max(v[1][k], bmax[k]);
+              bmax[k] = std::max(v[2][k], bmax[k]);
             }
-            vb.push_back(c[0] * 0.5 + 0.5);
-            vb.push_back(c[1] * 0.5 + 0.5);
-            vb.push_back(c[2] * 0.5 + 0.5);
-          }
-          
+
+            float n[3][3];
+
+            if (attrib.normals.size() > 0) { 
+              int f0 = idx0.vn_idx;
+              int f1 = idx1.vn_idx;
+              int f2 = idx2.vn_idx;
+              assert(f0 >= 0);
+              assert(f1 >= 0);
+              assert(f2 >= 0);
+              assert(3*f0+2 < attrib.normals.size());
+              assert(3*f1+2 < attrib.normals.size());
+              assert(3*f2+2 < attrib.normals.size());
+              for (int k = 0; k < 3; k++) {
+                n[0][k] = attrib.normals[3*f0+k];
+                n[1][k] = attrib.normals[3*f1+k];
+                n[2][k] = attrib.normals[3*f2+k];
+              }
+            } else {
+              // compute geometric normal
+              CalcNormal(n[0], v[0], v[1], v[2]);
+              n[1][0] = n[0][0]; n[1][1] = n[0][1]; n[1][2] = n[0][2];
+              n[2][0] = n[0][0]; n[2][1] = n[0][1]; n[2][2] = n[0][2];
+            }
+
+            for (int k = 0; k < 3; k++) {
+              vb.push_back(v[k][0]);
+              vb.push_back(v[k][1]);
+              vb.push_back(v[k][2]);
+              vb.push_back(n[k][0]);
+              vb.push_back(n[k][1]);
+              vb.push_back(n[k][2]);
+              // Use normal as color.
+              float c[3] = {n[k][0], n[k][1], n[k][2]};
+              float len2 = c[0] * c[0] + c[1] * c[1] + c[2] * c[2];
+              if (len2 > 0.0f) {
+                float len = sqrtf(len2);
+                
+                c[0] /= len;
+                c[1] /= len;
+                c[2] /= len;
+              }
+              vb.push_back(c[0] * 0.5 + 0.5);
+              vb.push_back(c[1] * 0.5 + 0.5);
+              vb.push_back(c[2] * 0.5 + 0.5);
+            }
+          } 
+          face_offset += attrib.face_num_verts[v];
         }
 
         o.vb = 0;
@@ -512,12 +513,8 @@ int main(int argc, char **argv)
 
   if (benchmark_only) {
 
-    std::vector<float, lt::allocator<float>> vertices;
-    std::vector<float, lt::allocator<float>> normals;
-    std::vector<float, lt::allocator<float>> texcoords;
-    std::vector<vertex_index, lt::allocator<vertex_index>> faces;
-    std::vector<int, lt::allocator<int>> material_ids;
-    std::vector<shape_t> shapes;
+    tinyobj_opt::attrib_t attrib;
+    std::vector<tinyobj_opt::shape_t> shapes;
 
     size_t data_len = 0;
     const char* data = get_file_data(&data_len, argv[1]);
@@ -526,7 +523,7 @@ int main(int argc, char **argv)
       return false;
     }
     printf("filesize: %d\n", (int)data_len);
-    bool ret = parse(vertices, normals, texcoords, faces, material_ids, shapes, data, data_len, num_threads);
+    bool ret = parseObj(&attrib, &shapes, data, data_len, num_threads);
 
     return ret;
   }
