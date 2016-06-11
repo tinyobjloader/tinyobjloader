@@ -227,7 +227,9 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int n
     return false;
   }
   printf("filesize: %d\n", (int)data_len);
-  bool ret = parseObj(&attrib, &shapes, data, data_len, num_threads);
+  tinyobj_opt::LoadOption option;
+  option.req_num_threads = num_threads;
+  bool ret = parseObj(&attrib, &shapes, data, data_len, option);
 
   bmin[0] = bmin[1] = bmin[2] = std::numeric_limits<float>::max();
   bmax[0] = bmax[1] = bmax[2] = -std::numeric_limits<float>::max();
@@ -523,7 +525,9 @@ int main(int argc, char **argv)
       return false;
     }
     printf("filesize: %d\n", (int)data_len);
-    bool ret = parseObj(&attrib, &shapes, data, data_len, num_threads);
+    tinyobj_opt::LoadOption option;
+    option.req_num_threads = num_threads;
+    bool ret = parseObj(&attrib, &shapes, data, data_len, option);
 
     return ret;
   }

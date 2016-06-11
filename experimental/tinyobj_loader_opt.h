@@ -928,11 +928,24 @@ struct CommandCount {
   }
 };
 
+class
+LoadOption
+{
+ public:
+	LoadOption() : req_num_threads(-1), triangulate(true), verbose(false) {}
+	
+	int  req_num_threads;
+	bool triangulate;
+	bool verbose;
+
+};
+
+
 /// Parse wavefront .obj(.obj string data is expanded to linear char array
 /// `buf')
 /// -1 to req_num_threads use the number of HW threads in the running system.
 bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
-              size_t len, int req_num_threads = -1, bool triangulate = true);
+              size_t len, const LoadOption& option);
 
 #ifdef TINYOBJ_LOADER_OPT_IMPLEMENTATION
 
@@ -1141,7 +1154,8 @@ static inline bool is_line_ending(const char *p, size_t i, size_t end_i) {
 }
 
 bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
-              size_t len, int req_num_threads, bool triangulate) {
+              size_t len, const LoadOption& option)
+{
   attrib->vertices.clear();
   attrib->normals.clear();
   attrib->texcoords.clear();
@@ -1152,11 +1166,14 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
 
   if (len < 1) return false;
 
-  auto num_threads = (req_num_threads < 0) ? std::thread::hardware_concurrency()
-                                           : req_num_threads;
+  auto num_threads = (option.req_num_threads < 0) ? std::thread::hardware_concurrency()
+                                           : option.req_num_threads;
   num_threads =
       std::max(1, std::min(static_cast<int>(num_threads), kMaxThreads));
-  std::cout << "# of threads = " << num_threads << std::endl;
+
+	if (option.verbose) {
+		std::cout << "# of threads = " << num_threads << std::endl;
+	}
 
   auto t1 = std::chrono::high_resolution_clock::now();
 
@@ -1277,7 +1294,7 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
         for (size_t i = 0; i < line_infos[t].size(); i++) {
           Command command;
           bool ret = parseLine(&command, &buf[line_infos[t][i].pos],
-                               line_infos[t][i].len, triangulate);
+                               line_infos[t][i].len, option.triangulate);
           if (ret) {
             if (command.type == COMMAND_V) {
               command_count[t].num_v++;
@@ -1539,19 +1556,21 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
   }
 
   std::chrono::duration<double, std::milli> ms_total = t4 - t1;
-  std::cout << "total parsing time: " << ms_total.count() << " ms\n";
-  std::cout << "  line detection : " << ms_linedetection.count() << " ms\n";
-  std::cout << "  alloc buf      : " << ms_alloc.count() << " ms\n";
-  std::cout << "  parse          : " << ms_parse.count() << " ms\n";
-  std::cout << "  merge          : " << ms_merge.count() << " ms\n";
-  std::cout << "  construct      : " << ms_construct.count() << " ms\n";
-  std::cout << "  mtl load       : " << ms_load_mtl.count() << " ms\n";
-  std::cout << "# of vertices = " << attrib->vertices.size() << std::endl;
-  std::cout << "# of normals = " << attrib->normals.size() << std::endl;
-  std::cout << "# of texcoords = " << attrib->texcoords.size() << std::endl;
-  std::cout << "# of face indices = " << attrib->faces.size() << std::endl;
-  std::cout << "# of faces = " << attrib->material_ids.size() << std::endl;
-  std::cout << "# of shapes = " << shapes->size() << std::endl;
+	if (option.verbose) {
+		std::cout << "total parsing time: " << ms_total.count() << " ms\n";
+		std::cout << "  line detection : " << ms_linedetection.count() << " ms\n";
+		std::cout << "  alloc buf      : " << ms_alloc.count() << " ms\n";
+		std::cout << "  parse          : " << ms_parse.count() << " ms\n";
+		std::cout << "  merge          : " << ms_merge.count() << " ms\n";
+		std::cout << "  construct      : " << ms_construct.count() << " ms\n";
+		std::cout << "  mtl load       : " << ms_load_mtl.count() << " ms\n";
+		std::cout << "# of vertices = " << attrib->vertices.size() << std::endl;
+		std::cout << "# of normals = " << attrib->normals.size() << std::endl;
+		std::cout << "# of texcoords = " << attrib->texcoords.size() << std::endl;
+		std::cout << "# of face indices = " << attrib->faces.size() << std::endl;
+		std::cout << "# of faces = " << attrib->material_ids.size() << std::endl;
+		std::cout << "# of shapes = " << shapes->size() << std::endl;
+	}
 
   return true;
 }
