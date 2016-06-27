@@ -148,6 +148,19 @@ for (size_t s = 0; s < shapes.size(); s++) {
 
 ```
 
+Optimized loader
+----------------
+
+Optimized multi-threaded .obj loader is available at `experimental/` directory.
+If you want absolute performance to load .obj data, this optimized loader will fit your purpose.
+Note that the optimized loader uses C++11 thread and it does less error checks but may work most .obj data.
+
+Here is some benchmark result. Time are measured on MacBook 12(Early 2016, Core m5 1.2GHz).
+
+* Rungholt scene(6M triangles)
+  * baseline: 6800 msecs
+  * optimised: 1500 msecs(4.5x faster)
+
 
 Tests
 -----
