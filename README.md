@@ -130,9 +130,9 @@ for (size_t s = 0; s < shapes.size(); s++) {
     for (size_t v = 0; v < fv; f++) {
       // access to vertex
       tinyobj::index_t idx = shapes[i].mesh.indices[index_offset + v];
-      float vx = attrib.positions[3*idx.vertex_index+0];
-      float vy = attrib.positions[3*idx.vertex_index+1];
-      float vz = attrib.positions[3*idx.vertex_index+2];
+      float vx = attrib.vertices[3*idx.vertex_index+0];
+      float vy = attrib.vertices[3*idx.vertex_index+1];
+      float vz = attrib.vertices[3*idx.vertex_index+2];
       float nx = attrib.normals[3*idx.normal_index+0];
       float ny = attrib.normals[3*idx.normal_index+1];
       float nz = attrib.normals[3*idx.normal_index+2];
