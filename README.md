@@ -17,6 +17,12 @@ Tiny but powerful single file wavefront obj loader written in C++. No dependency
 
 `tinyobjloader` is good for embedding .obj loader to your (global illumination) renderer ;-)
 
+Notice!
+-------
+
+`master` branch will be replaced with `develop` branch in the near future: https://github.com/syoyo/tinyobjloader/tree/develop
+`develop` branch has more better support and clean API interface for loading .obj and also it has optimized multi-threaded parser(probably 10x faster than `master`). If you are new to use `TinyObjLoader`, I highly recommend to use `develop` branch.
+
 
 What's new
 ----------
