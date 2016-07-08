@@ -158,8 +158,9 @@ Note that the optimized loader uses C++11 thread and it does less error checks b
 Here is some benchmark result. Time are measured on MacBook 12(Early 2016, Core m5 1.2GHz).
 
 * Rungholt scene(6M triangles)
-  * baseline: 6800 msecs
-  * optimised: 1500 msecs(4.5x faster)
+  * old version(v0.9.x): 15500 msecs.
+  * baseline(v1.0.x): 6800 msecs(2.3x faster than old version)
+  * optimised: 1500 msecs(10x faster than old version, 4.5x faster than basedline)
 
 
 Tests
