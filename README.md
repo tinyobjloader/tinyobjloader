@@ -123,13 +123,13 @@ if (!ret) {
 for (size_t s = 0; s < shapes.size(); s++) {
   // Loop over faces(polygon)
   size_t index_offset = 0;
-  for (size_t f = 0; f < shapes[i].mesh.num_face_vertices.size(); f++) {
-    int fv = shapes[i].mesh.num_face_vertices[f];
+  for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
+    int fv = shapes[s].mesh.num_face_vertices[f];
 
     // Loop over vertices in the face.
-    for (size_t v = 0; v < fv; f++) {
+    for (size_t v = 0; v < fv; v++) {
       // access to vertex
-      tinyobj::index_t idx = shapes[i].mesh.indices[index_offset + v];
+      tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
       float vx = attrib.vertices[3*idx.vertex_index+0];
       float vy = attrib.vertices[3*idx.vertex_index+1];
       float vz = attrib.vertices[3*idx.vertex_index+2];
@@ -142,7 +142,7 @@ for (size_t s = 0; s < shapes.size(); s++) {
     index_offset += fv;
 
     // per-face material
-    shapes[i].mesh.material_ids[f];
+    shapes[s].mesh.material_ids[f];
   }
 }
 
