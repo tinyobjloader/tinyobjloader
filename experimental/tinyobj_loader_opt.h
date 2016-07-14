@@ -391,7 +391,6 @@ static vertex_index parseRawTriple(const char **token) {
       static_cast<int>(0x80000000));  // 0x80000000 = -2147483648 = invalid
 
   vi.v_idx = my_atoi((*token));
-  //(*token) += strcspn((*token), "/ \t\r");
   while ((*token)[0] != '\0' && (*token)[0] != '/' && (*token)[0] != ' ' &&
          (*token)[0] != '\t' && (*token)[0] != '\r') {
     (*token)++;
@@ -405,7 +404,6 @@ static vertex_index parseRawTriple(const char **token) {
   if ((*token)[0] == '/') {
     (*token)++;
     vi.vn_idx = my_atoi((*token));
-    //(*token) += strcspn((*token), "/ \t\r");
     while ((*token)[0] != '\0' && (*token)[0] != '/' && (*token)[0] != ' ' &&
            (*token)[0] != '\t' && (*token)[0] != '\r') {
       (*token)++;
@@ -415,7 +413,6 @@ static vertex_index parseRawTriple(const char **token) {
 
   // i/j/k or i/j
   vi.vt_idx = my_atoi((*token));
-  //(*token) += strcspn((*token), "/ \t\r");
   while ((*token)[0] != '\0' && (*token)[0] != '/' && (*token)[0] != ' ' &&
          (*token)[0] != '\t' && (*token)[0] != '\r') {
     (*token)++;
@@ -427,7 +424,6 @@ static vertex_index parseRawTriple(const char **token) {
   // i/j/k
   (*token)++;  // skip '/'
   vi.vn_idx = my_atoi((*token));
-  //(*token) += strcspn((*token), "/ \t\r");
   while ((*token)[0] != '\0' && (*token)[0] != '/' && (*token)[0] != ' ' &&
          (*token)[0] != '\t' && (*token)[0] != '\r') {
     (*token)++;
@@ -436,17 +432,17 @@ static vertex_index parseRawTriple(const char **token) {
 }
 
 static inline bool parseString(ShortString *s, const char **token) {
-  skip_space(token);                 //(*token) += strspn((*token), " \t");
-  size_t e = until_space((*token));  // strcspn((*token), " \t\r");
+  skip_space(token);                 
+  size_t e = until_space((*token)); 
   (*s)->insert((*s)->end(), (*token), (*token) + e);
   (*token) += e;
   return true;
 }
 
 static inline int parseInt(const char **token) {
-  skip_space(token);  //(*token) += strspn((*token), " \t");
+  skip_space(token);
   int i = my_atoi((*token));
-  (*token) += until_space((*token));  // strcspn((*token), " \t\r");
+  (*token) += until_space((*token));
   return i;
 }
 
@@ -601,13 +597,13 @@ fail:
 }
 
 static inline float parseFloat(const char **token) {
-  skip_space(token);  //(*token) += strspn((*token), " \t");
+  skip_space(token);  
 #ifdef TINY_OBJ_LOADER_OLD_FLOAT_PARSER
   float f = static_cast<float>(atof(*token));
   (*token) += strcspn((*token), " \t\r");
 #else
   const char *end =
-      (*token) + until_space((*token));  // strcspn((*token), " \t\r");
+      (*token) + until_space((*token));
   double val = 0.0;
   tryParseDouble((*token), end, &val);
   float f = static_cast<float>(val);
@@ -951,18 +947,18 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
 
 static bool parseLine(Command *command, const char *p, size_t p_len,
                       bool triangulate = true) {
-  //char linebuf[4096];
-  //assert(p_len < 4095);
-  //memcpy(linebuf, p, p_len);
-  //linebuf[p_len] = '\0';
+  // @todo { operate directly on pointer `p'. to do that, add range check for string operatoion against `p', since `p' is not null-terminated at p[p_len] }
+  char linebuf[4096];
+  assert(p_len < 4095);
+  memcpy(linebuf, p, p_len);
+  linebuf[p_len] = '\0';
 
-  const char *token = p;
+  const char *token = linebuf;
 
   command->type = COMMAND_EMPTY;
 
   // Skip leading space.
-  // token += strspn(token, " \t");
-  skip_space(&token);  //(*token) += strspn((*token), " \t");
+  skip_space(&token);
 
   assert(token);
   if (token[0] == '\0') {  // empty line
@@ -1011,19 +1007,12 @@ static bool parseLine(Command *command, const char *p, size_t p_len,
   // face
   if (token[0] == 'f' && IS_SPACE((token[1]))) {
     token += 2;
-    // token += strspn(token, " \t");
     skip_space(&token);
 
     StackVector<vertex_index, 8> f;
 
     while (!IS_NEW_LINE(token[0])) {
       vertex_index vi = parseRawTriple(&token);
-      // printf("v = %d, %d, %d\n", vi.v_idx, vi.vn_idx, vi.vt_idx);
-      // if (callback.index_cb) {
-      //  callback.index_cb(user_data, vi.v_idx, vi.vn_idx, vi.vt_idx);
-      //}
-      // size_t n = strspn(token, " \t\r");
-      // token += n;
       skip_space_and_cr(&token);
 
       f->push_back(vi);
@@ -1076,10 +1065,9 @@ static bool parseLine(Command *command, const char *p, size_t p_len,
     // namebuf + strlen(namebuf));
     // command->material_name->push_back('\0');
     skip_space(&token);
-    command->material_name = token; // p + (token - linebuf);
+    command->material_name = p + (token - linebuf);
     command->material_name_len =
-        length_until_newline(token, p_len - (token - p)) + 1;
-        //length_until_newline(token, p_len - (token - linebuf)) + 1;
+        length_until_newline(token, p_len - (token - linebuf)) + 1;
     command->type = COMMAND_USEMTL;
 
     return true;
@@ -1091,9 +1079,9 @@ static bool parseLine(Command *command, const char *p, size_t p_len,
     token += 7;
 
     skip_space(&token);
-    command->mtllib_name = token; //p + (token - linebuf);
+    command->mtllib_name = p + (token - linebuf);
     command->mtllib_name_len =
-        length_until_newline(token, p_len - (token - p)) + 1;
+        length_until_newline(token, p_len - (token - linebuf)) + 1;
     command->type = COMMAND_MTLLIB;
 
     return true;
@@ -1104,9 +1092,9 @@ static bool parseLine(Command *command, const char *p, size_t p_len,
     // @todo { multiple group name. }
     token += 2;
 
-    command->group_name = token;
+    command->group_name = p + (token - linebuf);
     command->group_name_len =
-        length_until_newline(token, p_len - (token - p)) + 1;
+        length_until_newline(token, p_len - (token - linebuf)) + 1;
     command->type = COMMAND_G;
 
     return true;
@@ -1117,9 +1105,9 @@ static bool parseLine(Command *command, const char *p, size_t p_len,
     // @todo { multiple object name? }
     token += 2;
 
-    command->object_name = token;
+    command->object_name = p + (token - linebuf);
     command->object_name_len =
-        length_until_newline(token, p_len - (token - p)) + 1;
+        length_until_newline(token, p_len - (token - linebuf)) + 1;
     command->type = COMMAND_O;
 
     return true;
