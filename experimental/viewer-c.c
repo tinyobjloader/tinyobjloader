@@ -224,7 +224,8 @@ static int LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename)
   printf("filesize: %d\n", (int)data_len);
   
   {
-    int ret = tinyobj_parse(&attrib, shapes, &num_shapes, data, data_len);
+    unsigned int flags = TINYOBJ_FLAG_TRIANGULATE;
+    int ret = tinyobj_parse(&attrib, shapes, &num_shapes, data, data_len, flags);
   }
 
 #if 0

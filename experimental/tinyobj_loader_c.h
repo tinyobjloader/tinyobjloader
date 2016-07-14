@@ -84,15 +84,22 @@ typedef struct {
   unsigned int num_texcoords;
   tinyobj_vertex_index_t *faces;
   unsigned int num_faces;
-  int *face_num_vers;
-  unsigned int num_face_num_faces;
+  int *face_num_verts;
+  unsigned int num_face_num_verts; 
   int *material_ids;
 } tinyobj_attrib_t;
 
-/* Parse wavefront .obj(.obj string data is expanded to linear char array
- * `buf')
+#define TINYOBJ_FLAG_TRIANGULATE  (1 << 0)
+#define TINYOBJ_SUCCESS (0)
+#define TINYOBJ_ERROR_EMPTY (-1)
+#define TINYOBJ_ERROR_INVALID_PARAMETER (-2)
+
+/* Parse wavefront .obj(.obj string data is expanded to linear char array `buf')
+ * flags are combination of TINYOBJ_FLAG_***
+ * Retruns TINYOBJ_SUCCESS if things goes well.
+ * Retruns TINYOBJ_ERR_*** when there is an error.
  */
-extern int tinyobj_parse(tinyobj_attrib_t *attrib, tinyobj_shape_t *shapes, size_t *num_shapes, const char *buf, size_t len);
+extern int tinyobj_parse(tinyobj_attrib_t *attrib, tinyobj_shape_t *shapes, size_t *num_shapes, const char *buf, size_t len, unsigned int flags);
 
 
 #ifdef TINYOBJ_LOADER_C_IMPLEMENTATION
@@ -706,7 +713,7 @@ static int parseLine(Command *command, const char *p, size_t p_len, int triangul
 	const char *token;
   assert(p_len < 4095);
 
-  memcpy(&linebuf, p, p_len);
+  memcpy(linebuf, p, p_len);
   linebuf[p_len] = '\0';
 
   token = linebuf;
@@ -887,10 +894,17 @@ static int is_line_ending(const char *p, size_t i, size_t end_i) {
   return 0;
 }
 
-int tinyobj_parse(tinyobj_attrib_t *attrib, tinyobj_shape_t *shapes, size_t *num_shapes, const char *buf, size_t len)
+int tinyobj_parse(tinyobj_attrib_t *attrib, tinyobj_shape_t *shapes, size_t *num_shapes, const char *buf, size_t len, unsigned int flags)
 {
 	LineInfo* line_infos = NULL;
+  Command*  commands = NULL;
 	size_t    num_lines = 0;
+
+  size_t    num_v = 0;
+  size_t    num_vn = 0;
+  size_t    num_vt = 0;
+  size_t    num_f = 0;
+  size_t    num_faces = 0;
 
   if (len < 1) return 0;
 
@@ -909,64 +923,58 @@ int tinyobj_parse(tinyobj_attrib_t *attrib, tinyobj_shape_t *shapes, size_t *num
 		}
 		printf("num lines %d\n", (int)num_lines);
 
+    if (num_lines == 0) return TINYOBJ_ERROR_EMPTY;
+
 		line_infos = (LineInfo*)malloc(sizeof(LineInfo) * num_lines);
 
 		/* Fill line infoss. */
 		for (i = 0; i < end_idx; i++) {
       if (is_line_ending(buf, i, end_idx)) {
 				line_infos[line_no].pos = prev_pos;
-				line_infos[line_no].len = i;
+				line_infos[line_no].len = i - prev_pos;
 				prev_pos = i + 1;
 				line_no++;
 			}
 		}
   }
 
+  commands = (Command*)malloc(sizeof(Command) * num_lines);
+
+  /* 2. parse each line */
+  {
+    size_t i = 0;
+    for (i = 0; i < num_lines; i++) {
+      int ret = parseLine(&commands[i], &buf[line_infos[i].pos],
+                           line_infos[i].len, flags & TINYOBJ_FLAG_TRIANGULATE);
+      if (ret) {
+        if (commands[i].type == COMMAND_V) {
+          num_v++;
+        } else if (commands[i].type == COMMAND_VN) {
+          num_vn++;
+        } else if (commands[i].type == COMMAND_VT) {
+          num_vt++;
+        } else if (commands[i].type == COMMAND_F) {
+          num_f += commands[i].num_f;
+          num_faces++;
+        }
+
+        if (commands[i].type == COMMAND_MTLLIB) {
+          /* @todo
+          mtllib_t_index = t;
+          mtllib_i_index = commands->size();
+          */
+        }
+
+      }
+    }
+  }
+
+  /* line_infos are not used anymore. Release memory. */
 	if (line_infos) {
 		free(line_infos);
 	}
 
 #if 0
-
-  int line_sum = 0;
-  for (size_t t = 0; t < num_threads; t++) {
-    line_sum += line_infos[t].size();
-  }
-
-  /* 2. parse each line */
-  {
-    for (size_t t = 0; t < num_threads; t++) {
-      workers->push_back(std::thread([&, t]() {
-
-        for (size_t i = 0; i < line_infos[t].size(); i++) {
-          Command command;
-          int ret = parseLine(&command, &buf[line_infos[t][i].pos],
-                               line_infos[t][i].len, option.triangulate);
-          if (ret) {
-            if (command.type == COMMAND_V) {
-              command_count[t].num_v++;
-            } else if (command.type == COMMAND_VN) {
-              command_count[t].num_vn++;
-            } else if (command.type == COMMAND_VT) {
-              command_count[t].num_vt++;
-            } else if (command.type == COMMAND_F) {
-              command_count[t].num_f += command.f.size();
-              command_count[t].num_faces++;
-            }
-
-            if (command.type == COMMAND_MTLLIB) {
-              mtllib_t_index = t;
-              mtllib_i_index = commands->size();
-            }
-
-            commands[t].emplace_back(std::move(command));
-          }
-        }
-
-      }));
-    }
-
-  }
 
   std::map<std::string, int> material_map;
   std::vector<material_t> materials;
@@ -995,58 +1003,31 @@ int tinyobj_parse(tinyobj_attrib_t *attrib, tinyobj_shape_t *shapes, size_t *num
 
     ms_load_mtl = t2 - t1;
   }
+#endif
 
-  size_t num_v = 0;
-  size_t num_vn = 0;
-  size_t num_vt = 0;
-  size_t num_f = 0;
-  size_t num_faces = 0;
+  /* Construct attributes */
 
   {
-    auto t_start = std::chrono::high_resolution_clock::now();
+    size_t v_count = 0;
+    size_t n_count = 0;
+    size_t t_count = 0;
+    size_t f_count = 0;
+    size_t face_count = 0;
+    int material_id = -1;  /* -1 = default unknown material. */
+    size_t i = 0;
 
-    attrib->vertices.resize(num_v * 3);
-    attrib->normals.resize(num_vn * 3);
-    attrib->texcoords.resize(num_vt * 2);
-    attrib->faces.resize(num_f);
-    attrib->face_num_verts.resize(num_faces);
-    attrib->material_ids.resize(num_faces);
+    attrib->vertices = (float*)malloc(sizeof(float) * num_v * 3);
+    attrib->normals = (float*)malloc(sizeof(float) * num_vn * 3);
+    attrib->texcoords = (float*)malloc(sizeof(float) * num_vt * 2);
+    attrib->faces = (tinyobj_vertex_index_t*)malloc(sizeof(tinyobj_vertex_index_t) * num_f);
+    attrib->face_num_verts = (int*)malloc(sizeof(int) * num_faces);
+    attrib->material_ids = (int*)malloc(sizeof(int) * num_faces);
 
-    size_t v_offsets[kMaxThreads];
-    size_t n_offsets[kMaxThreads];
-    size_t t_offsets[kMaxThreads];
-    size_t f_offsets[kMaxThreads];
-    size_t face_offsets[kMaxThreads];
-
-    v_offsets[0] = 0;
-    n_offsets[0] = 0;
-    t_offsets[0] = 0;
-    f_offsets[0] = 0;
-    face_offsets[0] = 0;
-
-    for (size_t t = 1; t < num_threads; t++) {
-      v_offsets[t] = v_offsets[t - 1] + command_count[t - 1].num_v;
-      n_offsets[t] = n_offsets[t - 1] + command_count[t - 1].num_vn;
-      t_offsets[t] = t_offsets[t - 1] + command_count[t - 1].num_vt;
-      f_offsets[t] = f_offsets[t - 1] + command_count[t - 1].num_f;
-      face_offsets[t] = face_offsets[t - 1] + command_count[t - 1].num_faces;
-    }
-
-    StackVector<std::thread, 16> workers;
-
-    for (size_t t = 0; t < num_threads; t++) {
-      int material_id = -1;  // -1 = default unknown material.
-      workers->push_back(std::thread([&, t]() {
-        size_t v_count = v_offsets[t];
-        size_t n_count = n_offsets[t];
-        size_t t_count = t_offsets[t];
-        size_t f_count = f_offsets[t];
-        size_t face_count = face_offsets[t];
-
-        for (size_t i = 0; i < commands[t].size(); i++) {
-          if (commands[t][i].type == COMMAND_EMPTY) {
+        for (i = 0; i < num_lines; i++) {
+          if (commands[i].type == COMMAND_EMPTY) {
             continue;
-          } else if (commands[t][i].type == COMMAND_USEMTL) {
+          } else if (commands[i].type == COMMAND_USEMTL) {
+            /* @todo
             if (commands[t][i].material_name &&
                 commands[t][i].material_name_len > 0) {
               std::string material_name(commands[t][i].material_name,
@@ -1059,53 +1040,51 @@ int tinyobj_parse(tinyobj_attrib_t *attrib, tinyobj_shape_t *shapes, size_t *num
                 material_id = -1;
               }
             }
-          } else if (commands[t][i].type == COMMAND_V) {
-            attrib->vertices[3 * v_count + 0] = commands[t][i].vx;
-            attrib->vertices[3 * v_count + 1] = commands[t][i].vy;
-            attrib->vertices[3 * v_count + 2] = commands[t][i].vz;
+            */
+          } else if (commands[i].type == COMMAND_V) {
+            attrib->vertices[3 * v_count + 0] = commands[i].vx;
+            attrib->vertices[3 * v_count + 1] = commands[i].vy;
+            attrib->vertices[3 * v_count + 2] = commands[i].vz;
             v_count++;
-          } else if (commands[t][i].type == COMMAND_VN) {
-            attrib->normals[3 * n_count + 0] = commands[t][i].nx;
-            attrib->normals[3 * n_count + 1] = commands[t][i].ny;
-            attrib->normals[3 * n_count + 2] = commands[t][i].nz;
+          } else if (commands[i].type == COMMAND_VN) {
+            attrib->normals[3 * n_count + 0] = commands[i].nx;
+            attrib->normals[3 * n_count + 1] = commands[i].ny;
+            attrib->normals[3 * n_count + 2] = commands[i].nz;
             n_count++;
-          } else if (commands[t][i].type == COMMAND_VT) {
-            attrib->texcoords[2 * t_count + 0] = commands[t][i].tx;
-            attrib->texcoords[2 * t_count + 1] = commands[t][i].ty;
+          } else if (commands[i].type == COMMAND_VT) {
+            attrib->texcoords[2 * t_count + 0] = commands[i].tx;
+            attrib->texcoords[2 * t_count + 1] = commands[i].ty;
             t_count++;
-          } else if (commands[t][i].type == COMMAND_F) {
-            for (size_t k = 0; k < commands[t][i].f.size(); k++) {
-              vertex_index &vi = commands[t][i].f[k];
+          } else if (commands[i].type == COMMAND_F) {
+            size_t k =0;
+            for (k = 0; k < commands[i].num_f; k++) {
+              tinyobj_vertex_index_t vi = commands[i].f[k];
               int v_idx = fixIndex(vi.v_idx, v_count);
               int vn_idx = fixIndex(vi.vn_idx, n_count);
               int vt_idx = fixIndex(vi.vt_idx, t_count);
-              attrib->faces[f_count + k] = vertex_index(v_idx, vn_idx, vt_idx);
+              attrib->faces[f_count + k].v_idx = v_idx;
+              attrib->faces[f_count + k].vn_idx = vn_idx;
+              attrib->faces[f_count + k].vt_idx = vt_idx;
             }
             attrib->material_ids[face_count] = material_id;
-            attrib->face_num_verts[face_count] = commands[t][i].f.size();
+            attrib->face_num_verts[face_count] = commands[i].num_f;
 
-            f_count += commands[t][i].f.size();
+            f_count += commands[i].num_f;
             face_count++;
           }
         }
-      }));
-    }
-
   }
 
   /* 5. Construct shape information. */
   {
     int face_count = 0;
-    tinyobj_shape_t shape;
-    shape.face_offset = 0;
-    shape.length = 0;
     int face_prev_offset = 0;
-    for (size_t t = 0; t < num_threads; t++) {
-      for (size_t i = 0; i < commands[t].size(); i++) {
-        if (commands[t][i].type == COMMAND_O ||
-            commands[t][i].type == COMMAND_G) {
-          std::string name;
-          if (commands[t][i].type == COMMAND_O) {
+    size_t i = 0;
+      for (i = 0; i < num_lines; i++) {
+        if (commands[i].type == COMMAND_O ||
+            commands[i].type == COMMAND_G) {
+#if 0 /* @todo */
+          if (commands[i].type == COMMAND_O) {
             name = std::string(commands[t][i].object_name,
                                commands[t][i].object_name_len);
           } else {
@@ -1141,26 +1120,31 @@ int tinyobj_parse(tinyobj_attrib_t *attrib, tinyobj_shape_t *shapes, size_t *num
             shape.face_offset = face_count;
             shape.length = 0;
           }
+#endif
         }
-        if (commands[t][i].type == COMMAND_F) {
+        if (commands[i].type == COMMAND_F) {
           face_count++;
         }
       }
-    }
 
     if ((face_count - face_prev_offset) > 0) {
+#if 0 /* todo */ 
       shape.length = face_count - shape.face_offset;
       if (shape.length > 0) {
         shapes->push_back(shape);
       }
+#endif
     } else {
       /* Guess no 'v' line occurrence after 'o' or 'g', so discards current shape information. */
     }
 
   }
-#endif  /* 0 */
 
-  return 1;
+  if (commands) {
+    free(commands);
+  }
+
+  return TINYOBJ_SUCCESS;
 }
 #endif  /* TINYOBJ_LOADER_C_IMPLEMENTATION */
 
