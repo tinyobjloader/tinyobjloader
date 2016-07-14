@@ -214,9 +214,8 @@ const char* get_file_data(size_t *len, const char* filename)
 }
 
 
-bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int num_threads)
+bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int num_threads, bool verbose)
 {
-#if 1
   tinyobj_opt::attrib_t attrib;
   std::vector<tinyobj_opt::shape_t> shapes;
 
@@ -229,6 +228,7 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int n
   printf("filesize: %d\n", (int)data_len);
   tinyobj_opt::LoadOption option;
   option.req_num_threads = num_threads;
+  option.verbose = verbose;
   bool ret = parseObj(&attrib, &shapes, data, data_len, option);
 
   bmin[0] = bmin[1] = bmin[2] = std::numeric_limits<float>::max();
@@ -330,9 +330,6 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int n
   printf("bmax = %f, %f, %f\n", bmax[0], bmax[1], bmax[2]);
 
   return true;
-#else
-  return false;
-#endif
 }
 
 void reshapeFunc(GLFWwindow* window, int w, int h)
@@ -499,18 +496,24 @@ static void Init() {
 int main(int argc, char **argv)
 {
   if (argc < 2) {
-    std::cout << "Needs input.obj\n" << std::endl;
+    std::cout << "view input.obj <num_threads> <benchark_only> <verbose>" << std::endl;
     return 0;
   }
 
   bool benchmark_only = false;
   int num_threads = -1;
+  bool verbose = false;
+
   if (argc > 2) {
     num_threads = atoi(argv[2]);
   }
 
   if (argc > 3) {
     benchmark_only = true;
+  }
+
+  if (argc > 4) {
+    verbose = true;
   }
 
   if (benchmark_only) {
@@ -527,6 +530,8 @@ int main(int argc, char **argv)
     printf("filesize: %d\n", (int)data_len);
     tinyobj_opt::LoadOption option;
     option.req_num_threads = num_threads;
+    option.verbose = true;
+
     bool ret = parseObj(&attrib, &shapes, data, data_len, option);
 
     return ret;
@@ -569,7 +574,7 @@ int main(int argc, char **argv)
   reshapeFunc(window, width, height);
 
   float bmin[3], bmax[3];
-  if (false == LoadObjAndConvert(bmin, bmax, argv[1], num_threads)) {
+  if (false == LoadObjAndConvert(bmin, bmax, argv[1], num_threads, verbose)) {
     printf("failed to load & conv\n");
     return -1;
   }

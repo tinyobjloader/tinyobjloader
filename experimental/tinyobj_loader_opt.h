@@ -951,14 +951,12 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
 
 static bool parseLine(Command *command, const char *p, size_t p_len,
                       bool triangulate = true) {
-  char linebuf[4096];
-  assert(p_len < 4095);
-  // StackVector<char, 256> linebuf;
-  // linebuf->resize(p_len + 1);
-  memcpy(&linebuf, p, p_len);
-  linebuf[p_len] = '\0';
+  //char linebuf[4096];
+  //assert(p_len < 4095);
+  //memcpy(linebuf, p, p_len);
+  //linebuf[p_len] = '\0';
 
-  const char *token = linebuf;
+  const char *token = p;
 
   command->type = COMMAND_EMPTY;
 
@@ -1078,9 +1076,10 @@ static bool parseLine(Command *command, const char *p, size_t p_len,
     // namebuf + strlen(namebuf));
     // command->material_name->push_back('\0');
     skip_space(&token);
-    command->material_name = p + (token - linebuf);
+    command->material_name = token; // p + (token - linebuf);
     command->material_name_len =
-        length_until_newline(token, p_len - (token - linebuf)) + 1;
+        length_until_newline(token, p_len - (token - p)) + 1;
+        //length_until_newline(token, p_len - (token - linebuf)) + 1;
     command->type = COMMAND_USEMTL;
 
     return true;
@@ -1092,9 +1091,9 @@ static bool parseLine(Command *command, const char *p, size_t p_len,
     token += 7;
 
     skip_space(&token);
-    command->mtllib_name = p + (token - linebuf);
+    command->mtllib_name = token; //p + (token - linebuf);
     command->mtllib_name_len =
-        length_until_newline(token, p_len - (token - linebuf)) + 1;
+        length_until_newline(token, p_len - (token - p)) + 1;
     command->type = COMMAND_MTLLIB;
 
     return true;
@@ -1105,9 +1104,9 @@ static bool parseLine(Command *command, const char *p, size_t p_len,
     // @todo { multiple group name. }
     token += 2;
 
-    command->group_name = p + (token - linebuf);
+    command->group_name = token;
     command->group_name_len =
-        length_until_newline(token, p_len - (token - linebuf)) + 1;
+        length_until_newline(token, p_len - (token - p)) + 1;
     command->type = COMMAND_G;
 
     return true;
@@ -1118,9 +1117,9 @@ static bool parseLine(Command *command, const char *p, size_t p_len,
     // @todo { multiple object name? }
     token += 2;
 
-    command->object_name = p + (token - linebuf);
+    command->object_name = token;
     command->object_name_len =
-        length_until_newline(token, p_len - (token - linebuf)) + 1;
+        length_until_newline(token, p_len - (token - p)) + 1;
     command->type = COMMAND_O;
 
     return true;
