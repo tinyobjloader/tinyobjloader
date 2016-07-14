@@ -1,3 +1,4 @@
+#include <math.h>
 #include <GL/glew.h>
 
 #ifdef __APPLE__
@@ -63,7 +64,7 @@ static void CalcNormal(float N[3], float v0[3], float v1[3], float v2[3]) {
 
   len2 = N[0] * N[0] + N[1] * N[1] + N[2] * N[2];
   if (len2 > 0.0f) {
-    float len = sqrtf(len2);
+    float len = sqrt(len2);
     
     N[0] /= len;
     N[1] /= len;
@@ -208,24 +209,25 @@ static const char* get_file_data(size_t *len, const char* filename)
 }
 
 
-#if 0
 static int LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename)
 {
-#if 1
-  tinyobj_opt::attrib_t attrib;
-  std::vector<tinyobj_opt::shape_t> shapes;
-
+  tinyobj_attrib_t attrib;
+  tinyobj_shape_t  *shapes;
+  size_t num_shapes;
+  
   size_t data_len = 0;
   const char* data = get_file_data(&data_len, filename);
-  if (data == nullptr) {
+  if (data == NULL) {
     exit(-1);
-    return false;
+    return 0;
   }
   printf("filesize: %d\n", (int)data_len);
-  tinyobj_opt::LoadOption option;
-  option.req_num_threads = num_threads;
-  bool ret = parseObj(&attrib, &shapes, data, data_len, option);
+  
+  {
+    int ret = tinyobj_parse(&attrib, shapes, &num_shapes, data, data_len);
+  }
 
+#if 0
   bmin[0] = bmin[1] = bmin[2] = std::numeric_limits<float>::max();
   bmax[0] = bmax[1] = bmax[2] = -std::numeric_limits<float>::max();
 
@@ -324,12 +326,11 @@ static int LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename)
   printf("bmin = %f, %f, %f\n", bmin[0], bmin[1], bmin[2]);
   printf("bmax = %f, %f, %f\n", bmax[0], bmax[1], bmax[2]);
 
-  return true;
+  return 1;
 #else
-  return false;
+  return 0;
 #endif
 }
-#endif
 
 static void reshapeFunc(GLFWwindow* window, int w, int h)
 {
@@ -491,7 +492,6 @@ static void Init() {
 
 int main(int argc, char **argv)
 {
-  (void)argv;
   if (argc < 2) {
     fprintf(stderr, "Needs input.obj\n");
     return 0;
@@ -531,14 +531,13 @@ int main(int argc, char **argv)
 
   {
     float bmin[3], bmax[3];
-#if 0
-  if (false == LoadObjAndConvert(bmin, bmax, argv[1], num_threads)) {
-    printf("failed to load & conv\n");
-    return -1;
-  }
-#endif
+    float maxExtent;
+    if (0 == LoadObjAndConvert(bmin, bmax, argv[1])) {
+      printf("failed to load & conv\n");
+      return -1;
+    }
 
-    float maxExtent = 0.5f * (bmax[0] - bmin[0]);
+    maxExtent = 0.5f * (bmax[0] - bmin[0]);
     if (maxExtent < 0.5f * (bmax[1] - bmin[1])) {
       maxExtent = 0.5f * (bmax[1] - bmin[1]);
     }

@@ -92,11 +92,12 @@ typedef struct {
 /* Parse wavefront .obj(.obj string data is expanded to linear char array
  * `buf')
  */
-extern int tinyobj_parse(tinyobj_attrib_t *attrib, tinyobj_shape_t *shapes, const char *buf,
-              size_t len);
-#endif
+extern int tinyobj_parse(tinyobj_attrib_t *attrib, tinyobj_shape_t *shapes, size_t *num_shapes, const char *buf, size_t len);
+
 
 #ifdef TINYOBJ_LOADER_C_IMPLEMENTATION
+
+#define TINYOBJ_MAX_FACES_PER_F_LINE	(32)
 
 #define IS_SPACE(x) (((x) == ' ') || ((x) == '\t'))
 #define IS_DIGIT(x) \
@@ -172,7 +173,6 @@ static tinyobj_vertex_index_t parseRawTriple(const char **token) {
   vi.vt_idx = (int)(0x80000000);
 
   vi.v_idx = my_atoi((*token));
-  /* (*token) += strcspn((*token), "/ \t\r"); */
   while ((*token)[0] != '\0' && (*token)[0] != '/' && (*token)[0] != ' ' &&
          (*token)[0] != '\t' && (*token)[0] != '\r') {
     (*token)++;
@@ -186,7 +186,6 @@ static tinyobj_vertex_index_t parseRawTriple(const char **token) {
   if ((*token)[0] == '/') {
     (*token)++;
     vi.vn_idx = my_atoi((*token));
-    /*(*token) += strcspn((*token), "/ \t\r"); */
     while ((*token)[0] != '\0' && (*token)[0] != '/' && (*token)[0] != ' ' &&
            (*token)[0] != '\t' && (*token)[0] != '\r') {
       (*token)++;
@@ -196,7 +195,6 @@ static tinyobj_vertex_index_t parseRawTriple(const char **token) {
 
   /* i/j/k or i/j */
   vi.vt_idx = my_atoi((*token));
-  /* (*token) += strcspn((*token), "/ \t\r"); */
   while ((*token)[0] != '\0' && (*token)[0] != '/' && (*token)[0] != ' ' &&
          (*token)[0] != '\t' && (*token)[0] != '\r') {
     (*token)++;
@@ -208,7 +206,6 @@ static tinyobj_vertex_index_t parseRawTriple(const char **token) {
   /* i/j/k */
   (*token)++;  /* skip '/' */
   vi.vn_idx = my_atoi((*token));
-  /* (*token) += strcspn((*token), "/ \t\r"); */
   while ((*token)[0] != '\0' && (*token)[0] != '/' && (*token)[0] != ' ' &&
          (*token)[0] != '\t' && (*token)[0] != '\r') {
     (*token)++;
@@ -394,17 +391,12 @@ static float parseFloat(const char **token) {
   double val = 0.0;
   float f = 0.0f;
   skip_space(token); 
-#ifdef TINY_OBJ_LOADER_OLD_FLOAT_PARSER
-  f = (float)(atof(*token));
-  (*token) += strcspn((*token), " \t\r");
-#else
   end =
       (*token) + until_space((*token));
   val = 0.0;
   tryParseDouble((*token), end, &val);
   f = (float)(val);
   (*token) = end;
-#endif
   return f;
 }
 
@@ -671,7 +663,6 @@ static void LoadMtl(std::map<std::string, int> *material_map,
 }
 #endif
 
-#if 0
 typedef enum {
   COMMAND_EMPTY,
   COMMAND_V,
@@ -681,7 +672,7 @@ typedef enum {
   COMMAND_G,
   COMMAND_O,
   COMMAND_USEMTL,
-  COMMAND_MTLLIB,
+  COMMAND_MTLLIB
 
 } CommandType;
 
@@ -690,10 +681,12 @@ typedef struct {
   float nx, ny, nz;
   float tx, ty;
 
-  // for f
-  std::vector<vertex_index, lt::allocator<vertex_index> > f;
-  // std::vector<vertex_index> f;
-  std::vector<int, lt::allocator<int> > f_num_verts;
+	/* @todo { Use dynamic array } */
+	tinyobj_vertex_index_t f[TINYOBJ_MAX_FACES_PER_F_LINE];
+	int num_f;
+
+	int f_num_verts[TINYOBJ_MAX_FACES_PER_F_LINE];
+	int num_f_num_verts;
 
   const char *group_name;
   unsigned int group_name_len;
@@ -708,175 +701,136 @@ typedef struct {
   CommandType type;
 } Command;
 
-struct CommandCount {
-  size_t num_v;
-  size_t num_vn;
-  size_t num_vt;
-  size_t num_f;
-  size_t num_faces;
-  CommandCount() {
-    num_v = 0;
-    num_vn = 0;
-    num_vt = 0;
-    num_f = 0;
-    num_faces = 0;
-  }
-};
-
-class
-LoadOption
-{
- public:
-	LoadOption() : req_num_threads(-1), triangulate(true), verbose(false) {}
-	
-	int  req_num_threads;
-	bool triangulate;
-	bool verbose;
-
-};
-
-
-
-static bool parseLine(Command *command, const char *p, size_t p_len,
-                      bool triangulate = true) {
+static int parseLine(Command *command, const char *p, size_t p_len, int triangulate) {
   char linebuf[4096];
+	const char *token;
   assert(p_len < 4095);
-  // StackVector<char, 256> linebuf;
-  // linebuf->resize(p_len + 1);
+
   memcpy(&linebuf, p, p_len);
   linebuf[p_len] = '\0';
 
-  const char *token = linebuf;
+  token = linebuf;
 
   command->type = COMMAND_EMPTY;
 
-  // Skip leading space.
-  // token += strspn(token, " \t");
-  skip_space(&token);  //(*token) += strspn((*token), " \t");
+  /* Skip leading space. */
+  skip_space(&token);
 
   assert(token);
-  if (token[0] == '\0') {  // empty line
-    return false;
+  if (token[0] == '\0') {  /* empty line */
+    return 0;
   }
 
-  if (token[0] == '#') {  // comment line
-    return false;
+  if (token[0] == '#') {  /* comment line */
+    return 0;
   }
 
-  // vertex
+  /* vertex */
   if (token[0] == 'v' && IS_SPACE((token[1]))) {
-    token += 2;
     float x, y, z;
+    token += 2;
     parseFloat3(&x, &y, &z, &token);
     command->vx = x;
     command->vy = y;
     command->vz = z;
     command->type = COMMAND_V;
-    return true;
+    return 1;
   }
 
-  // normal
+  /* normal */
   if (token[0] == 'v' && token[1] == 'n' && IS_SPACE((token[2]))) {
-    token += 3;
     float x, y, z;
+    token += 3;
     parseFloat3(&x, &y, &z, &token);
     command->nx = x;
     command->ny = y;
     command->nz = z;
     command->type = COMMAND_VN;
-    return true;
+    return 1;
   }
 
-  // texcoord
+  /* texcoord */
   if (token[0] == 'v' && token[1] == 't' && IS_SPACE((token[2]))) {
-    token += 3;
     float x, y;
+    token += 3;
     parseFloat2(&x, &y, &token);
     command->tx = x;
     command->ty = y;
     command->type = COMMAND_VT;
-    return true;
+    return 1;
   }
 
-  // face
+  /* face */
   if (token[0] == 'f' && IS_SPACE((token[1]))) {
+		int num_f = 0;
+
+		tinyobj_vertex_index_t f[TINYOBJ_MAX_FACES_PER_F_LINE];
     token += 2;
-    // token += strspn(token, " \t");
     skip_space(&token);
 
-    StackVector<vertex_index, 8> f;
 
     while (!IS_NEW_LINE(token[0])) {
-      vertex_index vi = parseRawTriple(&token);
-      // printf("v = %d, %d, %d\n", vi.v_idx, vi.vn_idx, vi.vt_idx);
-      // if (callback.index_cb) {
-      //  callback.index_cb(user_data, vi.v_idx, vi.vn_idx, vi.vt_idx);
-      //}
-      // size_t n = strspn(token, " \t\r");
-      // token += n;
+      tinyobj_vertex_index_t vi = parseRawTriple(&token);
       skip_space_and_cr(&token);
 
-      f->push_back(vi);
+      f[num_f] = vi;
     }
 
     command->type = COMMAND_F;
 
     if (triangulate) {
-      vertex_index i0 = f[0];
-      vertex_index i1(-1);
-      vertex_index i2 = f[1];
+			int k;
+			int n = 0;
 
-      for (size_t k = 2; k < f->size(); k++) {
+      tinyobj_vertex_index_t i0 = f[0];
+      tinyobj_vertex_index_t i1;
+      tinyobj_vertex_index_t i2 = f[1];
+
+			assert(3 * num_f < TINYOBJ_MAX_FACES_PER_F_LINE);
+
+      for (k = 2; k < num_f; k++) {
         i1 = i2;
         i2 = f[k];
-        command->f.emplace_back(i0);
-        command->f.emplace_back(i1);
-        command->f.emplace_back(i2);
+        command->f[3*n+0] = i0;
+        command->f[3*n+1] = i1;
+        command->f[3*n+2] = i2;
 
-        command->f_num_verts.emplace_back(3);
+        command->f_num_verts[n] = 3;
+				n++;
       }
+			command->num_f = 3 * n;
+			command->num_f_num_verts = n;
 
     } else {
-      for (size_t k = 0; k < f->size(); k++) {
-        command->f.emplace_back(f[k]);
+			int k = 0;
+			assert(num_f < TINYOBJ_MAX_FACES_PER_F_LINE);
+      for (k = 0; k < num_f; k++) {
+        command->f[k] = f[k];
       }
 
-      command->f_num_verts.emplace_back(f->size());
+      command->f_num_verts[0] = num_f;
+			command->num_f_num_verts = 1;
     }
 
-    return true;
+    return 1;
   }
 
-  // use mtl
+  /* use mtl */
   if ((0 == strncmp(token, "usemtl", 6)) && IS_SPACE((token[6]))) {
     token += 7;
 
-    // int newMaterialId = -1;
-    // if (material_map.find(namebuf) != material_map.end()) {
-    //  newMaterialId = material_map[namebuf];
-    //} else {
-    //  // { error!! material not found }
-    //}
-
-    // if (newMaterialId != materialId) {
-    //  materialId = newMaterialId;
-    //}
-
-    // command->material_name = .insert(command->material_name->end(), namebuf,
-    // namebuf + strlen(namebuf));
-    // command->material_name->push_back('\0');
     skip_space(&token);
     command->material_name = p + (token - linebuf);
     command->material_name_len =
         length_until_newline(token, p_len - (token - linebuf)) + 1;
     command->type = COMMAND_USEMTL;
 
-    return true;
+    return 1;
   }
 
-  // load mtl
+  /* load mtl */
   if ((0 == strncmp(token, "mtllib", 6)) && IS_SPACE((token[6]))) {
-    // By specification, `mtllib` should be appear only once in .obj
+    /* By specification, `mtllib` should be appear only once in .obj */
     token += 7;
 
     skip_space(&token);
@@ -885,12 +839,12 @@ static bool parseLine(Command *command, const char *p, size_t p_len,
         length_until_newline(token, p_len - (token - linebuf)) + 1;
     command->type = COMMAND_MTLLIB;
 
-    return true;
+    return 1;
   }
 
-  // group name
+  /* group name */
   if (token[0] == 'g' && IS_SPACE((token[1]))) {
-    // @todo { multiple group name. }
+    /* @todo { multiple group name. } */
     token += 2;
 
     command->group_name = p + (token - linebuf);
@@ -898,12 +852,12 @@ static bool parseLine(Command *command, const char *p, size_t p_len,
         length_until_newline(token, p_len - (token - linebuf)) + 1;
     command->type = COMMAND_G;
 
-    return true;
+    return 1;
   }
 
-  // object name
+  /* object name */
   if (token[0] == 'o' && IS_SPACE((token[1]))) {
-    // @todo { multiple object name? }
+    /* @todo { multiple object name? } */
     token += 2;
 
     command->object_name = p + (token - linebuf);
@@ -911,10 +865,10 @@ static bool parseLine(Command *command, const char *p, size_t p_len,
         length_until_newline(token, p_len - (token - linebuf)) + 1;
     command->type = COMMAND_O;
 
-    return true;
+    return 1;
   }
 
-  return false;
+  return 0;
 }
 
 typedef struct {
@@ -922,166 +876,71 @@ typedef struct {
   size_t len;
 } LineInfo;
 
-// Idea come from https://github.com/antonmks/nvParse
-// 1. mmap file
-// 2. find newline(\n, \r\n, \r) and list of line data.
-// 3. Do parallel parsing for each line.
-// 4. Reconstruct final mesh data structure.
-
-#define kMaxThreads (32)
-
-static inline bool is_line_ending(const char *p, size_t i, size_t end_i) {
-  if (p[i] == '\0') return true;
-  if (p[i] == '\n') return true;  // this includes \r\n
+static int is_line_ending(const char *p, size_t i, size_t end_i) {
+  if (p[i] == '\0') return 1;
+  if (p[i] == '\n') return 1;  /* this includes \r\n */
   if (p[i] == '\r') {
-    if (((i + 1) < end_i) && (p[i + 1] != '\n')) {  // detect only \r case
-      return true;
+    if (((i + 1) < end_i) && (p[i + 1] != '\n')) {  /* detect only \r case */
+      return 1;
     }
   }
-  return false;
+  return 0;
 }
 
-bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
-              size_t len, const LoadOption& option)
+int tinyobj_parse(tinyobj_attrib_t *attrib, tinyobj_shape_t *shapes, size_t *num_shapes, const char *buf, size_t len)
 {
-  attrib->vertices.clear();
-  attrib->normals.clear();
-  attrib->texcoords.clear();
-  attrib->faces.clear();
-  attrib->face_num_verts.clear();
-  attrib->material_ids.clear();
-  shapes->clear();
+	LineInfo* line_infos = NULL;
+	size_t    num_lines = 0;
 
-  if (len < 1) return false;
+  if (len < 1) return 0;
 
-  auto num_threads = (option.req_num_threads < 0) ? std::thread::hardware_concurrency()
-                                           : option.req_num_threads;
-  num_threads =
-      std::max(1, std::min(static_cast<int>(num_threads), kMaxThreads));
+  /* 1. Find '\n' and create line data. */
+  {
+		size_t i;
+		size_t end_idx = len - 1;
+		size_t prev_pos = 0;
+		size_t line_no = 0;
+		
+		/* Count # of lines. */
+		for (i = 0; i < end_idx; i++) { /* Assume last char is '\0' */
+      if (is_line_ending(buf, i, end_idx)) {
+				num_lines++;
+			}
+		}
+		printf("num lines %d\n", (int)num_lines);
 
-	if (option.verbose) {
-		std::cout << "# of threads = " << num_threads << std::endl;
+		line_infos = (LineInfo*)malloc(sizeof(LineInfo) * num_lines);
+
+		/* Fill line infoss. */
+		for (i = 0; i < end_idx; i++) {
+      if (is_line_ending(buf, i, end_idx)) {
+				line_infos[line_no].pos = prev_pos;
+				line_infos[line_no].len = i;
+				prev_pos = i + 1;
+				line_no++;
+			}
+		}
+  }
+
+	if (line_infos) {
+		free(line_infos);
 	}
 
-  auto t1 = std::chrono::high_resolution_clock::now();
+#if 0
 
-  std::vector<LineInfo, lt::allocator<LineInfo> > line_infos[kMaxThreads];
-  for (size_t t = 0; t < static_cast<size_t>(num_threads); t++) {
-    // Pre allocate enough memory. len / 128 / num_threads is just a heuristic
-    // value.
-    line_infos[t].reserve(len / 128 / num_threads);
-  }
-
-  std::chrono::duration<double, std::milli> ms_linedetection;
-  std::chrono::duration<double, std::milli> ms_alloc;
-  std::chrono::duration<double, std::milli> ms_parse;
-  std::chrono::duration<double, std::milli> ms_load_mtl;
-  std::chrono::duration<double, std::milli> ms_merge;
-  std::chrono::duration<double, std::milli> ms_construct;
-
-  // 1. Find '\n' and create line data.
-  {
-    StackVector<std::thread, 16> workers;
-
-    auto start_time = std::chrono::high_resolution_clock::now();
-    auto chunk_size = len / num_threads;
-
-    for (size_t t = 0; t < static_cast<size_t>(num_threads); t++) {
-      workers->push_back(std::thread([&, t]() {
-        auto start_idx = (t + 0) * chunk_size;
-        auto end_idx = std::min((t + 1) * chunk_size, len - 1);
-        if (t == static_cast<size_t>((num_threads - 1))) {
-          end_idx = len - 1;
-        }
-
-        size_t prev_pos = start_idx;
-        for (size_t i = start_idx; i < end_idx; i++) {
-          if (is_line_ending(buf, i, end_idx)) {
-            if ((t > 0) && (prev_pos == start_idx) &&
-                (!is_line_ending(buf, start_idx - 1, end_idx))) {
-              // first linebreak found in (chunk > 0), and a line before this
-              // linebreak belongs to previous chunk, so skip it.
-              prev_pos = i + 1;
-              continue;
-            } else {
-              LineInfo info;
-              info.pos = prev_pos;
-              info.len = i - prev_pos;
-
-              if (info.len > 0) {
-                line_infos[t].push_back(info);
-              }
-
-              prev_pos = i + 1;
-            }
-          }
-        }
-
-        // Find extra line which spand across chunk boundary.
-        if ((t < num_threads) && (buf[end_idx - 1] != '\n')) {
-          auto extra_span_idx = std::min(end_idx - 1 + chunk_size, len - 1);
-          for (size_t i = end_idx; i < extra_span_idx; i++) {
-            if (is_line_ending(buf, i, extra_span_idx)) {
-              LineInfo info;
-              info.pos = prev_pos;
-              info.len = i - prev_pos;
-
-              if (info.len > 0) {
-                line_infos[t].push_back(info);
-              }
-
-              break;
-            }
-          }
-        }
-      }));
-    }
-
-    for (size_t t = 0; t < workers->size(); t++) {
-      workers[t].join();
-    }
-
-    auto end_time = std::chrono::high_resolution_clock::now();
-
-    ms_linedetection = end_time - start_time;
-  }
-
-  auto line_sum = 0;
+  int line_sum = 0;
   for (size_t t = 0; t < num_threads; t++) {
-    // std::cout << t << ": # of lines = " << line_infos[t].size() << std::endl;
     line_sum += line_infos[t].size();
   }
-  // std::cout << "# of lines = " << line_sum << std::endl;
 
-  std::vector<Command> commands[kMaxThreads];
-
-  // 2. allocate buffer
-  auto t_alloc_start = std::chrono::high_resolution_clock::now();
+  /* 2. parse each line */
   {
-    for (size_t t = 0; t < num_threads; t++) {
-      commands[t].reserve(line_infos[t].size());
-    }
-  }
-
-  CommandCount command_count[kMaxThreads];
-  // Array index to `mtllib` line. According to wavefront .obj spec, `mtllib'
-  // should appear only once in .obj.
-  int mtllib_t_index = -1;
-  int mtllib_i_index = -1;
-
-  ms_alloc = std::chrono::high_resolution_clock::now() - t_alloc_start;
-
-  // 2. parse each line in parallel.
-  {
-    StackVector<std::thread, 16> workers;
-    auto t_start = std::chrono::high_resolution_clock::now();
-
     for (size_t t = 0; t < num_threads; t++) {
       workers->push_back(std::thread([&, t]() {
 
         for (size_t i = 0; i < line_infos[t].size(); i++) {
           Command command;
-          bool ret = parseLine(&command, &buf[line_infos[t][i].pos],
+          int ret = parseLine(&command, &buf[line_infos[t][i].pos],
                                line_infos[t][i].len, option.triangulate);
           if (ret) {
             if (command.type == COMMAND_V) {
@@ -1107,13 +966,6 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
       }));
     }
 
-    for (size_t t = 0; t < workers->size(); t++) {
-      workers[t].join();
-    }
-
-    auto t_end = std::chrono::high_resolution_clock::now();
-
-    ms_parse = t_end - t_start;
   }
 
   std::map<std::string, int> material_map;
@@ -1144,33 +996,12 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
     ms_load_mtl = t2 - t1;
   }
 
-  auto command_sum = 0;
-  for (size_t t = 0; t < num_threads; t++) {
-    // std::cout << t << ": # of commands = " << commands[t].size() <<
-    // std::endl;
-    command_sum += commands[t].size();
-  }
-  // std::cout << "# of commands = " << command_sum << std::endl;
-
   size_t num_v = 0;
   size_t num_vn = 0;
   size_t num_vt = 0;
   size_t num_f = 0;
   size_t num_faces = 0;
-  for (size_t t = 0; t < num_threads; t++) {
-    num_v += command_count[t].num_v;
-    num_vn += command_count[t].num_vn;
-    num_vt += command_count[t].num_vt;
-    num_f += command_count[t].num_f;
-    num_faces += command_count[t].num_faces;
-  }
-  // std::cout << "# v " << num_v << std::endl;
-  // std::cout << "# vn " << num_vn << std::endl;
-  // std::cout << "# vt " << num_vt << std::endl;
-  // std::cout << "# f " << num_f << std::endl;
 
-  // 4. merge
-  // @todo { parallelize merge. }
   {
     auto t_start = std::chrono::high_resolution_clock::now();
 
@@ -1260,23 +1091,12 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
       }));
     }
 
-    for (size_t t = 0; t < workers->size(); t++) {
-      workers[t].join();
-    }
-
-    auto t_end = std::chrono::high_resolution_clock::now();
-    ms_merge = t_end - t_start;
   }
 
-  auto t4 = std::chrono::high_resolution_clock::now();
-
-  // 5. Construct shape information.
+  /* 5. Construct shape information. */
   {
-    auto t_start = std::chrono::high_resolution_clock::now();
-
-    // @todo { Can we boost the performance by multi-threaded execution? }
     int face_count = 0;
-    shape_t shape;
+    tinyobj_shape_t shape;
     shape.face_offset = 0;
     shape.length = 0;
     int face_prev_offset = 0;
@@ -1334,33 +1154,13 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
         shapes->push_back(shape);
       }
     } else {
-      // Guess no 'v' line occurrence after 'o' or 'g', so discards current
-      // shape information.
+      /* Guess no 'v' line occurrence after 'o' or 'g', so discards current shape information. */
     }
 
-    auto t_end = std::chrono::high_resolution_clock::now();
-
-    ms_construct = t_end - t_start;
   }
+#endif  /* 0 */
 
-  std::chrono::duration<double, std::milli> ms_total = t4 - t1;
-	if (option.verbose) {
-		std::cout << "total parsing time: " << ms_total.count() << " ms\n";
-		std::cout << "  line detection : " << ms_linedetection.count() << " ms\n";
-		std::cout << "  alloc buf      : " << ms_alloc.count() << " ms\n";
-		std::cout << "  parse          : " << ms_parse.count() << " ms\n";
-		std::cout << "  merge          : " << ms_merge.count() << " ms\n";
-		std::cout << "  construct      : " << ms_construct.count() << " ms\n";
-		std::cout << "  mtl load       : " << ms_load_mtl.count() << " ms\n";
-		std::cout << "# of vertices = " << attrib->vertices.size() << std::endl;
-		std::cout << "# of normals = " << attrib->normals.size() << std::endl;
-		std::cout << "# of texcoords = " << attrib->texcoords.size() << std::endl;
-		std::cout << "# of face indices = " << attrib->faces.size() << std::endl;
-		std::cout << "# of faces = " << attrib->material_ids.size() << std::endl;
-		std::cout << "# of shapes = " << shapes->size() << std::endl;
-	}
-
-  return true;
+  return 1;
 }
 #endif  /* TINYOBJ_LOADER_C_IMPLEMENTATION */
 
