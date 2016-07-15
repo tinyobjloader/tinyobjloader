@@ -43,7 +43,7 @@ THE SOFTWARE.
 #include <string.h>
 
 typedef struct {
-  const char* name;
+  const char *name;
 
   float ambient[3];
   float diffuse[3];
@@ -51,45 +51,46 @@ typedef struct {
   float transmittance[3];
   float emission[3];
   float shininess;
-  float ior;       /* index of refraction */
-  float dissolve;  /* 1 == opaque; 0 == fully transparent */
+  float ior;      /* index of refraction */
+  float dissolve; /* 1 == opaque; 0 == fully transparent */
   /* illumination model (see http://www.fileformat.info/format/material/) */
   int illum;
 
-  const char* ambient_texname;             /* map_Ka */
-  const char* diffuse_texname;             /* map_Kd */
-  const char* specular_texname;            /* map_Ks */
-  const char* specular_highlight_texname;  /* map_Ns */
-  const char* bump_texname;                /* map_bump, bump */
-  const char* displacement_texname;        /* disp */
-  const char* alpha_texname;               /* map_d */
+  const char *ambient_texname;            /* map_Ka */
+  const char *diffuse_texname;            /* map_Kd */
+  const char *specular_texname;           /* map_Ks */
+  const char *specular_highlight_texname; /* map_Ns */
+  const char *bump_texname;               /* map_bump, bump */
+  const char *displacement_texname;       /* disp */
+  const char *alpha_texname;              /* map_d */
 } tinyobj_material_t;
 
 typedef struct {
-  const char* name;  /* group name or object name. */
+  const char *name; /* group name or object name. */
   unsigned int face_offset;
   unsigned int length;
 } tinyobj_shape_t;
 
-typedef struct {
-  int v_idx, vt_idx, vn_idx;
-} tinyobj_vertex_index_t;
+typedef struct { int v_idx, vt_idx, vn_idx; } tinyobj_vertex_index_t;
 
 typedef struct {
-  float* vertices;
+  float *vertices;
   unsigned int num_vertices;
-  float* normals;
+  float *normals;
   unsigned int num_normals;
-  float* texcoords;
+  float *texcoords;
   unsigned int num_texcoords;
   tinyobj_vertex_index_t *faces;
   unsigned int num_faces;
   int *face_num_verts;
-  unsigned int num_face_num_verts; 
+  unsigned int num_face_num_verts;
   int *material_ids;
 } tinyobj_attrib_t;
 
-#define TINYOBJ_FLAG_TRIANGULATE  (1 << 0)
+#define TINYOBJ_FLAG_TRIANGULATE (1 << 0)
+
+#define TINYOBJ_INVALID_INDEX (0x80000000)
+
 #define TINYOBJ_SUCCESS (0)
 #define TINYOBJ_ERROR_EMPTY (-1)
 #define TINYOBJ_ERROR_INVALID_PARAMETER (-2)
@@ -99,16 +100,23 @@ typedef struct {
  * Retruns TINYOBJ_SUCCESS if things goes well.
  * Retruns TINYOBJ_ERR_*** when there is an error.
  */
-extern int tinyobj_parse(tinyobj_attrib_t *attrib, tinyobj_shape_t *shapes, size_t *num_shapes, const char *buf, size_t len, unsigned int flags);
+extern int tinyobj_parse_obj(tinyobj_attrib_t *attrib, tinyobj_shape_t **shapes,
+                         size_t *num_shapes, const char *buf, size_t len,
+                         unsigned int flags);
 
+extern void tinyobj_attrib_init(tinyobj_attrib_t *attrib);
+extern void tinyobj_attrib_free(tinyobj_attrib_t *attrib);
+extern void tinyobj_shape_free(tinyobj_shape_t *shapes, size_t num_shapes);
+
+/* Parse .mtl string and construct material struct */
+static int tinyobj_parse_mtl(tinyobj_material_t **materials, int *num_materials, const char* buf, size_t len);
 
 #ifdef TINYOBJ_LOADER_C_IMPLEMENTATION
 
-#define TINYOBJ_MAX_FACES_PER_F_LINE	(32)
+#define TINYOBJ_MAX_FACES_PER_F_LINE (32)
 
 #define IS_SPACE(x) (((x) == ' ') || ((x) == '\t'))
-#define IS_DIGIT(x) \
-  ((unsigned int)((x) - '0') < (unsigned int)(10))
+#define IS_DIGIT(x) ((unsigned int)((x) - '0') < (unsigned int)(10))
 #define IS_NEW_LINE(x) (((x) == '\r') || ((x) == '\n') || ((x) == '\0'))
 
 static void skip_space(const char **token) {
@@ -148,7 +156,8 @@ static int length_until_newline(const char *token, int n) {
   return len;
 }
 
-/* http://stackoverflow.com/questions/5710091/how-does-atoi-function-in-c-work */
+/* http://stackoverflow.com/questions/5710091/how-does-atoi-function-in-c-work
+ */
 static int my_atoi(const char *c) {
   int value = 0;
   int sign = 1;
@@ -156,7 +165,7 @@ static int my_atoi(const char *c) {
     if (*c == '-') sign = -1;
     c++;
   }
-  while (((*c) >= '0') && ((*c) <= '9')) {  /* isdigit(*c) */
+  while (((*c) >= '0') && ((*c) <= '9')) { /* isdigit(*c) */
     value *= 10;
     value += (int)(*c - '0');
     c++;
@@ -168,7 +177,7 @@ static int my_atoi(const char *c) {
 static int fixIndex(int idx, int n) {
   if (idx > 0) return idx - 1;
   if (idx == 0) return 0;
-  return n + idx;  /* negative value = relative */
+  return n + idx; /* negative value = relative */
 }
 
 /* Parse raw triples: i, i/j/k, i//k, i/j */
@@ -211,7 +220,7 @@ static tinyobj_vertex_index_t parseRawTriple(const char **token) {
   }
 
   /* i/j/k */
-  (*token)++;  /* skip '/' */
+  (*token)++; /* skip '/' */
   vi.vn_idx = my_atoi((*token));
   while ((*token)[0] != '\0' && (*token)[0] != '/' && (*token)[0] != ' ' &&
          (*token)[0] != '\t' && (*token)[0] != '\r') {
@@ -223,7 +232,7 @@ static tinyobj_vertex_index_t parseRawTriple(const char **token) {
 /* assume `s' has enough storage spage to store parsed string. */
 static void parseString(char *s, int *n, const char **token) {
   int e = 0;
-  skip_space(token);                 
+  skip_space(token);
   e = until_space((*token));
   memcpy(s, (*token), e);
   (*n) = e;
@@ -232,7 +241,7 @@ static void parseString(char *s, int *n, const char **token) {
 
 static int parseInt(const char **token) {
   int i = 0;
-  skip_space(token); 
+  skip_space(token);
   i = my_atoi((*token));
   (*token) += until_space((*token));
   return i;
@@ -320,7 +329,7 @@ static int tryParseDouble(const char *s, const char *s_end, double *result) {
   /* We must make sure we actually got something. */
   if (read == 0) goto fail;
   /* We allow numbers of form "#", "###" etc. */
-  if (!end_not_reached) goto assemble; 
+  if (!end_not_reached) goto assemble;
 
   /* Read the decimal part. */
   if (*curr == '.') {
@@ -375,18 +384,19 @@ static int tryParseDouble(const char *s, const char *s_end, double *result) {
 
 assemble :
 
-  {
-    /* = pow(5.0, exponent); */
-    double a = 5.0;
-    int i;
-    for (i = 0; i < exponent; i++) {
-      a = a * a;
-    }
-    *result =
-        /* (sign == '+' ? 1 : -1) * ldexp(mantissa * pow(5.0, exponent), exponent); */
-        (sign == '+' ? 1 : -1) * (mantissa * a) *
-        (double)(1 << exponent);  /* 5.0^exponent * 2^exponent */
+{
+  /* = pow(5.0, exponent); */
+  double a = 1.0;
+  int i;
+  for (i = 0; i < exponent; i++) {
+    a = a * 5.0;
   }
+  *result =
+      /* (sign == '+' ? 1 : -1) * ldexp(mantissa * pow(5.0, exponent),
+         exponent); */
+      (sign == '+' ? 1 : -1) * (mantissa * a) *
+      (double)(1 << exponent); /* 5.0^exponent * 2^exponent */
+}
 
   return 1;
 fail:
@@ -397,9 +407,8 @@ static float parseFloat(const char **token) {
   const char *end;
   double val = 0.0;
   float f = 0.0f;
-  skip_space(token); 
-  end =
-      (*token) + until_space((*token));
+  skip_space(token);
+  end = (*token) + until_space((*token));
   val = 0.0;
   tryParseDouble((*token), end, &val);
   f = (float)(val);
@@ -412,23 +421,22 @@ static void parseFloat2(float *x, float *y, const char **token) {
   (*y) = parseFloat(token);
 }
 
-static void parseFloat3(float *x, float *y, float *z,
-                               const char **token) {
+static void parseFloat3(float *x, float *y, float *z, const char **token) {
   (*x) = parseFloat(token);
   (*y) = parseFloat(token);
   (*z) = parseFloat(token);
 }
 
-static void InitMaterial(tinyobj_material_t *material) {
+static void initMaterial(tinyobj_material_t *material) {
   int i;
-  material->name = "";
-  material->ambient_texname = "";
-  material->diffuse_texname = "";
-  material->specular_texname = "";
-  material->specular_highlight_texname = "";
-  material->bump_texname = "";
-  material->displacement_texname = "";
-  material->alpha_texname = "";
+  material->name = NULL;
+  material->ambient_texname = NULL;
+  material->diffuse_texname = NULL;
+  material->specular_texname = NULL;
+  material->specular_highlight_texname = NULL;
+  material->bump_texname = NULL;
+  material->displacement_texname = NULL;
+  material->alpha_texname = NULL;
   for (i = 0; i < 3; i++) {
     material->ambient[i] = 0.f;
     material->diffuse[i] = 0.f;
@@ -442,16 +450,19 @@ static void InitMaterial(tinyobj_material_t *material) {
   material->ior = 1.f;
 }
 
-#if 0 /* todo */
-static void LoadMtl(std::map<std::string, int> *material_map,
-                    std::vector<material_t> *materials,
-                    std::istream *inStream) {
-  // Create a default material anyway.
-  material_t material;
-  InitMaterial(&material);
+static tinyobj_material_t *tinyobj_material_add(tinyobj_material_t *prev, int num_materials, tinyobj_material_t *new_mat)
+{
+	tinyobj_material_t* dst = (tinyobj_material_t*)realloc(prev, sizeof(tinyobj_material_t) * (num_materials + 1));
 
-  size_t maxchars = 8192;           // Alloc enough size.
-  std::vector<char> buf(maxchars);  // Alloc enough size.
+	return dst;
+}
+
+int tinyobj_parse_mtl(tinyobj_material_t **materials, int *num_materials, const char* buf, size_t len) {
+  /* Create a default material */
+  tinyobj_material_t default_material;
+  initMaterial(&default_material);
+
+#if 0
   while (inStream->peek() != -1) {
     inStream->getline(&buf[0], static_cast<std::streamsize>(maxchars));
 
@@ -597,78 +608,66 @@ static void LoadMtl(std::map<std::string, int> *material_map,
     // ambient texture
     if ((0 == strncmp(token, "map_Ka", 6)) && IS_SPACE(token[6])) {
       token += 7;
-      material.ambient_texname = token;
+      material.ambient_texname = strdup(token);
       continue;
     }
 
     // diffuse texture
     if ((0 == strncmp(token, "map_Kd", 6)) && IS_SPACE(token[6])) {
       token += 7;
-      material.diffuse_texname = token;
+      material.diffuse_texname = strdup(token);
       continue;
     }
 
     // specular texture
     if ((0 == strncmp(token, "map_Ks", 6)) && IS_SPACE(token[6])) {
       token += 7;
-      material.specular_texname = token;
+      material.specular_texname = strdup(token);
       continue;
     }
 
     // specular highlight texture
     if ((0 == strncmp(token, "map_Ns", 6)) && IS_SPACE(token[6])) {
       token += 7;
-      material.specular_highlight_texname = token;
+      material.specular_highlight_texname = strdup(token);
       continue;
     }
 
     // bump texture
     if ((0 == strncmp(token, "map_bump", 8)) && IS_SPACE(token[8])) {
       token += 9;
-      material.bump_texname = token;
+      material.bump_texname = strdup(token);
       continue;
     }
 
     // alpha texture
     if ((0 == strncmp(token, "map_d", 5)) && IS_SPACE(token[5])) {
       token += 6;
-      material.alpha_texname = token;
+      material.alpha_texname = strdup(token);
       continue;
     }
 
     // bump texture
     if ((0 == strncmp(token, "bump", 4)) && IS_SPACE(token[4])) {
       token += 5;
-      material.bump_texname = token;
+      material.bump_texname = strdup(token);
       continue;
     }
 
     // displacement texture
     if ((0 == strncmp(token, "disp", 4)) && IS_SPACE(token[4])) {
       token += 5;
-      material.displacement_texname = token;
+      material.displacement_texname = strdup(token);
       continue;
     }
 
-    // unknown parameter
-    const char *_space = strchr(token, ' ');
-    if (!_space) {
-      _space = strchr(token, '\t');
-    }
-    if (_space) {
-      std::ptrdiff_t len = _space - token;
-      std::string key(token, static_cast<size_t>(len));
-      std::string value = _space + 1;
-      material.unknown_parameter.insert(
-          std::pair<std::string, std::string>(key, value));
-    }
+    /* @todo { unknown parameter } */
   }
-  // flush last material.
-  material_map->insert(std::pair<std::string, int>(
-      material.name, static_cast<int>(materials->size())));
-  materials->push_back(material);
-}
 #endif
+
+	
+	return TINYOBJ_SUCCESS; 
+}
 
 typedef enum {
   COMMAND_EMPTY,
@@ -688,12 +687,12 @@ typedef struct {
   float nx, ny, nz;
   float tx, ty;
 
-	/* @todo { Use dynamic array } */
-	tinyobj_vertex_index_t f[TINYOBJ_MAX_FACES_PER_F_LINE];
-	int num_f;
+  /* @todo { Use dynamic array } */
+  tinyobj_vertex_index_t f[TINYOBJ_MAX_FACES_PER_F_LINE];
+  int num_f;
 
-	int f_num_verts[TINYOBJ_MAX_FACES_PER_F_LINE];
-	int num_f_num_verts;
+  int f_num_verts[TINYOBJ_MAX_FACES_PER_F_LINE];
+  int num_f_num_verts;
 
   const char *group_name;
   unsigned int group_name_len;
@@ -708,9 +707,10 @@ typedef struct {
   CommandType type;
 } Command;
 
-static int parseLine(Command *command, const char *p, size_t p_len, int triangulate) {
+static int parseLine(Command *command, const char *p, size_t p_len,
+                     int triangulate) {
   char linebuf[4096];
-	const char *token;
+  const char *token;
   assert(p_len < 4095);
 
   memcpy(linebuf, p, p_len);
@@ -724,11 +724,11 @@ static int parseLine(Command *command, const char *p, size_t p_len, int triangul
   skip_space(&token);
 
   assert(token);
-  if (token[0] == '\0') {  /* empty line */
+  if (token[0] == '\0') { /* empty line */
     return 0;
   }
 
-  if (token[0] == '#') {  /* comment line */
+  if (token[0] == '#') { /* comment line */
     return 0;
   }
 
@@ -769,12 +769,11 @@ static int parseLine(Command *command, const char *p, size_t p_len, int triangul
 
   /* face */
   if (token[0] == 'f' && IS_SPACE((token[1]))) {
-		int num_f = 0;
+    int num_f = 0;
 
-		tinyobj_vertex_index_t f[TINYOBJ_MAX_FACES_PER_F_LINE];
+    tinyobj_vertex_index_t f[TINYOBJ_MAX_FACES_PER_F_LINE];
     token += 2;
     skip_space(&token);
-
 
     while (!IS_NEW_LINE(token[0])) {
       tinyobj_vertex_index_t vi = parseRawTriple(&token);
@@ -787,38 +786,38 @@ static int parseLine(Command *command, const char *p, size_t p_len, int triangul
     command->type = COMMAND_F;
 
     if (triangulate) {
-			int k;
-			int n = 0;
+      int k;
+      int n = 0;
 
       tinyobj_vertex_index_t i0 = f[0];
       tinyobj_vertex_index_t i1;
       tinyobj_vertex_index_t i2 = f[1];
 
-			assert(3 * num_f < TINYOBJ_MAX_FACES_PER_F_LINE);
+      assert(3 * num_f < TINYOBJ_MAX_FACES_PER_F_LINE);
 
       for (k = 2; k < num_f; k++) {
         i1 = i2;
         i2 = f[k];
-        command->f[3*n+0] = i0;
-        command->f[3*n+1] = i1;
-        command->f[3*n+2] = i2;
+        command->f[3 * n + 0] = i0;
+        command->f[3 * n + 1] = i1;
+        command->f[3 * n + 2] = i2;
 
         command->f_num_verts[n] = 3;
-				n++;
+        n++;
       }
-			command->num_f = 3 * n;
-			command->num_f_num_verts = n;
+      command->num_f = 3 * n;
+      command->num_f_num_verts = n;
 
     } else {
-			int k = 0;
-			assert(num_f < TINYOBJ_MAX_FACES_PER_F_LINE);
+      int k = 0;
+      assert(num_f < TINYOBJ_MAX_FACES_PER_F_LINE);
       for (k = 0; k < num_f; k++) {
         command->f[k] = f[k];
       }
 
       command->num_f = num_f;
       command->f_num_verts[0] = num_f;
-			command->num_f_num_verts = 1;
+      command->num_f_num_verts = 1;
     }
 
     return 1;
@@ -880,6 +879,26 @@ static int parseLine(Command *command, const char *p, size_t p_len, int triangul
   return 0;
 }
 
+static char *my_strndup(const char *s, size_t len)
+{
+	char *d;
+	int slen;
+
+	if (len == 0) return NULL;
+
+	d = (char *)malloc(len + 1); /* + '\0' */
+	slen = strlen(s);
+	if (slen < len) {
+		memcpy(d, s, slen);
+		d[slen] = '\0';
+	} else {
+		memcpy(d, s, len);
+		d[len] = '\0';
+	}
+
+	return d;
+}
+
 typedef struct {
   size_t pos;
   size_t len;
@@ -887,66 +906,73 @@ typedef struct {
 
 static int is_line_ending(const char *p, size_t i, size_t end_i) {
   if (p[i] == '\0') return 1;
-  if (p[i] == '\n') return 1;  /* this includes \r\n */
+  if (p[i] == '\n') return 1; /* this includes \r\n */
   if (p[i] == '\r') {
-    if (((i + 1) < end_i) && (p[i + 1] != '\n')) {  /* detect only \r case */
+    if (((i + 1) < end_i) && (p[i + 1] != '\n')) { /* detect only \r case */
       return 1;
     }
   }
   return 0;
 }
 
-int tinyobj_parse(tinyobj_attrib_t *attrib, tinyobj_shape_t *shapes, size_t *num_shapes, const char *buf, size_t len, unsigned int flags)
-{
-	LineInfo* line_infos = NULL;
-  Command*  commands = NULL;
-	size_t    num_lines = 0;
+int tinyobj_parse_obj(tinyobj_attrib_t *attrib, tinyobj_shape_t **shapes,
+                  size_t *num_shapes, const char *buf, size_t len,
+                  unsigned int flags) {
+  LineInfo *line_infos = NULL;
+  Command *commands = NULL;
+  size_t num_lines = 0;
 
-  size_t    num_v = 0;
-  size_t    num_vn = 0;
-  size_t    num_vt = 0;
-  size_t    num_f = 0;
-  size_t    num_faces = 0;
+  size_t num_v = 0;
+  size_t num_vn = 0;
+  size_t num_vt = 0;
+  size_t num_f = 0;
+  size_t num_faces = 0;
 
-  if (len < 1) return 0;
+  if (len < 1) return TINYOBJ_ERROR_INVALID_PARAMETER;
+  if (attrib == NULL) return TINYOBJ_ERROR_INVALID_PARAMETER;
+  if (shapes == NULL) return TINYOBJ_ERROR_INVALID_PARAMETER;
+  if (num_shapes == NULL) return TINYOBJ_ERROR_INVALID_PARAMETER;
+  if (buf == NULL) return TINYOBJ_ERROR_INVALID_PARAMETER;
+
+	tinyobj_attrib_init(attrib);
 
   /* 1. Find '\n' and create line data. */
   {
-		size_t i;
-		size_t end_idx = len - 1;
-		size_t prev_pos = 0;
-		size_t line_no = 0;
-		
-		/* Count # of lines. */
-		for (i = 0; i < end_idx; i++) { /* Assume last char is '\0' */
+    size_t i;
+    size_t end_idx = len - 1;
+    size_t prev_pos = 0;
+    size_t line_no = 0;
+
+    /* Count # of lines. */
+    for (i = 0; i < end_idx; i++) { /* Assume last char is '\0' */
       if (is_line_ending(buf, i, end_idx)) {
-				num_lines++;
-			}
-		}
+        num_lines++;
+      }
+    }
 
     if (num_lines == 0) return TINYOBJ_ERROR_EMPTY;
 
-		line_infos = (LineInfo*)malloc(sizeof(LineInfo) * num_lines);
+    line_infos = (LineInfo *)malloc(sizeof(LineInfo) * num_lines);
 
-		/* Fill line infoss. */
-		for (i = 0; i < end_idx; i++) {
+    /* Fill line infoss. */
+    for (i = 0; i < end_idx; i++) {
       if (is_line_ending(buf, i, end_idx)) {
-				line_infos[line_no].pos = prev_pos;
-				line_infos[line_no].len = i - prev_pos;
-				prev_pos = i + 1;
-				line_no++;
-			}
-		}
+        line_infos[line_no].pos = prev_pos;
+        line_infos[line_no].len = i - prev_pos;
+        prev_pos = i + 1;
+        line_no++;
+      }
+    }
   }
 
-  commands = (Command*)malloc(sizeof(Command) * num_lines);
+  commands = (Command *)malloc(sizeof(Command) * num_lines);
 
   /* 2. parse each line */
   {
     size_t i = 0;
     for (i = 0; i < num_lines; i++) {
       int ret = parseLine(&commands[i], &buf[line_infos[i].pos],
-                           line_infos[i].len, flags & TINYOBJ_FLAG_TRIANGULATE);
+                          line_infos[i].len, flags & TINYOBJ_FLAG_TRIANGULATE);
       if (ret) {
         if (commands[i].type == COMMAND_V) {
           num_v++;
@@ -956,7 +982,7 @@ int tinyobj_parse(tinyobj_attrib_t *attrib, tinyobj_shape_t *shapes, size_t *num
           num_vt++;
         } else if (commands[i].type == COMMAND_F) {
           num_f += commands[i].num_f;
-          num_faces++;
+          num_faces += commands[i].num_f_num_verts;
         }
 
         if (commands[i].type == COMMAND_MTLLIB) {
@@ -965,15 +991,14 @@ int tinyobj_parse(tinyobj_attrib_t *attrib, tinyobj_shape_t *shapes, size_t *num
           mtllib_i_index = commands->size();
           */
         }
-
       }
     }
   }
 
   /* line_infos are not used anymore. Release memory. */
-	if (line_infos) {
-		free(line_infos);
-	}
+  if (line_infos) {
+    free(line_infos);
+  }
 
 #if 0
 
@@ -1014,136 +1039,169 @@ int tinyobj_parse(tinyobj_attrib_t *attrib, tinyobj_shape_t *shapes, size_t *num
     size_t t_count = 0;
     size_t f_count = 0;
     size_t face_count = 0;
-    int material_id = -1;  /* -1 = default unknown material. */
+    int material_id = -1; /* -1 = default unknown material. */
     size_t i = 0;
 
-    attrib->vertices = (float*)malloc(sizeof(float) * num_v * 3);
+    attrib->vertices = (float *)malloc(sizeof(float) * num_v * 3);
     attrib->num_vertices = num_v;
-    attrib->normals = (float*)malloc(sizeof(float) * num_vn * 3);
+    attrib->normals = (float *)malloc(sizeof(float) * num_vn * 3);
     attrib->num_normals = num_vn;
-    attrib->texcoords = (float*)malloc(sizeof(float) * num_vt * 2);
+    attrib->texcoords = (float *)malloc(sizeof(float) * num_vt * 2);
     attrib->num_texcoords = num_vt;
-    attrib->faces = (tinyobj_vertex_index_t*)malloc(sizeof(tinyobj_vertex_index_t) * num_f);
+    attrib->faces = (tinyobj_vertex_index_t *)malloc(
+        sizeof(tinyobj_vertex_index_t) * num_f);
     attrib->num_faces = num_f;
-    attrib->face_num_verts = (int*)malloc(sizeof(int) * num_faces);
-    attrib->material_ids = (int*)malloc(sizeof(int) * num_faces);
+    attrib->face_num_verts = (int *)malloc(sizeof(int) * num_faces);
+    attrib->material_ids = (int *)malloc(sizeof(int) * num_faces);
     attrib->num_face_num_verts = num_faces;
 
-        for (i = 0; i < num_lines; i++) {
-          if (commands[i].type == COMMAND_EMPTY) {
-            continue;
-          } else if (commands[i].type == COMMAND_USEMTL) {
-            /* @todo
-            if (commands[t][i].material_name &&
-                commands[t][i].material_name_len > 0) {
-              std::string material_name(commands[t][i].material_name,
-                                        commands[t][i].material_name_len);
+    for (i = 0; i < num_lines; i++) {
+      if (commands[i].type == COMMAND_EMPTY) {
+        continue;
+      } else if (commands[i].type == COMMAND_USEMTL) {
+        /* @todo
+        if (commands[t][i].material_name &&
+            commands[t][i].material_name_len > 0) {
+          std::string material_name(commands[t][i].material_name,
+                                    commands[t][i].material_name_len);
 
-              if (material_map.find(material_name) != material_map.end()) {
-                material_id = material_map[material_name];
-              } else {
-                // Assign invalid material ID
-                material_id = -1;
-              }
-            }
-            */
-          } else if (commands[i].type == COMMAND_V) {
-            attrib->vertices[3 * v_count + 0] = commands[i].vx;
-            attrib->vertices[3 * v_count + 1] = commands[i].vy;
-            attrib->vertices[3 * v_count + 2] = commands[i].vz;
-            v_count++;
-          } else if (commands[i].type == COMMAND_VN) {
-            attrib->normals[3 * n_count + 0] = commands[i].nx;
-            attrib->normals[3 * n_count + 1] = commands[i].ny;
-            attrib->normals[3 * n_count + 2] = commands[i].nz;
-            n_count++;
-          } else if (commands[i].type == COMMAND_VT) {
-            attrib->texcoords[2 * t_count + 0] = commands[i].tx;
-            attrib->texcoords[2 * t_count + 1] = commands[i].ty;
-            t_count++;
-          } else if (commands[i].type == COMMAND_F) {
-            size_t k =0;
-            for (k = 0; k < commands[i].num_f; k++) {
-              tinyobj_vertex_index_t vi = commands[i].f[k];
-              int v_idx = fixIndex(vi.v_idx, v_count);
-              int vn_idx = fixIndex(vi.vn_idx, n_count);
-              int vt_idx = fixIndex(vi.vt_idx, t_count);
-              attrib->faces[f_count + k].v_idx = v_idx;
-              attrib->faces[f_count + k].vn_idx = vn_idx;
-              attrib->faces[f_count + k].vt_idx = vt_idx;
-            }
-            attrib->material_ids[face_count] = material_id;
-            attrib->face_num_verts[face_count] = commands[i].num_f;
-
-            f_count += commands[i].num_f;
-            face_count++;
+          if (material_map.find(material_name) != material_map.end()) {
+            material_id = material_map[material_name];
+          } else {
+            // Assign invalid material ID
+            material_id = -1;
           }
         }
+        */
+      } else if (commands[i].type == COMMAND_V) {
+        attrib->vertices[3 * v_count + 0] = commands[i].vx;
+        attrib->vertices[3 * v_count + 1] = commands[i].vy;
+        attrib->vertices[3 * v_count + 2] = commands[i].vz;
+        v_count++;
+      } else if (commands[i].type == COMMAND_VN) {
+        attrib->normals[3 * n_count + 0] = commands[i].nx;
+        attrib->normals[3 * n_count + 1] = commands[i].ny;
+        attrib->normals[3 * n_count + 2] = commands[i].nz;
+        n_count++;
+      } else if (commands[i].type == COMMAND_VT) {
+        attrib->texcoords[2 * t_count + 0] = commands[i].tx;
+        attrib->texcoords[2 * t_count + 1] = commands[i].ty;
+        t_count++;
+      } else if (commands[i].type == COMMAND_F) {
+        size_t k = 0;
+        for (k = 0; k < commands[i].num_f; k++) {
+          tinyobj_vertex_index_t vi = commands[i].f[k];
+          int v_idx = fixIndex(vi.v_idx, v_count);
+          int vn_idx = fixIndex(vi.vn_idx, n_count);
+          int vt_idx = fixIndex(vi.vt_idx, t_count);
+          attrib->faces[f_count + k].v_idx = v_idx;
+          attrib->faces[f_count + k].vn_idx = vn_idx;
+          attrib->faces[f_count + k].vt_idx = vt_idx;
+        }
+
+        for (k = 0; k < commands[i].num_f_num_verts; k++) {
+          attrib->material_ids[face_count + k] = material_id;
+          attrib->face_num_verts[face_count + k] = commands[i].f_num_verts[k];
+        }
+
+        f_count += commands[i].num_f;
+        face_count += commands[i].num_f_num_verts;
+      }
+    }
   }
 
   /* 5. Construct shape information. */
   {
     int face_count = 0;
-    int face_prev_offset = 0;
     size_t i = 0;
-      for (i = 0; i < num_lines; i++) {
-        if (commands[i].type == COMMAND_O ||
-            commands[i].type == COMMAND_G) {
-#if 0 /* @todo */
+		size_t n = 0;
+		size_t shape_idx = 0;
+
+		const char* shape_name = NULL;
+		int shape_name_len = 0;
+		const char* prev_shape_name = NULL;
+		int prev_shape_name_len = 0;
+		int prev_shape_face_offset = 0;
+		int prev_shape_length = 0;
+    int prev_face_offset = 0;
+		tinyobj_shape_t prev_shape = {NULL, 0, 0};
+
+		/* Find the number of shapes in .obj */
+    for (i = 0; i < num_lines; i++) {
+      if (commands[i].type == COMMAND_O || commands[i].type == COMMAND_G) {
+				n++;
+			}
+		}
+
+		/* Allocate array of shapes with maximum possible size(+1 for unnamed group/object). 
+     * Actual # of shapes found in .obj is determined in the later */
+		(*shapes) = malloc(sizeof(tinyobj_shape_t) * (n + 1)); 
+
+    for (i = 0; i < num_lines; i++) {
+      if (commands[i].type == COMMAND_O || commands[i].type == COMMAND_G) {
+					
           if (commands[i].type == COMMAND_O) {
-            name = std::string(commands[t][i].object_name,
-                               commands[t][i].object_name_len);
+						shape_name = commands[i].object_name;
+						shape_name_len = commands[i].object_name_len;
           } else {
-            name = std::string(commands[t][i].group_name,
-                               commands[t][i].group_name_len);
+            shape_name = commands[i].group_name;
+						shape_name_len = commands[i].group_name_len;
           }
 
           if (face_count == 0) {
-            // 'o' or 'g' appears before any 'f'
-            shape.name = name;
-            shape.face_offset = face_count;
-            face_prev_offset = face_count;
+            /* 'o' or 'g' appears before any 'f' */
+						prev_shape_name = shape_name;
+						prev_shape_name_len = shape_name_len;
+						prev_shape_face_offset = face_count;
+            prev_face_offset = face_count;
           } else {
-            if (shapes->size() == 0) {
-              // 'o' or 'g' after some 'v' lines.
-              // create a shape with null name
-              shape.length = face_count - face_prev_offset;
-              face_prev_offset = face_count;
+            if (shape_idx == 0) {
+              /* 'o' or 'g' after some 'v' lines. */
+            	(*shapes)[shape_idx].name = my_strndup(prev_shape_name, prev_shape_name_len); /* may be NULL */
+            	(*shapes)[shape_idx].face_offset = prev_shape.face_offset;
+              (*shapes)[shape_idx].length = face_count - prev_face_offset;
+							shape_idx++;
 
-              shapes->push_back(shape);
+							prev_shape_length = face_count - prev_face_offset;
+              prev_face_offset = face_count;
 
             } else {
-              if ((face_count - face_prev_offset) > 0) {
-                // push previous shape
-                shape.length = face_count - face_prev_offset;
-                shapes->push_back(shape);
-                face_prev_offset = face_count;
+              if ((face_count - prev_face_offset) > 0) {
+								(*shapes)[shape_idx].name = my_strndup(prev_shape_name, prev_shape_name_len);
+								(*shapes)[shape_idx].face_offset = prev_face_offset;
+								(*shapes)[shape_idx].length = face_count - prev_face_offset;
+								shape_idx++;
+                prev_shape_length = face_count - prev_face_offset;
+                prev_face_offset = face_count;
               }
             }
 
-            // redefine shape.
-            shape.name = name;
-            shape.face_offset = face_count;
-            shape.length = 0;
+            /* Record shape info for succeeding 'o' or 'g' command. */
+            prev_shape_name = shape_name;
+            prev_shape_name_len = shape_name_len;
+            prev_shape_face_offset = face_count;
+            prev_shape_length = 0;
           }
-#endif
-        }
-        if (commands[i].type == COMMAND_F) {
-          face_count++;
-        }
       }
-
-    if ((face_count - face_prev_offset) > 0) {
-#if 0 /* todo */ 
-      shape.length = face_count - shape.face_offset;
-      if (shape.length > 0) {
-        shapes->push_back(shape);
+      if (commands[i].type == COMMAND_F) {
+        face_count++;
       }
-#endif
-    } else {
-      /* Guess no 'v' line occurrence after 'o' or 'g', so discards current shape information. */
     }
 
+    if ((face_count - prev_face_offset) > 0) {
+			size_t len = face_count - prev_shape_face_offset;
+			if (len > 0) {
+				(*shapes)[shape_idx].name = my_strndup(prev_shape_name, prev_shape_name_len);
+				(*shapes)[shape_idx].face_offset = prev_face_offset;
+				(*shapes)[shape_idx].length = face_count - prev_face_offset;
+				shape_idx++;
+      }
+    } else {
+      /* Guess no 'v' line occurrence after 'o' or 'g', so discards current
+       * shape information. */
+    }
+		
+		(*num_shapes) = shape_idx;
   }
 
   if (commands) {
@@ -1152,6 +1210,32 @@ int tinyobj_parse(tinyobj_attrib_t *attrib, tinyobj_shape_t *shapes, size_t *num
 
   return TINYOBJ_SUCCESS;
 }
-#endif  /* TINYOBJ_LOADER_C_IMPLEMENTATION */
 
-#endif  /* TINOBJ_LOADER_C_H_ */
+void tinyobj_attrib_init(tinyobj_attrib_t *attrib)
+{
+  attrib->vertices = NULL;
+  attrib->num_vertices = 0;
+  attrib->normals = NULL;
+  attrib->num_normals = 0;
+  attrib->texcoords = NULL;
+  attrib->num_texcoords = 0;
+  attrib->faces = NULL;
+  attrib->num_faces = 0;
+  attrib->face_num_verts = NULL;
+  attrib->num_face_num_verts = 0;
+  attrib->material_ids = NULL;
+}
+
+void tinyobj_attrib_free(tinyobj_attrib_t *attrib)
+{
+    if (attrib->vertices) free(attrib->vertices);
+    if (attrib->normals) free(attrib->normals);
+    if (attrib->texcoords) free(attrib->texcoords);
+    if (attrib->faces) free(attrib->faces);
+    if (attrib->face_num_verts) free(attrib->face_num_verts);
+    if (attrib->material_ids) free(attrib->material_ids);
+}
+
+#endif /* TINYOBJ_LOADER_C_IMPLEMENTATION */
+
+#endif /* TINOBJ_LOADER_C_H_ */

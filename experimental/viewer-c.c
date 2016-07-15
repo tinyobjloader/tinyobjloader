@@ -23,8 +23,7 @@ typedef struct {
   int numTriangles;
 } DrawObject;
 
-static DrawObject gDrawObjects[MAX_OBJECTS];
-static int gNumDrawObjects;
+static DrawObject gDrawObject;
 
 static int width = 768;
 static int height = 768;
@@ -214,7 +213,7 @@ static const char* get_file_data(size_t *len, const char* filename)
 static int LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename)
 {
   tinyobj_attrib_t attrib;
-  tinyobj_shape_t  *shapes;
+  tinyobj_shape_t  *shapes = NULL;
   size_t num_shapes;
   
   size_t data_len = 0;
@@ -227,9 +226,18 @@ static int LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename)
   
   {
     unsigned int flags = TINYOBJ_FLAG_TRIANGULATE;
-    int ret = tinyobj_parse(&attrib, shapes, &num_shapes, data, data_len, flags);
+    int ret = tinyobj_parse_obj(&attrib, &shapes, &num_shapes, data, data_len, flags);
     if (ret != TINYOBJ_SUCCESS) {
       return 0;
+    }
+
+    printf("# of shapes = %d\n", num_shapes);
+
+    {
+      int i;
+      for (i = 0; i < num_shapes; i++) {
+          printf("shape[%d] name = %s\n", i, shapes[i].name);
+      }
     }
   }
 
@@ -238,17 +246,27 @@ static int LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename)
 
   {
         DrawObject o;
-        /* std::vector<float> vb; // pos(3float), normal(3float), color(3float) */
+        float *vb;
+        /* std::vector<float> vb; //  */
         size_t face_offset = 0;
-        size_t v;
+        size_t i;
 
-        for (v = 0; v < attrib.num_face_num_verts; v++) {
+        /* Assume triangulated face. */
+        size_t num_triangles = attrib.num_face_num_verts;
+        size_t stride = 9; /* 9 = pos(3float), normal(3float), color(3float) */
+
+        vb = (float*)malloc(sizeof(float) * stride * num_triangles * 3); 
+
+        for (i = 0; i < attrib.num_face_num_verts; i++) {
           size_t f;
-          assert(attrib.face_num_verts[v] % 3 == 0); /* assume all triangle faces. */
-          for (f = 0; f < attrib.face_num_verts[v] / 3; f++) {
+          assert(attrib.face_num_verts[i] % 3 == 0); /* assume all triangle faces. */
+          for (f = 0; f < attrib.face_num_verts[i] / 3; f++) {
             int k;
             float v[3][3];
             float n[3][3];
+            float c[3];
+            float len2;
+
             tinyobj_vertex_index_t idx0 = attrib.faces[face_offset+3*f+0];
             tinyobj_vertex_index_t idx1 = attrib.faces[face_offset+3*f+1];
             tinyobj_vertex_index_t idx2 = attrib.faces[face_offset+3*f+2];
@@ -272,21 +290,24 @@ static int LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename)
               bmax[k] = (v[2][k] > bmax[k]) ? v[2][k] : bmax[k];
             }
 
-
-            if (attrib.normals) { 
+            if (attrib.num_normals > 0) { 
               int f0 = idx0.vn_idx;
               int f1 = idx1.vn_idx;
               int f2 = idx2.vn_idx;
-              assert(f0 >= 0);
-              assert(f1 >= 0);
-              assert(f2 >= 0);
-              assert(3*f0+2 < attrib.num_normals);
-              assert(3*f1+2 < attrib.num_normals);
-              assert(3*f2+2 < attrib.num_normals);
-              for (k = 0; k < 3; k++) {
-                n[0][k] = attrib.normals[3*f0+k];
-                n[1][k] = attrib.normals[3*f1+k];
-                n[2][k] = attrib.normals[3*f2+k];
+              if (f0 >=0 && f1 >= 0 && f2 >= 0) {
+                assert(3*f0+2 < attrib.num_normals);
+                assert(3*f1+2 < attrib.num_normals);
+                assert(3*f2+2 < attrib.num_normals);
+                for (k = 0; k < 3; k++) {
+                  n[0][k] = attrib.normals[3*f0+k];
+                  n[1][k] = attrib.normals[3*f1+k];
+                  n[2][k] = attrib.normals[3*f2+k];
+                }
+              } else { /* normal index is not defined for this face */
+                /* compute geometric normal */
+                CalcNormal(n[0], v[0], v[1], v[2]);
+                n[1][0] = n[0][0]; n[1][1] = n[0][1]; n[1][2] = n[0][2];
+                n[2][0] = n[0][0]; n[2][1] = n[0][1]; n[2][2] = n[0][2];
               }
             } else {
               /* compute geometric normal */
@@ -296,17 +317,14 @@ static int LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename)
             }
 
             for (k = 0; k < 3; k++) {
-#if 0
-              vb.push_back(v[k][0]);
-              vb.push_back(v[k][1]);
-              vb.push_back(v[k][2]);
-              vb.push_back(n[k][0]);
-              vb.push_back(n[k][1]);
-              vb.push_back(n[k][2]);
-#endif
+              vb[(3 * i + k) * stride + 0] = v[k][0];
+              vb[(3 * i + k) * stride + 1] = v[k][1];
+              vb[(3 * i + k) * stride + 2] = v[k][2];
+              vb[(3 * i + k) * stride + 3] = n[k][0];
+              vb[(3 * i + k) * stride + 4] = n[k][1];
+              vb[(3 * i + k) * stride + 5] = n[k][2];
+
               /* Use normal as color. */
-              float c[3];
-              float len2;
               c[0] = n[k][0];
               c[1] = n[k][1];
               c[2] = n[k][2];
@@ -318,32 +336,33 @@ static int LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename)
                 c[1] /= len;
                 c[2] /= len;
               }
-#if 0
-              vb.push_back(c[0] * 0.5 + 0.5);
-              vb.push_back(c[1] * 0.5 + 0.5);
-              vb.push_back(c[2] * 0.5 + 0.5);
-#endif
+
+              vb[(3 * i + k) * stride + 6] = (c[0] * 0.5 + 0.5);
+              vb[(3 * i + k) * stride + 7] = (c[1] * 0.5 + 0.5);
+              vb[(3 * i + k) * stride + 8] = (c[2] * 0.5 + 0.5);
             }
           } 
-          face_offset += attrib.face_num_verts[v];
+          face_offset += attrib.face_num_verts[i];
         }
 
         o.vb = 0;
         o.numTriangles = 0;
-#if 0 /* @todo */
-        if (vb.size() > 0) {
+        if (num_triangles > 0) {
           glGenBuffers(1, &o.vb);
           glBindBuffer(GL_ARRAY_BUFFER, o.vb);
-          glBufferData(GL_ARRAY_BUFFER, vb.size() * sizeof(float), &vb.at(0), GL_STATIC_DRAW);
-          o.numTriangles = vb.size() / 9 / 3;
+          glBufferData(GL_ARRAY_BUFFER, num_triangles * 3 * stride * sizeof(float), vb, GL_STATIC_DRAW);
+          o.numTriangles = num_triangles;
         }
 
-        gDrawObjects.push_back(o);
-#endif
+        free(vb);
+
+        gDrawObject = o;
   }
   
   printf("bmin = %f, %f, %f\n", bmin[0], bmin[1], bmin[2]);
   printf("bmax = %f, %f, %f\n", bmax[0], bmax[1], bmax[2]);
+
+  tinyobj_attrib_free(&attrib);
 
   return 1;
 }
@@ -437,7 +456,7 @@ static void motionFunc(GLFWwindow* window, double mouse_x, double mouse_y){
     prevMouseY = (float)mouse_y;
 }
 
-static void Draw(const DrawObject* draw_objects, int num_draw_objects)
+static void Draw(const DrawObject* draw_object)
 {
   int i;
 
@@ -447,13 +466,8 @@ static void Draw(const DrawObject* draw_objects, int num_draw_objects)
   glEnable(GL_POLYGON_OFFSET_FILL);
   glPolygonOffset(1.0, 1.0);
   glColor3f(1.0f, 1.0f, 1.0f);
-  for (i = 0; i < num_draw_objects; i++) {
-    const DrawObject o = draw_objects[i];
-    if (o.vb < 1) {
-      continue;
-    }
- 
-    glBindBuffer(GL_ARRAY_BUFFER, o.vb);
+  if (draw_object->vb >= 1) {
+    glBindBuffer(GL_ARRAY_BUFFER, draw_object->vb);
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);
     glEnableClientState(GL_COLOR_ARRAY);
@@ -461,7 +475,7 @@ static void Draw(const DrawObject* draw_objects, int num_draw_objects)
     glNormalPointer(GL_FLOAT, 36, (const void*)(sizeof(float)*3));
     glColorPointer(3, GL_FLOAT, 36, (const void*)(sizeof(float)*6));
 
-    glDrawArrays(GL_TRIANGLES, 0, 3 * o.numTriangles);
+    glDrawArrays(GL_TRIANGLES, 0, 3 * draw_object->numTriangles);
     CheckErrors("drawarrays");
   }
 
@@ -471,20 +485,16 @@ static void Draw(const DrawObject* draw_objects, int num_draw_objects)
   glPolygonMode(GL_BACK, GL_LINE);
 
   glColor3f(0.0f, 0.0f, 0.4f);
-  for (i = 0; i < num_draw_objects; i++) {
-    DrawObject o = draw_objects[i];
-    if (o.vb < 1) {
-      continue;
-    }
- 
-    glBindBuffer(GL_ARRAY_BUFFER, o.vb);
+
+  if (draw_object->vb >= 1) {
+    glBindBuffer(GL_ARRAY_BUFFER, draw_object->vb);
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);
     glDisableClientState(GL_COLOR_ARRAY);
     glVertexPointer(3, GL_FLOAT, 36, (const void*)0);
     glNormalPointer(GL_FLOAT, 36, (const void*)(sizeof(float)*3));
 
-    glDrawArrays(GL_TRIANGLES, 0, 3 * o.numTriangles);
+    glDrawArrays(GL_TRIANGLES, 0, 3 * draw_object->numTriangles);
     CheckErrors("drawarrays");
   }
 }
@@ -582,7 +592,7 @@ int main(int argc, char **argv)
 	    /* Centerize object. */
 	    glTranslatef(-0.5f*(bmax[0] + bmin[0]), -0.5f*(bmax[1] + bmin[1]), -0.5f*(bmax[2] + bmin[2]));
 	  
-	    Draw(gDrawObjects, gNumDrawObjects);
+	    Draw(&gDrawObject);
 
 	    glfwSwapBuffers(gWindow);
 	  }
