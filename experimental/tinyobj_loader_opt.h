@@ -581,9 +581,9 @@ assemble :
 
 {
   // = pow(5.0, exponent);
-  double a = 5.0;
+  double a = 1.0;
   for (int i = 0; i < exponent; i++) {
-    a = a * a;
+    a = a * 5.0;
   }
   *result =
       //(sign == '+' ? 1 : -1) * ldexp(mantissa * pow(5.0, exponent), exponent);
