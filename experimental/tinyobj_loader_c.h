@@ -781,6 +781,7 @@ static int parseLine(Command *command, const char *p, size_t p_len, int triangul
       skip_space_and_cr(&token);
 
       f[num_f] = vi;
+      num_f++;
     }
 
     command->type = COMMAND_F;
@@ -815,6 +816,7 @@ static int parseLine(Command *command, const char *p, size_t p_len, int triangul
         command->f[k] = f[k];
       }
 
+      command->num_f = num_f;
       command->f_num_verts[0] = num_f;
 			command->num_f_num_verts = 1;
     }
@@ -921,7 +923,6 @@ int tinyobj_parse(tinyobj_attrib_t *attrib, tinyobj_shape_t *shapes, size_t *num
 				num_lines++;
 			}
 		}
-		printf("num lines %d\n", (int)num_lines);
 
     if (num_lines == 0) return TINYOBJ_ERROR_EMPTY;
 
@@ -1017,11 +1018,16 @@ int tinyobj_parse(tinyobj_attrib_t *attrib, tinyobj_shape_t *shapes, size_t *num
     size_t i = 0;
 
     attrib->vertices = (float*)malloc(sizeof(float) * num_v * 3);
+    attrib->num_vertices = num_v;
     attrib->normals = (float*)malloc(sizeof(float) * num_vn * 3);
+    attrib->num_normals = num_vn;
     attrib->texcoords = (float*)malloc(sizeof(float) * num_vt * 2);
+    attrib->num_texcoords = num_vt;
     attrib->faces = (tinyobj_vertex_index_t*)malloc(sizeof(tinyobj_vertex_index_t) * num_f);
+    attrib->num_faces = num_f;
     attrib->face_num_verts = (int*)malloc(sizeof(int) * num_faces);
     attrib->material_ids = (int*)malloc(sizeof(int) * num_faces);
+    attrib->num_face_num_verts = num_faces;
 
         for (i = 0; i < num_lines; i++) {
           if (commands[i].type == COMMAND_EMPTY) {

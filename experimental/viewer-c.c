@@ -1,4 +1,6 @@
 #include <math.h>
+#include <limits.h>
+#include <float.h>
 #include <GL/glew.h>
 
 #ifdef __APPLE__
@@ -226,25 +228,32 @@ static int LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename)
   {
     unsigned int flags = TINYOBJ_FLAG_TRIANGULATE;
     int ret = tinyobj_parse(&attrib, shapes, &num_shapes, data, data_len, flags);
+    if (ret != TINYOBJ_SUCCESS) {
+      return 0;
+    }
   }
 
-#if 0
-  bmin[0] = bmin[1] = bmin[2] = std::numeric_limits<float>::max();
-  bmax[0] = bmax[1] = bmax[2] = -std::numeric_limits<float>::max();
+  bmin[0] = bmin[1] = bmin[2] = FLT_MAX;
+  bmax[0] = bmax[1] = bmax[2] = -FLT_MAX;
 
   {
         DrawObject o;
-        std::vector<float> vb; // pos(3float), normal(3float), color(3float)
+        /* std::vector<float> vb; // pos(3float), normal(3float), color(3float) */
         size_t face_offset = 0;
-        for (size_t v = 0; v < attrib.face_num_verts.size(); v++) {
-          assert(attrib.face_num_verts[v] % 3 == 0); // assume all triangle face.
-          for (size_t f = 0; f < attrib.face_num_verts[v] / 3; f++) {
-            tinyobj_opt::vertex_index idx0 = attrib.faces[face_offset+3*f+0];
-            tinyobj_opt::vertex_index idx1 = attrib.faces[face_offset+3*f+1];
-            tinyobj_opt::vertex_index idx2 = attrib.faces[face_offset+3*f+2];
+        size_t v;
 
+        for (v = 0; v < attrib.num_face_num_verts; v++) {
+          size_t f;
+          assert(attrib.face_num_verts[v] % 3 == 0); /* assume all triangle faces. */
+          for (f = 0; f < attrib.face_num_verts[v] / 3; f++) {
+            int k;
             float v[3][3];
-            for (int k = 0; k < 3; k++) {
+            float n[3][3];
+            tinyobj_vertex_index_t idx0 = attrib.faces[face_offset+3*f+0];
+            tinyobj_vertex_index_t idx1 = attrib.faces[face_offset+3*f+1];
+            tinyobj_vertex_index_t idx2 = attrib.faces[face_offset+3*f+2];
+
+            for (k = 0; k < 3; k++) {
               int f0 = idx0.v_idx;
               int f1 = idx1.v_idx;
               int f2 = idx2.v_idx;
@@ -255,58 +264,65 @@ static int LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename)
               v[0][k] = attrib.vertices[3*f0+k];
               v[1][k] = attrib.vertices[3*f1+k];
               v[2][k] = attrib.vertices[3*f2+k];
-              bmin[k] = std::min(v[0][k], bmin[k]);
-              bmin[k] = std::min(v[1][k], bmin[k]);
-              bmin[k] = std::min(v[2][k], bmin[k]);
-              bmax[k] = std::max(v[0][k], bmax[k]);
-              bmax[k] = std::max(v[1][k], bmax[k]);
-              bmax[k] = std::max(v[2][k], bmax[k]);
+              bmin[k] = (v[0][k] < bmin[k]) ? v[0][k] : bmin[k];
+              bmin[k] = (v[1][k] < bmin[k]) ? v[1][k] : bmin[k];
+              bmin[k] = (v[2][k] < bmin[k]) ? v[2][k] : bmin[k];
+              bmax[k] = (v[0][k] > bmax[k]) ? v[0][k] : bmax[k];
+              bmax[k] = (v[1][k] > bmax[k]) ? v[1][k] : bmax[k];
+              bmax[k] = (v[2][k] > bmax[k]) ? v[2][k] : bmax[k];
             }
 
-            float n[3][3];
 
-            if (attrib.normals.size() > 0) { 
+            if (attrib.normals) { 
               int f0 = idx0.vn_idx;
               int f1 = idx1.vn_idx;
               int f2 = idx2.vn_idx;
               assert(f0 >= 0);
               assert(f1 >= 0);
               assert(f2 >= 0);
-              assert(3*f0+2 < attrib.normals.size());
-              assert(3*f1+2 < attrib.normals.size());
-              assert(3*f2+2 < attrib.normals.size());
-              for (int k = 0; k < 3; k++) {
+              assert(3*f0+2 < attrib.num_normals);
+              assert(3*f1+2 < attrib.num_normals);
+              assert(3*f2+2 < attrib.num_normals);
+              for (k = 0; k < 3; k++) {
                 n[0][k] = attrib.normals[3*f0+k];
                 n[1][k] = attrib.normals[3*f1+k];
                 n[2][k] = attrib.normals[3*f2+k];
               }
             } else {
-              // compute geometric normal
+              /* compute geometric normal */
               CalcNormal(n[0], v[0], v[1], v[2]);
               n[1][0] = n[0][0]; n[1][1] = n[0][1]; n[1][2] = n[0][2];
               n[2][0] = n[0][0]; n[2][1] = n[0][1]; n[2][2] = n[0][2];
             }
 
-            for (int k = 0; k < 3; k++) {
+            for (k = 0; k < 3; k++) {
+#if 0
               vb.push_back(v[k][0]);
               vb.push_back(v[k][1]);
               vb.push_back(v[k][2]);
               vb.push_back(n[k][0]);
               vb.push_back(n[k][1]);
               vb.push_back(n[k][2]);
-              // Use normal as color.
-              float c[3] = {n[k][0], n[k][1], n[k][2]};
-              float len2 = c[0] * c[0] + c[1] * c[1] + c[2] * c[2];
+#endif
+              /* Use normal as color. */
+              float c[3];
+              float len2;
+              c[0] = n[k][0];
+              c[1] = n[k][1];
+              c[2] = n[k][2];
+              len2 = c[0] * c[0] + c[1] * c[1] + c[2] * c[2];
               if (len2 > 0.0f) {
-                float len = sqrtf(len2);
+                float len = (float)sqrt(len2);
                 
                 c[0] /= len;
                 c[1] /= len;
                 c[2] /= len;
               }
+#if 0
               vb.push_back(c[0] * 0.5 + 0.5);
               vb.push_back(c[1] * 0.5 + 0.5);
               vb.push_back(c[2] * 0.5 + 0.5);
+#endif
             }
           } 
           face_offset += attrib.face_num_verts[v];
@@ -314,6 +330,7 @@ static int LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename)
 
         o.vb = 0;
         o.numTriangles = 0;
+#if 0 /* @todo */
         if (vb.size() > 0) {
           glGenBuffers(1, &o.vb);
           glBindBuffer(GL_ARRAY_BUFFER, o.vb);
@@ -322,15 +339,13 @@ static int LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename)
         }
 
         gDrawObjects.push_back(o);
+#endif
   }
   
   printf("bmin = %f, %f, %f\n", bmin[0], bmin[1], bmin[2]);
   printf("bmax = %f, %f, %f\n", bmax[0], bmax[1], bmax[2]);
 
   return 1;
-#else
-  return 0;
-#endif
 }
 
 static void reshapeFunc(GLFWwindow* window, int w, int h)
