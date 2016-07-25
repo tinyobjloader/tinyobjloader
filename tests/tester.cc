@@ -293,7 +293,7 @@ std::string matStream(
   return true;
 }
 
-const char* gMtlBasePath = "../models";
+const char* gMtlBasePath = "../models/";
 
 TEST_CASE("cornell_box", "[Loader]") {
 
@@ -317,6 +317,34 @@ TEST_CASE("catmark_torus_creases0", "[Loader]") {
 
   REQUIRE(1 == shapes.size());
   REQUIRE(8 == shapes[0].mesh.tags.size());
+}
+
+TEST_CASE("pbr", "[Loader]") {
+
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "../models/pbr-mat-ext.obj", gMtlBasePath, /*triangulate*/false);
+
+  if (!err.empty()) {
+    std::cerr << err << std::endl;
+  }
+  REQUIRE(true == ret);
+  REQUIRE(1 == materials.size());
+  REQUIRE(0.2 == Approx(materials[0].roughness));
+  REQUIRE(0.3 == Approx(materials[0].metallic));
+  REQUIRE(0.4 == Approx(materials[0].sheen));
+  REQUIRE(0.5 == Approx(materials[0].clearcoat_thickness));
+  REQUIRE(0.6 == Approx(materials[0].clearcoat_roughness));
+  REQUIRE(0.7 == Approx(materials[0].anisotropy));
+  REQUIRE(0.8 == Approx(materials[0].anisotropy_rotation));
+  REQUIRE(0 == materials[0].roughness_texname.compare("roughness.tex"));
+  REQUIRE(0 == materials[0].metallic_texname.compare("metallic.tex"));
+  REQUIRE(0 == materials[0].sheen_texname.compare("sheen.tex"));
+  REQUIRE(0 == materials[0].emissive_texname.compare("emissive.tex"));
+  REQUIRE(0 == materials[0].normal_texname.compare("normalmap.tex"));
 }
 
 TEST_CASE("stream_load", "[Stream]") {
