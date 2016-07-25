@@ -91,6 +91,22 @@ typedef struct {
   std::string bump_texname;                // map_bump, bump
   std::string displacement_texname;        // disp
   std::string alpha_texname;               // map_d
+
+  // PBR extension
+  // http://exocortex.com/blog/extending_wavefront_mtl_to_support_pbr
+  float roughness;                // [0, 1] default 0
+  float metallic;                 // [0, 1] default 0
+  float sheen;                    // [0, 1] default 0
+  float clearcoat_thickness;      // [0, 1] default 0
+  float clearcoat_roughness;      // [0, 1] default 0
+  float anisotropy;               // aniso. [0, 1] default 0
+  float anisotropy_rotation;      // anisor. [0, 1] default 0
+  std::string roughness_texname;  // map_Pr
+  std::string metallic_texname;   // map_Pm
+  std::string sheen_texname;      // map_Ps
+  std::string emissive_texname;   // map_Ke
+  std::string normal_texname;     // norm. For normal mapping.
+
   std::map<std::string, std::string> unknown_parameter;
 } material_t;
 
@@ -156,7 +172,6 @@ typedef struct callback_t_ {
         mtllib_cb(NULL),
         group_cb(NULL),
         object_cb(NULL) {}
-
 } callback_t;
 
 class MaterialReader {
@@ -563,6 +578,20 @@ static void InitMaterial(material_t *material) {
   material->dissolve = 1.f;
   material->shininess = 1.f;
   material->ior = 1.f;
+
+  material->roughness = 0.f;
+  material->metallic = 0.f;
+  material->sheen = 0.f;
+  material->clearcoat_thickness = 0.f;
+  material->clearcoat_roughness = 0.f;
+  material->anisotropy_rotation = 0.f;
+  material->anisotropy = 0.f;
+  material->roughness_texname = "";
+  material->metallic_texname = "";
+  material->sheen_texname = "";
+  material->emissive_texname = "";
+  material->normal_texname = "";
+
   material->unknown_parameter.clear();
 }
 
@@ -779,6 +808,55 @@ void LoadMtl(std::map<std::string, int> *material_map,
       continue;
     }
 
+    // PBR: roughness
+    if (token[0] == 'P' && token[1] == 'r' && IS_SPACE(token[2])) {
+      token += 2;
+      material.roughness = parseFloat(&token);
+      continue;
+    }
+
+    // PBR: metallic
+    if (token[0] == 'P' && token[1] == 'm' && IS_SPACE(token[2])) {
+      token += 2;
+      material.metallic = parseFloat(&token);
+      continue;
+    }
+
+    // PBR: sheen
+    if (token[0] == 'P' && token[1] == 's' && IS_SPACE(token[2])) {
+      token += 2;
+      material.sheen = parseFloat(&token);
+      continue;
+    }
+
+    // PBR: clearcoat thickness
+    if (token[0] == 'P' && token[1] == 'c' && IS_SPACE(token[2])) {
+      token += 2;
+      material.clearcoat_thickness = parseFloat(&token);
+      continue;
+    }
+
+    // PBR: clearcoat roughness
+    if ((0 == strncmp(token, "Pcr", 3)) && IS_SPACE(token[3])) {
+      token += 4;
+      material.clearcoat_roughness = parseFloat(&token);
+      continue;
+    }
+
+    // PBR: anisotropy
+    if ((0 == strncmp(token, "aniso", 5)) && IS_SPACE(token[5])) {
+      token += 6;
+      material.anisotropy = parseFloat(&token);
+      continue;
+    }
+
+    // PBR: anisotropy rotation
+    if ((0 == strncmp(token, "anisor", 6)) && IS_SPACE(token[6])) {
+      token += 7;
+      material.anisotropy_rotation = parseFloat(&token);
+      continue;
+    }
+
     // ambient texture
     if ((0 == strncmp(token, "map_Ka", 6)) && IS_SPACE(token[6])) {
       token += 7;
@@ -832,6 +910,41 @@ void LoadMtl(std::map<std::string, int> *material_map,
     if ((0 == strncmp(token, "disp", 4)) && IS_SPACE(token[4])) {
       token += 5;
       material.displacement_texname = token;
+      continue;
+    }
+
+    // PBR: roughness texture
+    if ((0 == strncmp(token, "map_Pr", 6)) && IS_SPACE(token[6])) {
+      token += 7;
+      material.roughness_texname = token;
+      continue;
+    }
+
+    // PBR: metallic texture
+    if ((0 == strncmp(token, "map_Pm", 6)) && IS_SPACE(token[6])) {
+      token += 7;
+      material.metallic_texname = token;
+      continue;
+    }
+
+    // PBR: sheen texture
+    if ((0 == strncmp(token, "map_Ps", 6)) && IS_SPACE(token[6])) {
+      token += 7;
+      material.sheen_texname = token;
+      continue;
+    }
+
+    // PBR: emissive texture
+    if ((0 == strncmp(token, "map_Ke", 6)) && IS_SPACE(token[6])) {
+      token += 7;
+      material.emissive_texname = token;
+      continue;
+    }
+
+    // PBR: normal map texture
+    if ((0 == strncmp(token, "norm", 4)) && IS_SPACE(token[4])) {
+      token += 5;
+      material.normal_texname = token;
       continue;
     }
 
