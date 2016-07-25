@@ -62,9 +62,9 @@ THE SOFTWARE.
 #ifndef TINY_OBJ_LOADER_H_
 #define TINY_OBJ_LOADER_H_
 
+#include <map>
 #include <string>
 #include <vector>
-#include <map>
 
 namespace tinyobj {
 
@@ -112,10 +112,11 @@ typedef struct {
 
 typedef struct {
   std::vector<index_t> indices;
-  std::vector<unsigned char>
-      num_face_vertices;               // The number of vertices per face. 3 = polygon, 4 = quad, ... Up to 255.
-  std::vector<int> material_ids;  // per-face material ID
-  std::vector<tag_t> tags;        // SubD tag
+  std::vector<unsigned char> num_face_vertices;  // The number of vertices per
+                                                 // face. 3 = polygon, 4 = quad,
+                                                 // ... Up to 255.
+  std::vector<int> material_ids;                 // per-face material ID
+  std::vector<tag_t> tags;                       // SubD tag
 } mesh_t;
 
 typedef struct {
@@ -223,12 +224,12 @@ void LoadMtl(std::map<std::string, int> *material_map,
 }  // namespace tinyobj
 
 #ifdef TINYOBJLOADER_IMPLEMENTATION
-#include <cstdlib>
-#include <cstring>
 #include <cassert>
+#include <cctype>
 #include <cmath>
 #include <cstddef>
-#include <cctype>
+#include <cstdlib>
+#include <cstring>
 #include <utility>
 
 #include <fstream>
@@ -616,7 +617,8 @@ static bool exportFaceGroupToShape(
         shape->mesh.indices.push_back(idx);
       }
 
-      shape->mesh.num_face_vertices.push_back(static_cast<unsigned char>(npolys));
+      shape->mesh.num_face_vertices.push_back(
+          static_cast<unsigned char>(npolys));
       shape->mesh.material_ids.push_back(material_id);  // per face
     }
   }
@@ -926,12 +928,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
   shape_t shape;
 
-  int maxchars = 8192;                                   // Alloc enough size.
-  std::vector<char> buf(static_cast<size_t>(maxchars));  // Alloc enough size.
   while (inStream->peek() != -1) {
-    inStream->getline(&buf[0], maxchars);
-
-    std::string linebuf(&buf[0]);
+    std::string linebuf;
+    std::getline((*inStream), linebuf);
 
     // Trim newline '\r\n' or '\n'
     if (linebuf.size() > 0) {
@@ -1374,30 +1373,29 @@ bool LoadObjWithCallback(void *user_data, const callback_t &callback,
         } else {
           callback.group_cb(user_data, NULL, 0);
         }
-
       }
 
       continue;
-		}
+    }
 
-		// object name
-		if (token[0] == 'o' && IS_SPACE((token[1]))) {
-			// @todo { multiple object name? }
-			char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
-			token += 2;
+    // object name
+    if (token[0] == 'o' && IS_SPACE((token[1]))) {
+      // @todo { multiple object name? }
+      char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
+      token += 2;
 #ifdef _MSC_VER
-			sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
+      sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
 #else
-			sscanf(token, "%s", namebuf);
+      sscanf(token, "%s", namebuf);
 #endif
-			std::string name = std::string(namebuf);
+      std::string name = std::string(namebuf);
 
-			if (callback.object_cb) {
-				callback.object_cb(user_data, name.c_str());
-			}
+      if (callback.object_cb) {
+        callback.object_cb(user_data, name.c_str());
+      }
 
-			continue;
-		}
+      continue;
+    }
 
 #if 0  // @todo
     if (token[0] == 't' && IS_SPACE(token[1])) {
