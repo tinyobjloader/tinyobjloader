@@ -151,11 +151,16 @@ typedef struct callback_t_ {
   void (*vertex_cb)(void *user_data, float x, float y, float z);
   void (*normal_cb)(void *user_data, float x, float y, float z);
   void (*texcoord_cb)(void *user_data, float x, float y);
-  // -2147483648 will be passed for undefined index
-  void (*index_cb)(void *user_data, int v_idx, int vn_idx, int vt_idx);
-  // `name` material name, `materialId` = the array index of material_t[]. -1 if
+
+  // called per 'f' line. num_indices is the number of face indices(e.g. 3 for
+  // triangle, 4 for quad)
+  // -2147483648(-INT_MAX) will be passed for undefined index in index_t
+  // members.
+  void (*index_cb)(void *user_data, index_t *indices, int num_indices);
+  // `name` material name, `material_id` = the array index of material_t[]. -1
+  // if
   // a material not found in .mtl
-  void (*usemtl_cb)(void *user_data, const char *name, int materialId);
+  void (*usemtl_cb)(void *user_data, const char *name, int material_id);
   // `materials` = parsed material data.
   void (*mtllib_cb)(void *user_data, const material_t *materials,
                     int num_materials);
@@ -216,9 +221,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 /// `callback.mtllib_cb`.
 /// Returns true when loading .obj/.mtl become success.
 /// Returns warning and error message into `err`
-/// 'mtl_basepath' is optional, and used for base path for .mtl file.
-/// 'triangulate' is optional, and used whether triangulate polygon face in .obj
-/// or not.
+/// See `examples/callback_api/` for how to use this function.
 bool LoadObjWithCallback(void *user_data, const callback_t &callback,
                          std::string *err, std::istream *inStream,
                          MaterialReader *readMatFn);
@@ -1312,14 +1315,11 @@ bool LoadObjWithCallback(void *user_data, const callback_t &callback,
 
   // material
   std::map<std::string, int> material_map;
-  int materialId = -1;  // -1 = invalid
+  int material_id = -1;  // -1 = invalid
 
-  int maxchars = 8192;                                   // Alloc enough size.
-  std::vector<char> buf(static_cast<size_t>(maxchars));  // Alloc enough size.
   while (inStream->peek() != -1) {
-    inStream->getline(&buf[0], maxchars);
-
-    std::string linebuf(&buf[0]);
+    std::string linebuf;
+    std::getline(*inStream, linebuf);
 
     // Trim newline '\r\n' or '\n'
     if (linebuf.size() > 0) {
@@ -1383,13 +1383,22 @@ bool LoadObjWithCallback(void *user_data, const callback_t &callback,
       token += 2;
       token += strspn(token, " \t");
 
+      std::vector<index_t> indices;
       while (!IS_NEW_LINE(token[0])) {
         vertex_index vi = parseRawTriple(&token);
-        if (callback.index_cb) {
-          callback.index_cb(user_data, vi.v_idx, vi.vn_idx, vi.vt_idx);
-        }
+
+        index_t idx;
+        idx.vertex_index = vi.v_idx;
+        idx.normal_index = vi.vn_idx;
+        idx.texcoord_index = vi.vt_idx;
+
+        indices.push_back(idx);
         size_t n = strspn(token, " \t\r");
         token += n;
+      }
+
+      if (callback.index_cb && indices.size() > 0) {
+        callback.index_cb(user_data, &indices.at(0), indices.size());
       }
 
       continue;
@@ -1412,12 +1421,12 @@ bool LoadObjWithCallback(void *user_data, const callback_t &callback,
         // { error!! material not found }
       }
 
-      if (newMaterialId != materialId) {
-        materialId = newMaterialId;
+      if (newMaterialId != material_id) {
+        material_id = newMaterialId;
       }
 
       if (callback.usemtl_cb) {
-        callback.usemtl_cb(user_data, namebuf, materialId);
+        callback.usemtl_cb(user_data, namebuf, material_id);
       }
 
       continue;

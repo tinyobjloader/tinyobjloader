@@ -1,29 +1,34 @@
+//
+// An example of how to use callback API.
+// This example is minimum and incomplete. Just showing the usage of callback
+// API.
+// You need to implement your own Mesh data struct constrution based on this
+// example in practical.
+//
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
+#include <cassert>
 #include <cstdio>
 #include <cstdlib>
-#include <cassert>
+#include <fstream>
 #include <iostream>
 #include <sstream>
-#include <fstream>
 
-typedef struct
-{
+typedef struct {
   std::vector<float> vertices;
   std::vector<float> normals;
   std::vector<float> texcoords;
-  std::vector<int>   v_indices;
-  std::vector<int>   vn_indices;
-  std::vector<int>   vt_indices;
+  std::vector<int> v_indices;
+  std::vector<int> vn_indices;
+  std::vector<int> vt_indices;
 
   std::vector<tinyobj::material_t> materials;
 
 } MyMesh;
 
-void vertex_cb(void *user_data, float x, float y, float z)
-{
-  MyMesh *mesh = reinterpret_cast<MyMesh*>(user_data);
+void vertex_cb(void *user_data, float x, float y, float z) {
+  MyMesh *mesh = reinterpret_cast<MyMesh *>(user_data);
   printf("v[%ld] = %f, %f, %f\n", mesh->vertices.size() / 3, x, y, z);
 
   mesh->vertices.push_back(x);
@@ -31,9 +36,8 @@ void vertex_cb(void *user_data, float x, float y, float z)
   mesh->vertices.push_back(z);
 }
 
-void normal_cb(void *user_data, float x, float y, float z)
-{
-  MyMesh *mesh = reinterpret_cast<MyMesh*>(user_data);
+void normal_cb(void *user_data, float x, float y, float z) {
+  MyMesh *mesh = reinterpret_cast<MyMesh *>(user_data);
   printf("vn[%ld] = %f, %f, %f\n", mesh->normals.size() / 3, x, y, z);
 
   mesh->normals.push_back(x);
@@ -41,49 +45,55 @@ void normal_cb(void *user_data, float x, float y, float z)
   mesh->normals.push_back(z);
 }
 
-void texcoord_cb(void *user_data, float x, float y)
-{
-  MyMesh *mesh = reinterpret_cast<MyMesh*>(user_data);
+void texcoord_cb(void *user_data, float x, float y) {
+  MyMesh *mesh = reinterpret_cast<MyMesh *>(user_data);
   printf("vt[%ld] = %f, %f\n", mesh->texcoords.size() / 2, x, y);
 
   mesh->texcoords.push_back(x);
   mesh->texcoords.push_back(y);
 }
 
-void index_cb(void *user_data, int v_idx, int vn_idx, int vt_idx)
-{
-  // NOTE: the value of each index is raw value. 
+void index_cb(void *user_data, tinyobj::index_t *indices, int num_indices) {
+  // NOTE: the value of each index is raw value.
   // For example, the application must manually adjust the index with offset
-  // (e.g. v_indices.size()) when the value is negative(relative index).
+  // (e.g. v_indices.size()) when the value is negative(whic means relative
+  // index).
+  // Also, the first index starts with 1, not 0.
   // See fixIndex() function in tiny_obj_loader.h for details.
-  // Also, -2147483648(0x80000000) is set for the index value which does not exist in .obj 
-  MyMesh *mesh = reinterpret_cast<MyMesh*>(user_data);
-  printf("idx[%ld] = %d, %d, %d\n", mesh->v_indices.size(), v_idx, vn_idx, vt_idx);
+  // Also, -2147483648(0x80000000 = -INT_MAX) is set for the index value which
+  // does not exist in .obj
+  MyMesh *mesh = reinterpret_cast<MyMesh *>(user_data);
 
-  if (v_idx != 0x80000000) {
-    mesh->v_indices.push_back(v_idx);
-  }
-  if (vn_idx != 0x80000000) {
-    mesh->vn_indices.push_back(vn_idx);
-  }
-  if (vt_idx != 0x80000000) {
-    mesh->vt_indices.push_back(vt_idx);
+  for (int i = 0; i < num_indices; i++) {
+    tinyobj::index_t idx = indices[i];
+    printf("idx[%ld] = %d, %d, %d\n", mesh->v_indices.size(), idx.vertex_index,
+           idx.normal_index, idx.texcoord_index);
+
+    if (idx.vertex_index != 0x80000000) {
+      mesh->v_indices.push_back(idx.vertex_index);
+    }
+    if (idx.normal_index != 0x80000000) {
+      mesh->vn_indices.push_back(idx.normal_index);
+    }
+    if (idx.texcoord_index != 0x80000000) {
+      mesh->vt_indices.push_back(idx.texcoord_index);
+    }
   }
 }
 
-void usemtl_cb(void *user_data, const char* name, int material_idx)
-{
-  MyMesh *mesh = reinterpret_cast<MyMesh*>(user_data);
+void usemtl_cb(void *user_data, const char *name, int material_idx) {
+  MyMesh *mesh = reinterpret_cast<MyMesh *>(user_data);
   if ((material_idx > -1) && (material_idx < mesh->materials.size())) {
-    printf("usemtl. material id = %d(name = %s)\n", material_idx, mesh->materials[material_idx].name.c_str());
+    printf("usemtl. material id = %d(name = %s)\n", material_idx,
+           mesh->materials[material_idx].name.c_str());
   } else {
     printf("usemtl. name = %s\n", name);
   }
 }
 
-void mtllib_cb(void *user_data, const tinyobj::material_t *materials, int num_materials)
-{
-  MyMesh *mesh = reinterpret_cast<MyMesh*>(user_data);
+void mtllib_cb(void *user_data, const tinyobj::material_t *materials,
+               int num_materials) {
+  MyMesh *mesh = reinterpret_cast<MyMesh *>(user_data);
   printf("mtllib. # of materials = %d\n", num_materials);
 
   for (int i = 0; i < num_materials; i++) {
@@ -91,9 +101,8 @@ void mtllib_cb(void *user_data, const tinyobj::material_t *materials, int num_ma
   }
 }
 
-void group_cb(void *user_data, const char **names, int num_names)
-{
-  //MyMesh *mesh = reinterpret_cast<MyMesh*>(user_data);
+void group_cb(void *user_data, const char **names, int num_names) {
+  // MyMesh *mesh = reinterpret_cast<MyMesh*>(user_data);
   printf("group : name = \n");
 
   for (int i = 0; i < num_names; i++) {
@@ -101,16 +110,12 @@ void group_cb(void *user_data, const char **names, int num_names)
   }
 }
 
-void object_cb(void *user_data, const char *name)
-{
-  //MyMesh *mesh = reinterpret_cast<MyMesh*>(user_data);
+void object_cb(void *user_data, const char *name) {
+  // MyMesh *mesh = reinterpret_cast<MyMesh*>(user_data);
   printf("object : name = %s\n", name);
-
 }
 
-int
-main(int argc, char** argv)
-{
+int main(int argc, char **argv) {
   tinyobj::callback_t cb;
   cb.vertex_cb = vertex_cb;
   cb.normal_cb = normal_cb;
@@ -131,7 +136,7 @@ main(int argc, char** argv)
   }
 
   tinyobj::MaterialFileReader mtlReader("../../models/");
-  
+
   bool ret = tinyobj::LoadObjWithCallback(&mesh, cb, &err, &ifs, &mtlReader);
 
   if (!err.empty()) {
