@@ -24,8 +24,6 @@ THE SOFTWARE.
 
 //
 // version 1.0.0 : Change data structure. Change license from BSD to MIT.
-// Support different index for
-// vertex/normal/texcoord(#73, #39)
 // version 0.9.20: Fixes creating per-face material using `usemtl`(#68)
 // version 0.9.17: Support n-polygon and crease tag(OpenSubdiv extension)
 // version 0.9.16: Make tinyobjloader header-only
@@ -152,7 +150,8 @@ typedef struct callback_t_ {
   void (*vertex_cb)(void *user_data, float x, float y, float z, float w);
   void (*normal_cb)(void *user_data, float x, float y, float z);
 
-  // y and z are optional and set to 0 if there is no `y` and/or `z` item(s) in `vt` line.
+  // y and z are optional and set to 0 if there is no `y` and/or `z` item(s) in
+  // `vt` line.
   void (*texcoord_cb)(void *user_data, float x, float y, float z);
 
   // called per 'f' line. num_indices is the number of face indices(e.g. 3 for
@@ -225,8 +224,10 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 /// Returns true when loading .obj/.mtl become success.
 /// Returns warning and error message into `err`
 /// See `examples/callback_api/` for how to use this function.
-bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback, void *user_data = NULL,
-                         MaterialReader *readMatFn = NULL, std::string *err = NULL);
+bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
+                         void *user_data = NULL,
+                         MaterialReader *readMatFn = NULL,
+                         std::string *err = NULL);
 
 /// Loads object from a std::istream, uses GetMtlIStreamFn to retrieve
 /// std::istream for materials.
@@ -1313,7 +1314,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   return true;
 }
 
-bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback, void *user_data /*= NULL*/,
+bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
+                         void *user_data /*= NULL*/,
                          MaterialReader *readMatFn /*= NULL*/,
                          std::string *err /*= NULL*/) {
   std::stringstream errss;
@@ -1360,7 +1362,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback, voi
     // vertex
     if (token[0] == 'v' && IS_SPACE((token[1]))) {
       token += 2;
-      float x, y, z, w; // w is optional. default = 1.0
+      float x, y, z, w;  // w is optional. default = 1.0
       parseV(&x, &y, &z, &w, &token);
       if (callback.vertex_cb) {
         callback.vertex_cb(user_data, x, y, z, w);
@@ -1382,7 +1384,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback, voi
     // texcoord
     if (token[0] == 'v' && token[1] == 't' && IS_SPACE((token[2]))) {
       token += 3;
-      float x, y, z; // y and z are optional. default = 0.0
+      float x, y, z;  // y and z are optional. default = 0.0
       parseFloat3(&x, &y, &z, &token);
       if (callback.texcoord_cb) {
         callback.texcoord_cb(user_data, x, y, z);
@@ -1410,7 +1412,8 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback, voi
       }
 
       if (callback.index_cb && indices.size() > 0) {
-        callback.index_cb(user_data, &indices.at(0), (int)indices.size());
+        callback.index_cb(user_data, &indices.at(0),
+                          static_cast<int>(indices.size()));
       }
 
       continue;
@@ -1421,7 +1424,8 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback, voi
       char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
       token += 7;
 #ifdef _MSC_VER
-      sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
+      sscanf_s(token, "%s", namebuf,
+               static_cast<unsigned int>(_countof(namebuf)));
 #else
       sscanf(token, "%s", namebuf);
 #endif
@@ -1446,31 +1450,31 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback, voi
 
     // load mtl
     if ((0 == strncmp(token, "mtllib", 6)) && IS_SPACE((token[6]))) {
-        if (readMatFn) {
-            char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
-            token += 7;
+      if (readMatFn) {
+        char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
+        token += 7;
 #ifdef _MSC_VER
-            sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
+        sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
 #else
-            sscanf(token, "%s", namebuf);
+        sscanf(token, "%s", namebuf);
 #endif
 
-            std::string err_mtl;
-            materials.clear();
-            bool ok = (*readMatFn)(namebuf, &materials, &material_map, &err_mtl);
-            if (err) {
-                (*err) += err_mtl;
-            }
-
-            if (!ok) {
-                return false;
-            }
-
-            if (callback.mtllib_cb) {
-                callback.mtllib_cb(user_data, &materials.at(0),
-                    static_cast<int>(materials.size()));
-            }
+        std::string err_mtl;
+        materials.clear();
+        bool ok = (*readMatFn)(namebuf, &materials, &material_map, &err_mtl);
+        if (err) {
+          (*err) += err_mtl;
         }
+
+        if (!ok) {
+          return false;
+        }
+
+        if (callback.mtllib_cb) {
+          callback.mtllib_cb(user_data, &materials.at(0),
+                             static_cast<int>(materials.size()));
+        }
+      }
 
       continue;
     }
@@ -1522,10 +1526,10 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback, voi
 #else
       sscanf(token, "%s", namebuf);
 #endif
-      std::string name = std::string(namebuf);
+      std::string object_name = std::string(namebuf);
 
       if (callback.object_cb) {
-        callback.object_cb(user_data, name.c_str());
+        callback.object_cb(user_data, object_name.c_str());
       }
 
       continue;
