@@ -225,9 +225,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 /// Returns true when loading .obj/.mtl become success.
 /// Returns warning and error message into `err`
 /// See `examples/callback_api/` for how to use this function.
-bool LoadObjWithCallback(void *user_data, const callback_t &callback,
-                         std::string *err, std::istream *inStream,
-                         MaterialReader *readMatFn);
+bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback, void *user_data = NULL,
+                         MaterialReader *readMatFn = NULL, std::string *err = NULL);
 
 /// Loads object from a std::istream, uses GetMtlIStreamFn to retrieve
 /// std::istream for materials.
@@ -1314,9 +1313,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   return true;
 }
 
-bool LoadObjWithCallback(void *user_data, const callback_t &callback,
-                         std::string *err, std::istream *inStream,
-                         MaterialReader *readMatFn) {
+bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback, void *user_data /*= NULL*/,
+                         MaterialReader *readMatFn /*= NULL*/,
+                         std::string *err /*= NULL*/) {
   std::stringstream errss;
 
   // material
@@ -1331,8 +1330,8 @@ bool LoadObjWithCallback(void *user_data, const callback_t &callback,
   std::vector<const char *> names_out;
 
   std::string linebuf;
-  while (inStream->peek() != -1) {
-    std::getline(*inStream, linebuf);
+  while (inStream.peek() != -1) {
+    std::getline(inStream, linebuf);
 
     // Trim newline '\r\n' or '\n'
     if (linebuf.size() > 0) {
@@ -1411,7 +1410,7 @@ bool LoadObjWithCallback(void *user_data, const callback_t &callback,
       }
 
       if (callback.index_cb && indices.size() > 0) {
-        callback.index_cb(user_data, &indices.at(0), indices.size());
+        callback.index_cb(user_data, &indices.at(0), (int)indices.size());
       }
 
       continue;
