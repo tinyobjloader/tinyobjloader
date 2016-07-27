@@ -1323,8 +1323,15 @@ bool LoadObjWithCallback(void *user_data, const callback_t &callback,
   std::map<std::string, int> material_map;
   int material_id = -1;  // -1 = invalid
 
+  std::vector<index_t> indices;
+  std::vector<material_t> materials;
+  std::vector<std::string> names;
+  names.reserve(2);
+  std::string name;
+  std::vector<const char *> names_out;
+
+  std::string linebuf;
   while (inStream->peek() != -1) {
-    std::string linebuf;
     std::getline(*inStream, linebuf);
 
     // Trim newline '\r\n' or '\n'
@@ -1389,7 +1396,7 @@ bool LoadObjWithCallback(void *user_data, const callback_t &callback,
       token += 2;
       token += strspn(token, " \t");
 
-      std::vector<index_t> indices;
+      indices.clear();
       while (!IS_NEW_LINE(token[0])) {
         vertex_index vi = parseRawTriple(&token);
 
@@ -1440,37 +1447,38 @@ bool LoadObjWithCallback(void *user_data, const callback_t &callback,
 
     // load mtl
     if ((0 == strncmp(token, "mtllib", 6)) && IS_SPACE((token[6]))) {
-      char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
-      token += 7;
+        if (readMatFn) {
+            char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
+            token += 7;
 #ifdef _MSC_VER
-      sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
+            sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
 #else
-      sscanf(token, "%s", namebuf);
+            sscanf(token, "%s", namebuf);
 #endif
 
-      std::string err_mtl;
-      std::vector<material_t> materials;
-      bool ok = (*readMatFn)(namebuf, &materials, &material_map, &err_mtl);
-      if (err) {
-        (*err) += err_mtl;
-      }
+            std::string err_mtl;
+            materials.clear();
+            bool ok = (*readMatFn)(namebuf, &materials, &material_map, &err_mtl);
+            if (err) {
+                (*err) += err_mtl;
+            }
 
-      if (!ok) {
-        return false;
-      }
+            if (!ok) {
+                return false;
+            }
 
-      if (callback.mtllib_cb) {
-        callback.mtllib_cb(user_data, &materials.at(0),
-                           static_cast<int>(materials.size()));
-      }
+            if (callback.mtllib_cb) {
+                callback.mtllib_cb(user_data, &materials.at(0),
+                    static_cast<int>(materials.size()));
+            }
+        }
 
       continue;
     }
 
     // group name
     if (token[0] == 'g' && IS_SPACE((token[1]))) {
-      std::vector<std::string> names;
-      names.reserve(2);
+      names.clear();
 
       while (!IS_NEW_LINE(token[0])) {
         std::string str = parseString(&token);
@@ -1480,23 +1488,22 @@ bool LoadObjWithCallback(void *user_data, const callback_t &callback,
 
       assert(names.size() > 0);
 
-      std::string name;
       // names[0] must be 'g', so skip the 0th element.
       if (names.size() > 1) {
         name = names[1];
       } else {
-        name = "";
+        name.clear();
       }
 
       if (callback.group_cb) {
         if (names.size() > 1) {
           // create const char* array.
-          std::vector<const char *> tmp(names.size() - 1);
-          for (size_t j = 0; j < tmp.size(); j++) {
-            tmp[j] = names[j + 1].c_str();
+          names_out.resize(names.size() - 1);
+          for (size_t j = 0; j < names_out.size(); j++) {
+            names_out[j] = names[j + 1].c_str();
           }
-          callback.group_cb(user_data, &tmp.at(0),
-                            static_cast<int>(tmp.size()));
+          callback.group_cb(user_data, &names_out.at(0),
+                            static_cast<int>(names_out.size()));
 
         } else {
           callback.group_cb(user_data, NULL, 0);
