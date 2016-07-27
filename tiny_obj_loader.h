@@ -1441,6 +1441,7 @@ bool LoadObjWithCallback(void *user_data, const callback_t &callback,
 
     // load mtl
     if ((0 == strncmp(token, "mtllib", 6)) && IS_SPACE((token[6]))) {
+        if (readMatFn) {
             char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
             token += 7;
 #ifdef _MSC_VER
@@ -1464,6 +1465,7 @@ bool LoadObjWithCallback(void *user_data, const callback_t &callback,
                 callback.mtllib_cb(user_data, &materials.at(0),
                     static_cast<int>(materials.size()));
             }
+        }
 
       continue;
     }
