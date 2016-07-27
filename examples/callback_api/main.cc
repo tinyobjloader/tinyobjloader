@@ -27,13 +27,14 @@ typedef struct {
 
 } MyMesh;
 
-void vertex_cb(void *user_data, float x, float y, float z) {
+void vertex_cb(void *user_data, float x, float y, float z, float w) {
   MyMesh *mesh = reinterpret_cast<MyMesh *>(user_data);
-  printf("v[%ld] = %f, %f, %f\n", mesh->vertices.size() / 3, x, y, z);
+  printf("v[%ld] = %f, %f, %f (w %f)\n", mesh->vertices.size() / 3, x, y, z, w);
 
   mesh->vertices.push_back(x);
   mesh->vertices.push_back(y);
   mesh->vertices.push_back(z);
+  // Discard w
 }
 
 void normal_cb(void *user_data, float x, float y, float z) {
@@ -45,12 +46,13 @@ void normal_cb(void *user_data, float x, float y, float z) {
   mesh->normals.push_back(z);
 }
 
-void texcoord_cb(void *user_data, float x, float y) {
+void texcoord_cb(void *user_data, float x, float y, float z) {
   MyMesh *mesh = reinterpret_cast<MyMesh *>(user_data);
-  printf("vt[%ld] = %f, %f\n", mesh->texcoords.size() / 2, x, y);
+  printf("vt[%ld] = %f, %f, %f\n", mesh->texcoords.size() / 3, x, y, z);
 
   mesh->texcoords.push_back(x);
   mesh->texcoords.push_back(y);
+  mesh->texcoords.push_back(z);
 }
 
 void index_cb(void *user_data, tinyobj::index_t *indices, int num_indices) {
@@ -128,7 +130,11 @@ int main(int argc, char **argv) {
 
   MyMesh mesh;
   std::string err;
-  std::ifstream ifs("../../models/cornell_box.obj");
+  std::string filename = "../../models/cornell_box.obj";
+  if (argc > 1) {
+    filename = std::string(argv[1]);
+  }
+  std::ifstream ifs(filename.c_str());
 
   if (ifs.fail()) {
     std::cerr << "file not found." << std::endl;

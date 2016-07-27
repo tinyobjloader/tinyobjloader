@@ -148,9 +148,12 @@ typedef struct {
 } attrib_t;
 
 typedef struct callback_t_ {
-  void (*vertex_cb)(void *user_data, float x, float y, float z);
+  // W is optional and set to 1 if there is no `w` item in `v` line
+  void (*vertex_cb)(void *user_data, float x, float y, float z, float w);
   void (*normal_cb)(void *user_data, float x, float y, float z);
-  void (*texcoord_cb)(void *user_data, float x, float y);
+
+  // y and z are optional and set to 0 if there is no `y` and/or `z` item(s) in `vt` line.
+  void (*texcoord_cb)(void *user_data, float x, float y, float z);
 
   // called per 'f' line. num_indices is the number of face indices(e.g. 3 for
   // triangle, 4 for quad)
@@ -443,18 +446,13 @@ fail:
   return false;
 }
 
-static inline float parseFloat(const char **token) {
+static inline float parseFloat(const char **token, double default_value = 0.0) {
   (*token) += strspn((*token), " \t");
-#ifdef TINY_OBJ_LOADER_OLD_FLOAT_PARSER
-  float f = static_cast<float>(atof(*token));
-  (*token) += strcspn((*token), " \t\r");
-#else
   const char *end = (*token) + strcspn((*token), " \t\r");
-  double val = 0.0;
+  double val = default_value;
   tryParseDouble((*token), end, &val);
   float f = static_cast<float>(val);
   (*token) = end;
-#endif
   return f;
 }
 
@@ -468,6 +466,14 @@ static inline void parseFloat3(float *x, float *y, float *z,
   (*x) = parseFloat(token);
   (*y) = parseFloat(token);
   (*z) = parseFloat(token);
+}
+
+static inline void parseV(float *x, float *y, float *z, float *w,
+                          const char **token) {
+  (*x) = parseFloat(token);
+  (*y) = parseFloat(token);
+  (*z) = parseFloat(token);
+  (*w) = parseFloat(token, 1.0);
 }
 
 static tag_sizes parseTagTriple(const char **token) {
@@ -1348,10 +1354,10 @@ bool LoadObjWithCallback(void *user_data, const callback_t &callback,
     // vertex
     if (token[0] == 'v' && IS_SPACE((token[1]))) {
       token += 2;
-      float x, y, z;
-      parseFloat3(&x, &y, &z, &token);
+      float x, y, z, w; // w is optional. default = 1.0
+      parseV(&x, &y, &z, &w, &token);
       if (callback.vertex_cb) {
-        callback.vertex_cb(user_data, x, y, z);
+        callback.vertex_cb(user_data, x, y, z, w);
       }
       continue;
     }
@@ -1370,10 +1376,10 @@ bool LoadObjWithCallback(void *user_data, const callback_t &callback,
     // texcoord
     if (token[0] == 'v' && token[1] == 't' && IS_SPACE((token[2]))) {
       token += 3;
-      float x, y;
-      parseFloat2(&x, &y, &token);
+      float x, y, z; // y and z are optional. default = 0.0
+      parseFloat3(&x, &y, &z, &token);
       if (callback.texcoord_cb) {
-        callback.texcoord_cb(user_data, x, y);
+        callback.texcoord_cb(user_data, x, y, z);
       }
       continue;
     }
