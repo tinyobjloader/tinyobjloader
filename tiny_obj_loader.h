@@ -156,8 +156,7 @@ typedef struct callback_t_ {
 
   // called per 'f' line. num_indices is the number of face indices(e.g. 3 for
   // triangle, 4 for quad)
-  // -2147483648(-INT_MAX) will be passed for undefined index in index_t
-  // members.
+  // 0 will be passed for undefined index in index_t members.
   void (*index_cb)(void *user_data, index_t *indices, int num_indices);
   // `name` material name, `material_id` = the array index of material_t[]. -1
   // if
