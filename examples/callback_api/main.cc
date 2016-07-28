@@ -62,7 +62,7 @@ void index_cb(void *user_data, tinyobj::index_t *indices, int num_indices) {
   // index).
   // Also, the first index starts with 1, not 0.
   // See fixIndex() function in tiny_obj_loader.h for details.
-  // Also, -2147483648(0x80000000 = -INT_MAX) is set for the index value which
+  // Also, 0 is set for the index value which
   // does not exist in .obj
   MyMesh *mesh = reinterpret_cast<MyMesh *>(user_data);
 
@@ -71,13 +71,13 @@ void index_cb(void *user_data, tinyobj::index_t *indices, int num_indices) {
     printf("idx[%ld] = %d, %d, %d\n", mesh->v_indices.size(), idx.vertex_index,
            idx.normal_index, idx.texcoord_index);
 
-    if (idx.vertex_index != 0x80000000) {
+    if (idx.vertex_index != 0) {
       mesh->v_indices.push_back(idx.vertex_index);
     }
-    if (idx.normal_index != 0x80000000) {
+    if (idx.normal_index != 0) {
       mesh->vn_indices.push_back(idx.normal_index);
     }
-    if (idx.texcoord_index != 0x80000000) {
+    if (idx.texcoord_index != 0) {
       mesh->vt_indices.push_back(idx.texcoord_index);
     }
   }
@@ -143,7 +143,7 @@ int main(int argc, char **argv) {
 
   tinyobj::MaterialFileReader mtlReader("../../models/");
 
-  bool ret = tinyobj::LoadObjWithCallback(&mesh, cb, &err, &ifs, &mtlReader);
+  bool ret = tinyobj::LoadObjWithCallback(ifs, cb, &mesh, &mtlReader, &err);
 
   if (!err.empty()) {
     std::cerr << err << std::endl;
