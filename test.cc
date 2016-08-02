@@ -302,7 +302,8 @@ std::string matStream(
     "newmtl light\n"
     "Ka 20 20 20\n"
     "Kd 1 1 1\n"
-    "Ks 0 0 0");
+    "Ks 0 0 0\n"
+    "map_Kd tmp.png \n"); // #92(whitespace after filename)
 
     using namespace tinyobj;
     class MaterialStringStreamReader:
@@ -342,6 +343,13 @@ std::string matStream(
   }
 
   PrintInfo(shapes, materials);
+
+  // #92
+  for (size_t i = 0; i < materials.size(); i++) {
+    if (materials[i].name.compare("light") == 0) {
+      assert(materials[i].diffuse_texname.compare("tmp.png") == 0);
+    }
+  }
     
   return true;
 }
