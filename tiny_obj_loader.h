@@ -42,10 +42,10 @@
 #ifndef TINY_OBJ_LOADER_H_
 #define TINY_OBJ_LOADER_H_
 
+#include <cmath>
+#include <map>
 #include <string>
 #include <vector>
-#include <map>
-#include <cmath>
 
 namespace tinyobj {
 
@@ -99,52 +99,37 @@ typedef struct {
   mesh_t mesh;
 } shape_t;
 
-typedef enum
-{
-  triangulation = 1,        // used whether triangulate polygon face in .obj
-  calculate_normals = 2,    // used whether calculate the normals if the .obj normals are empty
+typedef enum {
+  triangulation = 1, // used whether triangulate polygon face in .obj
+  calculate_normals =
+      2, // used whether calculate the normals if the .obj normals are empty
   // Some nice stuff here
 } load_flags_t;
 
-class float3
-{
+class float3 {
 public:
-  float3()
-    : x( 0.0f )
-    , y( 0.0f )
-    , z( 0.0f )
-  {
-  }
+  float3() : x(0.0f), y(0.0f), z(0.0f) {}
 
   float3(float coord_x, float coord_y, float coord_z)
-    : x( coord_x )
-    , y( coord_y )
-    , z( coord_z )
-  {
-  }
+      : x(coord_x), y(coord_y), z(coord_z) {}
 
-  float3(const float3& from, const float3& to)
-  {
+  float3(const float3 &from, const float3 &to) {
     coord[0] = to.coord[0] - from.coord[0];
     coord[1] = to.coord[1] - from.coord[1];
     coord[2] = to.coord[2] - from.coord[2];
   }
 
-  float3 crossproduct ( const float3 & vec )
-  {
-    float a = y * vec.z - z * vec.y ;
-    float b = z * vec.x - x * vec.z ;
-    float c = x * vec.y - y * vec.x ;
-    return float3( a , b , c );
+  float3 crossproduct(const float3 &vec) {
+    float a = y * vec.z - z * vec.y;
+    float b = z * vec.x - x * vec.z;
+    float c = x * vec.y - y * vec.x;
+    return float3(a, b, c);
   }
 
-  void normalize()
-  {
-    const float length = std::sqrt( ( coord[0] * coord[0] ) +
-                                               ( coord[1] * coord[1] ) +
-                                               ( coord[2] * coord[2] ) );
-    if( length != 1 )
-    {
+  void normalize() {
+    const float length = std::sqrt(
+        (coord[0] * coord[0]) + (coord[1] * coord[1]) + (coord[2] * coord[2]));
+    if (length != 1) {
       coord[0] = (coord[0] / length);
       coord[1] = (coord[1] / length);
       coord[2] = (coord[2] / length);
@@ -152,12 +137,10 @@ public:
   }
 
 private:
-  union
-  {
+  union {
     float coord[3];
-    struct
-    {
-      float x,y,z;
+    struct {
+      float x, y, z;
     };
   };
 };
@@ -197,7 +180,7 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
              std::vector<material_t> &materials, // [output]
              std::string &err,                   // [output]
              const char *filename, const char *mtl_basepath = NULL,
-             unsigned int flags = 1 );
+             unsigned int flags = 1);
 
 /// Loads object from a std::istream, uses GetMtlIStreamFn to retrieve
 /// std::istream for materials.
@@ -216,12 +199,12 @@ void LoadMtl(std::map<std::string, int> &material_map, // [output]
 }
 
 #ifdef TINYOBJLOADER_IMPLEMENTATION
-#include <cstdlib>
-#include <cstring>
 #include <cassert>
+#include <cctype>
 #include <cmath>
 #include <cstddef>
-#include <cctype>
+#include <cstdlib>
+#include <cstring>
 
 #include <fstream>
 #include <sstream>
@@ -267,43 +250,43 @@ struct obj_shape {
   std::vector<float> vt;
 };
 
-//See http://stackoverflow.com/questions/6089231/getting-std-ifstream-to-handle-lf-cr-and-crlf
-std::istream& safeGetline(std::istream& is, std::string& t)
-{
-    t.clear();
+// See
+// http://stackoverflow.com/questions/6089231/getting-std-ifstream-to-handle-lf-cr-and-crlf
+std::istream &safeGetline(std::istream &is, std::string &t) {
+  t.clear();
 
-    // The characters in the stream are read one-by-one using a std::streambuf.
-    // That is faster than reading them one-by-one using the std::istream.
-    // Code that uses streambuf this way must be guarded by a sentry object.
-    // The sentry object performs various tasks,
-    // such as thread synchronization and updating the stream state.
+  // The characters in the stream are read one-by-one using a std::streambuf.
+  // That is faster than reading them one-by-one using the std::istream.
+  // Code that uses streambuf this way must be guarded by a sentry object.
+  // The sentry object performs various tasks,
+  // such as thread synchronization and updating the stream state.
 
-    std::istream::sentry se(is, true);
-    std::streambuf* sb = is.rdbuf();
+  std::istream::sentry se(is, true);
+  std::streambuf *sb = is.rdbuf();
 
-    for(;;) {
-        int c = sb->sbumpc();
-        switch (c) {
-        case '\n':
-            return is;
-        case '\r':
-            if(sb->sgetc() == '\n')
-                sb->sbumpc();
-            return is;
-        case EOF:
-            // Also handle the case when the last line has no line ending
-            if(t.empty())
-                is.setstate(std::ios::eofbit);
-            return is;
-        default:
-            t += (char)c;
-        }
+  for (;;) {
+    int c = sb->sbumpc();
+    switch (c) {
+    case '\n':
+      return is;
+    case '\r':
+      if (sb->sgetc() == '\n')
+        sb->sbumpc();
+      return is;
+    case EOF:
+      // Also handle the case when the last line has no line ending
+      if (t.empty())
+        is.setstate(std::ios::eofbit);
+      return is;
+    default:
+      t += (char)c;
     }
+  }
 }
 
-#define IS_SPACE( x ) ( ( (x) == ' ') || ( (x) == '\t') )
-#define IS_DIGIT( x ) ( (unsigned int)( (x) - '0' ) < (unsigned int)10 )
-#define IS_NEW_LINE( x ) ( ( (x) == '\r') || ( (x) == '\n') || ( (x) == '\0') )
+#define IS_SPACE(x) (((x) == ' ') || ((x) == '\t'))
+#define IS_DIGIT(x) ((unsigned int)((x) - '0') < (unsigned int)10)
+#define IS_NEW_LINE(x) (((x) == '\r') || ((x) == '\n') || ((x) == '\0'))
 
 // Make index zero-base, and also support relative index.
 static inline int fixIndex(int idx, int n) {
@@ -614,13 +597,13 @@ static bool exportFaceGroupToShape(
     const std::vector<float> &in_texcoords,
     const std::vector<std::vector<vertex_index> > &faceGroup,
     std::vector<tag_t> &tags, const int material_id, const std::string &name,
-    bool clearCache, unsigned int flags, std::string& err ) {
+    bool clearCache, unsigned int flags, std::string &err) {
   if (faceGroup.empty()) {
     return false;
   }
 
-  bool triangulate( ( flags & triangulation ) == triangulation );
-  bool normals_calculation( ( flags & calculate_normals ) == calculate_normals );
+  bool triangulate((flags & triangulation) == triangulation);
+  bool normals_calculation((flags & calculate_normals) == calculate_normals);
 
   // Flatten vertices and indices
   for (size_t i = 0; i < faceGroup.size(); i++) {
@@ -673,31 +656,41 @@ static bool exportFaceGroupToShape(
   }
 
   if (normals_calculation && shape.mesh.normals.empty()) {
-	  const size_t nIndexs = shape.mesh.indices.size();
-	  if (nIndexs % 3 == 0) {
-		  shape.mesh.normals.resize(shape.mesh.positions.size());
-		  for (register size_t iIndices = 0; iIndices < nIndexs; iIndices += 3) {
-			  float3 v1, v2, v3;
-			  memcpy(&v1, &shape.mesh.positions[shape.mesh.indices[iIndices] * 3], sizeof(float3));
-			  memcpy(&v2, &shape.mesh.positions[shape.mesh.indices[iIndices + 1] * 3], sizeof(float3));
-			  memcpy(&v3, &shape.mesh.positions[shape.mesh.indices[iIndices + 2] * 3], sizeof(float3));
+    const size_t nIndexs = shape.mesh.indices.size();
+    if (nIndexs % 3 == 0) {
+      shape.mesh.normals.resize(shape.mesh.positions.size());
+      for (register size_t iIndices = 0; iIndices < nIndexs; iIndices += 3) {
+        float3 v1, v2, v3;
+        memcpy(&v1, &shape.mesh.positions[shape.mesh.indices[iIndices] * 3],
+               sizeof(float3));
+        memcpy(&v2, &shape.mesh.positions[shape.mesh.indices[iIndices + 1] * 3],
+               sizeof(float3));
+        memcpy(&v3, &shape.mesh.positions[shape.mesh.indices[iIndices + 2] * 3],
+               sizeof(float3));
 
-			  float3 v12(v1, v2);
-			  float3 v13(v1, v3);
+        float3 v12(v1, v2);
+        float3 v13(v1, v3);
 
-			  float3 normal = v12.crossproduct(v13);
-			  normal.normalize();
+        float3 normal = v12.crossproduct(v13);
+        normal.normalize();
 
-			  memcpy(&shape.mesh.normals[shape.mesh.indices[iIndices] * 3], &normal, sizeof(float3));
-			  memcpy(&shape.mesh.normals[shape.mesh.indices[iIndices + 1] * 3], &normal, sizeof(float3));
-			  memcpy(&shape.mesh.normals[shape.mesh.indices[iIndices + 2] * 3], &normal, sizeof(float3));
-		  }
-	  } else {
+        memcpy(&shape.mesh.normals[shape.mesh.indices[iIndices] * 3], &normal,
+               sizeof(float3));
+        memcpy(&shape.mesh.normals[shape.mesh.indices[iIndices + 1] * 3],
+               &normal, sizeof(float3));
+        memcpy(&shape.mesh.normals[shape.mesh.indices[iIndices + 2] * 3],
+               &normal, sizeof(float3));
+      }
+    } else {
 
-		  std::stringstream ss;
-		  ss << "WARN: The shape " << name << " does not have a topology of triangles, therfore the normals calculation could not be performed. Select the tinyobj::triangulation flag for this object." << std::endl;
-		  err += ss.str();
-	  }
+      std::stringstream ss;
+      ss << "WARN: The shape " << name
+         << " does not have a topology of triangles, therfore the normals "
+            "calculation could not be performed. Select the "
+            "tinyobj::triangulation flag for this object."
+         << std::endl;
+      err += ss.str();
+    }
   }
 
   shape.name = name;
@@ -719,6 +712,11 @@ void LoadMtl(std::map<std::string, int> &material_map,
   while (inStream.peek() != -1) {
     std::string linebuf;
     safeGetline(inStream, linebuf);
+
+    // Trim trailing whitespace
+    if (linebuf.size() > 0) {
+      linebuf = linebuf.substr(0, linebuf.find_last_not_of(" \t") + 1);
+    }
 
     // Trim newline '\r\n' or '\n'
     if (linebuf.size() > 0) {
@@ -1110,7 +1108,7 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
       if (newMaterialId != material) {
         // Create per-face material
         exportFaceGroupToShape(shape, vertexCache, v, vn, vt, faceGroup, tags,
-                               material, name, true, flags, err );
+                               material, name, true, flags, err);
         faceGroup.clear();
         material = newMaterialId;
       }
@@ -1146,7 +1144,7 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
       // flush previous face group.
       bool ret =
           exportFaceGroupToShape(shape, vertexCache, v, vn, vt, faceGroup, tags,
-                                 material, name, true, flags, err );
+                                 material, name, true, flags, err);
       if (ret) {
         shapes.push_back(shape);
       }
@@ -1183,7 +1181,7 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
       // flush previous face group.
       bool ret =
           exportFaceGroupToShape(shape, vertexCache, v, vn, vt, faceGroup, tags,
-                                 material, name, true, flags, err );
+                                 material, name, true, flags, err);
       if (ret) {
         shapes.push_back(shape);
       }
@@ -1239,7 +1237,8 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
         char stringValueBuffer[4096];
 
 #ifdef _MSC_VER
-        sscanf_s(token, "%s", stringValueBuffer, (unsigned)_countof(stringValueBuffer));
+        sscanf_s(token, "%s", stringValueBuffer,
+                 (unsigned)_countof(stringValueBuffer));
 #else
         sscanf(token, "%s", stringValueBuffer);
 #endif
@@ -1254,7 +1253,7 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
   }
 
   bool ret = exportFaceGroupToShape(shape, vertexCache, v, vn, vt, faceGroup,
-                                    tags, material, name, true, flags, err );
+                                    tags, material, name, true, flags, err);
   if (ret) {
     shapes.push_back(shape);
   }
