@@ -534,8 +534,7 @@ static vertex_index parseTriple(const char **token, int vsize, int vnsize,
 
 // Parse raw triples: i, i/j/k, i//k, i/j
 static vertex_index parseRawTriple(const char **token) {
-  vertex_index vi(
-      static_cast<int>(0));  // 0 is an invalid index in OBJ
+  vertex_index vi(static_cast<int>(0));  // 0 is an invalid index in OBJ
 
   vi.v_idx = atoi((*token));
   (*token) += strcspn((*token), "/ \t\r");
@@ -678,6 +677,11 @@ void LoadMtl(std::map<std::string, int> *material_map,
     inStream->getline(&buf[0], static_cast<std::streamsize>(maxchars));
 
     std::string linebuf(&buf[0]);
+
+    // Trim trailing whitespace.
+    if (linebuf.size() > 0) {
+      linebuf = linebuf.substr(0, linebuf.find_last_not_of(" \t") + 1);
+    }
 
     // Trim newline '\r\n' or '\n'
     if (linebuf.size() > 0) {
