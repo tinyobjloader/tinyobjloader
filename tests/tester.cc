@@ -351,6 +351,22 @@ TEST_CASE("stream_load", "[Stream]") {
     REQUIRE(true == TestStreamLoadObj());
 }
 
+TEST_CASE("trailing_whitespace_in_mtl", "[Issue92]") {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "../models/issue-92.obj", gMtlBasePath);
+
+  if (!err.empty()) {
+    std::cerr << err << std::endl;
+  }
+  REQUIRE(true == ret);
+  REQUIRE(1 == materials.size());
+  REQUIRE(0 == materials[0].diffuse_texname.compare("tmp.png"));
+}
+
 #if 0
 int
 main(
