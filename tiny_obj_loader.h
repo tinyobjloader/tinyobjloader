@@ -252,7 +252,7 @@ struct obj_shape {
 
 // See
 // http://stackoverflow.com/questions/6089231/getting-std-ifstream-to-handle-lf-cr-and-crlf
-std::istream &safeGetline(std::istream &is, std::string &t) {
+static std::istream &safeGetline(std::istream &is, std::string &t) {
   t.clear();
 
   // The characters in the stream are read one-by-one using a std::streambuf.
