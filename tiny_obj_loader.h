@@ -196,7 +196,12 @@ bool LoadObj(std::vector<shape_t> &shapes,       // [output]
 void LoadMtl(std::map<std::string, int> &material_map, // [output]
              std::vector<material_t> &materials,       // [output]
              std::istream &inStream);
-}
+
+// See
+// http://stackoverflow.com/questions/6089231/getting-std-ifstream-to-handle-lf-cr-and-crlf
+std::istream &safeGetline(std::istream &is, std::string &t); // [output]
+
+} // namespace tinyobj
 
 #ifdef TINYOBJLOADER_IMPLEMENTATION
 #include <cassert>
@@ -250,8 +255,6 @@ struct obj_shape {
   std::vector<float> vt;
 };
 
-// See
-// http://stackoverflow.com/questions/6089231/getting-std-ifstream-to-handle-lf-cr-and-crlf
 std::istream &safeGetline(std::istream &is, std::string &t) {
   t.clear();
 
