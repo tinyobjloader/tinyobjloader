@@ -24,31 +24,6 @@ THE SOFTWARE.
 
 //
 // version 1.0.0 : Change data structure. Change license from BSD to MIT.
-// version 0.9.20: Fixes creating per-face material using `usemtl`(#68)
-// version 0.9.17: Support n-polygon and crease tag(OpenSubdiv extension)
-// version 0.9.16: Make tinyobjloader header-only
-// version 0.9.15: Change API to handle no mtl file case correctly(#58)
-// version 0.9.14: Support specular highlight, bump, displacement and alpha
-// map(#53)
-// version 0.9.13: Report "Material file not found message" in `err`(#46)
-// version 0.9.12: Fix groups being ignored if they have 'usemtl' just before
-// 'g' (#44)
-// version 0.9.11: Invert `Tr` parameter(#43)
-// version 0.9.10: Fix seg fault on windows.
-// version 0.9.9 : Replace atof() with custom parser.
-// version 0.9.8 : Fix multi-materials(per-face material ID).
-// version 0.9.7 : Support multi-materials(per-face material ID) per
-// object/group.
-// version 0.9.6 : Support Ni(index of refraction) mtl parameter.
-//                 Parse transmittance material parameter correctly.
-// version 0.9.5 : Parse multiple group name.
-//                 Add support of specifying the base path to load material
-//                 file.
-// version 0.9.4 : Initial support of group tag(g)
-// version 0.9.3 : Fix parsing triple 'x/y/z'
-// version 0.9.2 : Add more .mtl load support
-// version 0.9.1 : Add initial .mtl load support
-// version 0.9.0 : Initial
 //
 
 //
