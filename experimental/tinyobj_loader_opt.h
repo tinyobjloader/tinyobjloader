@@ -969,7 +969,7 @@ static bool parseLine(Command *command, const char *p, size_t p_len,
   // vertex
   if (token[0] == 'v' && IS_SPACE((token[1]))) {
     token += 2;
-    float x, y, z;
+    float x = 0.0f, y = 0.0f, z = 0.0f;
     parseFloat3(&x, &y, &z, &token);
     command->vx = x;
     command->vy = y;
@@ -981,7 +981,7 @@ static bool parseLine(Command *command, const char *p, size_t p_len,
   // normal
   if (token[0] == 'v' && token[1] == 'n' && IS_SPACE((token[2]))) {
     token += 3;
-    float x, y, z;
+    float x = 0.0f, y = 0.0f, z = 0.0f;
     parseFloat3(&x, &y, &z, &token);
     command->nx = x;
     command->ny = y;
@@ -993,7 +993,7 @@ static bool parseLine(Command *command, const char *p, size_t p_len,
   // texcoord
   if (token[0] == 'v' && token[1] == 't' && IS_SPACE((token[2]))) {
     token += 3;
-    float x, y;
+    float x = 0.0f, y = 0.0f;
     parseFloat2(&x, &y, &token);
     command->tx = x;
     command->ty = y;
@@ -1360,10 +1360,11 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
     num_f += command_count[t].num_f;
     num_faces += command_count[t].num_faces;
   }
-  // std::cout << "# v " << num_v << std::endl;
-  // std::cout << "# vn " << num_vn << std::endl;
-  // std::cout << "# vt " << num_vt << std::endl;
-  // std::cout << "# f " << num_f << std::endl;
+
+  //std::cout << "# v " << num_v << std::endl;
+  //std::cout << "# vn " << num_vn << std::endl;
+  //std::cout << "# vt " << num_vt << std::endl;
+  //std::cout << "# f " << num_f << std::endl;
 
   // 4. merge
   // @todo { parallelize merge. }
@@ -1442,9 +1443,9 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
             for (size_t k = 0; k < commands[t][i].f.size(); k++) {
               vertex_index &vi = commands[t][i].f[k];
               int v_idx = fixIndex(vi.v_idx, v_count);
-              int vn_idx = fixIndex(vi.vn_idx, n_count);
               int vt_idx = fixIndex(vi.vt_idx, t_count);
-              attrib->faces[f_count + k] = vertex_index(v_idx, vn_idx, vt_idx);
+              int vn_idx = fixIndex(vi.vn_idx, n_count);
+              attrib->faces[f_count + k] = vertex_index(v_idx, vt_idx, vn_idx);
             }
             attrib->material_ids[face_count] = material_id;
             attrib->face_num_verts[face_count] = commands[t][i].f.size();
