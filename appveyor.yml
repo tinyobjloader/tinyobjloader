@@ -7,7 +7,6 @@ install:
   # All external dependencies are installed in C:\projects\deps
   #######################################################################################
   - mkdir C:\projects\deps
-  - pushd C:\projects\deps
 
   #######################################################################################
   # Install Ninja
@@ -17,7 +16,6 @@ install:
   - 7z x ninja.zip -oC:\projects\deps\ninja > nul
   - set PATH=C:\projects\deps\ninja;%PATH%
   - ninja --version
-  - popd
 
 build_script:
   - cd tests
