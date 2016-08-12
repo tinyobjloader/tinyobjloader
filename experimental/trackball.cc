@@ -86,7 +86,7 @@ static void vsub(const float *src1, const float *src2, float *dst) {
 }
 
 static void vcopy(const float *v1, float *v2) {
-  register int i;
+  int i;
   for (i = 0; i < 3; i++)
     v2[i] = v1[i];
 }

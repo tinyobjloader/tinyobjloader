@@ -432,8 +432,8 @@ static vertex_index parseRawTriple(const char **token) {
 }
 
 static inline bool parseString(ShortString *s, const char **token) {
-  skip_space(token);                 
-  size_t e = until_space((*token)); 
+  skip_space(token);
+  size_t e = until_space((*token));
   (*s)->insert((*s)->end(), (*token), (*token) + e);
   (*token) += e;
   return true;
@@ -597,13 +597,12 @@ fail:
 }
 
 static inline float parseFloat(const char **token) {
-  skip_space(token);  
+  skip_space(token);
 #ifdef TINY_OBJ_LOADER_OLD_FLOAT_PARSER
   float f = static_cast<float>(atof(*token));
   (*token) += strcspn((*token), " \t\r");
 #else
-  const char *end =
-      (*token) + until_space((*token));
+  const char *end = (*token) + until_space((*token));
   double val = 0.0;
   tryParseDouble((*token), end, &val);
   float f = static_cast<float>(val);
@@ -924,30 +923,28 @@ struct CommandCount {
   }
 };
 
-class
-LoadOption
-{
+class LoadOption {
  public:
-	LoadOption() : req_num_threads(-1), triangulate(true), verbose(false) {}
-	
-	int  req_num_threads;
-	bool triangulate;
-	bool verbose;
+  LoadOption() : req_num_threads(-1), triangulate(true), verbose(false) {}
 
+  int req_num_threads;
+  bool triangulate;
+  bool verbose;
 };
-
 
 /// Parse wavefront .obj(.obj string data is expanded to linear char array
 /// `buf')
 /// -1 to req_num_threads use the number of HW threads in the running system.
 bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
-              size_t len, const LoadOption& option);
+              size_t len, const LoadOption &option);
 
 #ifdef TINYOBJ_LOADER_OPT_IMPLEMENTATION
 
 static bool parseLine(Command *command, const char *p, size_t p_len,
                       bool triangulate = true) {
-  // @todo { operate directly on pointer `p'. to do that, add range check for string operatoion against `p', since `p' is not null-terminated at p[p_len] }
+  // @todo { operate directly on pointer `p'. to do that, add range check for
+  // string operatoion against `p', since `p' is not null-terminated at p[p_len]
+  // }
   char linebuf[4096];
   assert(p_len < 4095);
   memcpy(linebuf, p, p_len);
@@ -1141,8 +1138,7 @@ static inline bool is_line_ending(const char *p, size_t i, size_t end_i) {
 }
 
 bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
-              size_t len, const LoadOption& option)
-{
+              size_t len, const LoadOption &option) {
   attrib->vertices.clear();
   attrib->normals.clear();
   attrib->texcoords.clear();
@@ -1153,14 +1149,15 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
 
   if (len < 1) return false;
 
-  auto num_threads = (option.req_num_threads < 0) ? std::thread::hardware_concurrency()
-                                           : option.req_num_threads;
+  auto num_threads = (option.req_num_threads < 0)
+                         ? std::thread::hardware_concurrency()
+                         : option.req_num_threads;
   num_threads =
       std::max(1, std::min(static_cast<int>(num_threads), kMaxThreads));
 
-	if (option.verbose) {
-		std::cout << "# of threads = " << num_threads << std::endl;
-	}
+  if (option.verbose) {
+    std::cout << "# of threads = " << num_threads << std::endl;
+  }
 
   auto t1 = std::chrono::high_resolution_clock::now();
 
@@ -1543,21 +1540,21 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
   }
 
   std::chrono::duration<double, std::milli> ms_total = t4 - t1;
-	if (option.verbose) {
-		std::cout << "total parsing time: " << ms_total.count() << " ms\n";
-		std::cout << "  line detection : " << ms_linedetection.count() << " ms\n";
-		std::cout << "  alloc buf      : " << ms_alloc.count() << " ms\n";
-		std::cout << "  parse          : " << ms_parse.count() << " ms\n";
-		std::cout << "  merge          : " << ms_merge.count() << " ms\n";
-		std::cout << "  construct      : " << ms_construct.count() << " ms\n";
-		std::cout << "  mtl load       : " << ms_load_mtl.count() << " ms\n";
-		std::cout << "# of vertices = " << attrib->vertices.size() << std::endl;
-		std::cout << "# of normals = " << attrib->normals.size() << std::endl;
-		std::cout << "# of texcoords = " << attrib->texcoords.size() << std::endl;
-		std::cout << "# of face indices = " << attrib->faces.size() << std::endl;
-		std::cout << "# of faces = " << attrib->material_ids.size() << std::endl;
-		std::cout << "# of shapes = " << shapes->size() << std::endl;
-	}
+  if (option.verbose) {
+    std::cout << "total parsing time: " << ms_total.count() << " ms\n";
+    std::cout << "  line detection : " << ms_linedetection.count() << " ms\n";
+    std::cout << "  alloc buf      : " << ms_alloc.count() << " ms\n";
+    std::cout << "  parse          : " << ms_parse.count() << " ms\n";
+    std::cout << "  merge          : " << ms_merge.count() << " ms\n";
+    std::cout << "  construct      : " << ms_construct.count() << " ms\n";
+    std::cout << "  mtl load       : " << ms_load_mtl.count() << " ms\n";
+    std::cout << "# of vertices = " << attrib->vertices.size() << std::endl;
+    std::cout << "# of normals = " << attrib->normals.size() << std::endl;
+    std::cout << "# of texcoords = " << attrib->texcoords.size() << std::endl;
+    std::cout << "# of face indices = " << attrib->faces.size() << std::endl;
+    std::cout << "# of faces = " << attrib->material_ids.size() << std::endl;
+    std::cout << "# of shapes = " << shapes->size() << std::endl;
+  }
 
   return true;
 }
