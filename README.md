@@ -1,5 +1,4 @@
-tinyobjloader
-=============
+# tinyobjloader
 
 [![Join the chat at https://gitter.im/syoyo/tinyobjloader](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/syoyo/tinyobjloader?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
@@ -18,27 +17,16 @@ Tiny but powerful single file wavefront obj loader written in C++. No dependency
 `tinyobjloader` is good for embedding .obj loader to your (global illumination) renderer ;-)
 
 
-What's new
-----------
+## What's new
 
 * XX  YY, ZZZZ : New data strcutre and API!
-* Jan 29, 2016 : Support n-polygon(no triangulation) and OpenSubdiv crease tag! Thanks dboogert!
-* Nov 26, 2015 : Now single-header only!.
-* Nov 08, 2015 : Improved API.
-* Jun 23, 2015 : Various fixes and added more projects using tinyobjloader. Thanks many contributors!
-* Mar 03, 2015 : Replace atof() with hand-written parser for robust reading of numeric value. Thanks skurmedel!
-* Feb 06, 2015 : Fix parsing multi-material object
-* Sep 14, 2014 : Add support for multi-material per object/group. Thanks Mykhailo!
-* Mar 17, 2014 : Fixed trim newline bugs. Thanks ardneran!
-* Apr 29, 2014 : Add API to read .obj from std::istream. Good for reading compressed .obj or connecting to procedural primitive generator. Thanks burnse!
-* Apr 21, 2014 : Define default material if no material definition exists in .obj. Thanks YarmUI!
-* Apr 10, 2014 : Add support for parsing 'illum' and 'd'/'Tr' statements. Thanks mmp!
-* Jan 27, 2014 : Added CMake project. Thanks bradc6!
-* Nov 26, 2013 : Performance optimization by NeuralSandwich. 9% improvement in his project, thanks!
-* Sep 12, 2013 : Added multiple .obj sticher example.
 
-Example
--------
+### Old version
+
+Previous old version is avaiable as `v0.9` branch.
+
+
+## Example
 
 ![Rungholt](images/rungholt.jpg)
 
@@ -49,10 +37,15 @@ http://graphics.cs.williams.edu/data/meshes.xml
 
 * [examples/viewer/](examples/viewer) OpenGL .obj viewer 
 
-Use case
---------
+## Use case
 
 TinyObjLoader is successfully used in ...
+
+### New version
+
+* Your project here!
+
+### Old version
 
 * bullet3 https://github.com/erwincoumans/bullet3
 * pbrt-v2 https://github.com/mmp/pbrt-v2
@@ -66,10 +59,8 @@ TinyObjLoader is successfully used in ...
 * cocos2d-x https://github.com/cocos2d/cocos2d-x/
 * Android Vulkan demo https://github.com/SaschaWillems/Vulkan
 * Loading models in Vulkan Tutorial https://vulkan-tutorial.com/Loading_models
-* Your project here!
 
-Features
---------
+## Features
 
 * Group(parse multiple group name)
 * Vertex
@@ -81,20 +72,17 @@ Features
 * Callback API for custom loading.
 
 
-TODO
-----
+## TODO
 
 * [ ] Fix Python binding.
 * [ ] Fix obj_sticker example.
 * [ ] More unit test codes.
 
-License
--------
+## License
 
 Licensed under MIT license.
 
-Usage
------
+## Usage
 
 `attrib_t` contains single and linear array of vertex data(position, normal and texcoord).
 Each `shape_t` does not contain vertex data but contains array index to `attrib_t`.
@@ -149,8 +137,7 @@ for (size_t s = 0; s < shapes.size(); s++) {
 
 ```
 
-Optimized loader
-----------------
+## Optimized loader
 
 Optimized multi-threaded .obj loader is available at `experimental/` directory.
 If you want absolute performance to load .obj data, this optimized loader will fit your purpose.
@@ -164,7 +151,6 @@ Here is some benchmark result. Time are measured on MacBook 12(Early 2016, Core 
   * optimised: 1500 msecs(10x faster than old version, 4.5x faster than basedline)
 
 
-Tests
------
+## Tests
 
 Unit tests are provided in `tests` directory. See `tests/README.md` for details.
