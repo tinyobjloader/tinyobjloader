@@ -271,16 +271,21 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int n
               int f0 = idx0.vn_idx;
               int f1 = idx1.vn_idx;
               int f2 = idx2.vn_idx;
-              assert(f0 >= 0);
-              assert(f1 >= 0);
-              assert(f2 >= 0);
-              assert(3*f0+2 < attrib.normals.size());
-              assert(3*f1+2 < attrib.normals.size());
-              assert(3*f2+2 < attrib.normals.size());
-              for (int k = 0; k < 3; k++) {
-                n[0][k] = attrib.normals[3*f0+k];
-                n[1][k] = attrib.normals[3*f1+k];
-                n[2][k] = attrib.normals[3*f2+k];
+
+              if (f0 >= 0 && f1 >= 0 && f2 >= 0) {
+                assert(3*f0+2 < attrib.normals.size());
+                assert(3*f1+2 < attrib.normals.size());
+                assert(3*f2+2 < attrib.normals.size());
+                for (int k = 0; k < 3; k++) {
+                  n[0][k] = attrib.normals[3*f0+k];
+                  n[1][k] = attrib.normals[3*f1+k];
+                  n[2][k] = attrib.normals[3*f2+k];
+                }
+              } else {
+                // compute geometric normal
+                CalcNormal(n[0], v[0], v[1], v[2]);
+                n[1][0] = n[0][0]; n[1][1] = n[0][1]; n[1][2] = n[0][2];
+                n[2][0] = n[0][0]; n[2][1] = n[0][1]; n[2][2] = n[0][2];
               }
             } else {
               // compute geometric normal
