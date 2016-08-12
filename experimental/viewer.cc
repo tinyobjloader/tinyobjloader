@@ -234,6 +234,9 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int n
   bmin[0] = bmin[1] = bmin[2] = std::numeric_limits<float>::max();
   bmax[0] = bmax[1] = bmax[2] = -std::numeric_limits<float>::max();
 
+  //std::cout << "vertices.size() = " << attrib.vertices.size() << std::endl;
+  //std::cout << "normals.size() = " << attrib.normals.size() << std::endl;
+
   {
         DrawObject o;
         std::vector<float> vb; // pos(3float), normal(3float), color(3float)
@@ -268,18 +271,18 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int n
             float n[3][3];
 
             if (attrib.normals.size() > 0) { 
-              int f0 = idx0.vn_idx;
-              int f1 = idx1.vn_idx;
-              int f2 = idx2.vn_idx;
+              int nf0 = idx0.vn_idx;
+              int nf1 = idx1.vn_idx;
+              int nf2 = idx2.vn_idx;
 
-              if (f0 >= 0 && f1 >= 0 && f2 >= 0) {
-                assert(3*f0+2 < attrib.normals.size());
-                assert(3*f1+2 < attrib.normals.size());
-                assert(3*f2+2 < attrib.normals.size());
+              if (nf0 >= 0 && nf1 >= 0 && nf2 >= 0) {
+                assert(3*nf0+2 < attrib.normals.size());
+                assert(3*nf1+2 < attrib.normals.size());
+                assert(3*nf2+2 < attrib.normals.size());
                 for (int k = 0; k < 3; k++) {
-                  n[0][k] = attrib.normals[3*f0+k];
-                  n[1][k] = attrib.normals[3*f1+k];
-                  n[2][k] = attrib.normals[3*f2+k];
+                  n[0][k] = attrib.normals[3*nf0+k];
+                  n[1][k] = attrib.normals[3*nf1+k];
+                  n[2][k] = attrib.normals[3*nf2+k];
                 }
               } else {
                 // compute geometric normal
@@ -304,7 +307,7 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int n
               // Use normal as color.
               float c[3] = {n[k][0], n[k][1], n[k][2]};
               float len2 = c[0] * c[0] + c[1] * c[1] + c[2] * c[2];
-              if (len2 > 0.0f) {
+              if (len2 > 1.0e-6f) {
                 float len = sqrtf(len2);
                 
                 c[0] /= len;
