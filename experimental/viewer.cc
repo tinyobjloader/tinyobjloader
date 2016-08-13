@@ -517,7 +517,7 @@ int main(int argc, char **argv)
   }
 
   if (argc > 3) {
-    benchmark_only = true;
+    benchmark_only = (atoi(argv[3]) > 0) ? true : false;
   }
 
   if (argc > 4) {
