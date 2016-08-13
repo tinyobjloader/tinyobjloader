@@ -1397,7 +1397,7 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
               command_count[t].num_vt++;
             } else if (command.type == COMMAND_F) {
               command_count[t].num_f += command.f.size();
-              command_count[t].num_indices++;
+              command_count[t].num_indices += command.f_num_verts.size();
             }
 
             if (command.type == COMMAND_MTLLIB) {
@@ -1556,11 +1556,13 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
               attrib->indices[f_count + k] =
                   index_t(vertex_index, texcoord_index, normal_index);
             }
-            attrib->material_ids[face_count] = material_id;
-            attrib->face_num_verts[face_count] = commands[t][i].f.size();
+            for (size_t k = 0; k < commands[t][i].f_num_verts.size(); k++) {
+							attrib->material_ids[face_count + k] = material_id;
+							attrib->face_num_verts[face_count + k] = commands[t][i].f_num_verts[k];
+            }
 
             f_count += commands[t][i].f.size();
-            face_count++;
+            face_count += commands[t][i].f_num_verts.size();
           }
         }
       }));
