@@ -301,19 +301,19 @@ typedef struct {
   unsigned int length;
 } shape_t;
 
-struct vertex_index {
-  int v_idx, vt_idx, vn_idx;
-  vertex_index() : v_idx(-1), vt_idx(-1), vn_idx(-1) {}
-  explicit vertex_index(int idx) : v_idx(idx), vt_idx(idx), vn_idx(idx) {}
-  vertex_index(int vidx, int vtidx, int vnidx)
-      : v_idx(vidx), vt_idx(vtidx), vn_idx(vnidx) {}
+struct index_t {
+  int vertex_index, texcoord_index, normal_index;
+  index_t() : vertex_index(-1), texcoord_index(-1), normal_index(-1) {}
+  explicit index_t(int idx) : vertex_index(idx), texcoord_index(idx), normal_index(idx) {}
+  index_t(int vidx, int vtidx, int vnidx)
+      : vertex_index(vidx), texcoord_index(vtidx), normal_index(vnidx) {}
 };
 
 typedef struct {
   std::vector<float, lt::allocator<float> > vertices;
   std::vector<float, lt::allocator<float> > normals;
   std::vector<float, lt::allocator<float> > texcoords;
-  std::vector<vertex_index, lt::allocator<vertex_index> > faces;
+  std::vector<index_t, lt::allocator<index_t> > indices;
   std::vector<int, lt::allocator<int> > face_num_verts;
   std::vector<int, lt::allocator<int> > material_ids;
 } attrib_t;
@@ -386,11 +386,11 @@ static inline int fixIndex(int idx, int n) {
 }
 
 // Parse raw triples: i, i/j/k, i//k, i/j
-static vertex_index parseRawTriple(const char **token) {
-  vertex_index vi(
+static index_t parseRawTriple(const char **token) {
+  index_t vi(
       static_cast<int>(0x80000000));  // 0x80000000 = -2147483648 = invalid
 
-  vi.v_idx = my_atoi((*token));
+  vi.vertex_index = my_atoi((*token));
   while ((*token)[0] != '\0' && (*token)[0] != '/' && (*token)[0] != ' ' &&
          (*token)[0] != '\t' && (*token)[0] != '\r') {
     (*token)++;
@@ -403,7 +403,7 @@ static vertex_index parseRawTriple(const char **token) {
   // i//k
   if ((*token)[0] == '/') {
     (*token)++;
-    vi.vn_idx = my_atoi((*token));
+    vi.normal_index = my_atoi((*token));
     while ((*token)[0] != '\0' && (*token)[0] != '/' && (*token)[0] != ' ' &&
            (*token)[0] != '\t' && (*token)[0] != '\r') {
       (*token)++;
@@ -412,7 +412,7 @@ static vertex_index parseRawTriple(const char **token) {
   }
 
   // i/j/k or i/j
-  vi.vt_idx = my_atoi((*token));
+  vi.texcoord_index = my_atoi((*token));
   while ((*token)[0] != '\0' && (*token)[0] != '/' && (*token)[0] != ' ' &&
          (*token)[0] != '\t' && (*token)[0] != '\r') {
     (*token)++;
@@ -423,7 +423,7 @@ static vertex_index parseRawTriple(const char **token) {
 
   // i/j/k
   (*token)++;  // skip '/'
-  vi.vn_idx = my_atoi((*token));
+  vi.normal_index = my_atoi((*token));
   while ((*token)[0] != '\0' && (*token)[0] != '/' && (*token)[0] != ' ' &&
          (*token)[0] != '\t' && (*token)[0] != '\r') {
     (*token)++;
@@ -891,8 +891,8 @@ typedef struct {
   float tx, ty;
 
   // for f
-  std::vector<vertex_index, lt::allocator<vertex_index> > f;
-  // std::vector<vertex_index> f;
+  std::vector<index_t, lt::allocator<index_t> > f;
+  // std::vector<index_t> f;
   std::vector<int, lt::allocator<int> > f_num_verts;
 
   const char *group_name;
@@ -913,13 +913,13 @@ struct CommandCount {
   size_t num_vn;
   size_t num_vt;
   size_t num_f;
-  size_t num_faces;
+  size_t num_indices;
   CommandCount() {
     num_v = 0;
     num_vn = 0;
     num_vt = 0;
     num_f = 0;
-    num_faces = 0;
+    num_indices = 0;
   }
 };
 
@@ -1006,10 +1006,10 @@ static bool parseLine(Command *command, const char *p, size_t p_len,
     token += 2;
     skip_space(&token);
 
-    StackVector<vertex_index, 8> f;
+    StackVector<index_t, 8> f;
 
     while (!IS_NEW_LINE(token[0])) {
-      vertex_index vi = parseRawTriple(&token);
+      index_t vi = parseRawTriple(&token);
       skip_space_and_cr(&token);
 
       f->push_back(vi);
@@ -1018,9 +1018,9 @@ static bool parseLine(Command *command, const char *p, size_t p_len,
     command->type = COMMAND_F;
 
     if (triangulate) {
-      vertex_index i0 = f[0];
-      vertex_index i1(-1);
-      vertex_index i2 = f[1];
+      index_t i0 = f[0];
+      index_t i1(-1);
+      index_t i2 = f[1];
 
       for (size_t k = 2; k < f->size(); k++) {
         i1 = i2;
@@ -1142,7 +1142,7 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
   attrib->vertices.clear();
   attrib->normals.clear();
   attrib->texcoords.clear();
-  attrib->faces.clear();
+  attrib->indices.clear();
   attrib->face_num_verts.clear();
   attrib->material_ids.clear();
   shapes->clear();
@@ -1288,7 +1288,7 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
               command_count[t].num_vt++;
             } else if (command.type == COMMAND_F) {
               command_count[t].num_f += command.f.size();
-              command_count[t].num_faces++;
+              command_count[t].num_indices++;
             }
 
             if (command.type == COMMAND_MTLLIB) {
@@ -1352,13 +1352,13 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
   size_t num_vn = 0;
   size_t num_vt = 0;
   size_t num_f = 0;
-  size_t num_faces = 0;
+  size_t num_indices = 0;
   for (size_t t = 0; t < num_threads; t++) {
     num_v += command_count[t].num_v;
     num_vn += command_count[t].num_vn;
     num_vt += command_count[t].num_vt;
     num_f += command_count[t].num_f;
-    num_faces += command_count[t].num_faces;
+    num_indices += command_count[t].num_indices;
   }
 
   //std::cout << "# v " << num_v << std::endl;
@@ -1374,9 +1374,9 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
     attrib->vertices.resize(num_v * 3);
     attrib->normals.resize(num_vn * 3);
     attrib->texcoords.resize(num_vt * 2);
-    attrib->faces.resize(num_f);
-    attrib->face_num_verts.resize(num_faces);
-    attrib->material_ids.resize(num_faces);
+    attrib->indices.resize(num_f);
+    attrib->face_num_verts.resize(num_indices);
+    attrib->material_ids.resize(num_indices);
 
     size_t v_offsets[kMaxThreads];
     size_t n_offsets[kMaxThreads];
@@ -1395,7 +1395,7 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
       n_offsets[t] = n_offsets[t - 1] + command_count[t - 1].num_vn;
       t_offsets[t] = t_offsets[t - 1] + command_count[t - 1].num_vt;
       f_offsets[t] = f_offsets[t - 1] + command_count[t - 1].num_f;
-      face_offsets[t] = face_offsets[t - 1] + command_count[t - 1].num_faces;
+      face_offsets[t] = face_offsets[t - 1] + command_count[t - 1].num_indices;
     }
 
     StackVector<std::thread, 16> workers;
@@ -1441,11 +1441,11 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
             t_count++;
           } else if (commands[t][i].type == COMMAND_F) {
             for (size_t k = 0; k < commands[t][i].f.size(); k++) {
-              vertex_index &vi = commands[t][i].f[k];
-              int v_idx = fixIndex(vi.v_idx, v_count);
-              int vt_idx = fixIndex(vi.vt_idx, t_count);
-              int vn_idx = fixIndex(vi.vn_idx, n_count);
-              attrib->faces[f_count + k] = vertex_index(v_idx, vt_idx, vn_idx);
+              index_t &vi = commands[t][i].f[k];
+              int vertex_index = fixIndex(vi.vertex_index, v_count);
+              int texcoord_index = fixIndex(vi.texcoord_index, t_count);
+              int normal_index = fixIndex(vi.normal_index, n_count);
+              attrib->indices[f_count + k] = index_t(vertex_index, texcoord_index, normal_index);
             }
             attrib->material_ids[face_count] = material_id;
             attrib->face_num_verts[face_count] = commands[t][i].f.size();
@@ -1552,8 +1552,8 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
     std::cout << "# of vertices = " << attrib->vertices.size() << std::endl;
     std::cout << "# of normals = " << attrib->normals.size() << std::endl;
     std::cout << "# of texcoords = " << attrib->texcoords.size() << std::endl;
-    std::cout << "# of face indices = " << attrib->faces.size() << std::endl;
-    std::cout << "# of faces = " << attrib->material_ids.size() << std::endl;
+    std::cout << "# of face indices = " << attrib->indices.size() << std::endl;
+    std::cout << "# of indices = " << attrib->material_ids.size() << std::endl;
     std::cout << "# of shapes = " << shapes->size() << std::endl;
   }
 
