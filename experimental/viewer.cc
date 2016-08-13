@@ -244,15 +244,15 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int n
         for (size_t v = 0; v < attrib.face_num_verts.size(); v++) {
           assert(attrib.face_num_verts[v] % 3 == 0); // assume all triangle face.
           for (size_t f = 0; f < attrib.face_num_verts[v] / 3; f++) {
-            tinyobj_opt::vertex_index idx0 = attrib.faces[face_offset+3*f+0];
-            tinyobj_opt::vertex_index idx1 = attrib.faces[face_offset+3*f+1];
-            tinyobj_opt::vertex_index idx2 = attrib.faces[face_offset+3*f+2];
+            tinyobj_opt::index_t idx0 = attrib.indices[face_offset+3*f+0];
+            tinyobj_opt::index_t idx1 = attrib.indices[face_offset+3*f+1];
+            tinyobj_opt::index_t idx2 = attrib.indices[face_offset+3*f+2];
 
             float v[3][3];
             for (int k = 0; k < 3; k++) {
-              int f0 = idx0.v_idx;
-              int f1 = idx1.v_idx;
-              int f2 = idx2.v_idx;
+              int f0 = idx0.vertex_index;
+              int f1 = idx1.vertex_index;
+              int f2 = idx2.vertex_index;
               assert(f0 >= 0);
               assert(f1 >= 0);
               assert(f2 >= 0);
@@ -271,9 +271,9 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int n
             float n[3][3];
 
             if (attrib.normals.size() > 0) { 
-              int nf0 = idx0.vn_idx;
-              int nf1 = idx1.vn_idx;
-              int nf2 = idx2.vn_idx;
+              int nf0 = idx0.normal_index;
+              int nf1 = idx1.normal_index;
+              int nf2 = idx2.normal_index;
 
               if (nf0 >= 0 && nf1 >= 0 && nf2 >= 0) {
                 assert(3*nf0+2 < attrib.normals.size());
