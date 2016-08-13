@@ -292,6 +292,22 @@ typedef struct {
   std::string bump_texname;                // map_bump, bump
   std::string displacement_texname;        // disp
   std::string alpha_texname;               // map_d
+
+  // PBR extension
+  // http://exocortex.com/blog/extending_wavefront_mtl_to_support_pbr
+  float roughness;                // [0, 1] default 0
+  float metallic;                 // [0, 1] default 0
+  float sheen;                    // [0, 1] default 0
+  float clearcoat_thickness;      // [0, 1] default 0
+  float clearcoat_roughness;      // [0, 1] default 0
+  float anisotropy;               // aniso. [0, 1] default 0
+  float anisotropy_rotation;      // anisor. [0, 1] default 0
+  std::string roughness_texname;  // map_Pr
+  std::string metallic_texname;   // map_Pm
+  std::string sheen_texname;      // map_Ps
+  std::string emissive_texname;   // map_Ke
+  std::string normal_texname;     // norm. For normal mapping.
+
   std::map<std::string, std::string> unknown_parameter;
 } material_t;
 
@@ -304,7 +320,8 @@ typedef struct {
 struct index_t {
   int vertex_index, texcoord_index, normal_index;
   index_t() : vertex_index(-1), texcoord_index(-1), normal_index(-1) {}
-  explicit index_t(int idx) : vertex_index(idx), texcoord_index(idx), normal_index(idx) {}
+  explicit index_t(int idx)
+      : vertex_index(idx), texcoord_index(idx), normal_index(idx) {}
   index_t(int vidx, int vtidx, int vnidx)
       : vertex_index(vidx), texcoord_index(vtidx), normal_index(vnidx) {}
 };
@@ -660,6 +677,11 @@ static void LoadMtl(std::map<std::string, int> *material_map,
 
     std::string linebuf(&buf[0]);
 
+    // Trim trailing whitespace.
+    if (linebuf.size() > 0) {
+      linebuf = linebuf.substr(0, linebuf.find_last_not_of(" \t") + 1);
+    }
+
     // Trim newline '\r\n' or '\n'
     if (linebuf.size() > 0) {
       if (linebuf[linebuf.size() - 1] == '\n')
@@ -790,10 +812,60 @@ static void LoadMtl(std::map<std::string, int> *material_map,
       material.dissolve = parseFloat(&token);
       continue;
     }
+
     if (token[0] == 'T' && token[1] == 'r' && IS_SPACE(token[2])) {
       token += 2;
       // Invert value of Tr(assume Tr is in range [0, 1])
       material.dissolve = 1.0f - parseFloat(&token);
+      continue;
+    }
+
+    // PBR: roughness
+    if (token[0] == 'P' && token[1] == 'r' && IS_SPACE(token[2])) {
+      token += 2;
+      material.roughness = parseFloat(&token);
+      continue;
+    }
+
+    // PBR: metallic
+    if (token[0] == 'P' && token[1] == 'm' && IS_SPACE(token[2])) {
+      token += 2;
+      material.metallic = parseFloat(&token);
+      continue;
+    }
+
+    // PBR: sheen
+    if (token[0] == 'P' && token[1] == 's' && IS_SPACE(token[2])) {
+      token += 2;
+      material.sheen = parseFloat(&token);
+      continue;
+    }
+
+    // PBR: clearcoat thickness
+    if (token[0] == 'P' && token[1] == 'c' && IS_SPACE(token[2])) {
+      token += 2;
+      material.clearcoat_thickness = parseFloat(&token);
+      continue;
+    }
+
+    // PBR: clearcoat roughness
+    if ((0 == strncmp(token, "Pcr", 3)) && IS_SPACE(token[3])) {
+      token += 4;
+      material.clearcoat_roughness = parseFloat(&token);
+      continue;
+    }
+
+    // PBR: anisotropy
+    if ((0 == strncmp(token, "aniso", 5)) && IS_SPACE(token[5])) {
+      token += 6;
+      material.anisotropy = parseFloat(&token);
+      continue;
+    }
+
+    // PBR: anisotropy rotation
+    if ((0 == strncmp(token, "anisor", 6)) && IS_SPACE(token[6])) {
+      token += 7;
+      material.anisotropy_rotation = parseFloat(&token);
       continue;
     }
 
@@ -850,6 +922,41 @@ static void LoadMtl(std::map<std::string, int> *material_map,
     if ((0 == strncmp(token, "disp", 4)) && IS_SPACE(token[4])) {
       token += 5;
       material.displacement_texname = token;
+      continue;
+    }
+
+    // PBR: roughness texture
+    if ((0 == strncmp(token, "map_Pr", 6)) && IS_SPACE(token[6])) {
+      token += 7;
+      material.roughness_texname = token;
+      continue;
+    }
+
+    // PBR: metallic texture
+    if ((0 == strncmp(token, "map_Pm", 6)) && IS_SPACE(token[6])) {
+      token += 7;
+      material.metallic_texname = token;
+      continue;
+    }
+
+    // PBR: sheen texture
+    if ((0 == strncmp(token, "map_Ps", 6)) && IS_SPACE(token[6])) {
+      token += 7;
+      material.sheen_texname = token;
+      continue;
+    }
+
+    // PBR: emissive texture
+    if ((0 == strncmp(token, "map_Ke", 6)) && IS_SPACE(token[6])) {
+      token += 7;
+      material.emissive_texname = token;
+      continue;
+    }
+
+    // PBR: normal map texture
+    if ((0 == strncmp(token, "norm", 4)) && IS_SPACE(token[4])) {
+      token += 5;
+      material.normal_texname = token;
       continue;
     }
 
@@ -935,8 +1042,9 @@ class LoadOption {
 /// Parse wavefront .obj(.obj string data is expanded to linear char array
 /// `buf')
 /// -1 to req_num_threads use the number of HW threads in the running system.
-bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
-              size_t len, const LoadOption &option);
+bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
+              std::vector<material_t> *materials, const char *buf, size_t len,
+              const LoadOption &option);
 
 #ifdef TINYOBJ_LOADER_OPT_IMPLEMENTATION
 
@@ -1137,8 +1245,9 @@ static inline bool is_line_ending(const char *p, size_t i, size_t end_i) {
   return false;
 }
 
-bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
-              size_t len, const LoadOption &option) {
+bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
+              std::vector<material_t> *materials, const char *buf, size_t len,
+              const LoadOption &option) {
   attrib->vertices.clear();
   attrib->normals.clear();
   attrib->texcoords.clear();
@@ -1313,7 +1422,6 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
   }
 
   std::map<std::string, int> material_map;
-  std::vector<material_t> materials;
 
   // Load material(if exits)
   if (mtllib_i_index >= 0 && mtllib_t_index >= 0 &&
@@ -1328,7 +1436,7 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
 
     std::ifstream ifs(material_filename);
     if (ifs.good()) {
-      LoadMtl(&material_map, &materials, &ifs);
+      LoadMtl(&material_map, materials, &ifs);
 
       // std::cout << "maetrials = " << materials.size() << std::endl;
 
@@ -1361,10 +1469,10 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
     num_indices += command_count[t].num_indices;
   }
 
-  //std::cout << "# v " << num_v << std::endl;
-  //std::cout << "# vn " << num_vn << std::endl;
-  //std::cout << "# vt " << num_vt << std::endl;
-  //std::cout << "# f " << num_f << std::endl;
+  // std::cout << "# v " << num_v << std::endl;
+  // std::cout << "# vn " << num_vn << std::endl;
+  // std::cout << "# vt " << num_vt << std::endl;
+  // std::cout << "# f " << num_f << std::endl;
 
   // 4. merge
   // @todo { parallelize merge. }
@@ -1445,7 +1553,8 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes, const char *buf,
               int vertex_index = fixIndex(vi.vertex_index, v_count);
               int texcoord_index = fixIndex(vi.texcoord_index, t_count);
               int normal_index = fixIndex(vi.normal_index, n_count);
-              attrib->indices[f_count + k] = index_t(vertex_index, texcoord_index, normal_index);
+              attrib->indices[f_count + k] =
+                  index_t(vertex_index, texcoord_index, normal_index);
             }
             attrib->material_ids[face_count] = material_id;
             attrib->face_num_verts[face_count] = commands[t][i].f.size();
