@@ -218,6 +218,7 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int n
 {
   tinyobj_opt::attrib_t attrib;
   std::vector<tinyobj_opt::shape_t> shapes;
+  std::vector<tinyobj_opt::material_t> materials;
 
   size_t data_len = 0;
   const char* data = get_file_data(&data_len, filename);
@@ -229,7 +230,7 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int n
   tinyobj_opt::LoadOption option;
   option.req_num_threads = num_threads;
   option.verbose = verbose;
-  bool ret = parseObj(&attrib, &shapes, data, data_len, option);
+  bool ret = parseObj(&attrib, &shapes, &materials, data, data_len, option);
 
   bmin[0] = bmin[1] = bmin[2] = std::numeric_limits<float>::max();
   bmax[0] = bmax[1] = bmax[2] = -std::numeric_limits<float>::max();
@@ -528,6 +529,7 @@ int main(int argc, char **argv)
 
     tinyobj_opt::attrib_t attrib;
     std::vector<tinyobj_opt::shape_t> shapes;
+    std::vector<tinyobj_opt::material_t> materials;
 
     size_t data_len = 0;
     const char* data = get_file_data(&data_len, argv[1]);
@@ -540,7 +542,7 @@ int main(int argc, char **argv)
     option.req_num_threads = num_threads;
     option.verbose = true;
 
-    bool ret = parseObj(&attrib, &shapes, data, data_len, option);
+    bool ret = parseObj(&attrib, &shapes, &materials, data, data_len, option);
 
     return ret;
   }
