@@ -367,6 +367,24 @@ TEST_CASE("trailing_whitespace_in_mtl", "[Issue92]") {
   REQUIRE(0 == materials[0].diffuse_texname.compare("tmp.png"));
 }
 
+TEST_CASE("transmittance_filter", "[Issue95]") {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "../models/issue-95.obj", gMtlBasePath);
+
+  if (!err.empty()) {
+    std::cerr << err << std::endl;
+  }
+  REQUIRE(true == ret);
+  REQUIRE(1 == materials.size());
+  REQUIRE(0.1 == Approx(materials[0].transmittance[0]));
+  REQUIRE(0.2 == Approx(materials[0].transmittance[1]));
+  REQUIRE(0.3 == Approx(materials[0].transmittance[2]));
+}
+
 #if 0
 int
 main(
