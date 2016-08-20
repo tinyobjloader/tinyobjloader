@@ -6,7 +6,5 @@ build:
             name: build
             code: |
                   git clone https://github.com/syoyo/orebuildenv.git
-                  chmod +x ./orebuildenv/build/linux/bin/premake4
-                  ./orebuildenv/build/linux/bin/premake4 gmake
-                  make
-                  ./test_tinyobjloader
+                  cd tests
+                  make check

@@ -1,12 +1,22 @@
 version: 0.9.{build}
 
-# scripts that runs after repo cloning.
-install:
-  - vcsetup.bat
-
 platform: x64
-configuration: Release
 
-build:
-  parallel: true
-  project: TinyObjLoaderSolution.sln
+install:
+  #######################################################################################
+  # All external dependencies are installed in C:\projects\deps
+  #######################################################################################
+  - mkdir C:\projects\deps
+
+  #######################################################################################
+  # Install Ninja
+  #######################################################################################
+  - set NINJA_URL="https://github.com/ninja-build/ninja/releases/download/v1.6.0/ninja-win.zip"
+  - appveyor DownloadFile %NINJA_URL% -FileName ninja.zip
+  - 7z x ninja.zip -oC:\projects\deps\ninja > nul
+  - set PATH=C:\projects\deps\ninja;%PATH%
+  - ninja --version
+
+build_script:
+  - cd tests
+  - vcbuild.bat
