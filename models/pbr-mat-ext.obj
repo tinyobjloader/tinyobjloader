@@ -1,0 +1,10 @@
+mtllib pbr-mat-ext.mtl
+
+o floor
+usemtl pbr
+v 552.8 0.0   0.0
+v 0.0   0.0   0.0
+v 0.0   0.0 559.2
+v 549.6 0.0 559.2
+
+f 1 2 3 4 

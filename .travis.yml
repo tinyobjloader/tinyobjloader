@@ -1,5 +1,5 @@
 language: cpp
-sudo: false
+sudo: required
 matrix:
   include:
   - addons: &1
@@ -36,21 +36,17 @@ matrix:
     env: COMPILER_VERSION=4.9 BUILD_TYPE=Release
   - addons: *1
     compiler: clang
-    env: COMPILER_VERSION=3.7 BUILD_TYPE=Debug CFLAGS="-O0 --coverage" CXXFLAGS="-O0
-      --coverage" REPORT_COVERAGE=1
+    env: COMPILER_VERSION=3.7 BUILD_TYPE=Debug
 before_install:
 - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew upgrade; fi
-- if [ -n "$REPORT_COVERAGE" ]; then pip install --user cpp-coveralls; fi
+- if [ -n "$REPORT_COVERAGE" ]; then sudo apt-get update python; fi
+- if [ -n "$REPORT_COVERAGE" ]; then sudo apt-get install python-dev libffi-dev libssl-dev; fi
+- if [ -n "$REPORT_COVERAGE" ]; then sudo pip install --upgrade pip; fi
+- if [ -n "$REPORT_COVERAGE" ]; then CXX=g++ pip install --user requests[security]; fi
+- if [ -n "$REPORT_COVERAGE" ]; then CXX=g++ pip install --user cpp-coveralls; fi
 script:
-- mkdir build && cd build
-- export CC="${CC}-${COMPILER_VERSION}"
-- export CXX="${CXX}-${COMPILER_VERSION}"
-- ${CC} -v
-- cmake --version
-- cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DTINYOBJLOADER_BUILD_TEST_LOADER=On -G Ninja
-  ..
-- ninja
-- ./test_loader ../cornell_box.obj
+- cd tests
+- make check
 - if [ -n "$REPORT_COVERAGE" ]; then coveralls -b . -r .. -e examples -e tools -e
   jni -e python -e images -E ".*CompilerId.*" -E ".*feature_tests.*" ; fi
 - cd ..

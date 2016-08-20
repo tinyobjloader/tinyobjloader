@@ -12,8 +12,8 @@ set(tinyobjloader-Source
 	${CMAKE_CURRENT_SOURCE_DIR}/tiny_obj_loader.cc
 	)
 
-set(tinyobjloader-Test-Source
-	${CMAKE_CURRENT_SOURCE_DIR}/test.cc
+set(tinyobjloader-Example-Source
+	${CMAKE_CURRENT_SOURCE_DIR}/loader_example.cc
 	)
 
 set(tinyobjloader-examples-objsticher
@@ -22,14 +22,17 @@ set(tinyobjloader-examples-objsticher
 	${TINYOBJLOADEREXAMPLES_DIR}/obj_sticher/obj_sticher.cc
 	)
 
-add_library(tinyobjloader
-			${tinyobjloader-Source}
-	)
+option(TINYOBJLOADER_BUILD_TEST_LOADER "Build Example Loader Application" OFF)
+option(TINYOBJLOADER_COMPILATION_SHARED "Build as shared library" OFF)
 
-option(TINYOBJLOADER_BUILD_TEST_LOADER "Build Test Loader Application" OFF)
+if (TINYOBJLOADER_COMPILATION_SHARED)
+	add_library(tinyobjloader SHARED ${tinyobjloader-Source})
+else()
+	add_library(tinyobjloader STATIC ${tinyobjloader-Source})
+endif()
 
 if(TINYOBJLOADER_BUILD_TEST_LOADER)
-  add_executable(test_loader ${tinyobjloader-Test-Source})
+  add_executable(test_loader ${tinyobjloader-Example-Source})
   target_link_libraries(test_loader tinyobjloader)
 endif()
 

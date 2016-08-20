@@ -1,5 +1,5 @@
 sources = {
-   "test.cc",
+   "loader_example.cc",
    }
 
 -- premake4.lua
@@ -21,9 +21,9 @@ solution "TinyObjLoaderSolution"
       configuration "Debug"
          defines { "DEBUG" } -- -DDEBUG
          flags { "Symbols" }
-         targetname "test_tinyobjloader_debug"
+         targetname "loader_example_debug"
 
       configuration "Release"
          -- defines { "NDEBUG" } -- -NDEBUG
          flags { "Symbols", "Optimize" }
-         targetname "test_tinyobjloader"
+         targetname "loader_example"
