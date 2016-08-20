@@ -42,6 +42,8 @@ http://graphics.cs.williams.edu/data/meshes.xml
 ![](images/sanmugel.png) 
 
 * [examples/viewer/](examples/viewer) OpenGL .obj viewer 
+* [examples/callback_api/](examples/callback_api/) Callback API example 
+* [examples/voxelize/](examples/voxelize/) Voxelizer example 
 
 ## Use case
 
