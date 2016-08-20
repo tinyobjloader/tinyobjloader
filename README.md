@@ -74,7 +74,6 @@ TinyObjLoader is successfully used in ...
 
 ## TODO
 
-* [ ] Fix Python binding.
 * [ ] Fix obj_sticker example.
 * [ ] More unit test codes.
 
