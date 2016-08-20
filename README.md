@@ -19,9 +19,8 @@ Tiny but powerful single file wavefront obj loader written in C++. No dependency
 Notice!
 -------
 
-`master` branch will be replaced with `develop` branch in the near future: https://github.com/syoyo/tinyobjloader/tree/develop
-`develop` branch has more better support and clean API interface for loading .obj and also it has optimized multi-threaded parser(probably 10x faster than `master`). If you are new to use `TinyObjLoader`, I highly recommend to use `develop` branch.
-
+We have released new version v1.0.0 on 20 Aug, 2016.
+Old version is available `v0.9.x` branch https://github.com/syoyo/tinyobjloader/tree/v0.9.x
 
 ## What's new
 
@@ -29,8 +28,7 @@ Notice!
 
 ### Old version
 
-Previous old version is avaiable as `v0.9` branch.
-
+Previous old version is avaiable in `v0.9.x` branch.
 
 ## Example
 
