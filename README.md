@@ -49,12 +49,12 @@ http://graphics.cs.williams.edu/data/meshes.xml
 
 TinyObjLoader is successfully used in ...
 
-### New version
+### New version(v1.0.x)
 
 * Loading models in Vulkan Tutorial https://vulkan-tutorial.com/Loading_models
 * Your project here!
 
-### Old version
+### Old version(v0.9.x)
 
 * bullet3 https://github.com/erwincoumans/bullet3
 * pbrt-v2 https://github.com/mmp/pbrt-v2
