@@ -257,6 +257,38 @@ struct obj_shape {
   std::vector<float> vt;
 };
 
+// See
+// http://stackoverflow.com/questions/6089231/getting-std-ifstream-to-handle-lf-cr-and-crlf
+static std::istream &safeGetline(std::istream &is, std::string &t) {
+  t.clear();
+
+  // The characters in the stream are read one-by-one using a std::streambuf.
+  // That is faster than reading them one-by-one using the std::istream.
+  // Code that uses streambuf this way must be guarded by a sentry object.
+  // The sentry object performs various tasks,
+  // such as thread synchronization and updating the stream state.
+
+  std::istream::sentry se(is, true);
+  std::streambuf *sb = is.rdbuf();
+
+  for (;;) {
+    int c = sb->sbumpc();
+    switch (c) {
+      case '\n':
+        return is;
+      case '\r':
+        if (sb->sgetc() == '\n') sb->sbumpc();
+        return is;
+      case EOF:
+        // Also handle the case when the last line has no line ending
+        if (t.empty()) is.setstate(std::ios::eofbit);
+        return is;
+      default:
+        t += static_cast<char>(c);
+    }
+  }
+}
+
 #define IS_SPACE(x) (((x) == ' ') || ((x) == '\t'))
 #define IS_DIGIT(x) \
   (static_cast<unsigned int>((x) - '0') < static_cast<unsigned int>(10))
@@ -646,12 +678,10 @@ void LoadMtl(std::map<std::string, int> *material_map,
   material_t material;
   InitMaterial(&material);
 
-  size_t maxchars = 8192;           // Alloc enough size.
-  std::vector<char> buf(maxchars);  // Alloc enough size.
   while (inStream->peek() != -1) {
-    inStream->getline(&buf[0], static_cast<std::streamsize>(maxchars));
+    std::string linebuf;
 
-    std::string linebuf(&buf[0]);
+    safeGetline(*inStream, linebuf);
 
     // Trim trailing whitespace.
     if (linebuf.size() > 0) {
@@ -1031,7 +1061,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
   while (inStream->peek() != -1) {
     std::string linebuf;
-    std::getline((*inStream), linebuf);
+    safeGetline(*inStream, linebuf);
 
     // Trim newline '\r\n' or '\n'
     if (linebuf.size() > 0) {
@@ -1312,7 +1342,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
 
   std::string linebuf;
   while (inStream.peek() != -1) {
-    std::getline(inStream, linebuf);
+    safeGetline(inStream, linebuf);
 
     // Trim newline '\r\n' or '\n'
     if (linebuf.size() > 0) {
