@@ -90,6 +90,9 @@ TinyObjLoader is successfully used in ...
 
 * [ ] Fix obj_sticker example.
 * [ ] More unit test codes.
+* [ ] Texture options
+* [ ] Normal vector generation
+  * [ ] Support smoothing groups
 
 ## License
 
