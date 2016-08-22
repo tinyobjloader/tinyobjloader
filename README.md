@@ -75,6 +75,7 @@ TinyObjLoader is successfully used in ...
 * Opengl unit of ChronoEngine https://github.com/projectchrono/chrono-opengl
 * Point Based Global Illumination on modern GPU https://pbgi.wordpress.com/code-source/
 * Fast OBJ file importing and parsing in CUDA http://researchonline.jcu.edu.au/42515/1/2015.CVM.OBJCUDA.pdf
+* Sorted Shading for Uni-Directional Pathtracing by Joshua Bainbridge https://nccastaff.bournemouth.ac.uk/jmacey/MastersProjects/MSc15/02Josh/joshua_bainbridge_thesis.pdf
 
 
 ## Features
