@@ -87,6 +87,7 @@ TinyObjLoader is successfully used in ...
 * Material
   * Unknown material attributes are returned as key-value(value is string) map.
 * Crease tag('t'). This is OpenSubdiv specific(not in wavefront .obj specification)
+* PBR material extension for .MTL. Its proposed here: http://exocortex.com/blog/extending_wavefront_mtl_to_support_pbr
 * Callback API for custom loading.
 
 
