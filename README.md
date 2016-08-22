@@ -76,6 +76,7 @@ TinyObjLoader is successfully used in ...
 * Point Based Global Illumination on modern GPU https://pbgi.wordpress.com/code-source/
 * Fast OBJ file importing and parsing in CUDA http://researchonline.jcu.edu.au/42515/1/2015.CVM.OBJCUDA.pdf
 * Sorted Shading for Uni-Directional Pathtracing by Joshua Bainbridge https://nccastaff.bournemouth.ac.uk/jmacey/MastersProjects/MSc15/02Josh/joshua_bainbridge_thesis.pdf
+* GeeXLab http://www.geeks3d.com/hacklab/20160531/geexlab-0-12-0-0-released-for-windows/
 
 
 ## Features
