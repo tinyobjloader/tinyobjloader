@@ -74,6 +74,8 @@ TinyObjLoader is successfully used in ...
 * parg, tiny C library of various graphics utilities and GL demos https://github.com/prideout/parg
 * Opengl unit of ChronoEngine https://github.com/projectchrono/chrono-opengl
 * Point Based Global Illumination on modern GPU https://pbgi.wordpress.com/code-source/
+* Fast OBJ file importing and parsing in CUDA http://researchonline.jcu.edu.au/42515/1/2015.CVM.OBJCUDA.pdf
+
 
 ## Features
 
