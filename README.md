@@ -73,6 +73,7 @@ TinyObjLoader is successfully used in ...
 * FireRays SDK https://github.com/GPUOpen-LibrariesAndSDKs/FireRays_SDK
 * parg, tiny C library of various graphics utilities and GL demos https://github.com/prideout/parg
 * Opengl unit of ChronoEngine https://github.com/projectchrono/chrono-opengl
+* Point Based Global Illumination on modern GPU https://pbgi.wordpress.com/code-source/
 
 ## Features
 
