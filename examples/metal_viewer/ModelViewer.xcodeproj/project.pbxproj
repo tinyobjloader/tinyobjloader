@@ -1,0 +1,410 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		2C3D9A921D7B5B0B002C1226 /* tiny_obj_loader.cc in Sources */ = {isa = PBXBuildFile; fileRef = 2C3D9A901D7B5B0B002C1226 /* tiny_obj_loader.cc */; };
+		2C5B92B41D7157A600722936 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 2C5B92B21D7157A600722936 /* MainMenu.xib */; };
+		2C5B92B71D7157EA00722936 /* ModelView.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C5B92B61D7157EA00722936 /* ModelView.m */; };
+		2C5B92BD1D7160EC00722936 /* NuoModelLoader.mm in Sources */ = {isa = PBXBuildFile; fileRef = 2C5B92BC1D7160EC00722936 /* NuoModelLoader.mm */; };
+		2C5B92C01D72D11E00722936 /* NuoModelBase.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2C5B92BE1D72D11E00722936 /* NuoModelBase.cpp */; };
+		2C5B92C31D73F51E00722936 /* NuoMaterial.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2C5B92C11D73F51E00722936 /* NuoMaterial.cpp */; };
+		2C5DDACC1D6590DB00A9DC9A /* NuoMesh.mm in Sources */ = {isa = PBXBuildFile; fileRef = 2C5DDACA1D6590DB00A9DC9A /* NuoMesh.mm */; };
+		2C5DDAD61D6591B000A9DC9A /* NuoMathUtilities.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2C5DDAD41D6591B000A9DC9A /* NuoMathUtilities.cpp */; };
+		2C5DDADA1D65949E00A9DC9A /* ModelViewerRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 2C5DDAD91D65949E00A9DC9A /* ModelViewerRenderer.mm */; };
+		2C5DDADD1D6594FD00A9DC9A /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = 2C5DDADB1D6594FD00A9DC9A /* Shaders.metal */; };
+		2C840D0E1D7001C2000D2956 /* NuoMetalView.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C840D0D1D7001C2000D2956 /* NuoMetalView.m */; };
+		2C9D9AAA1D658F0800283E46 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C9D9AA91D658F0800283E46 /* AppDelegate.m */; };
+		2C9D9AAD1D658F0800283E46 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C9D9AAC1D658F0800283E46 /* main.m */; };
+		2C9D9AAF1D658F0800283E46 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2C9D9AAE1D658F0800283E46 /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		2C3D9A901D7B5B0B002C1226 /* tiny_obj_loader.cc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = tiny_obj_loader.cc; path = ../../tiny_obj_loader.cc; sourceTree = "<group>"; };
+		2C3D9A911D7B5B0B002C1226 /* tiny_obj_loader.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = tiny_obj_loader.h; path = ../../tiny_obj_loader.h; sourceTree = "<group>"; };
+		2C5B92B31D7157A600722936 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/MainMenu.xib; sourceTree = "<group>"; };
+		2C5B92B51D7157EA00722936 /* ModelView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ModelView.h; sourceTree = "<group>"; };
+		2C5B92B61D7157EA00722936 /* ModelView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = ModelView.m; sourceTree = "<group>"; };
+		2C5B92BB1D7160EC00722936 /* NuoModelLoader.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NuoModelLoader.h; sourceTree = "<group>"; };
+		2C5B92BC1D7160EC00722936 /* NuoModelLoader.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = NuoModelLoader.mm; sourceTree = "<group>"; };
+		2C5B92BE1D72D11E00722936 /* NuoModelBase.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = NuoModelBase.cpp; sourceTree = "<group>"; };
+		2C5B92BF1D72D11E00722936 /* NuoModelBase.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NuoModelBase.h; sourceTree = "<group>"; };
+		2C5B92C11D73F51E00722936 /* NuoMaterial.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = NuoMaterial.cpp; sourceTree = "<group>"; };
+		2C5B92C21D73F51E00722936 /* NuoMaterial.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NuoMaterial.h; sourceTree = "<group>"; };
+		2C5DDAC91D6590DB00A9DC9A /* NuoMesh.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NuoMesh.h; sourceTree = "<group>"; };
+		2C5DDACA1D6590DB00A9DC9A /* NuoMesh.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = NuoMesh.mm; sourceTree = "<group>"; };
+		2C5DDAD41D6591B000A9DC9A /* NuoMathUtilities.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = NuoMathUtilities.cpp; sourceTree = "<group>"; };
+		2C5DDAD51D6591B000A9DC9A /* NuoMathUtilities.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NuoMathUtilities.h; sourceTree = "<group>"; };
+		2C5DDAD81D65949E00A9DC9A /* ModelViewerRenderer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ModelViewerRenderer.h; sourceTree = "<group>"; };
+		2C5DDAD91D65949E00A9DC9A /* ModelViewerRenderer.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = ModelViewerRenderer.mm; sourceTree = "<group>"; };
+		2C5DDADB1D6594FD00A9DC9A /* Shaders.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Shaders.metal; sourceTree = "<group>"; };
+		2C5DDADC1D6594FD00A9DC9A /* ModelUniforms.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ModelUniforms.h; sourceTree = "<group>"; };
+		2C840D0C1D7001C2000D2956 /* NuoMetalView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NuoMetalView.h; sourceTree = "<group>"; };
+		2C840D0D1D7001C2000D2956 /* NuoMetalView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = NuoMetalView.m; sourceTree = "<group>"; };
+		2C9D9AA51D658F0800283E46 /* ModelViewer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ModelViewer.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2C9D9AA81D658F0800283E46 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
+		2C9D9AA91D658F0800283E46 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
+		2C9D9AAC1D658F0800283E46 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		2C9D9AAE1D658F0800283E46 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		2C9D9AB31D658F0800283E46 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		2C9D9AA21D658F0800283E46 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		2C3D9A8F1D7B5AF8002C1226 /* TinyObj */ = {
+			isa = PBXGroup;
+			children = (
+				2C3D9A911D7B5B0B002C1226 /* tiny_obj_loader.h */,
+				2C3D9A901D7B5B0B002C1226 /* tiny_obj_loader.cc */,
+			);
+			name = TinyObj;
+			sourceTree = "<group>";
+		};
+		2C5DDAC51D65901400A9DC9A /* User Interface */ = {
+			isa = PBXGroup;
+			children = (
+				2C9D9AA81D658F0800283E46 /* AppDelegate.h */,
+				2C9D9AA91D658F0800283E46 /* AppDelegate.m */,
+				2C5B92B51D7157EA00722936 /* ModelView.h */,
+				2C5B92B61D7157EA00722936 /* ModelView.m */,
+			);
+			name = "User Interface";
+			path = UserInterface;
+			sourceTree = "<group>";
+		};
+		2C5DDAC61D6590C200A9DC9A /* Meshes */ = {
+			isa = PBXGroup;
+			children = (
+				2C5DDAC91D6590DB00A9DC9A /* NuoMesh.h */,
+				2C5DDACA1D6590DB00A9DC9A /* NuoMesh.mm */,
+			);
+			path = Meshes;
+			sourceTree = "<group>";
+		};
+		2C5DDACD1D65912900A9DC9A /* Loader */ = {
+			isa = PBXGroup;
+			children = (
+				2C5B92BB1D7160EC00722936 /* NuoModelLoader.h */,
+				2C5B92BC1D7160EC00722936 /* NuoModelLoader.mm */,
+				2C5B92BF1D72D11E00722936 /* NuoModelBase.h */,
+				2C5B92BE1D72D11E00722936 /* NuoModelBase.cpp */,
+				2C5B92C21D73F51E00722936 /* NuoMaterial.h */,
+				2C5B92C11D73F51E00722936 /* NuoMaterial.cpp */,
+			);
+			path = Loader;
+			sourceTree = "<group>";
+		};
+		2C5DDAD71D6591B800A9DC9A /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				2C5DDAD41D6591B000A9DC9A /* NuoMathUtilities.cpp */,
+				2C5DDAD51D6591B000A9DC9A /* NuoMathUtilities.h */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		2C65E57A1D77F30000FE77C5 /* Renderer */ = {
+			isa = PBXGroup;
+			children = (
+				2C5DDADB1D6594FD00A9DC9A /* Shaders.metal */,
+				2C5DDADC1D6594FD00A9DC9A /* ModelUniforms.h */,
+				2C5DDAD81D65949E00A9DC9A /* ModelViewerRenderer.h */,
+				2C5DDAD91D65949E00A9DC9A /* ModelViewerRenderer.mm */,
+			);
+			path = Renderer;
+			sourceTree = "<group>";
+		};
+		2C840D0B1D7001A5000D2956 /* ViewerFoundation */ = {
+			isa = PBXGroup;
+			children = (
+				2C840D0C1D7001C2000D2956 /* NuoMetalView.h */,
+				2C840D0D1D7001C2000D2956 /* NuoMetalView.m */,
+				2C5DDAC61D6590C200A9DC9A /* Meshes */,
+				2C5DDACD1D65912900A9DC9A /* Loader */,
+				2C5DDAD71D6591B800A9DC9A /* Utilities */,
+			);
+			path = ViewerFoundation;
+			sourceTree = "<group>";
+		};
+		2C9D9A9C1D658F0800283E46 = {
+			isa = PBXGroup;
+			children = (
+				2C3D9A8F1D7B5AF8002C1226 /* TinyObj */,
+				2C9D9AA71D658F0800283E46 /* ModelViewer */,
+				2C9D9AA61D658F0800283E46 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		2C9D9AA61D658F0800283E46 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				2C9D9AA51D658F0800283E46 /* ModelViewer.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		2C9D9AA71D658F0800283E46 /* ModelViewer */ = {
+			isa = PBXGroup;
+			children = (
+				2C840D0B1D7001A5000D2956 /* ViewerFoundation */,
+				2C5B92B21D7157A600722936 /* MainMenu.xib */,
+				2C5DDAC51D65901400A9DC9A /* User Interface */,
+				2C65E57A1D77F30000FE77C5 /* Renderer */,
+				2C9D9AAE1D658F0800283E46 /* Assets.xcassets */,
+				2C9D9AB31D658F0800283E46 /* Info.plist */,
+				2C9D9AAB1D658F0800283E46 /* Supporting Files */,
+			);
+			path = ModelViewer;
+			sourceTree = "<group>";
+		};
+		2C9D9AAB1D658F0800283E46 /* Supporting Files */ = {
+			isa = PBXGroup;
+			children = (
+				2C9D9AAC1D658F0800283E46 /* main.m */,
+			);
+			name = "Supporting Files";
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		2C9D9AA41D658F0800283E46 /* ModelViewer */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2C9D9AB61D658F0800283E46 /* Build configuration list for PBXNativeTarget "ModelViewer" */;
+			buildPhases = (
+				2C9D9AA11D658F0800283E46 /* Sources */,
+				2C9D9AA21D658F0800283E46 /* Frameworks */,
+				2C9D9AA31D658F0800283E46 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ModelViewer;
+			productName = ModelViewer;
+			productReference = 2C9D9AA51D658F0800283E46 /* ModelViewer.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		2C9D9A9D1D658F0800283E46 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 0730;
+				ORGANIZATIONNAME = middleware;
+				TargetAttributes = {
+					2C9D9AA41D658F0800283E46 = {
+						CreatedOnToolsVersion = 7.3.1;
+					};
+				};
+			};
+			buildConfigurationList = 2C9D9AA01D658F0800283E46 /* Build configuration list for PBXProject "ModelViewer" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = English;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 2C9D9A9C1D658F0800283E46;
+			productRefGroup = 2C9D9AA61D658F0800283E46 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				2C9D9AA41D658F0800283E46 /* ModelViewer */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		2C9D9AA31D658F0800283E46 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2C9D9AAF1D658F0800283E46 /* Assets.xcassets in Resources */,
+				2C5B92B41D7157A600722936 /* MainMenu.xib in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		2C9D9AA11D658F0800283E46 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2C9D9AAD1D658F0800283E46 /* main.m in Sources */,
+				2C5B92B71D7157EA00722936 /* ModelView.m in Sources */,
+				2C3D9A921D7B5B0B002C1226 /* tiny_obj_loader.cc in Sources */,
+				2C5DDADD1D6594FD00A9DC9A /* Shaders.metal in Sources */,
+				2C5B92BD1D7160EC00722936 /* NuoModelLoader.mm in Sources */,
+				2C5DDACC1D6590DB00A9DC9A /* NuoMesh.mm in Sources */,
+				2C5B92C31D73F51E00722936 /* NuoMaterial.cpp in Sources */,
+				2C840D0E1D7001C2000D2956 /* NuoMetalView.m in Sources */,
+				2C5B92C01D72D11E00722936 /* NuoModelBase.cpp in Sources */,
+				2C9D9AAA1D658F0800283E46 /* AppDelegate.m in Sources */,
+				2C5DDADA1D65949E00A9DC9A /* ModelViewerRenderer.mm in Sources */,
+				2C5DDAD61D6591B000A9DC9A /* NuoMathUtilities.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		2C5B92B21D7157A600722936 /* MainMenu.xib */ = {
+			isa = PBXVariantGroup;
+			children = (
+				2C5B92B31D7157A600722936 /* Base */,
+			);
+			name = MainMenu.xib;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		2C9D9AB41D658F0800283E46 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "-";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.11;
+				MTL_ENABLE_DEBUG_INFO = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		2C9D9AB51D658F0800283E46 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "-";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.11;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		2C9D9AB71D658F0800283E46 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				HEADER_SEARCH_PATHS = glm;
+				INFOPLIST_FILE = ModelViewer/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = fengdong.model.viewer;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		2C9D9AB81D658F0800283E46 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				HEADER_SEARCH_PATHS = glm;
+				INFOPLIST_FILE = ModelViewer/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = fengdong.model.viewer;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		2C9D9AA01D658F0800283E46 /* Build configuration list for PBXProject "ModelViewer" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2C9D9AB41D658F0800283E46 /* Debug */,
+				2C9D9AB51D658F0800283E46 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		2C9D9AB61D658F0800283E46 /* Build configuration list for PBXNativeTarget "ModelViewer" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2C9D9AB71D658F0800283E46 /* Debug */,
+				2C9D9AB81D658F0800283E46 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 2C9D9A9D1D658F0800283E46 /* Project object */;
+}
