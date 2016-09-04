@@ -16,6 +16,10 @@
 #include <zlib.h>
 #endif
 
+#if defined(ENABLE_ZSTD)
+#include <zstd.h>
+#endif
+
 #include <GL/glew.h>
 
 #ifdef __APPLE__
@@ -182,6 +186,71 @@ bool gz_load(std::vector<char>* buf, const char* filename)
 #endif
 }
 
+#ifdef ENABLE_ZSTD
+static off_t fsize_X(const char *filename)
+{
+    struct stat st;
+    if (stat(filename, &st) == 0) return st.st_size;
+    /* error */
+    printf("stat: %s : %s \n", filename, strerror(errno));
+    exit(1);
+}
+
+static FILE* fopen_X(const char *filename, const char *instruction)
+{
+    FILE* const inFile = fopen(filename, instruction);
+    if (inFile) return inFile;
+    /* error */
+    printf("fopen: %s : %s \n", filename, strerror(errno));
+    exit(2);
+}
+
+static void* malloc_X(size_t size)
+{
+    void* const buff = malloc(size);
+    if (buff) return buff;
+    /* error */
+    printf("malloc: %s \n", strerror(errno));
+    exit(3);
+}
+#endif
+
+bool zstd_load(std::vector<char>* buf, const char* filename)
+{
+#ifdef ENABLE_ZSTD
+    off_t const buffSize = fsize_X(filename);
+    FILE* const inFile = fopen_X(filename, "rb");
+    void* const buffer = malloc_X(buffSize);
+    size_t const readSize = fread(buffer, 1, buffSize, inFile);
+    if (readSize != (size_t)buffSize) {
+        printf("fread: %s : %s \n", filename, strerror(errno));
+        exit(4);
+    }
+    fclose(inFile);
+
+    unsigned long long const rSize = ZSTD_getDecompressedSize(buffer, buffSize);
+    if (rSize==0) {
+        printf("%s : original size unknown \n", filename);
+        exit(5);
+    }
+
+    buf->resize(rSize);
+
+    size_t const dSize = ZSTD_decompress(buf->data(), rSize, buffer, buffSize);
+
+    if (dSize != rSize) {
+        printf("error decoding %s : %s \n", filename, ZSTD_getErrorName(dSize));
+        exit(7);
+    }
+
+    free(buffer);
+
+    return true;
+#else
+  return false;
+#endif
+}
+
 const char* get_file_data(size_t *len, const char* filename)
 {
 
@@ -204,6 +273,19 @@ const char* get_file_data(size_t *len, const char* filename)
       data_len = buf.size();
     }
 
+  } else if (strcmp(ext, ".zst") == 0) {
+    // gzipped data.
+
+    std::vector<char> buf;
+    bool ret = zstd_load(&buf, filename);
+
+    if (ret) {
+      char *p = static_cast<char*>(malloc(buf.size() + 1));  // @fixme { implement deleter }
+      memcpy(p, &buf.at(0), buf.size());
+      p[buf.size()] = '\0';
+      data = p;
+      data_len = buf.size();
+    }
   } else {
     
     data = mmap_file(&data_len, filename);
