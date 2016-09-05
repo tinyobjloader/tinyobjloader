@@ -29,7 +29,11 @@ solution "objview"
 	end	
 
 	if _OPTIONS['with-zstd'] then
+		print("with-zstd")
 		defines { 'ENABLE_ZSTD' }
+		-- Set path to zstd installed dir.
+		includedirs { '$$HOME/local/include' }
+		libdirs { '$$HOME/local/lib' }
 		links { 'zstd' }
 	end	
 

@@ -274,7 +274,8 @@ const char* get_file_data(size_t *len, const char* filename)
     }
 
   } else if (strcmp(ext, ".zst") == 0) {
-    // gzipped data.
+    printf("zstd\n");
+    // Zstandard data.
 
     std::vector<char> buf;
     bool ret = zstd_load(&buf, filename);
@@ -302,13 +303,22 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int n
   std::vector<tinyobj_opt::shape_t> shapes;
   std::vector<tinyobj_opt::material_t> materials;
 
+  auto load_t_begin = std::chrono::high_resolution_clock::now();
   size_t data_len = 0;
   const char* data = get_file_data(&data_len, filename);
   if (data == nullptr) {
+    printf("failed to load file\n");
     exit(-1);
     return false;
   }
-  printf("filesize: %d\n", (int)data_len);
+  auto load_t_end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double, std::milli> load_ms = load_t_end - load_t_begin;
+  if (verbose) {
+    std::cout << "filesize: " << data_len << std::endl;
+    std::cout << "load time: " << load_ms.count() << " [msecs]" << std::endl;
+  }
+
+
   tinyobj_opt::LoadOption option;
   option.req_num_threads = num_threads;
   option.verbose = verbose;
@@ -616,6 +626,7 @@ int main(int argc, char **argv)
     size_t data_len = 0;
     const char* data = get_file_data(&data_len, argv[1]);
     if (data == nullptr) {
+      printf("failed to load file\n");
       exit(-1);
       return false;
     }
