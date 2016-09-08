@@ -52,7 +52,7 @@ TinyObjLoader is successfully used in ...
 ### New version(v1.0.x)
 
 * Loading models in Vulkan Tutorial https://vulkan-tutorial.com/Loading_models
-* .obj viewer with Metal https://github.com/middlefeng/MetalExamples/tree/master/objc/ModelViewer
+* .obj viewer with Metal https://github.com/middlefeng/NuoModelViewer/tree/master
 * Your project here!
 
 ### Old version(v0.9.x)
