@@ -184,6 +184,48 @@ TestLoadObj(
   return true;
 }
 
+static bool
+TestLoadObjFromPreopenedFile(
+  const char* filename,
+  const char* basepath = NULL,
+  bool readMaterials = true,
+  bool triangulate = true)
+{
+  std::string fullFilename = std::string(basepath) + filename;
+  std::cout << "Loading " << fullFilename << std::endl;
+
+  std::ifstream fileStream(fullFilename);
+
+  if (!fileStream) {
+    std::cerr << "Could not find specified file: " << fullFilename << std::endl;
+    return false;
+  }
+
+  tinyobj::MaterialStreamReader materialStreamReader(fileStream);
+  tinyobj::MaterialStreamReader* materialReader = readMaterials
+    ? &materialStreamReader
+    : NULL;
+
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, &fileStream, materialReader);
+
+  if (!err.empty()) {
+    std::cerr << err << std::endl;
+  }
+
+  if (!ret) {
+    printf("Failed to load/parse .obj.\n");
+    return false;
+  }
+
+  std::cout << "Loaded material count: " << materials.size() << "\n";
+
+  return true;
+}
 
 static bool
 TestStreamLoadObj()
@@ -349,6 +391,16 @@ TEST_CASE("pbr", "[Loader]") {
 
 TEST_CASE("stream_load", "[Stream]") {
     REQUIRE(true == TestStreamLoadObj());
+}
+
+TEST_CASE("stream_load_from_file_skipping_materials", "[Stream]") {
+  REQUIRE(true == TestLoadObjFromPreopenedFile(
+    "../models/pbr-mat-ext.obj", gMtlBasePath, /*readMaterials*/false, /*triangulate*/false));
+}
+
+TEST_CASE("stream_load_from_file_with_materials", "[Stream]") {
+  REQUIRE(true == TestLoadObjFromPreopenedFile(
+    "../models/pbr-mat-ext.obj", gMtlBasePath, /*readMaterials*/true, /*triangulate*/false));
 }
 
 TEST_CASE("trailing_whitespace_in_mtl", "[Issue92]") {
