@@ -179,6 +179,19 @@ class MaterialFileReader : public MaterialReader {
   std::string m_mtlBasePath;
 };
 
+class MaterialStreamReader : public MaterialReader {
+ public:
+  explicit MaterialStreamReader(std::istream &inStream)
+      : m_inStream(inStream) {}
+  virtual ~MaterialStreamReader() {}
+  virtual bool operator()(const std::string &matId,
+                          std::vector<material_t> *materials,
+                          std::map<std::string, int> *matMap, std::string *err);
+
+ private:
+  std::istream &m_inStream;
+};
+
 /// Loads .obj from a file.
 /// 'attrib', 'shapes' and 'materials' will be filled with parsed shape data
 /// 'shapes' will be filled with parsed shape data
@@ -209,7 +222,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
 /// Returns warning and error message into `err`
 bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              std::vector<material_t> *materials, std::string *err,
-             std::istream *inStream, MaterialReader *readMatFn,
+             std::istream *inStream, MaterialReader *readMatFn = NULL,
              bool triangulate = true);
 
 /// Loads materials into std::map
@@ -1010,6 +1023,22 @@ bool MaterialFileReader::operator()(const std::string &matId,
   return true;
 }
 
+bool MaterialStreamReader::operator()(const std::string &matId,
+                                      std::vector<material_t> *materials,
+                                      std::map<std::string, int> *matMap,
+                                      std::string *err) {
+  LoadMtl(matMap, materials, &m_inStream);
+  if (!m_inStream) {
+    std::stringstream ss;
+    ss << "WARN: Material stream in error state."
+       << " Created a default material.";
+    if (err) {
+      (*err) += ss.str();
+    }
+  }
+  return true;
+}
+
 bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              std::vector<material_t> *materials, std::string *err,
              const char *filename, const char *mtl_basepath,
@@ -1042,7 +1071,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
 bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              std::vector<material_t> *materials, std::string *err,
-             std::istream *inStream, MaterialReader *readMatFn,
+             std::istream *inStream,
+             MaterialReader *readMatFn /*= NULL*/,
              bool triangulate) {
   std::stringstream errss;
 
@@ -1173,23 +1203,25 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
     // load mtl
     if ((0 == strncmp(token, "mtllib", 6)) && IS_SPACE((token[6]))) {
-      char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
-      token += 7;
+      if (readMatFn) {
+        char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
+        token += 7;
 #ifdef _MSC_VER
-      sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
+        sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
 #else
-      sscanf(token, "%s", namebuf);
+        sscanf(token, "%s", namebuf);
 #endif
 
-      std::string err_mtl;
-      bool ok = (*readMatFn)(namebuf, materials, &material_map, &err_mtl);
-      if (err) {
-        (*err) += err_mtl;
-      }
+        std::string err_mtl;
+        bool ok = (*readMatFn)(namebuf, materials, &material_map, &err_mtl);
+        if (err) {
+          (*err) += err_mtl;
+        }
 
-      if (!ok) {
-        faceGroup.clear();  // for safety
-        return false;
+        if (!ok) {
+          faceGroup.clear();  // for safety
+          return false;
+        }
       }
 
       continue;
