@@ -209,7 +209,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
 /// Returns warning and error message into `err`
 bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              std::vector<material_t> *materials, std::string *err,
-             std::istream *inStream, MaterialReader *readMatFn,
+             std::istream *inStream, MaterialReader *readMatFn = NULL,
              bool triangulate = true);
 
 /// Loads materials into std::map
@@ -1042,7 +1042,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
 bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              std::vector<material_t> *materials, std::string *err,
-             std::istream *inStream, MaterialReader *readMatFn,
+             std::istream *inStream,
+             MaterialReader *readMatFn /*= NULL*/,
              bool triangulate) {
   std::stringstream errss;
 
@@ -1173,23 +1174,25 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
     // load mtl
     if ((0 == strncmp(token, "mtllib", 6)) && IS_SPACE((token[6]))) {
-      char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
-      token += 7;
+      if (readMatFn) {
+        char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
+        token += 7;
 #ifdef _MSC_VER
-      sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
+        sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
 #else
-      sscanf(token, "%s", namebuf);
+        sscanf(token, "%s", namebuf);
 #endif
 
-      std::string err_mtl;
-      bool ok = (*readMatFn)(namebuf, materials, &material_map, &err_mtl);
-      if (err) {
-        (*err) += err_mtl;
-      }
+        std::string err_mtl;
+        bool ok = (*readMatFn)(namebuf, materials, &material_map, &err_mtl);
+        if (err) {
+          (*err) += err_mtl;
+        }
 
-      if (!ok) {
-        faceGroup.clear();  // for safety
-        return false;
+        if (!ok) {
+          faceGroup.clear();  // for safety
+          return false;
+        }
       }
 
       continue;
