@@ -179,6 +179,19 @@ class MaterialFileReader : public MaterialReader {
   std::string m_mtlBasePath;
 };
 
+class MaterialStreamReader : public MaterialReader {
+ public:
+  explicit MaterialStreamReader(std::istream &inStream)
+      : m_inStream(inStream) {}
+  virtual ~MaterialStreamReader() {}
+  virtual bool operator()(const std::string &matId,
+                          std::vector<material_t> *materials,
+                          std::map<std::string, int> *matMap, std::string *err);
+
+ private:
+  std::istream &m_inStream;
+};
+
 /// Loads .obj from a file.
 /// 'attrib', 'shapes' and 'materials' will be filled with parsed shape data
 /// 'shapes' will be filled with parsed shape data
@@ -1003,6 +1016,22 @@ bool MaterialFileReader::operator()(const std::string &matId,
     std::stringstream ss;
     ss << "WARN: Material file [ " << filepath
        << " ] not found. Created a default material.";
+    if (err) {
+      (*err) += ss.str();
+    }
+  }
+  return true;
+}
+
+bool MaterialStreamReader::operator()(const std::string &matId,
+                                      std::vector<material_t> *materials,
+                                      std::map<std::string, int> *matMap,
+                                      std::string *err) {
+  LoadMtl(matMap, materials, &m_inStream);
+  if (!m_inStream) {
+    std::stringstream ss;
+    ss << "WARN: Material stream in error state."
+       << " Created a default material.";
     if (err) {
       (*err) += ss.str();
     }
