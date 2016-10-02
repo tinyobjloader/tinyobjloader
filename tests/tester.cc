@@ -194,7 +194,7 @@ TestLoadObjFromPreopenedFile(
   std::string fullFilename = std::string(basepath) + filename;
   std::cout << "Loading " << fullFilename << std::endl;
 
-  std::ifstream fileStream(fullFilename);
+  std::ifstream fileStream(fullFilename.c_str());
 
   if (!fileStream) {
     std::cerr << "Could not find specified file: " << fullFilename << std::endl;
