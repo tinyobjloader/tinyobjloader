@@ -91,7 +91,7 @@ typedef struct {
   std::vector<std::string> stringValues;
 } tag_t;
 
-// Index struct to support differnt indices for vtx/normal/texcoord.
+// Index struct to support different indices for vtx/normal/texcoord.
 // -1 means not used.
 typedef struct {
   int vertex_index;
