@@ -249,10 +249,9 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3],
   {
     for (size_t s = 0; s < shapes.size(); s++) {
       size_t current_material_id = 0;
-      if (shapes[s].mesh.material_ids.size() > 0) {
+      if (shapes[s].mesh.material_ids.size() > 0 && shapes[s].mesh.material_ids.size() > s) {
           // Base case
           current_material_id = shapes[s].mesh.material_ids[s];
-          std::cerr << "Setting base case: " << current_material_id << std::endl;
       }
       DrawObject o;
       std::vector<float> vb;  // pos(3float), normal(3float), color(3float)
