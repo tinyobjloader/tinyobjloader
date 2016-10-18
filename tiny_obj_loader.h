@@ -23,6 +23,7 @@ THE SOFTWARE.
 */
 
 //
+// version 1.0.1 : Fixes a shape is lost if obj ends with a 'usemtl'(#104)
 // version 1.0.0 : Change data structure. Change license from BSD to MIT.
 //
 
@@ -1161,7 +1162,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       }
 
       if (newMaterialId != material) {
-        // Create per-face material
+        // Create per-face material. Thus we don't add `shape` to `shapes` at
+        // this time.
+        // just clear `faceGroup` after `exportFaceGroupToShape()` call.
         exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
                                triangulate);
         faceGroup.clear();
@@ -1307,7 +1310,11 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
   bool ret = exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
                                     triangulate);
-  if (ret) {
+  // exportFaceGroupToShape return false when `usemtl` is called in the last
+  // line.
+  // we also add `shape` to `shapes` when `shape.mesh` has already some
+  // faces(indices)
+  if (ret || shape.mesh.indices.size()) {
     shapes->push_back(shape);
   }
   faceGroup.clear();  // for safety
