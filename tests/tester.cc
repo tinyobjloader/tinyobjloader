@@ -402,6 +402,7 @@ TEST_CASE("transmittance_filter_Tf", "[Issue95-Tf]") {
   REQUIRE(0.2 == Approx(materials[0].transmittance[1]));
   REQUIRE(0.3 == Approx(materials[0].transmittance[2]));
 }
+
 TEST_CASE("transmittance_filter_Kt", "[Issue95-Kt]") {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
@@ -418,6 +419,21 @@ TEST_CASE("transmittance_filter_Kt", "[Issue95-Kt]") {
   REQUIRE(0.1 == Approx(materials[0].transmittance[0]));
   REQUIRE(0.2 == Approx(materials[0].transmittance[1]));
   REQUIRE(0.3 == Approx(materials[0].transmittance[2]));
+}
+
+TEST_CASE("usemtl_at_last_line", "[Issue104]") {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "../models/usemtl-issue-104.obj", gMtlBasePath);
+
+  if (!err.empty()) {
+    std::cerr << err << std::endl;
+  }
+  REQUIRE(true == ret);
+  REQUIRE(1 == shapes.size());
 }
 
 #if 0
