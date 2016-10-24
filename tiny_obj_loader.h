@@ -472,8 +472,8 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result) {
   }
 
 assemble:
-  *result =
-      (sign == '+' ? 1 : -1) * ldexp(mantissa * pow(5.0, exponent), exponent);
+  *result = (sign == '+' ? 1 : -1) *
+    (exponent ? ldexp(mantissa * pow(5.0, exponent), exponent) : mantissa);
   return true;
 fail:
   return false;
