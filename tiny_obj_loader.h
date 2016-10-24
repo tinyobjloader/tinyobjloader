@@ -692,9 +692,8 @@ void LoadMtl(std::map<std::string, int> *material_map,
   material_t material;
   InitMaterial(&material);
 
+  std::string linebuf;
   while (inStream->peek() != -1) {
-    std::string linebuf;
-
     safeGetline(*inStream, linebuf);
 
     // Trim trailing whitespace.
@@ -1090,8 +1089,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
   shape_t shape;
 
+  std::string linebuf;
   while (inStream->peek() != -1) {
-    std::string linebuf;
     safeGetline(*inStream, linebuf);
 
     // Trim newline '\r\n' or '\n'
