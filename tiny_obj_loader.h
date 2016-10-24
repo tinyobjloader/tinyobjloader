@@ -23,6 +23,7 @@ THE SOFTWARE.
 */
 
 //
+// version 1.0.2 : Improve parsing speed by about a factor of 2 for large files(#105)
 // version 1.0.1 : Fixes a shape is lost if obj ends with a 'usemtl'(#104)
 // version 1.0.0 : Change data structure. Change license from BSD to MIT.
 //
@@ -75,6 +76,7 @@ typedef struct {
   float clearcoat_roughness;      // [0, 1] default 0
   float anisotropy;               // aniso. [0, 1] default 0
   float anisotropy_rotation;      // anisor. [0, 1] default 0
+  float pad0;
   std::string roughness_texname;  // map_Pr
   std::string metallic_texname;   // map_Pm
   std::string sheen_texname;      // map_Ps

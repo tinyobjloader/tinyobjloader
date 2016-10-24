@@ -209,6 +209,9 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3],
   printf("# of materials = %d\n", (int)materials.size());
   printf("# of shapes    = %d\n", (int)shapes.size());
 
+  // Append `default` material
+  materials.push_back(tinyobj::material_t());
+
   // Load diffuse textures
   {
       for (size_t m = 0; m < materials.size(); m++) {
@@ -248,11 +251,6 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3],
 
   {
     for (size_t s = 0; s < shapes.size(); s++) {
-      size_t current_material_id = 0;
-      if (shapes[s].mesh.material_ids.size() > 0 && shapes[s].mesh.material_ids.size() > s) {
-          // Base case
-          current_material_id = shapes[s].mesh.material_ids[s];
-      }
       DrawObject o;
       std::vector<float> vb;  // pos(3float), normal(3float), color(3float)
       for (size_t f = 0; f < shapes[s].mesh.indices.size() / 3; f++) {
@@ -260,12 +258,16 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3],
         tinyobj::index_t idx1 = shapes[s].mesh.indices[3 * f + 1];
         tinyobj::index_t idx2 = shapes[s].mesh.indices[3 * f + 2];
         
-        current_material_id = shapes[s].mesh.material_ids[f];
+        int current_material_id = shapes[s].mesh.material_ids[f];
 
-        if (current_material_id >= materials.size()) {
-            std::cerr << "Invalid material index: " << current_material_id << std::endl;
+        if ((current_material_id < 0) || (current_material_id >= static_cast<int>(materials.size()))) {
+          // Invaid material ID. Use default material.
+          current_material_id = materials.size() - 1; // Default material is added to the last item in `materials`.
         }
-        
+        //if (current_material_id >= materials.size()) {
+        //    std::cerr << "Invalid material index: " << current_material_id << std::endl;
+        //}
+        //
         float diffuse[3];
         for (size_t i = 0; i < 3; i++) {
             diffuse[i] = materials[current_material_id].diffuse[i];
@@ -364,7 +366,15 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3],
 
       o.vb = 0;
       o.numTriangles = 0;
-      o.material_id = current_material_id;
+
+      // OpenGL viewer does not support texturing with per-face material.
+      if (shapes[s].mesh.material_ids.size() > 0 && shapes[s].mesh.material_ids.size() > s) {
+          // Base case
+          o.material_id = shapes[s].mesh.material_ids[s];
+      } else {
+          o.material_id = materials.size() - 1; // = ID for default material.
+      }
+          
       if (vb.size() > 0) {
         glGenBuffers(1, &o.vb);
         glBindBuffer(GL_ARRAY_BUFFER, o.vb);
