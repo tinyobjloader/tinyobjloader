@@ -1040,6 +1040,7 @@ bool MaterialStreamReader::operator()(const std::string &matId,
                                       std::vector<material_t> *materials,
                                       std::map<std::string, int> *matMap,
                                       std::string *err) {
+  (void)matId;
   LoadMtl(matMap, materials, &m_inStream);
   if (!m_inStream) {
     std::stringstream ss;
