@@ -418,8 +418,21 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result) {
     read = 1;
     end_not_reached = (curr != s_end);
     while (end_not_reached && IS_DIGIT(*curr)) {
+      static const double pow_lut[] = {
+        1.0,
+        0.1,
+        0.01,
+        0.001,
+        0.0001,
+        0.00001,
+        0.000001,
+        0.0000001,
+      };
+      const int lut_entries = sizeof pow_lut / sizeof pow_lut[0];
+
       // NOTE: Don't use powf here, it will absolutely murder precision.
-      mantissa += static_cast<int>(*curr - 0x30) * pow(10.0, -read);
+      mantissa += static_cast<int>(*curr - 0x30) *
+        (read < lut_entries ? pow_lut[read] : pow(10.0, -read));
       read++;
       curr++;
       end_not_reached = (curr != s_end);
