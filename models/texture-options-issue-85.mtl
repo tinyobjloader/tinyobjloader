@@ -1,0 +1,20 @@
+newmtl default
+Ka 0 0 0
+Kd 0 0 0
+Ks 0 0 0
+Kt 0.1 0.2 0.3
+map_Kd -o 0.1 diffuse.jpg
+map_Ks -o 0.1 0.2 specular.jpg
+map_Ns -o 0.1 0.2 0.3 specular_highlight.jpg
+map_bump -bm 3 bumpmap.jpg
+
+newmtl bm2
+Ka 0 0 0
+Kd 0 0 0
+Ks 0 0 0
+Kt 0.1 0.2 0.3
+# blendu
+map_Kd -blendu on diffuse.jpg
+map_Ks -blendv off specular.jpg
+# -bm after filename
+map_bump bumpmap2.jpg -bm 1.5

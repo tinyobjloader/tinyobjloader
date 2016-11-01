@@ -43,6 +43,64 @@ THE SOFTWARE.
 
 namespace tinyobj {
 
+// https://en.wikipedia.org/wiki/Wavefront_.obj_file says ...
+// 
+//  -blendu on | off                       # set horizontal texture blending (default on)
+//  -blendv on | off                       # set vertical texture blending (default on)
+//  -boost float_value                     # boost mip-map sharpness
+//  -mm base_value gain_value              # modify texture map values (default 0 1)
+//                                         #     base_value = brightness, gain_value = contrast
+//  -o u [v [w]]                           # Origin offset             (default 0 0 0)
+//  -s u [v [w]]                           # Scale                     (default 1 1 1)
+//  -t u [v [w]]                           # Turbulence                (default 0 0 0)
+//  -texres resolution                     # texture resolution to create
+//  -clamp on | off                        # only render texels in the clamped 0-1 range (default off)
+//                                         #   When unclamped, textures are repeated across a surface,
+//                                         #   when clamped, only texels which fall within the 0-1
+//                                         #   range are rendered.
+//  -bm mult_value                         # bump multiplier (for bump maps only)
+// 
+//  -imfchan r | g | b | m | l | z         # specifies which channel of the file is used to 
+//                                         # create a scalar or bump texture. r:red, g:green,
+//                                         # b:blue, m:matte, l:luminance, z:z-depth.. 
+//                                         # (the default for bump is 'l' and for decal is 'm')
+//  bump -imfchan r bumpmap.tga            # says to use the red channel of bumpmap.tga as the bumpmap
+//
+// For reflection maps...
+//
+//   -type sphere                           # specifies a sphere for a "refl" reflection map    
+//   -type cube_top    | cube_bottom |      # when using a cube map, the texture file for each
+//         cube_front  | cube_back   |      # side of the cube is specified separately
+//         cube_left   | cube_right
+
+
+typedef enum {
+  TEXTURE_TYPE_NONE,          // default
+  TEXTURE_TYPE_SPHERE,
+  TEXTURE_TYPE_CUBE_TOP,
+  TEXTURE_TYPE_CUBE_BOTTOM,
+  TEXTURE_TYPE_CUBE_FRONT,
+  TEXTURE_TYPE_CUBE_BACK,
+  TEXTURE_TYPE_CUBE_LEFT,
+  TEXTURE_TYPE_CUBE_RIGHT
+} texture_type_t;
+ 
+typedef struct {
+  texture_type_t type;      // -type (default TEXTURE_TYPE_NONE)
+  float sharpness;          // -boost (default 1.0?)
+  float brightness;         // base_value in -mm option (default 0)
+  float contrast;           // gain_value in -mm option (default 1)
+  float origin_offset[3];   // -o u [v [w]] (default 0 0 0)
+  float scale[3];           // -s u [v [w]] (default 1 1 1)
+  float turbulence[3];      // -t u [v [w]] (default 0 0 0)
+  //int   texture_resolution; // -texres resolution (default = ?) TODO
+  bool clamp;               // -clamp (default false)
+  char imfchan;             // -imfchan (the default for bump is 'l' and for decal is 'm')
+  bool blendu;              // -blendu (default on)
+  bool blendv;              // -blendv (default on)
+  float bump_multiplier;    // -bm (for bump maps only, default 1.0)
+} texture_option_t;
+
 typedef struct {
   std::string name;
 
@@ -67,6 +125,14 @@ typedef struct {
   std::string displacement_texname;        // disp
   std::string alpha_texname;               // map_d
 
+  texture_option_t ambient_texopt;
+  texture_option_t diffuse_texopt;
+  texture_option_t specular_texopt;
+  texture_option_t specular_highlight_texopt;
+  texture_option_t bump_texopt;
+  texture_option_t displacement_texopt;
+  texture_option_t alpha_texopt;
+
   // PBR extension
   // http://exocortex.com/blog/extending_wavefront_mtl_to_support_pbr
   float roughness;                // [0, 1] default 0
@@ -77,11 +143,20 @@ typedef struct {
   float anisotropy;               // aniso. [0, 1] default 0
   float anisotropy_rotation;      // anisor. [0, 1] default 0
   float pad0;
+  float pad1;
   std::string roughness_texname;  // map_Pr
   std::string metallic_texname;   // map_Pm
   std::string sheen_texname;      // map_Ps
   std::string emissive_texname;   // map_Ke
   std::string normal_texname;     // norm. For normal mapping.
+
+  texture_option_t roughness_texopt;
+  texture_option_t metallic_texopt;
+  texture_option_t sheen_texopt;
+  texture_option_t emissive_texopt;
+  texture_option_t normal_texopt;
+
+  int pad2;
 
   std::map<std::string, std::string> unknown_parameter;
 } material_t;
@@ -511,6 +586,23 @@ static inline void parseV(float *x, float *y, float *z, float *w,
   (*w) = parseFloat(token, 1.0);
 }
 
+static inline bool parseOnOff(const char **token, bool default_value = true) {
+  (*token) += strspn((*token), " \t");
+  const char *end = (*token) + strcspn((*token), " \t\r");
+
+  printf("token = %s\n", (*token));
+  bool ret = default_value;
+  if ((0 == strncmp((*token), "on", 2))) {
+    ret = true;
+  } else if ((0 == strncmp((*token), "off", 3))) {
+    printf("off\n");
+    ret = false;
+  }
+   
+  (*token) = end;
+  return ret;
+}
+
 static tag_sizes parseTagTriple(const char **token) {
   tag_sizes ts;
 
@@ -600,6 +692,105 @@ static vertex_index parseRawTriple(const char **token) {
   (*token) += strcspn((*token), "/ \t\r");
   return vi;
 }
+
+static bool ParseTextureNameAndOption(std::string* texname, texture_option_t *texopt, const char* linebuf, const bool is_bump)
+{
+  // @todo { write more robust lexer and parser. }
+  bool found_texname = false;
+  std::string texture_name;
+
+  // Fill with default value for texopt.
+  if (is_bump) {
+    texopt->imfchan = 'l';
+  } else {
+    texopt->imfchan = 'm';
+  }
+  texopt->bump_multiplier = 1.0f;
+  texopt->clamp = false;
+  texopt->blendu = true;
+  texopt->blendv = true;
+  texopt->sharpness = 1.0f;
+  texopt->brightness = 0.0f;
+  texopt->contrast = 1.0f;
+  texopt->origin_offset[0] = 0.0f;
+  texopt->origin_offset[1] = 0.0f;
+  texopt->origin_offset[2] = 0.0f;
+  texopt->scale[0] = 1.0f;
+  texopt->scale[1] = 1.0f;
+  texopt->scale[2] = 1.0f;
+  texopt->turbulence[0] = 0.0f;
+  texopt->turbulence[1] = 0.0f;
+  texopt->turbulence[2] = 0.0f;
+  texopt->type = TEXTURE_TYPE_NONE;
+
+  const char *token = linebuf; // Assume line ends with NULL
+ 
+  // @todo { -mm, -type, -imfchan }
+  while (!IS_NEW_LINE((*token))) {
+    if ((0 == strncmp(token, "-blendu", 7)) && IS_SPACE((token[7]))) {
+      token += 8;
+      texopt->blendu = parseOnOff(&token, /* default */true);
+      printf("blendu = %d\n", texopt->blendu);
+    } else if ((0 == strncmp(token, "-blendv", 7)) && IS_SPACE((token[7]))) {
+      token += 8;
+      texopt->blendv = parseOnOff(&token, /* default */true);
+      printf("blendv = %d\n", texopt->blendv);
+    } else if ((0 == strncmp(token, "-clamp", 6)) && IS_SPACE((token[6]))) {
+      token += 7;
+      texopt->clamp = parseOnOff(&token, /* default */true);
+      printf("clamp= %d\n", texopt->clamp);
+    } else if ((0 == strncmp(token, "-boost", 6)) && IS_SPACE((token[6]))) {
+      token += 7;
+      texopt->sharpness = parseFloat(&token, 1.0);
+      printf("boost = %f\n", static_cast<double>(texopt->sharpness));
+    } else if ((0 == strncmp(token, "-bm", 3)) && IS_SPACE((token[3]))) {
+      token += 4; 
+      texopt->bump_multiplier = parseFloat(&token, 1.0);
+      printf("bm %f\n", static_cast<double>(texopt->bump_multiplier));
+    } else if ((0 == strncmp(token, "-o", 2)) && IS_SPACE((token[2]))) {
+      token += 3; 
+      parseFloat3(&(texopt->origin_offset[0]), &(texopt->origin_offset[1]), &(texopt->origin_offset[2]), &token);
+      printf("o %f, %f, %f\n",
+        static_cast<double>(texopt->origin_offset[0]),
+        static_cast<double>(texopt->origin_offset[1]),
+        static_cast<double>(texopt->origin_offset[2]));
+    } else if ((0 == strncmp(token, "-s", 2)) && IS_SPACE((token[2]))) {
+      token += 3; 
+      parseFloat3(&(texopt->scale[0]), &(texopt->scale[1]), &(texopt->scale[2]), &token);
+      printf("s %f, %f, %f\n",
+        static_cast<double>(texopt->scale[0]),
+        static_cast<double>(texopt->scale[1]),
+        static_cast<double>(texopt->scale[2]));
+    } else if ((0 == strncmp(token, "-t", 2)) && IS_SPACE((token[2]))) {
+      token += 3; 
+      parseFloat3(&(texopt->turbulence[0]), &(texopt->turbulence[1]), &(texopt->turbulence[2]), &token);
+      printf("t %f, %f, %f\n",
+        static_cast<double>(texopt->turbulence[0]),
+        static_cast<double>(texopt->turbulence[1]),
+        static_cast<double>(texopt->turbulence[2]));
+    } else {
+      // Assume texture filename
+      token += strspn(token, " \t"); // skip space
+      size_t len = strcspn(token, " \t\r"); // untile next space
+      texture_name = std::string(token, token + len);
+      printf("texname = [%s]\n", texture_name.c_str());
+      token += len;
+
+      token += strspn(token, " \t"); // skip space
+
+      found_texname = true;
+    }
+  }
+
+  if (found_texname) {
+    (*texname) = texture_name;
+    return true;
+  } else {
+    return false;
+  }
+}
+
+
 
 static void InitMaterial(material_t *material) {
   material->name = "";
@@ -913,28 +1104,35 @@ void LoadMtl(std::map<std::string, int> *material_map,
     // diffuse texture
     if ((0 == strncmp(token, "map_Kd", 6)) && IS_SPACE(token[6])) {
       token += 7;
-      material.diffuse_texname = token;
+      ParseTextureNameAndOption(&(material.diffuse_texname), &(material.diffuse_texopt), token, /* is_bump */false);
       continue;
     }
 
     // specular texture
     if ((0 == strncmp(token, "map_Ks", 6)) && IS_SPACE(token[6])) {
       token += 7;
-      material.specular_texname = token;
+      ParseTextureNameAndOption(&(material.specular_texname), &(material.specular_texopt), token, /* is_bump */false);
       continue;
     }
 
     // specular highlight texture
     if ((0 == strncmp(token, "map_Ns", 6)) && IS_SPACE(token[6])) {
       token += 7;
-      material.specular_highlight_texname = token;
+      ParseTextureNameAndOption(&(material.specular_highlight_texname), &(material.specular_highlight_texopt), token, /* is_bump */false);
       continue;
     }
 
     // bump texture
     if ((0 == strncmp(token, "map_bump", 8)) && IS_SPACE(token[8])) {
       token += 9;
-      material.bump_texname = token;
+      ParseTextureNameAndOption(&(material.bump_texname), &(material.bump_texopt), token, /* is_bump */true);
+      continue;
+    }
+
+    // bump texture
+    if ((0 == strncmp(token, "bump", 4)) && IS_SPACE(token[4])) {
+      token += 5;
+      ParseTextureNameAndOption(&(material.bump_texname), &(material.bump_texopt), token, /* is_bump */true);
       continue;
     }
 
@@ -942,55 +1140,49 @@ void LoadMtl(std::map<std::string, int> *material_map,
     if ((0 == strncmp(token, "map_d", 5)) && IS_SPACE(token[5])) {
       token += 6;
       material.alpha_texname = token;
-      continue;
-    }
-
-    // bump texture
-    if ((0 == strncmp(token, "bump", 4)) && IS_SPACE(token[4])) {
-      token += 5;
-      material.bump_texname = token;
+      ParseTextureNameAndOption(&(material.alpha_texname), &(material.alpha_texopt), token, /* is_bump */false);
       continue;
     }
 
     // displacement texture
     if ((0 == strncmp(token, "disp", 4)) && IS_SPACE(token[4])) {
       token += 5;
-      material.displacement_texname = token;
+      ParseTextureNameAndOption(&(material.displacement_texname), &(material.displacement_texopt), token, /* is_bump */false);
       continue;
     }
 
     // PBR: roughness texture
     if ((0 == strncmp(token, "map_Pr", 6)) && IS_SPACE(token[6])) {
       token += 7;
-      material.roughness_texname = token;
+      ParseTextureNameAndOption(&(material.roughness_texname), &(material.roughness_texopt), token, /* is_bump */false);
       continue;
     }
 
     // PBR: metallic texture
     if ((0 == strncmp(token, "map_Pm", 6)) && IS_SPACE(token[6])) {
       token += 7;
-      material.metallic_texname = token;
+      ParseTextureNameAndOption(&(material.metallic_texname), &(material.metallic_texopt), token, /* is_bump */false);
       continue;
     }
 
     // PBR: sheen texture
     if ((0 == strncmp(token, "map_Ps", 6)) && IS_SPACE(token[6])) {
       token += 7;
-      material.sheen_texname = token;
+      ParseTextureNameAndOption(&(material.sheen_texname), &(material.sheen_texopt), token, /* is_bump */false);
       continue;
     }
 
     // PBR: emissive texture
     if ((0 == strncmp(token, "map_Ke", 6)) && IS_SPACE(token[6])) {
       token += 7;
-      material.emissive_texname = token;
+      ParseTextureNameAndOption(&(material.emissive_texname), &(material.emissive_texopt), token, /* is_bump */false);
       continue;
     }
 
     // PBR: normal map texture
     if ((0 == strncmp(token, "norm", 4)) && IS_SPACE(token[4])) {
       token += 5;
-      material.normal_texname = token;
+      ParseTextureNameAndOption(&(material.normal_texname), &(material.normal_texopt), token, /* is_bump */false); // @fixme { is_bump will be true? }
       continue;
     }
 

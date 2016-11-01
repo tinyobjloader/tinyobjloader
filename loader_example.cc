@@ -233,6 +233,7 @@ static void PrintInfo(const tinyobj::attrib_t& attrib,
     printf("  material.map_Ns = %s\n",
            materials[i].specular_highlight_texname.c_str());
     printf("  material.map_bump = %s\n", materials[i].bump_texname.c_str());
+    printf("    bump_multiplier = %f\n", static_cast<const double>(materials[i].bump_texopt.bump_multiplier));
     printf("  material.map_d = %s\n", materials[i].alpha_texname.c_str());
     printf("  material.disp = %s\n", materials[i].displacement_texname.c_str());
     printf("  <<PBR>>\n");
