@@ -266,15 +266,15 @@ class MaterialReader {
 
 class MaterialFileReader : public MaterialReader {
  public:
-  explicit MaterialFileReader(const std::string &mtl_basepath)
-      : m_mtlBasePath(mtl_basepath) {}
+  explicit MaterialFileReader(const std::string &mtl_basedir)
+      : m_mtlBaseDir(mtl_basedir) {} 
   virtual ~MaterialFileReader() {}
   virtual bool operator()(const std::string &matId,
                           std::vector<material_t> *materials,
                           std::map<std::string, int> *matMap, std::string *err);
 
  private:
-  std::string m_mtlBasePath;
+  std::string m_mtlBaseDir;
 };
 
 class MaterialStreamReader : public MaterialReader {
@@ -295,12 +295,12 @@ class MaterialStreamReader : public MaterialReader {
 /// 'shapes' will be filled with parsed shape data
 /// Returns true when loading .obj become success.
 /// Returns warning and error message into `err`
-/// 'mtl_basepath' is optional, and used for base path for .mtl file.
+/// 'mtl_basedir' is optional, and used for base directory for .mtl file.
 /// 'triangulate' is optional, and used whether triangulate polygon face in .obj
 /// or not.
 bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              std::vector<material_t> *materials, std::string *err,
-             const char *filename, const char *mtl_basepath = NULL,
+             const char *filename, const char *mtl_basedir = NULL,
              bool triangulate = true);
 
 /// Loads .obj from a file with custom user callback.
@@ -1279,8 +1279,8 @@ bool MaterialFileReader::operator()(const std::string &matId,
                                     std::string *err) {
   std::string filepath;
 
-  if (!m_mtlBasePath.empty()) {
-    filepath = std::string(m_mtlBasePath) + matId;
+  if (!m_mtlBaseDir.empty()) {
+    filepath = std::string(m_mtlBaseDir) + matId;
   } else {
     filepath = matId;
   }
@@ -1317,7 +1317,7 @@ bool MaterialStreamReader::operator()(const std::string &matId,
 
 bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              std::vector<material_t> *materials, std::string *err,
-             const char *filename, const char *mtl_basepath,
+             const char *filename, const char *mtl_basedir,
              bool trianglulate) {
   attrib->vertices.clear();
   attrib->normals.clear();
@@ -1335,11 +1335,11 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     return false;
   }
 
-  std::string basePath;
-  if (mtl_basepath) {
-    basePath = mtl_basepath;
+  std::string baseDir;
+  if (mtl_basedir) {
+    baseDir = mtl_basedir;
   }
-  MaterialFileReader matFileReader(basePath);
+  MaterialFileReader matFileReader(baseDir);
 
   return LoadObj(attrib, shapes, materials, err, &ifs, &matFileReader,
                  trianglulate);
