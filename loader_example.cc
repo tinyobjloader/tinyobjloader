@@ -15,8 +15,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include <mmsystem.h>
 #include <windows.h>
+#include <mmsystem.h>
 #ifdef __cplusplus
 }
 #endif
