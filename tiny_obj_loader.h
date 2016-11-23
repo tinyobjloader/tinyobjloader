@@ -296,6 +296,7 @@ class MaterialStreamReader : public MaterialReader {
 /// Returns true when loading .obj become success.
 /// Returns warning and error message into `err`
 /// 'mtl_basedir' is optional, and used for base directory for .mtl file.
+/// In default(`NULL'), .mtl file is searched from an application's working directory.
 /// 'triangulate' is optional, and used whether triangulate polygon face in .obj
 /// or not.
 bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
