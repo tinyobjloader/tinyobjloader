@@ -1,4 +1,4 @@
-// python3 module for tinyobjloader
+// python2/3 module for tinyobjloader
 //
 // usage:
 // import tinyobjloader as tol
@@ -182,10 +182,21 @@ static PyMethodDef mMethods[] = {
 
 };
 
+#if PY_MAJOR_VERSION >= 3
+
 static struct PyModuleDef moduledef = {PyModuleDef_HEAD_INIT, "tinyobjloader",
                                        NULL, -1, mMethods};
 
 PyMODINIT_FUNC PyInit_tinyobjloader(void) {
   return PyModule_Create(&moduledef);
 }
+
+#else
+
+PyMODINIT_FUNC inittinyobjloader(void) {
+  Py_InitModule3("tinyobjloader", mMethods, NULL);
+}
+
+#endif  // PY_MAJOR_VERSION >= 3
+
 }
