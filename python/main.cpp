@@ -172,6 +172,7 @@ static PyObject* pyLoadObj(PyObject* self, PyObject* args) {
 
   PyDict_SetItemString(rtndict, "shapes", pyshapes);
   PyDict_SetItemString(rtndict, "materials", pymaterials);
+  PyDict_SetItemString(rtndict, "attribs", attribobj);
 
   return rtndict;
 }
