@@ -530,6 +530,21 @@ TEST_CASE("texture_opts", "[Issue85]") {
   REQUIRE(tinyobj::TEXTURE_TYPE_CUBE_BACK == materials[2].displacement_texopt.type);
 }
 
+TEST_CASE("mtllib_multiple_filenames", "[Issue112]") {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "../models/mtllib-multiple-files-issue-112.obj", gMtlBasePath);
+
+  if (!err.empty()) {
+    std::cerr << err << std::endl;
+  }
+  REQUIRE(true == ret);
+  REQUIRE(1 == materials.size());
+}
+
 #if 0
 int
 main(
