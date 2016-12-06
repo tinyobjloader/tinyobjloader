@@ -143,7 +143,26 @@ float eye[3], lookat[3], up[3];
 
 GLFWwindow* window;
 
-void CheckErrors(std::string desc) {
+static std::string GetBaseDir(const std::string &filepath) {
+  if (filepath.find_last_of("/\\") != std::string::npos)
+    return filepath.substr(0, filepath.find_last_of("/\\"));
+  return "";
+}
+
+static bool FileExists(const std::string &abs_filename) {
+  bool ret;
+  FILE *fp = fopen(abs_filename.c_str(), "rb");
+  if (fp) {
+    ret = true;
+    fclose(fp);
+  } else {
+    ret = false;
+  }
+
+  return ret;
+}
+
+static void CheckErrors(std::string desc) {
   GLenum e = glGetError();
   if (e != GL_NO_ERROR) {
     fprintf(stderr, "OpenGL error in \"%s\": %d (%d)\n", desc.c_str(), e, e);
@@ -151,7 +170,7 @@ void CheckErrors(std::string desc) {
   }
 }
 
-void CalcNormal(float N[3], float v0[3], float v1[3], float v2[3]) {
+static void CalcNormal(float N[3], float v0[3], float v1[3], float v2[3]) {
   float v10[3];
   v10[0] = v1[0] - v0[0];
   v10[1] = v1[1] - v0[1];
@@ -175,7 +194,7 @@ void CalcNormal(float N[3], float v0[3], float v1[3], float v2[3]) {
   }
 }
 
-bool LoadObjAndConvert(float bmin[3], float bmax[3],
+static bool LoadObjAndConvert(float bmin[3], float bmax[3],
                        std::vector<DrawObject>* drawObjects,
                        std::vector<tinyobj::material_t>& materials,
                        std::map<std::string, GLuint>& textures,
@@ -187,9 +206,16 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3],
 
   tm.start();
 
+  std::string base_dir = GetBaseDir(filename);
+#ifdef _WIN32
+  base_dir += "\\";
+#else
+  base_dir += "/";
+#endif
+
   std::string err;
   bool ret =
-      tinyobj::LoadObj(&attrib, &shapes, &materials, &err, filename, NULL);
+      tinyobj::LoadObj(&attrib, &shapes, &materials, &err, filename, base_dir.c_str());
   if (!err.empty()) {
     std::cerr << err << std::endl;
   }
@@ -223,9 +249,20 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3],
                   GLuint texture_id;
                   int w, h;
                   int comp;
-                  unsigned char* image = stbi_load(mp->diffuse_texname.c_str(), &w, &h, &comp, STBI_default);
+
+                  std::string texture_filename = mp->diffuse_texname;
+                  if (!FileExists(texture_filename)) {
+                    // Append base dir.
+                    texture_filename = base_dir + mp->diffuse_texname;
+                    if (!FileExists(texture_filename)) {
+                      std::cerr << "Unable to find file: " << mp->diffuse_texname << std::endl;
+                      exit(1);
+                    }
+                  }
+                  
+                  unsigned char* image = stbi_load(texture_filename.c_str(), &w, &h, &comp, STBI_default);
                   if (image == nullptr) {
-                      std::cerr << "Unable to load texture: " << mp->diffuse_texname << std::endl;
+                      std::cerr << "Unable to load texture: " << texture_filename << std::endl;
                       exit(1);
                   }
                   glGenTextures(1, &texture_id);
@@ -395,7 +432,7 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3],
   return true;
 }
 
-void reshapeFunc(GLFWwindow* window, int w, int h) {
+static void reshapeFunc(GLFWwindow* window, int w, int h) {
   int fb_w, fb_h;
   // Get actual framebuffer size.
   glfwGetFramebufferSize(window, &fb_w, &fb_h);
@@ -411,7 +448,7 @@ void reshapeFunc(GLFWwindow* window, int w, int h) {
   height = h;
 }
 
-void keyboardFunc(GLFWwindow* window, int key, int scancode, int action,
+static void keyboardFunc(GLFWwindow* window, int key, int scancode, int action,
                   int mods) {
   (void)window;
   (void)scancode;
@@ -440,7 +477,7 @@ void keyboardFunc(GLFWwindow* window, int key, int scancode, int action,
   }
 }
 
-void clickFunc(GLFWwindow* window, int button, int action, int mods) {
+static void clickFunc(GLFWwindow* window, int button, int action, int mods) {
   (void)window;
   (void)mods;
   if (button == GLFW_MOUSE_BUTTON_LEFT) {
@@ -467,7 +504,7 @@ void clickFunc(GLFWwindow* window, int button, int action, int mods) {
   }
 }
 
-void motionFunc(GLFWwindow* window, double mouse_x, double mouse_y) {
+static void motionFunc(GLFWwindow* window, double mouse_x, double mouse_y) {
   (void)window;
   float rotScale = 1.0f;
   float transScale = 2.0f;
@@ -494,7 +531,7 @@ void motionFunc(GLFWwindow* window, double mouse_x, double mouse_y) {
   prevMouseY = mouse_y;
 }
 
-void Draw(const std::vector<DrawObject>& drawObjects, std::vector<tinyobj::material_t>& materials, std::map<std::string, GLuint>& textures) {
+static void Draw(const std::vector<DrawObject>& drawObjects, std::vector<tinyobj::material_t>& materials, std::map<std::string, GLuint>& textures) {
   glPolygonMode(GL_FRONT, GL_FILL);
   glPolygonMode(GL_BACK, GL_FILL);
 
@@ -513,9 +550,11 @@ void Draw(const std::vector<DrawObject>& drawObjects, std::vector<tinyobj::mater
     glEnableClientState(GL_COLOR_ARRAY);
     glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 
-    std::string diffuse_texname = materials[o.material_id].diffuse_texname;
-    if (diffuse_texname.length() > 0) {
-        glBindTexture(GL_TEXTURE_2D, textures[diffuse_texname]);
+    if ((o.material_id < materials.size())) {
+      std::string diffuse_texname = materials[o.material_id].diffuse_texname;
+      if (textures.find(diffuse_texname) != textures.end()) {
+          glBindTexture(GL_TEXTURE_2D, textures[diffuse_texname]);
+      }
     }
     glVertexPointer(3, GL_FLOAT, stride, (const void*)0);
     glNormalPointer(GL_FLOAT, stride, (const void*)(sizeof(float) * 3));
