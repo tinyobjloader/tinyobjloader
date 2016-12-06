@@ -19,7 +19,7 @@ Tiny but powerful single file wavefront obj loader written in C++. No dependency
 
 ## What's new
 
-* XX  YY, ZZZZ : New data strcutre and API!
+* XX  YY, ZZZZ : New data structure and API!
 
 ### Old version
 
