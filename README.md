@@ -171,7 +171,7 @@ Here is some benchmark result. Time are measured on MacBook 12(Early 2016, Core 
 * Rungholt scene(6M triangles)
   * old version(v0.9.x): 15500 msecs.
   * baseline(v1.0.x): 6800 msecs(2.3x faster than old version)
-  * optimised: 1500 msecs(10x faster than old version, 4.5x faster than basedline)
+  * optimised: 1500 msecs(10x faster than old version, 4.5x faster than baseline)
 
 
 ## Tests
