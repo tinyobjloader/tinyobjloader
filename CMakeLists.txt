@@ -28,6 +28,7 @@ set(tinyobjloader-examples-objsticher
 set(TINYOBJLOADER_CMAKE_DIR lib/cmake)
 set(TINYOBJLOADER_INCLUDE_DIR include)
 set(TINYOBJLOADER_LIBRARY_DIR lib)
+set(TINYOBJLOADER_PKGCONFIG_DIR lib/pkgconfig)
 
 option(TINYOBJLOADER_BUILD_TEST_LOADER "Build Example Loader Application" OFF)
 option(TINYOBJLOADER_COMPILATION_SHARED "Build as shared library" OFF)
@@ -88,6 +89,9 @@ write_basic_package_version_file(tinyobjloader-config-version.cmake
   SameMajorVersion
   )
 
+#pkg-config file
+configure_file(tinyobjloader.pc.in tinyobjloader.pc @ONLY)
+
 #Installation
 install ( TARGETS
   tinyobjloader
@@ -114,4 +118,9 @@ install ( FILES
   "${CMAKE_CURRENT_BINARY_DIR}/tinyobjloader-config-version.cmake"
   DESTINATION
   ${TINYOBJLOADER_CMAKE_DIR}
+  )
+install ( FILES
+  "${CMAKE_CURRENT_BINARY_DIR}/tinyobjloader.pc"
+  DESTINATION
+  ${TINYOBJLOADER_PKGCONFIG_DIR}
   )
