@@ -33,7 +33,7 @@ set(TINYOBJLOADER_PKGCONFIG_DIR lib/pkgconfig)
 option(TINYOBJLOADER_BUILD_TEST_LOADER "Build Example Loader Application" OFF)
 option(TINYOBJLOADER_COMPILATION_SHARED "Build as shared library" OFF)
 
-if (TINYOBJLOADER_COMPILATION_SHARED)
+if(TINYOBJLOADER_COMPILATION_SHARED)
   add_library(tinyobjloader SHARED ${tinyobjloader-Source})
   set_target_properties(tinyobjloader PROPERTIES
     SOVERSION ${TINYOBJLOADER_SOVERSION}
@@ -57,11 +57,11 @@ if(TINYOBJLOADER_BUILD_TEST_LOADER)
 endif()
 
 option(TINYOBJLOADER_BUILD_OBJ_STICHER "Build OBJ Sticher Application" OFF)
-if (TINYOBJLOADER_BUILD_OBJ_STICHER)
+if(TINYOBJLOADER_BUILD_OBJ_STICHER)
   add_executable(obj_sticher ${tinyobjloader-examples-objsticher})
   target_link_libraries(obj_sticher tinyobjloader)
 
-  install ( TARGETS
+  install(TARGETS
     obj_sticher
     DESTINATION
     bin
@@ -93,7 +93,7 @@ write_basic_package_version_file(tinyobjloader-config-version.cmake
 configure_file(tinyobjloader.pc.in tinyobjloader.pc @ONLY)
 
 #Installation
-install ( TARGETS
+install(TARGETS
   tinyobjloader
   EXPORT ${PROJECT_NAME}-targets
   DESTINATION
@@ -103,23 +103,23 @@ install ( TARGETS
   RUNTIME DESTINATION
   bin
   )
-install ( EXPORT
+install(EXPORT
   ${PROJECT_NAME}-targets
   DESTINATION
   ${TINYOBJLOADER_LIBRARY_DIR}
   )
-install ( FILES
+install(FILES
   tiny_obj_loader.h
   DESTINATION
   ${TINYOBJLOADER_INCLUDE_DIR}
   )
-install ( FILES
+install(FILES
   "${CMAKE_CURRENT_BINARY_DIR}/tinyobjloader-config.cmake"
   "${CMAKE_CURRENT_BINARY_DIR}/tinyobjloader-config-version.cmake"
   DESTINATION
   ${TINYOBJLOADER_CMAKE_DIR}
   )
-install ( FILES
+install(FILES
   "${CMAKE_CURRENT_BINARY_DIR}/tinyobjloader.pc"
   DESTINATION
   ${TINYOBJLOADER_PKGCONFIG_DIR}
