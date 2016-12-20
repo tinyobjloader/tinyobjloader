@@ -106,7 +106,7 @@ install(TARGETS
 install(EXPORT
   ${PROJECT_NAME}-targets
   DESTINATION
-  ${TINYOBJLOADER_LIBRARY_DIR}
+  ${TINYOBJLOADER_CMAKE_DIR}
   )
 install(FILES
   tiny_obj_loader.h
