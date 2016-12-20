@@ -90,16 +90,24 @@ void CalcNormal(float N[3], float v0[3], float v1[3], float v2[3]) {
 const char *mmap_file(size_t *len, const char* filename)
 {
   (*len) = 0;
-#ifdef _WIN64
+#ifdef _WIN32
   HANDLE file = CreateFileA(filename, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, NULL);
-    assert(file != INVALID_HANDLE_VALUE);
+  assert(file != INVALID_HANDLE_VALUE);
 
-    HANDLE fileMapping = CreateFileMapping(file, NULL, PAGE_READONLY, 0, 0, NULL);
-    assert(fileMapping != INVALID_HANDLE_VALUE);
+  HANDLE fileMapping = CreateFileMapping(file, NULL, PAGE_READONLY, 0, 0, NULL);
+  assert(fileMapping != INVALID_HANDLE_VALUE);
  
-    LPVOID fileMapView = MapViewOfFile(fileMapping, FILE_MAP_READ, 0, 0, 0);
-    auto fileMapViewChar = (const char*)fileMapView;
-    assert(fileMapView != NULL);
+  LPVOID fileMapView = MapViewOfFile(fileMapping, FILE_MAP_READ, 0, 0, 0);
+  auto fileMapViewChar = (const char*)fileMapView;
+  assert(fileMapView != NULL);
+
+  LARGE_INTEGER fileSize;
+  fileSize.QuadPart = 0;
+  GetFileSizeEx(file, &fileSize);
+
+  (*len) = static_cast<size_t>(fileSize.QuadPart);
+  return fileMapViewChar;
+
 #else
 
   FILE* f = fopen(filename, "r" );
@@ -324,6 +332,10 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int n
   option.verbose = verbose;
   bool ret = parseObj(&attrib, &shapes, &materials, data, data_len, option);
 
+  if (!ret) {
+	  std::cerr << "Failed to parse .obj" << std::endl;
+	  return false;
+  }
   bmin[0] = bmin[1] = bmin[2] = std::numeric_limits<float>::max();
   bmax[0] = bmax[1] = bmax[2] = -std::numeric_limits<float>::max();
 

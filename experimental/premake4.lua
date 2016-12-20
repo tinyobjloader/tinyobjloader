@@ -21,7 +21,8 @@ solution "objview"
 	includedirs { "./" }
 	includedirs { "../../" }
 
-	buildoptions { "-std=c++11" }
+	flags { "c++11" }
+	--buildoptions { "-std=c++11" }
 
 	if _OPTIONS['with-zlib'] then
 		defines { 'ENABLE_ZLIB' }
@@ -48,14 +49,15 @@ solution "objview"
 
 	configuration { "windows" }
 		-- Path to GLFW3
-		includedirs { '../../../../local/glfw-3.1.2.bin.WIN64/include' }
-		libdirs { '../../../../local/glfw-3.1.2.bin.WIN64/lib-vc2013' }
+		includedirs { '../../../local/glfw-3.2.bin.WIN64/include' }
+		libdirs { '../../../local/glfw-3.2.bin.WIN64/lib-vc2015' }
 		-- Path to GLEW
-		includedirs { '../../../../local/glew-1.13.0/include' }
-		libdirs { '../../../../local/glew-1.13.0/lib/Release/x64' }
+		includedirs { '../../../local/glew-1.13.0/include' }
+		libdirs { '../../../local/glew-1.13.0/lib/Release/x64' }
 
 		links { "glfw3", "glew32", "gdi32", "winmm", "user32", "glu32","opengl32", "kernel32" }
 		defines { "_CRT_SECURE_NO_WARNINGS" }
+		defines { "NOMINMAX" }
 
 	configuration { "macosx" }
 		includedirs { "/usr/local/include" }

@@ -29,7 +29,7 @@ THE SOFTWARE.
 #ifndef TINOBJ_LOADER_OPT_H_
 #define TINOBJ_LOADER_OPT_H_
 
-#ifdef _WIN64
+#ifdef _WIN32
 #define atoll(S) _atoi64(S)
 #include <windows.h>
 #else
@@ -1263,7 +1263,7 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
                          ? std::thread::hardware_concurrency()
                          : option.req_num_threads;
   num_threads =
-      std::max(1, std::min(static_cast<int>(num_threads), kMaxThreads));
+      (std::max)(1, (std::min)(static_cast<int>(num_threads), kMaxThreads));
 
   if (option.verbose) {
     std::cout << "# of threads = " << num_threads << std::endl;
@@ -1295,7 +1295,7 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     for (size_t t = 0; t < static_cast<size_t>(num_threads); t++) {
       workers->push_back(std::thread([&, t]() {
         auto start_idx = (t + 0) * chunk_size;
-        auto end_idx = std::min((t + 1) * chunk_size, len - 1);
+        auto end_idx = (std::min)((t + 1) * chunk_size, len - 1);
         if (t == static_cast<size_t>((num_threads - 1))) {
           end_idx = len - 1;
         }
@@ -1325,7 +1325,7 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
         // Find extra line which spand across chunk boundary.
         if ((t < num_threads) && (buf[end_idx - 1] != '\n')) {
-          auto extra_span_idx = std::min(end_idx - 1 + chunk_size, len - 1);
+          auto extra_span_idx = (std::min)(end_idx - 1 + chunk_size, len - 1);
           for (size_t i = end_idx; i < extra_span_idx; i++) {
             if (is_line_ending(buf, i, extra_span_idx)) {
               LineInfo info;
