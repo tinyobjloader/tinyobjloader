@@ -2,7 +2,7 @@
 #This configures the Cmake system with multiple properties, depending
 #on the platform and configuration it is set to build in.
 project(tinyobjloader)
-cmake_minimum_required(VERSION 2.8.6)
+cmake_minimum_required(VERSION 2.8.11)
 set(TINYOBJLOADER_SOVERSION 1)
 set(TINYOBJLOADER_VERSION 1.0.4)
 
