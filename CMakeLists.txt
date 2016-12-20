@@ -10,19 +10,19 @@ set(TINYOBJLOADER_VERSION 1.0.4)
 set(TINYOBJLOADEREXAMPLES_DIR ${CMAKE_CURRENT_SOURCE_DIR}/examples)
 
 set(tinyobjloader-Source
-	${CMAKE_CURRENT_SOURCE_DIR}/tiny_obj_loader.h
-	${CMAKE_CURRENT_SOURCE_DIR}/tiny_obj_loader.cc
-	)
+  ${CMAKE_CURRENT_SOURCE_DIR}/tiny_obj_loader.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/tiny_obj_loader.cc
+  )
 
 set(tinyobjloader-Example-Source
-	${CMAKE_CURRENT_SOURCE_DIR}/loader_example.cc
-	)
+  ${CMAKE_CURRENT_SOURCE_DIR}/loader_example.cc
+  )
 
 set(tinyobjloader-examples-objsticher
-	${TINYOBJLOADEREXAMPLES_DIR}/obj_sticher/obj_writer.h
-	${TINYOBJLOADEREXAMPLES_DIR}/obj_sticher/obj_writer.cc
-	${TINYOBJLOADEREXAMPLES_DIR}/obj_sticher/obj_sticher.cc
-	)
+  ${TINYOBJLOADEREXAMPLES_DIR}/obj_sticher/obj_writer.h
+  ${TINYOBJLOADEREXAMPLES_DIR}/obj_sticher/obj_writer.cc
+  ${TINYOBJLOADEREXAMPLES_DIR}/obj_sticher/obj_sticher.cc
+  )
 
 #Install destinations
 set(TINYOBJLOADER_CMAKE_DIR lib/cmake)
@@ -34,20 +34,20 @@ option(TINYOBJLOADER_BUILD_TEST_LOADER "Build Example Loader Application" OFF)
 option(TINYOBJLOADER_COMPILATION_SHARED "Build as shared library" OFF)
 
 if (TINYOBJLOADER_COMPILATION_SHARED)
-	add_library(tinyobjloader SHARED ${tinyobjloader-Source})
-	set_target_properties(tinyobjloader PROPERTIES
-		SOVERSION ${TINYOBJLOADER_SOVERSION}
-	)
+  add_library(tinyobjloader SHARED ${tinyobjloader-Source})
+  set_target_properties(tinyobjloader PROPERTIES
+    SOVERSION ${TINYOBJLOADER_SOVERSION}
+  )
 else()
-	add_library(tinyobjloader STATIC ${tinyobjloader-Source})
+  add_library(tinyobjloader STATIC ${tinyobjloader-Source})
 endif()
 
 set_target_properties(tinyobjloader PROPERTIES VERSION ${TINYOBJLOADER_VERSION})
 
 target_include_directories(tinyobjloader INTERFACE
-	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-	$<INSTALL_INTERFACE:${TINYOBJLOADER_INCLUDE_DIR}>
-	)
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<INSTALL_INTERFACE:${TINYOBJLOADER_INCLUDE_DIR}>
+  )
 
 export(TARGETS tinyobjloader FILE ${PROJECT_NAME}-targets.cmake)
 
