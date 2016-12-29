@@ -1805,7 +1805,6 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
     if ((0 == strncmp(token, "mtllib", 6)) && IS_SPACE((token[6]))) {
       if (readMatFn) {
         token += 7;
-        token += 7;
 
         std::vector<std::string> filenames;
         SplitString(std::string(token), ' ', filenames);
