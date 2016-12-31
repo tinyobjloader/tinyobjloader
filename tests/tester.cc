@@ -307,7 +307,8 @@ std::string matStream(
             {
                 (void)matId;
                 (void)err;
-                LoadMtl(matMap, materials, &m_matSStream);
+                std::string warning;
+                LoadMtl(matMap, materials, &m_matSStream, &warning);
                 return true;
             }
 
@@ -543,6 +544,24 @@ TEST_CASE("mtllib_multiple_filenames", "[Issue112]") {
   }
   REQUIRE(true == ret);
   REQUIRE(1 == materials.size());
+}
+
+TEST_CASE("tr_and_d", "[Issue43]") {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "../models/tr-and-d-issue-43.obj", gMtlBasePath);
+
+  if (!err.empty()) {
+    std::cerr << err << std::endl;
+  }
+  REQUIRE(true == ret);
+  REQUIRE(2 == materials.size());
+
+  REQUIRE(0.75 == Approx(materials[0].dissolve));
+  REQUIRE(0.75 == Approx(materials[1].dissolve));
 }
 
 #if 0

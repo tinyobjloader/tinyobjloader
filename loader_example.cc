@@ -364,8 +364,14 @@ static bool TestStreamLoadObj() {
                             std::map<std::string, int>* matMap,
                             std::string* err) {
       (void)matId;
-      (void)err;
-      LoadMtl(matMap, materials, &m_matSStream);
+      std::string warning;
+      LoadMtl(matMap, materials, &m_matSStream, &warning);
+
+      if (!warning.empty()) {
+        if (err) {
+          (*err) += warning;
+        }
+      }
       return true;
     }
 
