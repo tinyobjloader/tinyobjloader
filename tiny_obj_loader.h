@@ -23,6 +23,7 @@ THE SOFTWARE.
 */
 
 //
+// version 1.0.5 : Ignore `Tr` when `d` exists in MTL(#43)
 // version 1.0.4 : Support multiple filenames for 'mtllib'(#112)
 // version 1.0.3 : Support parsing texture options(#85)
 // version 1.0.2 : Improve parsing speed by about a factor of 2 for large
@@ -268,7 +269,7 @@ class MaterialReader {
 class MaterialFileReader : public MaterialReader {
  public:
   explicit MaterialFileReader(const std::string &mtl_basedir)
-      : m_mtlBaseDir(mtl_basedir) {} 
+      : m_mtlBaseDir(mtl_basedir) {}
   virtual ~MaterialFileReader() {}
   virtual bool operator()(const std::string &matId,
                           std::vector<material_t> *materials,
@@ -297,7 +298,8 @@ class MaterialStreamReader : public MaterialReader {
 /// Returns true when loading .obj become success.
 /// Returns warning and error message into `err`
 /// 'mtl_basedir' is optional, and used for base directory for .mtl file.
-/// In default(`NULL'), .mtl file is searched from an application's working directory.
+/// In default(`NULL'), .mtl file is searched from an application's working
+/// directory.
 /// 'triangulate' is optional, and used whether triangulate polygon face in .obj
 /// or not.
 bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
@@ -327,7 +329,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
 /// Loads materials into std::map
 void LoadMtl(std::map<std::string, int> *material_map,
-             std::vector<material_t> *materials, std::istream *inStream);
+             std::vector<material_t> *materials, std::istream *inStream,
+             std::string *warning);
 
 }  // namespace tinyobj
 
@@ -938,21 +941,28 @@ static bool exportFaceGroupToShape(
 
 // Split a string with specified delimiter character.
 // http://stackoverflow.com/questions/236129/split-a-string-in-c
-static void SplitString(const std::string &s, char delim, std::vector<std::string> &elems)
-{
-    std::stringstream ss;
-    ss.str(s);
-    std::string item;
-    while (std::getline(ss, item, delim)) {
-        elems.push_back(item);
-    }
+static void SplitString(const std::string &s, char delim,
+                        std::vector<std::string> &elems) {
+  std::stringstream ss;
+  ss.str(s);
+  std::string item;
+  while (std::getline(ss, item, delim)) {
+    elems.push_back(item);
+  }
 }
 
 void LoadMtl(std::map<std::string, int> *material_map,
-             std::vector<material_t> *materials, std::istream *inStream) {
+             std::vector<material_t> *materials, std::istream *inStream,
+             std::string *warning) {
   // Create a default material anyway.
   material_t material;
   InitMaterial(&material);
+
+  // Issue 43. `d` wins against `Tr` since `Tr` is not in the MTL specification.
+  bool has_d = false;
+  bool has_tr = false;
+
+  std::stringstream ss;
 
   std::string linebuf;
   while (inStream->peek() != -1) {
@@ -998,6 +1008,9 @@ void LoadMtl(std::map<std::string, int> *material_map,
 
       // initial temporary material
       InitMaterial(&material);
+
+      has_d = false;
+      has_tr = false;
 
       // set new mtl name
       char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
@@ -1092,12 +1105,29 @@ void LoadMtl(std::map<std::string, int> *material_map,
     if ((token[0] == 'd' && IS_SPACE(token[1]))) {
       token += 1;
       material.dissolve = parseFloat(&token);
+
+      if (has_tr) {
+        ss << "WARN: Both `d` and `Tr` parameters defined for \""
+           << material.name << "\". Use the value of `d` for dissolve."
+           << std::endl;
+      }
+      has_d = true;
       continue;
     }
     if (token[0] == 'T' && token[1] == 'r' && IS_SPACE(token[2])) {
       token += 2;
-      // Invert value of Tr(assume Tr is in range [0, 1])
-      material.dissolve = 1.0f - parseFloat(&token);
+      if (has_d) {
+        // `d` wins. Ignore `Tr` value.
+        ss << "WARN: Both `d` and `Tr` parameters defined for \""
+           << material.name << "\". Use the value of `d` for dissolve."
+           << std::endl;
+      } else {
+        // We invert value of Tr(assume Tr is in range [0, 1])
+        // NOTE: Interpretation of Tr is application(exporter) dependent. For
+        // some application(e.g. 3ds max obj exporter), Tr = d(Issue 43)
+        material.dissolve = 1.0f - parseFloat(&token);
+      }
+      has_tr = true;
       continue;
     }
 
@@ -1285,6 +1315,10 @@ void LoadMtl(std::map<std::string, int> *material_map,
   material_map->insert(std::pair<std::string, int>(
       material.name, static_cast<int>(materials->size())));
   materials->push_back(material);
+
+  if (warning) {
+    (*warning) = ss.str();
+  }
 }
 
 bool MaterialFileReader::operator()(const std::string &matId,
@@ -1302,15 +1336,22 @@ bool MaterialFileReader::operator()(const std::string &matId,
   std::ifstream matIStream(filepath.c_str());
   if (!matIStream) {
     std::stringstream ss;
-    ss << "WARN: Material file [ " << filepath
-       << " ] not found." << std::endl;
+    ss << "WARN: Material file [ " << filepath << " ] not found." << std::endl;
     if (err) {
       (*err) += ss.str();
     }
     return false;
   }
 
-  LoadMtl(matMap, materials, &matIStream);
+  std::string warning;
+  LoadMtl(matMap, materials, &matIStream, &warning);
+
+  if (!warning.empty()) {
+    if (err) {
+      (*err) += warning;
+    }
+  }
+
   return true;
 }
 
@@ -1328,14 +1369,21 @@ bool MaterialStreamReader::operator()(const std::string &matId,
     return false;
   }
 
-  LoadMtl(matMap, materials, &m_inStream);
+  std::string warning;
+  LoadMtl(matMap, materials, &m_inStream, &warning);
+
+  if (!warning.empty()) {
+    if (err) {
+      (*err) += warning;
+    }
+  }
+
   return true;
 }
 
 bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              std::vector<material_t> *materials, std::string *err,
-             const char *filename, const char *mtl_basedir,
-             bool trianglulate) {
+             const char *filename, const char *mtl_basedir, bool trianglulate) {
   attrib->vertices.clear();
   attrib->normals.clear();
   attrib->texcoords.clear();
@@ -1505,17 +1553,18 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
         if (filenames.empty()) {
           if (err) {
-            (*err) += "WARN: Looks like empty filename for mtllib. Use default material. \n";
+            (*err) +=
+                "WARN: Looks like empty filename for mtllib. Use default "
+                "material. \n";
           }
         } else {
-
           bool found = false;
           for (size_t s = 0; s < filenames.size(); s++) {
-
             std::string err_mtl;
-            bool ok = (*readMatFn)(filenames[s].c_str(), materials, &material_map, &err_mtl);
-            if (err && (!err_mtl.empty())) { 
-              (*err) += err_mtl; // This should be warn message.
+            bool ok = (*readMatFn)(filenames[s].c_str(), materials,
+                                   &material_map, &err_mtl);
+            if (err && (!err_mtl.empty())) {
+              (*err) += err_mtl;  // This should be warn message.
             }
 
             if (ok) {
@@ -1525,8 +1574,10 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
           }
 
           if (!found) {
-            if (err) { 
-              (*err) += "WARN: Failed to load material file(s). Use default material.\n";
+            if (err) {
+              (*err) +=
+                  "WARN: Failed to load material file(s). Use default "
+                  "material.\n";
             }
           }
         }
@@ -1811,17 +1862,18 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
 
         if (filenames.empty()) {
           if (err) {
-            (*err) += "WARN: Looks like empty filename for mtllib. Use default material. \n";
+            (*err) +=
+                "WARN: Looks like empty filename for mtllib. Use default "
+                "material. \n";
           }
         } else {
-
           bool found = false;
           for (size_t s = 0; s < filenames.size(); s++) {
-
             std::string err_mtl;
-            bool ok = (*readMatFn)(filenames[s].c_str(), &materials, &material_map, &err_mtl);
-            if (err && (!err_mtl.empty())) { 
-              (*err) += err_mtl; // This should be warn message.
+            bool ok = (*readMatFn)(filenames[s].c_str(), &materials,
+                                   &material_map, &err_mtl);
+            if (err && (!err_mtl.empty())) {
+              (*err) += err_mtl;  // This should be warn message.
             }
 
             if (ok) {
@@ -1831,11 +1883,12 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
           }
 
           if (!found) {
-            if (err) { 
-              (*err) += "WARN: Failed to load material file(s). Use default material.\n";
+            if (err) {
+              (*err) +=
+                  "WARN: Failed to load material file(s). Use default "
+                  "material.\n";
             }
           } else {
-
             if (callback.mtllib_cb) {
               callback.mtllib_cb(user_data, &materials.at(0),
                                  static_cast<int>(materials.size()));
