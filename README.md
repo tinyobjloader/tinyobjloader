@@ -12,7 +12,7 @@
 
 http://syoyo.github.io/tinyobjloader/
 
-Tiny but powerful single file wavefront obj loader written in C++. No dependency except for C++ STL. It can parse 10M over polygons with moderate memory and time.
+Tiny but powerful single file wavefront obj loader written in C++. No dependency except for C++ STL. It can parse over 10M polygons with moderate memory and time.
 
 `tinyobjloader` is good for embedding .obj loader to your (global illumination) renderer ;-)
 
