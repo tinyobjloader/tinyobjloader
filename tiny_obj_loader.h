@@ -334,6 +334,8 @@ void LoadMtl(std::map<std::string, int> *material_map,
 
 }  // namespace tinyobj
 
+#endif  // TINY_OBJ_LOADER_H_
+
 #ifdef TINYOBJLOADER_IMPLEMENTATION
 #include <cassert>
 #include <cctype>
@@ -2016,5 +2018,3 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
 }  // namespace tinyobj
 
 #endif
-
-#endif  // TINY_OBJ_LOADER_H_
