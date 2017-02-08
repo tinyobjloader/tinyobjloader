@@ -135,7 +135,7 @@ attrib_t::texcoords => 2 floats per vertex
 
 ```
 
-Each `shape_t` does not contain vertex data but contains array index to `attrib_t`.
+Each `shape_t::mesh_t` does not contain vertex data but contains array index to `attrib_t`.
 See `loader_example.cc` for more details.
 
 
