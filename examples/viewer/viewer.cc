@@ -261,7 +261,7 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
                   }
                   
                   unsigned char* image = stbi_load(texture_filename.c_str(), &w, &h, &comp, STBI_default);
-                  if (image == nullptr) {
+                  if (!image) {
                       std::cerr << "Unable to load texture: " << texture_filename << std::endl;
                       exit(1);
                   }
