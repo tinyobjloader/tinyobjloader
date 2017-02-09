@@ -321,8 +321,12 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
             tc[2][0] = attrib.texcoords[2 * idx2.texcoord_index];
             tc[2][1] = 1.0f - attrib.texcoords[2 * idx2.texcoord_index + 1];
         } else {
-            std::cerr << "Texcoordinates are not defined" << std::endl;
-            exit(2);
+            tc[0][0] = 0.0f;
+            tc[0][1] = 0.0f;
+            tc[1][0] = 0.0f;
+            tc[1][1] = 0.0f;
+            tc[2][0] = 0.0f;
+            tc[2][1] = 0.0f;
         }
 
         float v[3][3];
