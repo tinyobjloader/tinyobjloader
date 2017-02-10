@@ -110,10 +110,19 @@ const char *mmap_file(size_t *len, const char* filename)
 
 #else
 
-  FILE* f = fopen(filename, "r" );
+  FILE* f = fopen(filename, "rb" );
+  if (!f) {
+    fprintf(stderr, "Failed to open file : %s\n", filename);
+    return nullptr;
+  }
   fseek(f, 0, SEEK_END);
   long fileSize = ftell(f);
   fclose(f);
+
+  if (fileSize < 16) {
+    fprintf(stderr, "Empty or invalid .obj : %s\n", filename);
+    return nullptr;
+  }
 
   struct stat sb;
   char *p;
@@ -122,29 +131,29 @@ const char *mmap_file(size_t *len, const char* filename)
   fd = open (filename, O_RDONLY);
   if (fd == -1) {
     perror ("open");
-    return NULL;
+    return nullptr;
   }
 
   if (fstat (fd, &sb) == -1) {
     perror ("fstat");
-    return NULL;
+    return nullptr;
   }
 
   if (!S_ISREG (sb.st_mode)) {
     fprintf (stderr, "%s is not a file\n", "lineitem.tbl");
-    return NULL;
+    return nullptr;
   }
 
   p = (char*)mmap (0, fileSize, PROT_READ, MAP_SHARED, fd, 0);
 
   if (p == MAP_FAILED) {
     perror ("mmap");
-    return NULL;
+    return nullptr;
   }
 
   if (close (fd) == -1) {
     perror ("close");
-    return NULL;
+    return nullptr;
   }
 
   (*len) = fileSize;
@@ -298,6 +307,7 @@ const char* get_file_data(size_t *len, const char* filename)
   } else {
     
     data = mmap_file(&data_len, filename);
+
   }
 
   (*len) = data_len;
@@ -639,6 +649,12 @@ int main(int argc, char **argv)
     const char* data = get_file_data(&data_len, argv[1]);
     if (data == nullptr) {
       printf("failed to load file\n");
+      exit(-1);
+      return false;
+    }
+
+    if (data_len < 4) {
+      printf("Empty file\n");
       exit(-1);
       return false;
     }

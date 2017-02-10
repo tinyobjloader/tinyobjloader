@@ -8,6 +8,16 @@ newoption {
    description = "Build with ZStandard compression."
 }
 
+newoption {
+   trigger     = "clang",
+   description = "Use clang compiler."
+}
+
+newoption {
+   trigger     = "asan",
+   description = "Enable AddressSanitizer(gcc or clang only)."
+}
+
 solution "objview"
 	-- location ( "build" )
 	configurations { "Release", "Debug" }
@@ -24,9 +34,18 @@ solution "objview"
 	flags { "c++11" }
 	--buildoptions { "-std=c++11" }
 
+        if _OPTIONS['clang'] then
+           toolset "clang"
+        end
+
 	if _OPTIONS['with-zlib'] then
 		defines { 'ENABLE_ZLIB' }
 		links { 'z' }
+	end	
+
+	if _OPTIONS['asan'] then
+		buildoptions { '-fsanitize=address' }
+		linkoptions { '-fsanitize=address' }
 	end	
 
 	if _OPTIONS['with-zstd'] then
