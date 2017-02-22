@@ -529,7 +529,7 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result) {
 
       // NOTE: Don't use powf here, it will absolutely murder precision.
       mantissa += static_cast<int>(*curr - 0x30) *
-                  (read < lut_entries ? pow_lut[read] : pow(10.0, -read));
+                  (read < lut_entries ? pow_lut[read] : std::pow(10.0, -read));
       read++;
       curr++;
       end_not_reached = (curr != s_end);
@@ -571,7 +571,7 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result) {
 assemble:
   *result =
       (sign == '+' ? 1 : -1) *
-      (exponent ? ldexp(mantissa * pow(5.0, exponent), exponent) : mantissa);
+      (exponent ? std::ldexp(mantissa * std::pow(5.0, exponent), exponent) : mantissa);
   return true;
 fail:
   return false;
@@ -1020,7 +1020,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
 #ifdef _MSC_VER
       sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
 #else
-      sscanf(token, "%s", namebuf);
+      std::sscanf(token, "%s", namebuf);
 #endif
       material.name = namebuf;
       continue;
@@ -1522,7 +1522,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 #ifdef _MSC_VER
       sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
 #else
-      sscanf(token, "%s", namebuf);
+      std::sscanf(token, "%s", namebuf);
 #endif
 
       int newMaterialId = -1;
@@ -1642,7 +1642,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 #ifdef _MSC_VER
       sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
 #else
-      sscanf(token, "%s", namebuf);
+      std::sscanf(token, "%s", namebuf);
 #endif
       name = std::string(namebuf);
 
@@ -1657,7 +1657,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 #ifdef _MSC_VER
       sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
 #else
-      sscanf(token, "%s", namebuf);
+      std::sscanf(token, "%s", namebuf);
 #endif
       tag.name = std::string(namebuf);
 
@@ -1686,7 +1686,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
         sscanf_s(token, "%s", stringValueBuffer,
                  (unsigned)_countof(stringValueBuffer));
 #else
-        sscanf(token, "%s", stringValueBuffer);
+        std::sscanf(token, "%s", stringValueBuffer);
 #endif
         tag.stringValues[i] = stringValueBuffer;
         token += tag.stringValues[i].size() + 1;
@@ -1833,7 +1833,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
       sscanf_s(token, "%s", namebuf,
                static_cast<unsigned int>(_countof(namebuf)));
 #else
-      sscanf(token, "%s", namebuf);
+      std::sscanf(token, "%s", namebuf);
 #endif
 
       int newMaterialId = -1;
@@ -1947,7 +1947,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
 #ifdef _MSC_VER
       sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
 #else
-      sscanf(token, "%s", namebuf);
+      std::sscanf(token, "%s", namebuf);
 #endif
       std::string object_name = std::string(namebuf);
 
@@ -1967,7 +1967,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
 #ifdef _MSC_VER
       sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
 #else
-      sscanf(token, "%s", namebuf);
+      std::sscanf(token, "%s", namebuf);
 #endif
       tag.name = std::string(namebuf);
 
@@ -1996,7 +1996,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
         sscanf_s(token, "%s", stringValueBuffer,
                  (unsigned)_countof(stringValueBuffer));
 #else
-        sscanf(token, "%s", stringValueBuffer);
+        std::sscanf(token, "%s", stringValueBuffer);
 #endif
         tag.stringValues[i] = stringValueBuffer;
         token += tag.stringValues[i].size() + 1;
