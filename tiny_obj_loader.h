@@ -195,7 +195,7 @@ typedef struct {
   std::string name;
 
   std::vector<int> intValues;
-  std::vector<real_t> realValues;
+  std::vector<real_t> floatValues;
   std::vector<std::string> stringValues;
 } tag_t;
 
@@ -1680,9 +1680,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
         token += strcspn(token, "/ \t\r") + 1;
       }
 
-      tag.realValues.resize(static_cast<size_t>(ts.num_reals));
+      tag.floatValues.resize(static_cast<size_t>(ts.num_reals));
       for (size_t i = 0; i < static_cast<size_t>(ts.num_reals); ++i) {
-        tag.realValues[i] = parseReal(&token);
+        tag.floatValues[i] = parseReal(&token);
         token += strcspn(token, "/ \t\r") + 1;
       }
 
@@ -1990,9 +1990,9 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
         token += strcspn(token, "/ \t\r") + 1;
       }
 
-      tag.realValues.resize(static_cast<size_t>(ts.num_reals));
+      tag.floatValues.resize(static_cast<size_t>(ts.num_reals));
       for (size_t i = 0; i < static_cast<size_t>(ts.num_reals); ++i) {
-        tag.realValues[i] = parseReal(&token);
+        tag.floatValues[i] = parseReal(&token);
         token += strcspn(token, "/ \t\r") + 1;
       }
 
