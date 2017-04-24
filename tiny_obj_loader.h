@@ -53,7 +53,7 @@ namespace tinyobj {
 //  (default on)
 //  -blendv on | off                       # set vertical texture blending
 //  (default on)
-//  -boost float_value                     # boost mip-map sharpness
+//  -boost real_value                      # boost mip-map sharpness
 //  -mm base_value gain_value              # modify texture map values (default
 //  0 1)
 //                                         #     base_value = brightness,
@@ -117,31 +117,31 @@ typedef enum {
 
 typedef struct {
   texture_type_t type;     // -type (default TEXTURE_TYPE_NONE)
-  float sharpness;         // -boost (default 1.0?)
-  float brightness;        // base_value in -mm option (default 0)
-  float contrast;          // gain_value in -mm option (default 1)
-  float origin_offset[3];  // -o u [v [w]] (default 0 0 0)
-  float scale[3];          // -s u [v [w]] (default 1 1 1)
-  float turbulence[3];     // -t u [v [w]] (default 0 0 0)
+  real_t sharpness;         // -boost (default 1.0?)
+  real_t brightness;        // base_value in -mm option (default 0)
+  real_t contrast;          // gain_value in -mm option (default 1)
+  real_t origin_offset[3];  // -o u [v [w]] (default 0 0 0)
+  real_t scale[3];          // -s u [v [w]] (default 1 1 1)
+  real_t turbulence[3];     // -t u [v [w]] (default 0 0 0)
   // int   texture_resolution; // -texres resolution (default = ?) TODO
   bool clamp;    // -clamp (default false)
   char imfchan;  // -imfchan (the default for bump is 'l' and for decal is 'm')
   bool blendu;   // -blendu (default on)
   bool blendv;   // -blendv (default on)
-  float bump_multiplier;  // -bm (for bump maps only, default 1.0)
+  real_t bump_multiplier;  // -bm (for bump maps only, default 1.0)
 } texture_option_t;
 
 typedef struct {
   std::string name;
 
-  float ambient[3];
-  float diffuse[3];
-  float specular[3];
-  float transmittance[3];
-  float emission[3];
-  float shininess;
-  float ior;       // index of refraction
-  float dissolve;  // 1 == opaque; 0 == fully transparent
+  real_t ambient[3];
+  real_t diffuse[3];
+  real_t specular[3];
+  real_t transmittance[3];
+  real_t emission[3];
+  real_t shininess;
+  real_t ior;       // index of refraction
+  real_t dissolve;  // 1 == opaque; 0 == fully transparent
   // illumination model (see http://www.fileformat.info/format/material/)
   int illum;
 
@@ -165,15 +165,15 @@ typedef struct {
 
   // PBR extension
   // http://exocortex.com/blog/extending_wavefront_mtl_to_support_pbr
-  float roughness;            // [0, 1] default 0
-  float metallic;             // [0, 1] default 0
-  float sheen;                // [0, 1] default 0
-  float clearcoat_thickness;  // [0, 1] default 0
-  float clearcoat_roughness;  // [0, 1] default 0
-  float anisotropy;           // aniso. [0, 1] default 0
-  float anisotropy_rotation;  // anisor. [0, 1] default 0
-  float pad0;
-  float pad1;
+  real_t roughness;            // [0, 1] default 0
+  real_t metallic;             // [0, 1] default 0
+  real_t sheen;                // [0, 1] default 0
+  real_t clearcoat_thickness;  // [0, 1] default 0
+  real_t clearcoat_roughness;  // [0, 1] default 0
+  real_t anisotropy;           // aniso. [0, 1] default 0
+  real_t anisotropy_rotation;  // anisor. [0, 1] default 0
+  real_t pad0;
+  real_t pad1;
   std::string roughness_texname;  // map_Pr
   std::string metallic_texname;   // map_Pm
   std::string sheen_texname;      // map_Ps
@@ -195,7 +195,7 @@ typedef struct {
   std::string name;
 
   std::vector<int> intValues;
-  std::vector<float> floatValues;
+  std::vector<real_t> realValues;
   std::vector<std::string> stringValues;
 } tag_t;
 
@@ -223,19 +223,19 @@ typedef struct {
 
 // Vertex attributes
 typedef struct {
-  std::vector<float> vertices;   // 'v'
-  std::vector<float> normals;    // 'vn'
-  std::vector<float> texcoords;  // 'vt'
+  std::vector<real_t> vertices;   // 'v'
+  std::vector<real_t> normals;    // 'vn'
+  std::vector<real_t> texcoords;  // 'vt'
 } attrib_t;
 
 typedef struct callback_t_ {
   // W is optional and set to 1 if there is no `w` item in `v` line
-  void (*vertex_cb)(void *user_data, float x, float y, float z, float w);
-  void (*normal_cb)(void *user_data, float x, float y, float z);
+  void (*vertex_cb)(void *user_data, real_t x, real_t y, real_t z, real_t w);
+  void (*normal_cb)(void *user_data, real_t x, real_t y, real_t z);
 
   // y and z are optional and set to 0 if there is no `y` and/or `z` item(s) in
   // `vt` line.
-  void (*texcoord_cb)(void *user_data, float x, float y, float z);
+  void (*texcoord_cb)(void *user_data, real_t x, real_t y, real_t z);
 
   // called per 'f' line. num_indices is the number of face indices(e.g. 3 for
   // triangle, 4 for quad)
@@ -371,16 +371,16 @@ struct vertex_index {
 };
 
 struct tag_sizes {
-  tag_sizes() : num_ints(0), num_floats(0), num_strings(0) {}
+  tag_sizes() : num_ints(0), num_reals(0), num_strings(0) {}
   int num_ints;
-  int num_floats;
+  int num_reals;
   int num_strings;
 };
 
 struct obj_shape {
-  std::vector<float> v;
-  std::vector<float> vn;
-  std::vector<float> vt;
+  std::vector<real_t> v;
+  std::vector<real_t> vn;
+  std::vector<real_t> vt;
 };
 
 // See
@@ -585,41 +585,41 @@ fail:
   return false;
 }
 
-static inline float parseFloat(const char **token, double default_value = 0.0) {
+static inline real_t parseReal(const char **token, double default_value = 0.0) {
   (*token) += strspn((*token), " \t");
   const char *end = (*token) + strcspn((*token), " \t\r");
   double val = default_value;
   tryParseDouble((*token), end, &val);
-  float f = static_cast<float>(val);
+  real_t f = static_cast<real_t>(val);
   (*token) = end;
   return f;
 }
 
-static inline void parseFloat2(float *x, float *y, const char **token,
+static inline void parseReal2(real_t *x, real_t *y, const char **token,
                                const double default_x = 0.0,
                                const double default_y = 0.0) {
-  (*x) = parseFloat(token, default_x);
-  (*y) = parseFloat(token, default_y);
+  (*x) = parseReal(token, default_x);
+  (*y) = parseReal(token, default_y);
 }
 
-static inline void parseFloat3(float *x, float *y, float *z, const char **token,
+static inline void parseReal3(real_t *x, real_t *y, real_t *z, const char **token,
                                const double default_x = 0.0,
                                const double default_y = 0.0,
                                const double default_z = 0.0) {
-  (*x) = parseFloat(token, default_x);
-  (*y) = parseFloat(token, default_y);
-  (*z) = parseFloat(token, default_z);
+  (*x) = parseReal(token, default_x);
+  (*y) = parseReal(token, default_y);
+  (*z) = parseReal(token, default_z);
 }
 
-static inline void parseV(float *x, float *y, float *z, float *w,
+static inline void parseV(real_t *x, real_t *y, real_t *z, real_t *w,
                           const char **token, const double default_x = 0.0,
                           const double default_y = 0.0,
                           const double default_z = 0.0,
                           const double default_w = 1.0) {
-  (*x) = parseFloat(token, default_x);
-  (*y) = parseFloat(token, default_y);
-  (*z) = parseFloat(token, default_z);
-  (*w) = parseFloat(token, default_w);
+  (*x) = parseReal(token, default_x);
+  (*y) = parseReal(token, default_y);
+  (*z) = parseReal(token, default_z);
+  (*w) = parseReal(token, default_w);
 }
 
 static inline bool parseOnOff(const char **token, bool default_value = true) {
@@ -673,7 +673,7 @@ static tag_sizes parseTagTriple(const char **token) {
   }
   (*token)++;
 
-  ts.num_floats = atoi((*token));
+  ts.num_reals = atoi((*token));
   (*token) += strcspn((*token), "/ \t\r");
   if ((*token)[0] != '/') {
     return ts;
@@ -798,21 +798,21 @@ static bool ParseTextureNameAndOption(std::string *texname,
       texopt->clamp = parseOnOff(&token, /* default */ true);
     } else if ((0 == strncmp(token, "-boost", 6)) && IS_SPACE((token[6]))) {
       token += 7;
-      texopt->sharpness = parseFloat(&token, 1.0);
+      texopt->sharpness = parseReal(&token, 1.0);
     } else if ((0 == strncmp(token, "-bm", 3)) && IS_SPACE((token[3]))) {
       token += 4;
-      texopt->bump_multiplier = parseFloat(&token, 1.0);
+      texopt->bump_multiplier = parseReal(&token, 1.0);
     } else if ((0 == strncmp(token, "-o", 2)) && IS_SPACE((token[2]))) {
       token += 3;
-      parseFloat3(&(texopt->origin_offset[0]), &(texopt->origin_offset[1]),
+      parseReal3(&(texopt->origin_offset[0]), &(texopt->origin_offset[1]),
                   &(texopt->origin_offset[2]), &token);
     } else if ((0 == strncmp(token, "-s", 2)) && IS_SPACE((token[2]))) {
       token += 3;
-      parseFloat3(&(texopt->scale[0]), &(texopt->scale[1]), &(texopt->scale[2]),
+      parseReal3(&(texopt->scale[0]), &(texopt->scale[1]), &(texopt->scale[2]),
                   &token, 1.0, 1.0, 1.0);
     } else if ((0 == strncmp(token, "-t", 2)) && IS_SPACE((token[2]))) {
       token += 3;
-      parseFloat3(&(texopt->turbulence[0]), &(texopt->turbulence[1]),
+      parseReal3(&(texopt->turbulence[0]), &(texopt->turbulence[1]),
                   &(texopt->turbulence[2]), &token);
     } else if ((0 == strncmp(token, "-type", 5)) && IS_SPACE((token[5]))) {
       token += 5;
@@ -827,7 +827,7 @@ static bool ParseTextureNameAndOption(std::string *texname,
       token = end;
     } else if ((0 == strncmp(token, "-mm", 3)) && IS_SPACE((token[3]))) {
       token += 4;
-      parseFloat2(&(texopt->brightness), &(texopt->contrast), &token, 0.0, 1.0);
+      parseReal2(&(texopt->brightness), &(texopt->contrast), &token, 0.0, 1.0);
     } else {
       // Assume texture filename
       token += strspn(token, " \t");         // skip space
@@ -1037,8 +1037,8 @@ void LoadMtl(std::map<std::string, int> *material_map,
     // ambient
     if (token[0] == 'K' && token[1] == 'a' && IS_SPACE((token[2]))) {
       token += 2;
-      float r, g, b;
-      parseFloat3(&r, &g, &b, &token);
+      real_t r, g, b;
+      parseReal3(&r, &g, &b, &token);
       material.ambient[0] = r;
       material.ambient[1] = g;
       material.ambient[2] = b;
@@ -1048,8 +1048,8 @@ void LoadMtl(std::map<std::string, int> *material_map,
     // diffuse
     if (token[0] == 'K' && token[1] == 'd' && IS_SPACE((token[2]))) {
       token += 2;
-      float r, g, b;
-      parseFloat3(&r, &g, &b, &token);
+      real_t r, g, b;
+      parseReal3(&r, &g, &b, &token);
       material.diffuse[0] = r;
       material.diffuse[1] = g;
       material.diffuse[2] = b;
@@ -1059,8 +1059,8 @@ void LoadMtl(std::map<std::string, int> *material_map,
     // specular
     if (token[0] == 'K' && token[1] == 's' && IS_SPACE((token[2]))) {
       token += 2;
-      float r, g, b;
-      parseFloat3(&r, &g, &b, &token);
+      real_t r, g, b;
+      parseReal3(&r, &g, &b, &token);
       material.specular[0] = r;
       material.specular[1] = g;
       material.specular[2] = b;
@@ -1071,8 +1071,8 @@ void LoadMtl(std::map<std::string, int> *material_map,
     if ((token[0] == 'K' && token[1] == 't' && IS_SPACE((token[2]))) ||
         (token[0] == 'T' && token[1] == 'f' && IS_SPACE((token[2])))) {
       token += 2;
-      float r, g, b;
-      parseFloat3(&r, &g, &b, &token);
+      real_t r, g, b;
+      parseReal3(&r, &g, &b, &token);
       material.transmittance[0] = r;
       material.transmittance[1] = g;
       material.transmittance[2] = b;
@@ -1082,15 +1082,15 @@ void LoadMtl(std::map<std::string, int> *material_map,
     // ior(index of refraction)
     if (token[0] == 'N' && token[1] == 'i' && IS_SPACE((token[2]))) {
       token += 2;
-      material.ior = parseFloat(&token);
+      material.ior = parseReal(&token);
       continue;
     }
 
     // emission
     if (token[0] == 'K' && token[1] == 'e' && IS_SPACE(token[2])) {
       token += 2;
-      float r, g, b;
-      parseFloat3(&r, &g, &b, &token);
+      real_t r, g, b;
+      parseReal3(&r, &g, &b, &token);
       material.emission[0] = r;
       material.emission[1] = g;
       material.emission[2] = b;
@@ -1100,7 +1100,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
     // shininess
     if (token[0] == 'N' && token[1] == 's' && IS_SPACE(token[2])) {
       token += 2;
-      material.shininess = parseFloat(&token);
+      material.shininess = parseReal(&token);
       continue;
     }
 
@@ -1114,7 +1114,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
     // dissolve
     if ((token[0] == 'd' && IS_SPACE(token[1]))) {
       token += 1;
-      material.dissolve = parseFloat(&token);
+      material.dissolve = parseReal(&token);
 
       if (has_tr) {
         ss << "WARN: Both `d` and `Tr` parameters defined for \""
@@ -1135,7 +1135,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
         // We invert value of Tr(assume Tr is in range [0, 1])
         // NOTE: Interpretation of Tr is application(exporter) dependent. For
         // some application(e.g. 3ds max obj exporter), Tr = d(Issue 43)
-        material.dissolve = 1.0f - parseFloat(&token);
+        material.dissolve = 1.0f - parseReal(&token);
       }
       has_tr = true;
       continue;
@@ -1144,49 +1144,49 @@ void LoadMtl(std::map<std::string, int> *material_map,
     // PBR: roughness
     if (token[0] == 'P' && token[1] == 'r' && IS_SPACE(token[2])) {
       token += 2;
-      material.roughness = parseFloat(&token);
+      material.roughness = parseReal(&token);
       continue;
     }
 
     // PBR: metallic
     if (token[0] == 'P' && token[1] == 'm' && IS_SPACE(token[2])) {
       token += 2;
-      material.metallic = parseFloat(&token);
+      material.metallic = parseReal(&token);
       continue;
     }
 
     // PBR: sheen
     if (token[0] == 'P' && token[1] == 's' && IS_SPACE(token[2])) {
       token += 2;
-      material.sheen = parseFloat(&token);
+      material.sheen = parseReal(&token);
       continue;
     }
 
     // PBR: clearcoat thickness
     if (token[0] == 'P' && token[1] == 'c' && IS_SPACE(token[2])) {
       token += 2;
-      material.clearcoat_thickness = parseFloat(&token);
+      material.clearcoat_thickness = parseReal(&token);
       continue;
     }
 
     // PBR: clearcoat roughness
     if ((0 == strncmp(token, "Pcr", 3)) && IS_SPACE(token[3])) {
       token += 4;
-      material.clearcoat_roughness = parseFloat(&token);
+      material.clearcoat_roughness = parseReal(&token);
       continue;
     }
 
     // PBR: anisotropy
     if ((0 == strncmp(token, "aniso", 5)) && IS_SPACE(token[5])) {
       token += 6;
-      material.anisotropy = parseFloat(&token);
+      material.anisotropy = parseReal(&token);
       continue;
     }
 
     // PBR: anisotropy rotation
     if ((0 == strncmp(token, "anisor", 6)) && IS_SPACE(token[6])) {
       token += 7;
-      material.anisotropy_rotation = parseFloat(&token);
+      material.anisotropy_rotation = parseReal(&token);
       continue;
     }
 
@@ -1426,9 +1426,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              bool triangulate) {
   std::stringstream errss;
 
-  std::vector<float> v;
-  std::vector<float> vn;
-  std::vector<float> vt;
+  std::vector<real_t> v;
+  std::vector<real_t> vn;
+  std::vector<real_t> vt;
   std::vector<tag_t> tags;
   std::vector<std::vector<vertex_index> > faceGroup;
   std::string name;
@@ -1470,8 +1470,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     // vertex
     if (token[0] == 'v' && IS_SPACE((token[1]))) {
       token += 2;
-      float x, y, z;
-      parseFloat3(&x, &y, &z, &token);
+      real_t x, y, z;
+      parseReal3(&x, &y, &z, &token);
       v.push_back(x);
       v.push_back(y);
       v.push_back(z);
@@ -1481,8 +1481,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     // normal
     if (token[0] == 'v' && token[1] == 'n' && IS_SPACE((token[2]))) {
       token += 3;
-      float x, y, z;
-      parseFloat3(&x, &y, &z, &token);
+      real_t x, y, z;
+      parseReal3(&x, &y, &z, &token);
       vn.push_back(x);
       vn.push_back(y);
       vn.push_back(z);
@@ -1492,8 +1492,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     // texcoord
     if (token[0] == 'v' && token[1] == 't' && IS_SPACE((token[2]))) {
       token += 3;
-      float x, y;
-      parseFloat2(&x, &y, &token);
+      real_t x, y;
+      parseReal2(&x, &y, &token);
       vt.push_back(x);
       vt.push_back(y);
       continue;
@@ -1680,9 +1680,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
         token += strcspn(token, "/ \t\r") + 1;
       }
 
-      tag.floatValues.resize(static_cast<size_t>(ts.num_floats));
-      for (size_t i = 0; i < static_cast<size_t>(ts.num_floats); ++i) {
-        tag.floatValues[i] = parseFloat(&token);
+      tag.realValues.resize(static_cast<size_t>(ts.num_reals));
+      for (size_t i = 0; i < static_cast<size_t>(ts.num_reals); ++i) {
+        tag.realValues[i] = parseReal(&token);
         token += strcspn(token, "/ \t\r") + 1;
       }
 
@@ -1776,7 +1776,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
     // vertex
     if (token[0] == 'v' && IS_SPACE((token[1]))) {
       token += 2;
-      float x, y, z, w;  // w is optional. default = 1.0
+      real_t x, y, z, w;  // w is optional. default = 1.0
       parseV(&x, &y, &z, &w, &token);
       if (callback.vertex_cb) {
         callback.vertex_cb(user_data, x, y, z, w);
@@ -1787,8 +1787,8 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
     // normal
     if (token[0] == 'v' && token[1] == 'n' && IS_SPACE((token[2]))) {
       token += 3;
-      float x, y, z;
-      parseFloat3(&x, &y, &z, &token);
+      real_t x, y, z;
+      parseReal3(&x, &y, &z, &token);
       if (callback.normal_cb) {
         callback.normal_cb(user_data, x, y, z);
       }
@@ -1798,8 +1798,8 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
     // texcoord
     if (token[0] == 'v' && token[1] == 't' && IS_SPACE((token[2]))) {
       token += 3;
-      float x, y, z;  // y and z are optional. default = 0.0
-      parseFloat3(&x, &y, &z, &token);
+      real_t x, y, z;  // y and z are optional. default = 0.0
+      parseReal3(&x, &y, &z, &token);
       if (callback.texcoord_cb) {
         callback.texcoord_cb(user_data, x, y, z);
       }
@@ -1990,9 +1990,9 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
         token += strcspn(token, "/ \t\r") + 1;
       }
 
-      tag.floatValues.resize(static_cast<size_t>(ts.num_floats));
-      for (size_t i = 0; i < static_cast<size_t>(ts.num_floats); ++i) {
-        tag.floatValues[i] = parseFloat(&token);
+      tag.realValues.resize(static_cast<size_t>(ts.num_reals));
+      for (size_t i = 0; i < static_cast<size_t>(ts.num_reals); ++i) {
+        tag.realValues[i] = parseReal(&token);
         token += strcspn(token, "/ \t\r") + 1;
       }
 
