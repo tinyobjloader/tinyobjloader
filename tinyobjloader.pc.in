@@ -11,5 +11,5 @@ Name: @PROJECT_NAME@
 Description: Tiny but powerful single file wavefront obj loader
 URL: https://syoyo.github.io/tinyobjloader/
 Version: @TINYOBJLOADER_VERSION@
-Libs: -L${libdir} -ltinyobjloader
+Libs: -L${libdir} -l@LIBRARY_NAME@
 Cflags: -I${includedir}
