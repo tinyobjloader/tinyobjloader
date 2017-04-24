@@ -6,6 +6,17 @@ cmake_minimum_required(VERSION 2.8.11)
 set(TINYOBJLOADER_SOVERSION 1)
 set(TINYOBJLOADER_VERSION 1.0.4)
 
+#optional double precision support
+option(TINYOBJLOADER_USE_DOUBLE "Build library with double precision instead of single (float)" OFF)
+
+if(TINYOBJLOADER_USE_DOUBLE)
+  add_definitions(-DTINYOBJLOADER_USE_DOUBLE)
+  set(LIBRARY_NAME ${PROJECT_NAME}_double)
+else()
+  set(LIBRARY_NAME ${PROJECT_NAME})
+endif()
+
+
 #Folder Shortcuts
 set(TINYOBJLOADEREXAMPLES_DIR ${CMAKE_CURRENT_SOURCE_DIR}/examples)
 
@@ -38,32 +49,32 @@ option(TINYOBJLOADER_BUILD_TEST_LOADER "Build Example Loader Application" OFF)
 option(TINYOBJLOADER_COMPILATION_SHARED "Build as shared library" OFF)
 
 if(TINYOBJLOADER_COMPILATION_SHARED)
-  add_library(tinyobjloader SHARED ${tinyobjloader-Source})
-  set_target_properties(tinyobjloader PROPERTIES
+  add_library(${LIBRARY_NAME} SHARED ${tinyobjloader-Source})
+  set_target_properties(${LIBRARY_NAME} PROPERTIES
     SOVERSION ${TINYOBJLOADER_SOVERSION}
   )
 else()
-  add_library(tinyobjloader STATIC ${tinyobjloader-Source})
+  add_library(${LIBRARY_NAME} STATIC ${tinyobjloader-Source})
 endif()
 
-set_target_properties(tinyobjloader PROPERTIES VERSION ${TINYOBJLOADER_VERSION})
+set_target_properties(${LIBRARY_NAME} PROPERTIES VERSION ${TINYOBJLOADER_VERSION})
 
-target_include_directories(tinyobjloader INTERFACE
+target_include_directories(${LIBRARY_NAME} INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
   $<INSTALL_INTERFACE:${TINYOBJLOADER_INCLUDE_DIR}>
   )
 
-export(TARGETS tinyobjloader FILE ${PROJECT_NAME}-targets.cmake)
+export(TARGETS ${LIBRARY_NAME} FILE ${PROJECT_NAME}-targets.cmake)
 
 if(TINYOBJLOADER_BUILD_TEST_LOADER)
   add_executable(test_loader ${tinyobjloader-Example-Source})
-  target_link_libraries(test_loader tinyobjloader)
+  target_link_libraries(test_loader ${LIBRARY_NAME})
 endif()
 
 option(TINYOBJLOADER_BUILD_OBJ_STICHER "Build OBJ Sticher Application" OFF)
 if(TINYOBJLOADER_BUILD_OBJ_STICHER)
   add_executable(obj_sticher ${tinyobjloader-examples-objsticher})
-  target_link_libraries(obj_sticher tinyobjloader)
+  target_link_libraries(obj_sticher ${LIBRARY_NAME})
 
   install(TARGETS
     obj_sticher
@@ -76,8 +87,8 @@ endif()
 include(CMakePackageConfigHelpers)
 
 configure_package_config_file(
-  tinyobjloader-config.cmake.in
-  tinyobjloader-config.cmake
+  ${PROJECT_NAME}-config.cmake.in
+  ${LIBRARY_NAME}-config.cmake
   INSTALL_DESTINATION
   ${TINYOBJLOADER_CMAKE_DIR}
   PATH_VARS
@@ -86,7 +97,7 @@ configure_package_config_file(
   NO_CHECK_REQUIRED_COMPONENTS_MACRO
   )
 
-write_basic_package_version_file(tinyobjloader-config-version.cmake
+write_basic_package_version_file(${LIBRARY_NAME}-config-version.cmake
   VERSION
   ${TINYOBJLOADER_VERSION}
   COMPATIBILITY
@@ -94,11 +105,11 @@ write_basic_package_version_file(tinyobjloader-config-version.cmake
   )
 
 #pkg-config file
-configure_file(tinyobjloader.pc.in tinyobjloader.pc @ONLY)
+configure_file(${PROJECT_NAME}.pc.in ${LIBRARY_NAME}.pc @ONLY)
 
 #Installation
 install(TARGETS
-  tinyobjloader
+  ${LIBRARY_NAME}
   EXPORT ${PROJECT_NAME}-targets
   DESTINATION
   ${TINYOBJLOADER_LIBRARY_DIR}
@@ -123,13 +134,13 @@ install(FILES
   ${TINYOBJLOADER_DOC_DIR}
   )
 install(FILES
-  "${CMAKE_CURRENT_BINARY_DIR}/tinyobjloader-config.cmake"
-  "${CMAKE_CURRENT_BINARY_DIR}/tinyobjloader-config-version.cmake"
+  "${CMAKE_CURRENT_BINARY_DIR}/${LIBRARY_NAME}-config.cmake"
+  "${CMAKE_CURRENT_BINARY_DIR}/${LIBRARY_NAME}-config-version.cmake"
   DESTINATION
   ${TINYOBJLOADER_CMAKE_DIR}
   )
 install(FILES
-  "${CMAKE_CURRENT_BINARY_DIR}/tinyobjloader.pc"
+  "${CMAKE_CURRENT_BINARY_DIR}/${LIBRARY_NAME}.pc"
   DESTINATION
   ${TINYOBJLOADER_PKGCONFIG_DIR}
   )
