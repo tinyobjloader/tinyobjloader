@@ -96,6 +96,14 @@ namespace tinyobj {
 //         separately
 //         cube_left   | cube_right
 
+#ifdef TINYOBJLOADER_USE_DOUBLE
+  //#pragma message "using double"
+  typedef double real_t;
+#else
+  //#pragma message "using float"
+  typedef float real_t;
+#endif
+
 typedef enum {
   TEXTURE_TYPE_NONE,  // default
   TEXTURE_TYPE_SPHERE,
