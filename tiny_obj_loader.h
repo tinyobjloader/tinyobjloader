@@ -23,6 +23,7 @@ THE SOFTWARE.
 */
 
 //
+// version 1.0.6 : Add TINYOBJLOADER_USE_DOUBLE option(#124)
 // version 1.0.5 : Ignore `Tr` when `d` exists in MTL(#43)
 // version 1.0.4 : Support multiple filenames for 'mtllib'(#112)
 // version 1.0.3 : Support parsing texture options(#85)
