@@ -51,6 +51,7 @@ TinyObjLoader is successfully used in ...
 
 ### New version(v1.0.x)
 
+* Double precision support through `TINYOBJLOADER_USE_DOUBLE` thanks to noma
 * Loading models in Vulkan Tutorial https://vulkan-tutorial.com/Loading_models
 * .obj viewer with Metal https://github.com/middlefeng/NuoModelViewer/tree/master
 * Your project here!
@@ -91,6 +92,7 @@ TinyObjLoader is successfully used in ...
 * Crease tag('t'). This is OpenSubdiv specific(not in wavefront .obj specification)
 * PBR material extension for .MTL. Its proposed here: http://exocortex.com/blog/extending_wavefront_mtl_to_support_pbr
 * Callback API for custom loading.
+* Double precision support(for HPC application).
 
 
 ## TODO
@@ -175,6 +177,12 @@ mesh_t::num_face_vertices => array of the number of vertices per face(e.g. 3 = t
 
 Note that when `triangulate` flas is true in `tinyobj::LoadObj()` argument, `num_face_vertices` are all filled with 3(triangle).
 
+### float data type
+
+TinyObjLoader now use `real_t` for floating point data type.
+Default is `float(32bit)`. 
+You can enable `double(64bit)` precision by using `TINYOBJLOADER_USE_DOUBLE` define.
+
 #### Example code
 
 ```c++
@@ -208,14 +216,14 @@ for (size_t s = 0; s < shapes.size(); s++) {
     for (size_t v = 0; v < fv; v++) {
       // access to vertex
       tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
-      float vx = attrib.vertices[3*idx.vertex_index+0];
-      float vy = attrib.vertices[3*idx.vertex_index+1];
-      float vz = attrib.vertices[3*idx.vertex_index+2];
-      float nx = attrib.normals[3*idx.normal_index+0];
-      float ny = attrib.normals[3*idx.normal_index+1];
-      float nz = attrib.normals[3*idx.normal_index+2];
-      float tx = attrib.texcoords[2*idx.texcoord_index+0];
-      float ty = attrib.texcoords[2*idx.texcoord_index+1];
+      tinyobj::real_t vx = attrib.vertices[3*idx.vertex_index+0];
+      tinyobj::real_t vy = attrib.vertices[3*idx.vertex_index+1];
+      tinyobj::real_t vz = attrib.vertices[3*idx.vertex_index+2];
+      tinyobj::real_t nx = attrib.normals[3*idx.normal_index+0];
+      tinyobj::real_t ny = attrib.normals[3*idx.normal_index+1];
+      tinyobj::real_t nz = attrib.normals[3*idx.normal_index+2];
+      tinyobj::real_t tx = attrib.texcoords[2*idx.texcoord_index+0];
+      tinyobj::real_t ty = attrib.texcoords[2*idx.texcoord_index+1];
     }
     index_offset += fv;
 
