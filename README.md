@@ -54,6 +54,7 @@ TinyObjLoader is successfully used in ...
 * Double precision support through `TINYOBJLOADER_USE_DOUBLE` thanks to noma
 * Loading models in Vulkan Tutorial https://vulkan-tutorial.com/Loading_models
 * .obj viewer with Metal https://github.com/middlefeng/NuoModelViewer/tree/master
+* Vulkan Cookbook https://github.com/PacktPublishing/Vulkan-Cookbook
 * Your project here!
 
 ### Old version(v0.9.x)
