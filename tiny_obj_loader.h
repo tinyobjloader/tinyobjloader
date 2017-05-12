@@ -788,6 +788,7 @@ static bool ParseTextureNameAndOption(std::string *texname,
   const char *token = linebuf;  // Assume line ends with NULL
 
   while (!IS_NEW_LINE((*token))) {
+    token += strspn(token, " \t");  // skip space
     if ((0 == strncmp(token, "-blendu", 7)) && IS_SPACE((token[7]))) {
       token += 8;
       texopt->blendu = parseOnOff(&token, /* default */ true);
@@ -831,7 +832,6 @@ static bool ParseTextureNameAndOption(std::string *texname,
       parseReal2(&(texopt->brightness), &(texopt->contrast), &token, 0.0, 1.0);
     } else {
       // Assume texture filename
-      token += strspn(token, " \t");         // skip space
       size_t len = strcspn(token, " \t\r");  // untile next space
       texture_name = std::string(token, token + len);
       token += len;
