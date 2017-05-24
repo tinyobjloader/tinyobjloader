@@ -156,6 +156,7 @@ typedef struct {
   std::string bump_texname;                // map_bump, bump
   std::string displacement_texname;        // disp
   std::string alpha_texname;               // map_d
+  std::string reflection_texname;          // refl
 
   texture_option_t ambient_texopt;
   texture_option_t diffuse_texopt;
@@ -164,6 +165,7 @@ typedef struct {
   texture_option_t bump_texopt;
   texture_option_t displacement_texopt;
   texture_option_t alpha_texopt;
+  texture_option_t reflection_texopt;
 
   // PBR extension
   // http://exocortex.com/blog/extending_wavefront_mtl_to_support_pbr
@@ -859,6 +861,7 @@ static void InitMaterial(material_t *material) {
   material->specular_highlight_texname = "";
   material->bump_texname = "";
   material->displacement_texname = "";
+  material->reflection_texname = "";
   material->alpha_texname = "";
   for (int i = 0; i < 3; i++) {
     material->ambient[i] = 0.f;
@@ -1261,6 +1264,15 @@ void LoadMtl(std::map<std::string, int> *material_map,
       token += 5;
       ParseTextureNameAndOption(&(material.displacement_texname),
                                 &(material.displacement_texopt), token,
+                                /* is_bump */ false);
+      continue;
+    }
+
+    // reflection map
+    if ((0 == strncmp(token, "refl", 4)) && IS_SPACE(token[4])) {
+      token += 5;
+      ParseTextureNameAndOption(&(material.reflection_texname),
+                                &(material.reflection_texopt), token,
                                 /* is_bump */ false);
       continue;
     }

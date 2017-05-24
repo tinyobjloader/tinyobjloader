@@ -145,6 +145,7 @@ static void PrintInfo(const tinyobj::attrib_t &attrib, const std::vector<tinyobj
     printf("  material.map_bump = %s\n", materials[i].bump_texname.c_str());
     printf("  material.map_d = %s\n", materials[i].alpha_texname.c_str());
     printf("  material.disp = %s\n", materials[i].displacement_texname.c_str());
+    printf("  material.refl = %s\n", materials[i].reflection_texname.c_str());
     std::map<std::string, std::string>::const_iterator it(materials[i].unknown_parameter.begin());
     std::map<std::string, std::string>::const_iterator itEnd(materials[i].unknown_parameter.end());
 
@@ -562,6 +563,26 @@ TEST_CASE("tr_and_d", "[Issue43]") {
 
   REQUIRE(0.75 == Approx(materials[0].dissolve));
   REQUIRE(0.75 == Approx(materials[1].dissolve));
+}
+
+TEST_CASE("refl", "[refl]") {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "../models/refl.obj", gMtlBasePath);
+
+  if (!err.empty()) {
+    std::cerr << err << std::endl;
+  }
+
+  PrintInfo(attrib, shapes, materials);
+
+  REQUIRE(true == ret);
+  REQUIRE(5 == materials.size());
+
+  REQUIRE(materials[0].reflection_texname.compare("reflection.tga") == 0);
 }
 
 #if 0
