@@ -401,20 +401,22 @@ static std::istream &safeGetline(std::istream &is, std::string &t) {
   std::istream::sentry se(is, true);
   std::streambuf *sb = is.rdbuf();
 
-  for (;;) {
-    int c = sb->sbumpc();
-    switch (c) {
-      case '\n':
-        return is;
-      case '\r':
-        if (sb->sgetc() == '\n') sb->sbumpc();
-        return is;
-      case EOF:
-        // Also handle the case when the last line has no line ending
-        if (t.empty()) is.setstate(std::ios::eofbit);
-        return is;
-      default:
-        t += static_cast<char>(c);
+  if (se) {
+    for (;;) {
+      int c = sb->sbumpc();
+      switch (c) {
+        case '\n':
+          return is;
+        case '\r':
+          if (sb->sgetc() == '\n') sb->sbumpc();
+          return is;
+        case EOF:
+          // Also handle the case when the last line has no line ending
+          if (t.empty()) is.setstate(std::ios::eofbit);
+          return is;
+        default:
+          t += static_cast<char>(c);
+      }
     }
   }
 }
