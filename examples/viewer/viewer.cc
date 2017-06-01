@@ -421,7 +421,8 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
         glBindBuffer(GL_ARRAY_BUFFER, o.vb);
         glBufferData(GL_ARRAY_BUFFER, vb.size() * sizeof(float), &vb.at(0),
                      GL_STATIC_DRAW);
-        o.numTriangles = vb.size() / (3 + 3 + 3 + 2) * 3;
+        o.numTriangles = vb.size() / (3 + 3 + 3 + 2) / 3; // 3:vtx, 3:normal, 3:col, 2:texcoord
+
         printf("shape[%d] # of triangles = %d\n", static_cast<int>(s),
                o.numTriangles);
       }
