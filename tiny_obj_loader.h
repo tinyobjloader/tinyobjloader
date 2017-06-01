@@ -1032,11 +1032,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
       // set new mtl name
       char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
       token += 7;
-#ifdef _MSC_VER
-      sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
-#else
-      std::sscanf(token, "%s", namebuf);
-#endif
+      std::snprintf(namebuf, TINYOBJ_SSCANF_BUFFER_SIZE, "%s", token);
       material.name = namebuf;
       continue;
     }
@@ -1543,11 +1539,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     if ((0 == strncmp(token, "usemtl", 6)) && IS_SPACE((token[6]))) {
       char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
       token += 7;
-#ifdef _MSC_VER
-      sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
-#else
-      std::sscanf(token, "%s", namebuf);
-#endif
+      std::snprintf(namebuf, TINYOBJ_SSCANF_BUFFER_SIZE, "%s", token);
 
       int newMaterialId = -1;
       if (material_map.find(namebuf) != material_map.end()) {
@@ -1663,11 +1655,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       // @todo { multiple object name? }
       char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
       token += 2;
-#ifdef _MSC_VER
-      sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
-#else
-      std::sscanf(token, "%s", namebuf);
-#endif
+      std::snprintf(namebuf, TINYOBJ_SSCANF_BUFFER_SIZE, "%s", token);
       name = std::string(namebuf);
 
       continue;
@@ -1678,11 +1666,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
       char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
       token += 2;
-#ifdef _MSC_VER
-      sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
-#else
-      std::sscanf(token, "%s", namebuf);
-#endif
+      std::snprintf(namebuf, TINYOBJ_SSCANF_BUFFER_SIZE, "%s", token);
       tag.name = std::string(namebuf);
 
       token += tag.name.size() + 1;
@@ -1706,12 +1690,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       for (size_t i = 0; i < static_cast<size_t>(ts.num_strings); ++i) {
         char stringValueBuffer[TINYOBJ_SSCANF_BUFFER_SIZE];
 
-#ifdef _MSC_VER
-        sscanf_s(token, "%s", stringValueBuffer,
-                 (unsigned)_countof(stringValueBuffer));
-#else
-        std::sscanf(token, "%s", stringValueBuffer);
-#endif
+        std::snprintf(stringValueBuffer, TINYOBJ_SSCANF_BUFFER_SIZE, "%s", token);
         tag.stringValues[i] = stringValueBuffer;
         token += tag.stringValues[i].size() + 1;
       }
@@ -1853,12 +1832,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
     if ((0 == strncmp(token, "usemtl", 6)) && IS_SPACE((token[6]))) {
       char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
       token += 7;
-#ifdef _MSC_VER
-      sscanf_s(token, "%s", namebuf,
-               static_cast<unsigned int>(_countof(namebuf)));
-#else
-      std::sscanf(token, "%s", namebuf);
-#endif
+      std::snprintf(namebuf, TINYOBJ_SSCANF_BUFFER_SIZE, "%s", token);
 
       int newMaterialId = -1;
       if (material_map.find(namebuf) != material_map.end()) {
@@ -1968,11 +1942,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
       // @todo { multiple object name? }
       char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
       token += 2;
-#ifdef _MSC_VER
-      sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
-#else
-      std::sscanf(token, "%s", namebuf);
-#endif
+      std::snprintf(namebuf, TINYOBJ_SSCANF_BUFFER_SIZE, "%s", token);
       std::string object_name = std::string(namebuf);
 
       if (callback.object_cb) {
@@ -1988,11 +1958,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
 
       char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
       token += 2;
-#ifdef _MSC_VER
-      sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
-#else
-      std::sscanf(token, "%s", namebuf);
-#endif
+      std::snprintf(namebuf, TINYOBJ_SSCANF_BUFFER_SIZE, "%s", token);
       tag.name = std::string(namebuf);
 
       token += tag.name.size() + 1;
@@ -2016,12 +1982,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
       for (size_t i = 0; i < static_cast<size_t>(ts.num_strings); ++i) {
         char stringValueBuffer[TINYOBJ_SSCANF_BUFFER_SIZE];
 
-#ifdef _MSC_VER
-        sscanf_s(token, "%s", stringValueBuffer,
-                 (unsigned)_countof(stringValueBuffer));
-#else
-        std::sscanf(token, "%s", stringValueBuffer);
-#endif
+        std::snprintf(stringValueBuffer, TINYOBJ_SSCANF_BUFFER_SIZE, "%s", token);
         tag.stringValues[i] = stringValueBuffer;
         token += tag.stringValues[i].size() + 1;
       }
