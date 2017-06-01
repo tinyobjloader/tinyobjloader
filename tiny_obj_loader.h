@@ -1676,7 +1676,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     if (token[0] == 't' && IS_SPACE(token[1])) {
       tag_t tag;
 
-      char namebuf[4096];
+      char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
       token += 2;
 #ifdef _MSC_VER
       sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
@@ -1704,7 +1704,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
       tag.stringValues.resize(static_cast<size_t>(ts.num_strings));
       for (size_t i = 0; i < static_cast<size_t>(ts.num_strings); ++i) {
-        char stringValueBuffer[4096];
+        char stringValueBuffer[TINYOBJ_SSCANF_BUFFER_SIZE];
 
 #ifdef _MSC_VER
         sscanf_s(token, "%s", stringValueBuffer,
@@ -1986,7 +1986,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
     if (token[0] == 't' && IS_SPACE(token[1])) {
       tag_t tag;
 
-      char namebuf[4096];
+      char namebuf[TINYOBJ_SSCANF_BUFFER_SIZE];
       token += 2;
 #ifdef _MSC_VER
       sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
@@ -2014,7 +2014,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
 
       tag.stringValues.resize(static_cast<size_t>(ts.num_strings));
       for (size_t i = 0; i < static_cast<size_t>(ts.num_strings); ++i) {
-        char stringValueBuffer[4096];
+        char stringValueBuffer[TINYOBJ_SSCANF_BUFFER_SIZE];
 
 #ifdef _MSC_VER
         sscanf_s(token, "%s", stringValueBuffer,
