@@ -44,7 +44,6 @@ THE SOFTWARE.
 #define TINY_OBJ_LOADER_H_
 
 #include <map>
-#include <sstream>
 #include <string>
 #include <vector>
 
