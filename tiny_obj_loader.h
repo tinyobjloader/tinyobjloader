@@ -177,7 +177,6 @@ typedef struct {
   real_t anisotropy;           // aniso. [0, 1] default 0
   real_t anisotropy_rotation;  // anisor. [0, 1] default 0
   real_t pad0;
-  real_t pad1;
   std::string roughness_texname;  // map_Pr
   std::string metallic_texname;   // map_Pm
   std::string sheen_texname;      // map_Ps
@@ -418,6 +417,8 @@ static std::istream &safeGetline(std::istream &is, std::string &t) {
       }
     }
   }
+
+  return is;
 }
 
 #define IS_SPACE(x) (((x) == ' ') || ((x) == '\t'))
@@ -1030,9 +1031,11 @@ void LoadMtl(std::map<std::string, int> *material_map,
 
       // set new mtl name
       token += 7;
-      std::stringstream ss;
-      ss << token;
-      material.name = ss.str();
+      {
+        std::stringstream sstr;
+        sstr << token;
+        material.name = sstr.str();
+      }
       continue;
     }
 
@@ -1688,9 +1691,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
       tag.stringValues.resize(static_cast<size_t>(ts.num_strings));
       for (size_t i = 0; i < static_cast<size_t>(ts.num_strings); ++i) {
-        std::stringstream ss;
-        ss << token;
-        tag.stringValues[i] = ss.str();
+        std::stringstream sstr;
+        sstr << token;
+        tag.stringValues[i] = sstr.str();
         token += tag.stringValues[i].size() + 1;
       }
 
