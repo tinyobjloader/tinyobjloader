@@ -27,12 +27,11 @@ solution "objview"
 
 	kind "ConsoleApp"
 	language "C++"
-	files { "viewer.cc", "trackball.cc", "ltalloc.cc" }
+	files { "viewer.cc", "trackball.cc" }
 	includedirs { "./" }
 	includedirs { "../../" }
 
 	flags { "c++11" }
-	--buildoptions { "-std=c++11" }
 
         if _OPTIONS['clang'] then
            toolset "clang"
