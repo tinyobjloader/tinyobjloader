@@ -1046,7 +1046,13 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
               std::vector<material_t> *materials, const char *buf, size_t len,
               const LoadOption &option);
 
+} // namespace tinyobj_opt
+
+#endif  // TINOBJ_LOADER_OPT_H_
+
 #ifdef TINYOBJ_LOADER_OPT_IMPLEMENTATION
+
+namespace tinyobj_opt {
 
 static bool parseLine(Command *command, const char *p, size_t p_len,
                       bool triangulate = true) {
@@ -1672,8 +1678,7 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
   return true;
 }
-#endif  // TINYOBJ_LOADER_OPT_IMPLEMENTATION
 
 }  // namespace tinyobj_opt
 
-#endif  // TINOBJ_LOADER_OPT_H_
+#endif  // TINYOBJ_LOADER_OPT_IMPLEMENTATION
