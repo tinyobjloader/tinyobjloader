@@ -1,12 +1,12 @@
 //
 // Optimized wavefront .obj loader.
-// Requires ltalloc and C++11
+// Requires lfpAlloc and C++11
 //
 
 /*
 The MIT License (MIT)
 
-Copyright (c) 2012-2016 Syoyo Fujita and many contributors.
+Copyright (c) 2012-2017 Syoyo Fujita and many contributors.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -38,7 +38,6 @@ THE SOFTWARE.
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <unistd.h>
 #endif
 
 #include <cassert>
@@ -55,7 +54,7 @@ THE SOFTWARE.
 #include <chrono>  // C++11
 #include <thread>  // C++11
 
-#include "ltalloc.hpp"
+#include "lfpAlloc/Allocator.hpp"
 
 namespace tinyobj_opt {
 
@@ -327,12 +326,12 @@ struct index_t {
 };
 
 typedef struct {
-  std::vector<float, lt::allocator<float> > vertices;
-  std::vector<float, lt::allocator<float> > normals;
-  std::vector<float, lt::allocator<float> > texcoords;
-  std::vector<index_t, lt::allocator<index_t> > indices;
-  std::vector<int, lt::allocator<int> > face_num_verts;
-  std::vector<int, lt::allocator<int> > material_ids;
+  std::vector<float, lfpAlloc::lfpAllocator<float> > vertices;
+  std::vector<float, lfpAlloc::lfpAllocator<float> > normals;
+  std::vector<float, lfpAlloc::lfpAllocator<float> > texcoords;
+  std::vector<index_t, lfpAlloc::lfpAllocator<index_t> > indices;
+  std::vector<int, lfpAlloc::lfpAllocator<int> > face_num_verts;
+  std::vector<int, lfpAlloc::lfpAllocator<int> > material_ids;
 } attrib_t;
 
 typedef StackVector<char, 256> ShortString;
@@ -999,9 +998,9 @@ typedef struct {
   float tx, ty;
 
   // for f
-  std::vector<index_t, lt::allocator<index_t> > f;
+  std::vector<index_t, lfpAlloc::lfpAllocator<index_t> > f;
   // std::vector<index_t> f;
-  std::vector<int, lt::allocator<int> > f_num_verts;
+  std::vector<int, lfpAlloc::lfpAllocator<int> > f_num_verts;
 
   const char *group_name;
   unsigned int group_name_len;
@@ -1271,7 +1270,8 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
   auto t1 = std::chrono::high_resolution_clock::now();
 
-  std::vector<LineInfo, lt::allocator<LineInfo> > line_infos[kMaxThreads];
+  std::vector<LineInfo, lfpAlloc::lfpAllocator<LineInfo> >
+      line_infos[kMaxThreads];
   for (size_t t = 0; t < static_cast<size_t>(num_threads); t++) {
     // Pre allocate enough memory. len / 128 / num_threads is just a heuristic
     // value.
@@ -1558,8 +1558,9 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
                   index_t(vertex_index, texcoord_index, normal_index);
             }
             for (size_t k = 0; k < commands[t][i].f_num_verts.size(); k++) {
-							attrib->material_ids[face_count + k] = material_id;
-							attrib->face_num_verts[face_count + k] = commands[t][i].f_num_verts[k];
+              attrib->material_ids[face_count + k] = material_id;
+              attrib->face_num_verts[face_count + k] =
+                  commands[t][i].f_num_verts[k];
             }
 
             f_count += commands[t][i].f.size();
