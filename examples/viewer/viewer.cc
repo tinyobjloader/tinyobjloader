@@ -123,7 +123,7 @@ class timerutil {
 };
 
 typedef struct {
-  GLuint vb;  // vertex buffer
+  GLuint vb_id;  // vertex buffer id
   int numTriangles;
   size_t material_id;
 } DrawObject;
@@ -289,7 +289,7 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
   {
     for (size_t s = 0; s < shapes.size(); s++) {
       DrawObject o;
-      std::vector<float> vb;  // pos(3float), normal(3float), color(3float)
+      std::vector<float> buffer;  // pos(3float), normal(3float), color(3float)
       for (size_t f = 0; f < shapes[s].mesh.indices.size() / 3; f++) {
         tinyobj::index_t idx0 = shapes[s].mesh.indices[3 * f + 0];
         tinyobj::index_t idx1 = shapes[s].mesh.indices[3 * f + 1];
@@ -374,12 +374,12 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
         }
 
         for (int k = 0; k < 3; k++) {
-          vb.push_back(v[k][0]);
-          vb.push_back(v[k][1]);
-          vb.push_back(v[k][2]);
-          vb.push_back(n[k][0]);
-          vb.push_back(n[k][1]);
-          vb.push_back(n[k][2]);
+          buffer.push_back(v[k][0]);
+          buffer.push_back(v[k][1]);
+          buffer.push_back(v[k][2]);
+          buffer.push_back(n[k][0]);
+          buffer.push_back(n[k][1]);
+          buffer.push_back(n[k][2]);
           // Combine normal and diffuse to get color.
           float normal_factor = 0.2;
           float diffuse_factor = 1 - normal_factor;
@@ -396,16 +396,16 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
             c[1] /= len;
             c[2] /= len;
           }
-          vb.push_back(c[0] * 0.5 + 0.5);
-          vb.push_back(c[1] * 0.5 + 0.5);
-          vb.push_back(c[2] * 0.5 + 0.5);
+          buffer.push_back(c[0] * 0.5 + 0.5);
+          buffer.push_back(c[1] * 0.5 + 0.5);
+          buffer.push_back(c[2] * 0.5 + 0.5);
           
-          vb.push_back(tc[k][0]);
-          vb.push_back(tc[k][1]);
+          buffer.push_back(tc[k][0]);
+          buffer.push_back(tc[k][1]);
         }
       }
 
-      o.vb = 0;
+      o.vb_id = 0;
       o.numTriangles = 0;
 
       // OpenGL viewer does not support texturing with per-face material.
@@ -416,12 +416,12 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
           o.material_id = materials.size() - 1; // = ID for default material.
       }
           
-      if (vb.size() > 0) {
-        glGenBuffers(1, &o.vb);
-        glBindBuffer(GL_ARRAY_BUFFER, o.vb);
-        glBufferData(GL_ARRAY_BUFFER, vb.size() * sizeof(float), &vb.at(0),
+      if (buffer.size() > 0) {
+        glGenBuffers(1, &o.vb_id);
+        glBindBuffer(GL_ARRAY_BUFFER, o.vb_id);
+        glBufferData(GL_ARRAY_BUFFER, buffer.size() * sizeof(float), &buffer.at(0),
                      GL_STATIC_DRAW);
-        o.numTriangles = vb.size() / (3 + 3 + 3 + 2) / 3; // 3:vtx, 3:normal, 3:col, 2:texcoord
+        o.numTriangles = buffer.size() / (3 + 3 + 3 + 2) / 3; // 3:vtx, 3:normal, 3:col, 2:texcoord
 
         printf("shape[%d] # of triangles = %d\n", static_cast<int>(s),
                o.numTriangles);
@@ -545,11 +545,11 @@ static void Draw(const std::vector<DrawObject>& drawObjects, std::vector<tinyobj
   GLsizei stride = (3 + 3 + 3 + 2) * sizeof(float);
   for (size_t i = 0; i < drawObjects.size(); i++) {
     DrawObject o = drawObjects[i];
-    if (o.vb < 1) {
+    if (o.vb_id < 1) {
       continue;
     }
 
-    glBindBuffer(GL_ARRAY_BUFFER, o.vb);
+    glBindBuffer(GL_ARRAY_BUFFER, o.vb_id);
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);
     glEnableClientState(GL_COLOR_ARRAY);
@@ -579,11 +579,11 @@ static void Draw(const std::vector<DrawObject>& drawObjects, std::vector<tinyobj
   glColor3f(0.0f, 0.0f, 0.4f);
   for (size_t i = 0; i < drawObjects.size(); i++) {
     DrawObject o = drawObjects[i];
-    if (o.vb < 1) {
+    if (o.vb_id < 1) {
       continue;
     }
 
-    glBindBuffer(GL_ARRAY_BUFFER, o.vb);
+    glBindBuffer(GL_ARRAY_BUFFER, o.vb_id);
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);
     glDisableClientState(GL_COLOR_ARRAY);
