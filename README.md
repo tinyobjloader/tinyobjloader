@@ -55,6 +55,8 @@ TinyObjLoader is successfully used in ...
 * Loading models in Vulkan Tutorial https://vulkan-tutorial.com/Loading_models
 * .obj viewer with Metal https://github.com/middlefeng/NuoModelViewer/tree/master
 * Vulkan Cookbook https://github.com/PacktPublishing/Vulkan-Cookbook
+* cudabox: CUDA Solid Voxelizer Engine https://github.com/gaspardzoss/cudavox
+* Drake: A planning, control, and analysis toolbox for nonlinear dynamical systems https://github.com/RobotLocomotion/drake
 * Your project here!
 
 ### Old version(v0.9.x)
