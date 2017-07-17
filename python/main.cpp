@@ -29,7 +29,7 @@ PyObject* pyTupleFromfloat3(float array[3]) {
 extern "C" {
 
 static PyObject* pyLoadObj(PyObject* self, PyObject* args) {
-  PyObject *rtndict, *pyshapes, *pymaterials, *attribobj, *current, *meshobj;
+  PyObject *rtndict, *pyshapes, *pymaterials, *pymaterial_indices, *attribobj, *current, *meshobj;
 
   char const* current_name;
   char const* filename;
@@ -48,6 +48,7 @@ static PyObject* pyLoadObj(PyObject* self, PyObject* args) {
 
   pyshapes = PyDict_New();
   pymaterials = PyDict_New();
+  pymaterial_indices = PyDict_New();
   rtndict = PyDict_New();
 
   attribobj = PyDict_New();
@@ -123,6 +124,7 @@ static PyObject* pyLoadObj(PyObject* self, PyObject* args) {
     PyDict_SetItemString(pyshapes, (*shape).name.c_str(), meshobj);
   }
 
+  long material_index = 0;
   for (std::vector<tinyobj::material_t>::iterator mat = materials.begin();
        mat != materials.end(); mat++) {
     PyObject* matobj = PyDict_New();
@@ -168,10 +170,12 @@ static PyObject* pyLoadObj(PyObject* self, PyObject* args) {
     PyDict_SetItemString(matobj, "unknown_parameter", unknown_parameter);
 
     PyDict_SetItemString(pymaterials, (*mat).name.c_str(), matobj);
+    PyDict_SetItemString(pymaterial_indices, PyLong_FromLong(material_index++), (*mat).name.c_str());
   }
 
   PyDict_SetItemString(rtndict, "shapes", pyshapes);
   PyDict_SetItemString(rtndict, "materials", pymaterials);
+  PyDict_SetItemString(rtndict, "material_indices", pymaterial_indices);
   PyDict_SetItemString(rtndict, "attribs", attribobj);
 
   return rtndict;
