@@ -26,7 +26,7 @@ Old version is available `v0.9.x` branch https://github.com/syoyo/tinyobjloader/
 
 ## What's new
 
-* 20 Aug, 2016 : Bump version v1.0.0. New data strcutre and API!
+* 20 Aug, 2016 : Bump version v1.0.0. New data structure and API!
 
 ### Old version
 
