@@ -207,6 +207,9 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
   tm.start();
 
   std::string base_dir = GetBaseDir(filename);
+  if (base_dir.empty()) {
+    base_dir = ".";
+  }
 #ifdef _WIN32
   base_dir += "\\";
 #else
@@ -238,6 +241,10 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
   // Append `default` material
   materials.push_back(tinyobj::material_t());
 
+  for (size_t i = 0; i < materials.size(); i++) {
+    printf("material[%d].diffuse_texname = %s\n", int(i), materials[i].diffuse_texname.c_str());
+  }
+
   // Load diffuse textures
   {
       for (size_t m = 0; m < materials.size(); m++) {
@@ -265,15 +272,19 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
                       std::cerr << "Unable to load texture: " << texture_filename << std::endl;
                       exit(1);
                   }
+                  std::cout << "Loaded texture: " << texture_filename << ", w = " << w << ", h = " << h << ", comp = " << comp << std::endl;
+
                   glGenTextures(1, &texture_id);
                   glBindTexture(GL_TEXTURE_2D, texture_id);
                   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
                   if (comp == 3) {
                       glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
                   }
                   else if (comp == 4) {
                       glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, image);
+                  } else {
+                      assert(0); // TODO
                   }
                   glBindTexture(GL_TEXTURE_2D, 0);
                   stbi_image_free(image);
@@ -314,6 +325,8 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
             assert(attrib.texcoords.size() > 2 * idx0.texcoord_index + 1);
             assert(attrib.texcoords.size() > 2 * idx1.texcoord_index + 1);
             assert(attrib.texcoords.size() > 2 * idx2.texcoord_index + 1);
+
+            // Flip Y coord.
             tc[0][0] = attrib.texcoords[2 * idx0.texcoord_index];
             tc[0][1] = 1.0f - attrib.texcoords[2 * idx0.texcoord_index + 1];
             tc[1][0] = attrib.texcoords[2 * idx1.texcoord_index];
@@ -410,11 +423,11 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
 
       // OpenGL viewer does not support texturing with per-face material.
       if (shapes[s].mesh.material_ids.size() > 0 && shapes[s].mesh.material_ids.size() > s) {
-          // Base case
-          o.material_id = shapes[s].mesh.material_ids[s];
+          o.material_id = shapes[s].mesh.material_ids[0]; // use the material ID of the first face.
       } else {
           o.material_id = materials.size() - 1; // = ID for default material.
       }
+      printf("shape[%d] material_id %d\n", int(s), int(o.material_id));
           
       if (buffer.size() > 0) {
         glGenBuffers(1, &o.vb_id);
@@ -555,6 +568,7 @@ static void Draw(const std::vector<DrawObject>& drawObjects, std::vector<tinyobj
     glEnableClientState(GL_COLOR_ARRAY);
     glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 
+    glBindTexture(GL_TEXTURE_2D, 0);
     if ((o.material_id < materials.size())) {
       std::string diffuse_texname = materials[o.material_id].diffuse_texname;
       if (textures.find(diffuse_texname) != textures.end()) {
