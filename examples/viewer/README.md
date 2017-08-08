@@ -6,7 +6,6 @@
 * glfw3
 * glew
 
-
 ## Build on MaCOSX
 
 Install glfw3 and glew using brew.
@@ -35,3 +34,9 @@ Put glfw3 and glew library somewhere and replace include and lib path in `premak
 Then,
 
     > premake5.exe vs2013
+
+## TODO
+
+* [ ] Support per-face material.
+* [ ] Use shader-based GL rendering.
+* [ ] PBR shader support.
