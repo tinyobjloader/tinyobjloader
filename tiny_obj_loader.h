@@ -153,7 +153,7 @@ typedef struct {
   std::string diffuse_texname;             // map_Kd
   std::string specular_texname;            // map_Ks
   std::string specular_highlight_texname;  // map_Ns
-  std::string bump_texname;                // map_bump, bump
+  std::string bump_texname;                // map_bump, map_Bump, bump
   std::string displacement_texname;        // disp
   std::string alpha_texname;               // map_d
   std::string reflection_texname;          // refl
@@ -1233,6 +1233,15 @@ void LoadMtl(std::map<std::string, int> *material_map,
 
     // bump texture
     if ((0 == strncmp(token, "map_bump", 8)) && IS_SPACE(token[8])) {
+      token += 9;
+      ParseTextureNameAndOption(&(material.bump_texname),
+                                &(material.bump_texopt), token,
+                                /* is_bump */ true);
+      continue;
+    }
+
+    // bump texture
+    if ((0 == strncmp(token, "map_Bump", 8)) && IS_SPACE(token[8])) {
       token += 9;
       ParseTextureNameAndOption(&(material.bump_texname),
                                 &(material.bump_texopt), token,
