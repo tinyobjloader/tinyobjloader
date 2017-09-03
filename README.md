@@ -37,7 +37,7 @@ Previous old version is avaiable in `v0.9.x` branch.
 ![Rungholt](images/rungholt.jpg)
 
 tinyobjloader can successfully load 6M triangles Rungholt scene.
-http://graphics.cs.williams.edu/data/meshes.xml
+http://casual-effects.com/data/index.html
 
 ![](images/sanmugel.png) 
 
