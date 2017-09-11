@@ -605,6 +605,26 @@ TEST_CASE("map_Bump", "[bump]") {
   REQUIRE(materials[0].bump_texname.compare("bump.jpg") == 0);
 }
 
+TEST_CASE("g_ignored", "[Issue138]") {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "../models/issue-138.obj", gMtlBasePath);
+
+  if (!err.empty()) {
+    std::cerr << err << std::endl;
+  }
+
+  PrintInfo(attrib, shapes, materials);
+
+  REQUIRE(true == ret);
+  REQUIRE(2 == shapes.size());
+  REQUIRE(2 == materials.size());
+
+}
+
 #if 0
 int
 main(
