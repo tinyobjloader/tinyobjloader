@@ -585,6 +585,26 @@ TEST_CASE("refl", "[refl]") {
   REQUIRE(materials[0].reflection_texname.compare("reflection.tga") == 0);
 }
 
+TEST_CASE("map_Bump", "[bump]") {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "../models/map-bump.obj", gMtlBasePath);
+
+  if (!err.empty()) {
+    std::cerr << err << std::endl;
+  }
+
+  PrintInfo(attrib, shapes, materials);
+
+  REQUIRE(true == ret);
+  REQUIRE(2 == materials.size());
+
+  REQUIRE(materials[0].bump_texname.compare("bump.jpg") == 0);
+}
+
 #if 0
 int
 main(
