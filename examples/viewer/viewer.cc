@@ -123,7 +123,7 @@ class timerutil {
 };
 
 typedef struct {
-  GLuint vb;  // vertex buffer
+  GLuint vb_id;  // vertex buffer id
   int numTriangles;
   size_t material_id;
 } DrawObject;
@@ -207,6 +207,9 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
   tm.start();
 
   std::string base_dir = GetBaseDir(filename);
+  if (base_dir.empty()) {
+    base_dir = ".";
+  }
 #ifdef _WIN32
   base_dir += "\\";
 #else
@@ -238,6 +241,10 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
   // Append `default` material
   materials.push_back(tinyobj::material_t());
 
+  for (size_t i = 0; i < materials.size(); i++) {
+    printf("material[%d].diffuse_texname = %s\n", int(i), materials[i].diffuse_texname.c_str());
+  }
+
   // Load diffuse textures
   {
       for (size_t m = 0; m < materials.size(); m++) {
@@ -265,15 +272,19 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
                       std::cerr << "Unable to load texture: " << texture_filename << std::endl;
                       exit(1);
                   }
+                  std::cout << "Loaded texture: " << texture_filename << ", w = " << w << ", h = " << h << ", comp = " << comp << std::endl;
+
                   glGenTextures(1, &texture_id);
                   glBindTexture(GL_TEXTURE_2D, texture_id);
                   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
                   if (comp == 3) {
                       glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
                   }
                   else if (comp == 4) {
                       glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, image);
+                  } else {
+                      assert(0); // TODO
                   }
                   glBindTexture(GL_TEXTURE_2D, 0);
                   stbi_image_free(image);
@@ -289,7 +300,7 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
   {
     for (size_t s = 0; s < shapes.size(); s++) {
       DrawObject o;
-      std::vector<float> vb;  // pos(3float), normal(3float), color(3float)
+      std::vector<float> buffer;  // pos(3float), normal(3float), color(3float)
       for (size_t f = 0; f < shapes[s].mesh.indices.size() / 3; f++) {
         tinyobj::index_t idx0 = shapes[s].mesh.indices[3 * f + 0];
         tinyobj::index_t idx1 = shapes[s].mesh.indices[3 * f + 1];
@@ -314,6 +325,8 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
             assert(attrib.texcoords.size() > 2 * idx0.texcoord_index + 1);
             assert(attrib.texcoords.size() > 2 * idx1.texcoord_index + 1);
             assert(attrib.texcoords.size() > 2 * idx2.texcoord_index + 1);
+
+            // Flip Y coord.
             tc[0][0] = attrib.texcoords[2 * idx0.texcoord_index];
             tc[0][1] = 1.0f - attrib.texcoords[2 * idx0.texcoord_index + 1];
             tc[1][0] = attrib.texcoords[2 * idx1.texcoord_index];
@@ -374,12 +387,12 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
         }
 
         for (int k = 0; k < 3; k++) {
-          vb.push_back(v[k][0]);
-          vb.push_back(v[k][1]);
-          vb.push_back(v[k][2]);
-          vb.push_back(n[k][0]);
-          vb.push_back(n[k][1]);
-          vb.push_back(n[k][2]);
+          buffer.push_back(v[k][0]);
+          buffer.push_back(v[k][1]);
+          buffer.push_back(v[k][2]);
+          buffer.push_back(n[k][0]);
+          buffer.push_back(n[k][1]);
+          buffer.push_back(n[k][2]);
           // Combine normal and diffuse to get color.
           float normal_factor = 0.2;
           float diffuse_factor = 1 - normal_factor;
@@ -396,32 +409,32 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
             c[1] /= len;
             c[2] /= len;
           }
-          vb.push_back(c[0] * 0.5 + 0.5);
-          vb.push_back(c[1] * 0.5 + 0.5);
-          vb.push_back(c[2] * 0.5 + 0.5);
+          buffer.push_back(c[0] * 0.5 + 0.5);
+          buffer.push_back(c[1] * 0.5 + 0.5);
+          buffer.push_back(c[2] * 0.5 + 0.5);
           
-          vb.push_back(tc[k][0]);
-          vb.push_back(tc[k][1]);
+          buffer.push_back(tc[k][0]);
+          buffer.push_back(tc[k][1]);
         }
       }
 
-      o.vb = 0;
+      o.vb_id = 0;
       o.numTriangles = 0;
 
       // OpenGL viewer does not support texturing with per-face material.
       if (shapes[s].mesh.material_ids.size() > 0 && shapes[s].mesh.material_ids.size() > s) {
-          // Base case
-          o.material_id = shapes[s].mesh.material_ids[s];
+          o.material_id = shapes[s].mesh.material_ids[0]; // use the material ID of the first face.
       } else {
           o.material_id = materials.size() - 1; // = ID for default material.
       }
+      printf("shape[%d] material_id %d\n", int(s), int(o.material_id));
           
-      if (vb.size() > 0) {
-        glGenBuffers(1, &o.vb);
-        glBindBuffer(GL_ARRAY_BUFFER, o.vb);
-        glBufferData(GL_ARRAY_BUFFER, vb.size() * sizeof(float), &vb.at(0),
+      if (buffer.size() > 0) {
+        glGenBuffers(1, &o.vb_id);
+        glBindBuffer(GL_ARRAY_BUFFER, o.vb_id);
+        glBufferData(GL_ARRAY_BUFFER, buffer.size() * sizeof(float), &buffer.at(0),
                      GL_STATIC_DRAW);
-        o.numTriangles = vb.size() / (3 + 3 + 3 + 2) / 3; // 3:vtx, 3:normal, 3:col, 2:texcoord
+        o.numTriangles = buffer.size() / (3 + 3 + 3 + 2) / 3; // 3:vtx, 3:normal, 3:col, 2:texcoord
 
         printf("shape[%d] # of triangles = %d\n", static_cast<int>(s),
                o.numTriangles);
@@ -545,16 +558,17 @@ static void Draw(const std::vector<DrawObject>& drawObjects, std::vector<tinyobj
   GLsizei stride = (3 + 3 + 3 + 2) * sizeof(float);
   for (size_t i = 0; i < drawObjects.size(); i++) {
     DrawObject o = drawObjects[i];
-    if (o.vb < 1) {
+    if (o.vb_id < 1) {
       continue;
     }
 
-    glBindBuffer(GL_ARRAY_BUFFER, o.vb);
+    glBindBuffer(GL_ARRAY_BUFFER, o.vb_id);
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);
     glEnableClientState(GL_COLOR_ARRAY);
     glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 
+    glBindTexture(GL_TEXTURE_2D, 0);
     if ((o.material_id < materials.size())) {
       std::string diffuse_texname = materials[o.material_id].diffuse_texname;
       if (textures.find(diffuse_texname) != textures.end()) {
@@ -579,11 +593,11 @@ static void Draw(const std::vector<DrawObject>& drawObjects, std::vector<tinyobj
   glColor3f(0.0f, 0.0f, 0.4f);
   for (size_t i = 0; i < drawObjects.size(); i++) {
     DrawObject o = drawObjects[i];
-    if (o.vb < 1) {
+    if (o.vb_id < 1) {
       continue;
     }
 
-    glBindBuffer(GL_ARRAY_BUFFER, o.vb);
+    glBindBuffer(GL_ARRAY_BUFFER, o.vb_id);
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);
     glDisableClientState(GL_COLOR_ARRAY);
