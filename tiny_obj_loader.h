@@ -23,6 +23,7 @@ THE SOFTWARE.
 */
 
 //
+// version 1.0.8 : Fix parsing `g` tag just after `usemtl`(#138)
 // version 1.0.7 : Support multiple tex options(#126)
 // version 1.0.6 : Add TINYOBJLOADER_USE_DOUBLE option(#124)
 // version 1.0.5 : Ignore `Tr` when `d` exists in MTL(#43)
@@ -1621,7 +1622,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       // flush previous face group.
       bool ret = exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
                                         triangulate);
-      if (ret) {
+      (void)ret; // return value not used.
+
+      if (shape.mesh.indices.size() > 0) {
         shapes->push_back(shape);
       }
 
