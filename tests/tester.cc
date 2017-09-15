@@ -625,6 +625,24 @@ TEST_CASE("g_ignored", "[Issue138]") {
 
 }
 
+TEST_CASE("norm_texopts", "[norm]") {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "../models/norm-texopt.obj", gMtlBasePath);
+
+  if (!err.empty()) {
+    std::cerr << err << std::endl;
+  }
+  REQUIRE(true == ret);
+  REQUIRE(1 == shapes.size());
+  REQUIRE(1 == materials.size());
+  REQUIRE(3.0 == Approx(materials[0].normal_texopt.bump_multiplier));
+
+}
+
 #if 0
 int
 main(
