@@ -100,11 +100,11 @@ namespace tinyobj {
 //         cube_left   | cube_right
 
 #ifdef TINYOBJLOADER_USE_DOUBLE
-  //#pragma message "using double"
-  typedef double real_t;
+//#pragma message "using double"
+typedef double real_t;
 #else
-  //#pragma message "using float"
-  typedef float real_t;
+//#pragma message "using float"
+typedef float real_t;
 #endif
 
 typedef enum {
@@ -119,7 +119,7 @@ typedef enum {
 } texture_type_t;
 
 typedef struct {
-  texture_type_t type;     // -type (default TEXTURE_TYPE_NONE)
+  texture_type_t type;      // -type (default TEXTURE_TYPE_NONE)
   real_t sharpness;         // -boost (default 1.0?)
   real_t brightness;        // base_value in -mm option (default 0)
   real_t contrast;          // gain_value in -mm option (default 1)
@@ -364,7 +364,6 @@ namespace tinyobj {
 
 MaterialReader::~MaterialReader() {}
 
-
 struct vertex_index {
   int v_idx, vt_idx, vn_idx;
   vertex_index() : v_idx(-1), vt_idx(-1), vn_idx(-1) {}
@@ -428,10 +427,27 @@ static std::istream &safeGetline(std::istream &is, std::string &t) {
 #define IS_NEW_LINE(x) (((x) == '\r') || ((x) == '\n') || ((x) == '\0'))
 
 // Make index zero-base, and also support relative index.
-static inline int fixIndex(int idx, int n) {
-  if (idx > 0) return idx - 1;
-  if (idx == 0) return 0;
-  return n + idx;  // negative value = relative
+static inline bool fixIndex(int idx, int n, int *ret) {
+  if (!ret) {
+    return false;
+  }
+
+  if (idx > 0) {
+    (*ret) = idx - 1;
+    return true;
+  }
+
+  if (idx == 0) {
+    // zero is not allowed according to the spec.
+    return false;
+  }
+
+  if (idx < 0) {
+    (*ret) = n + idx;  // negative value = relative
+    return true;
+  }
+
+  return false;  // never reach here.
 }
 
 static inline std::string parseString(const char **token) {
@@ -584,9 +600,9 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result) {
   }
 
 assemble:
-  *result =
-      (sign == '+' ? 1 : -1) *
-      (exponent ? std::ldexp(mantissa * std::pow(5.0, exponent), exponent) : mantissa);
+  *result = (sign == '+' ? 1 : -1) *
+            (exponent ? std::ldexp(mantissa * std::pow(5.0, exponent), exponent)
+                      : mantissa);
   return true;
 fail:
   return false;
@@ -603,16 +619,16 @@ static inline real_t parseReal(const char **token, double default_value = 0.0) {
 }
 
 static inline void parseReal2(real_t *x, real_t *y, const char **token,
-                               const double default_x = 0.0,
-                               const double default_y = 0.0) {
+                              const double default_x = 0.0,
+                              const double default_y = 0.0) {
   (*x) = parseReal(token, default_x);
   (*y) = parseReal(token, default_y);
 }
 
-static inline void parseReal3(real_t *x, real_t *y, real_t *z, const char **token,
-                               const double default_x = 0.0,
-                               const double default_y = 0.0,
-                               const double default_z = 0.0) {
+static inline void parseReal3(real_t *x, real_t *y, real_t *z,
+                              const char **token, const double default_x = 0.0,
+                              const double default_y = 0.0,
+                              const double default_z = 0.0) {
   (*x) = parseReal(token, default_x);
   (*y) = parseReal(token, default_y);
   (*z) = parseReal(token, default_z);
@@ -694,37 +710,57 @@ static tag_sizes parseTagTriple(const char **token) {
 }
 
 // Parse triples with index offsets: i, i/j/k, i//k, i/j
-static vertex_index parseTriple(const char **token, int vsize, int vnsize,
-                                int vtsize) {
+static bool parseTriple(const char **token, int vsize, int vnsize, int vtsize,
+                        vertex_index *ret) {
+  if (!ret) {
+    return false;
+  }
+
   vertex_index vi(-1);
 
-  vi.v_idx = fixIndex(atoi((*token)), vsize);
+  if (!fixIndex(atoi((*token)), vsize, &(vi.v_idx))) {
+    return false;
+  }
+
   (*token) += strcspn((*token), "/ \t\r");
   if ((*token)[0] != '/') {
-    return vi;
+    (*ret) = vi;
+    return true;
   }
   (*token)++;
 
   // i//k
   if ((*token)[0] == '/') {
     (*token)++;
-    vi.vn_idx = fixIndex(atoi((*token)), vnsize);
+    if (!fixIndex(atoi((*token)), vnsize, &(vi.vn_idx))) {
+      return false;
+    }
     (*token) += strcspn((*token), "/ \t\r");
-    return vi;
+    (*ret) = vi;
+    return true;
   }
 
   // i/j/k or i/j
-  vi.vt_idx = fixIndex(atoi((*token)), vtsize);
+  if (!fixIndex(atoi((*token)), vtsize, &(vi.vt_idx))) {
+    return false;
+  }
+
   (*token) += strcspn((*token), "/ \t\r");
   if ((*token)[0] != '/') {
-    return vi;
+    (*ret) = vi;
+    return true;
   }
 
   // i/j/k
   (*token)++;  // skip '/'
-  vi.vn_idx = fixIndex(atoi((*token)), vnsize);
+  if (!fixIndex(atoi((*token)), vnsize, &(vi.vn_idx))) {
+    return false;
+  }
   (*token) += strcspn((*token), "/ \t\r");
-  return vi;
+
+  (*ret) = vi;
+
+  return true;
 }
 
 // Parse raw triples: i, i/j/k, i//k, i/j
@@ -813,15 +849,15 @@ static bool ParseTextureNameAndOption(std::string *texname,
     } else if ((0 == strncmp(token, "-o", 2)) && IS_SPACE((token[2]))) {
       token += 3;
       parseReal3(&(texopt->origin_offset[0]), &(texopt->origin_offset[1]),
-                  &(texopt->origin_offset[2]), &token);
+                 &(texopt->origin_offset[2]), &token);
     } else if ((0 == strncmp(token, "-s", 2)) && IS_SPACE((token[2]))) {
       token += 3;
       parseReal3(&(texopt->scale[0]), &(texopt->scale[1]), &(texopt->scale[2]),
-                  &token, 1.0, 1.0, 1.0);
+                 &token, 1.0, 1.0, 1.0);
     } else if ((0 == strncmp(token, "-t", 2)) && IS_SPACE((token[2]))) {
       token += 3;
       parseReal3(&(texopt->turbulence[0]), &(texopt->turbulence[1]),
-                  &(texopt->turbulence[2]), &token);
+                 &(texopt->turbulence[2]), &token);
     } else if ((0 == strncmp(token, "-type", 5)) && IS_SPACE((token[5]))) {
       token += 5;
       texopt->type = parseTextureType((&token), TEXTURE_TYPE_NONE);
@@ -1532,9 +1568,16 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       face.reserve(3);
 
       while (!IS_NEW_LINE(token[0])) {
-        vertex_index vi = parseTriple(&token, static_cast<int>(v.size() / 3),
-                                      static_cast<int>(vn.size() / 3),
-                                      static_cast<int>(vt.size() / 2));
+        vertex_index vi;
+        if (!parseTriple(&token, static_cast<int>(v.size() / 3),
+                         static_cast<int>(vn.size() / 3),
+                         static_cast<int>(vt.size() / 2), &vi)) {
+          if (err) {
+            (*err) = "Failed parse `f' line(e.g. zero value for face index).\n";
+          }
+          return false;
+        }
+
         face.push_back(vi);
         size_t n = strspn(token, " \t\r");
         token += n;
@@ -1622,7 +1665,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       // flush previous face group.
       bool ret = exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
                                         triangulate);
-      (void)ret; // return value not used.
+      (void)ret;  // return value not used.
 
       if (shape.mesh.indices.size() > 0) {
         shapes->push_back(shape);

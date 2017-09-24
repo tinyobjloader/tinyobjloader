@@ -643,6 +643,23 @@ TEST_CASE("norm_texopts", "[norm]") {
 
 }
 
+TEST_CASE("zero-face-idx-value", "[Issue140]") {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "../models/issue-140-zero-face-idx.obj", gMtlBasePath);
+
+  
+  if (!err.empty()) {
+    std::cerr << err << std::endl;
+  }
+  REQUIRE(false == ret);
+  REQUIRE(!err.empty());
+
+}
+
 #if 0
 int
 main(
