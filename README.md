@@ -58,7 +58,7 @@ TinyObjLoader is successfully used in ...
 * cudabox: CUDA Solid Voxelizer Engine https://github.com/gaspardzoss/cudavox
 * Drake: A planning, control, and analysis toolbox for nonlinear dynamical systems https://github.com/RobotLocomotion/drake
 * VFPR - a Vulkan Forward Plus Renderer : https://github.com/WindyDarian/Vulkan-Forward-Plus-Renderer
-* Your project here!
+* Your project here! (Letting us know via github issue is welcome!)
 
 ### Old version(v0.9.x)
 
