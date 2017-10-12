@@ -23,6 +23,7 @@ THE SOFTWARE.
 */
 
 //
+// version 1.1.0 : Support parsing vertex color(#144)
 // version 1.0.8 : Fix parsing `g` tag just after `usemtl`(#138)
 // version 1.0.7 : Support multiple tex options(#126)
 // version 1.0.6 : Add TINYOBJLOADER_USE_DOUBLE option(#124)
@@ -230,6 +231,7 @@ typedef struct {
   std::vector<real_t> vertices;   // 'v'
   std::vector<real_t> normals;    // 'vn'
   std::vector<real_t> texcoords;  // 'vt'
+  std::vector<real_t> colors;     // extension: vertex colors
 } attrib_t;
 
 typedef struct callback_t_ {
@@ -602,6 +604,19 @@ static inline real_t parseReal(const char **token, double default_value = 0.0) {
   return f;
 }
 
+static inline bool parseReal(const char **token, real_t *out) {
+  (*token) += strspn((*token), " \t");
+  const char *end = (*token) + strcspn((*token), " \t\r");
+  double val;
+  bool ret = tryParseDouble((*token), end, &val);
+  if (ret) {
+    real_t f = static_cast<real_t>(val);
+    (*out) = f;
+  }
+  (*token) = end;
+  return ret;
+}
+
 static inline void parseReal2(real_t *x, real_t *y, const char **token,
                                const double default_x = 0.0,
                                const double default_y = 0.0) {
@@ -627,6 +642,23 @@ static inline void parseV(real_t *x, real_t *y, real_t *z, real_t *w,
   (*y) = parseReal(token, default_y);
   (*z) = parseReal(token, default_z);
   (*w) = parseReal(token, default_w);
+}
+
+// Extension: parse vertex with colors(6 items)
+static inline bool parseVertexWithColor(real_t *x, real_t *y, real_t *z, real_t *r,
+                          real_t *g, real_t *b,
+                          const char **token, const double default_x = 0.0,
+                          const double default_y = 0.0,
+                          const double default_z = 0.0) {
+  (*x) = parseReal(token, default_x);
+  (*y) = parseReal(token, default_y);
+  (*z) = parseReal(token, default_z);
+
+  (*r) = parseReal(token, 1.0);
+  (*g) = parseReal(token, 1.0);
+  (*b) = parseReal(token, 1.0);
+
+  return true;
 }
 
 static inline bool parseOnOff(const char **token, bool default_value = true) {
@@ -1421,6 +1453,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   attrib->vertices.clear();
   attrib->normals.clear();
   attrib->texcoords.clear();
+  attrib->colors.clear();
   shapes->clear();
 
   std::stringstream errss;
@@ -1453,6 +1486,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   std::vector<real_t> v;
   std::vector<real_t> vn;
   std::vector<real_t> vt;
+  std::vector<real_t> vc;
   std::vector<tag_t> tags;
   std::vector<std::vector<vertex_index> > faceGroup;
   std::string name;
@@ -1495,10 +1529,15 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     if (token[0] == 'v' && IS_SPACE((token[1]))) {
       token += 2;
       real_t x, y, z;
-      parseReal3(&x, &y, &z, &token);
+      real_t r, g, b;
+      parseVertexWithColor(&x, &y, &z, &r, &g, &b, &token);
       v.push_back(x);
       v.push_back(y);
       v.push_back(z);
+
+      vc.push_back(r);
+      vc.push_back(g);
+      vc.push_back(b);
       continue;
     }
 
@@ -1733,6 +1772,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   attrib->vertices.swap(v);
   attrib->normals.swap(vn);
   attrib->texcoords.swap(vt);
+  attrib->colors.swap(vc);
 
   return true;
 }
@@ -1785,6 +1825,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
     // vertex
     if (token[0] == 'v' && IS_SPACE((token[1]))) {
       token += 2;
+      // TODO(syoyo): Support parsing vertex color extension.
       real_t x, y, z, w;  // w is optional. default = 1.0
       parseV(&x, &y, &z, &w, &token);
       if (callback.vertex_cb) {
