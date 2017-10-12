@@ -625,6 +625,39 @@ TEST_CASE("g_ignored", "[Issue138]") {
 
 }
 
+TEST_CASE("vertex-col-ext", "[Issue144]") {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "../models/cube-vertexcol.obj", gMtlBasePath);
+
+  if (!err.empty()) {
+    std::cerr << err << std::endl;
+  }
+
+  PrintInfo(attrib, shapes, materials);
+
+  REQUIRE(true == ret);
+  REQUIRE((8 * 3) == attrib.colors.size());
+
+  REQUIRE(0 == Approx(attrib.colors[3 * 0 + 0]));
+  REQUIRE(0 == Approx(attrib.colors[3 * 0 + 1]));
+  REQUIRE(0 == Approx(attrib.colors[3 * 0 + 2]));
+
+  REQUIRE(0 == Approx(attrib.colors[3 * 1 + 0]));
+  REQUIRE(0 == Approx(attrib.colors[3 * 1 + 1]));
+  REQUIRE(1 == Approx(attrib.colors[3 * 1 + 2]));
+
+  REQUIRE(1 == Approx(attrib.colors[3 * 4 + 0]));
+
+  REQUIRE(1 == Approx(attrib.colors[3 * 7 + 0]));
+  REQUIRE(1 == Approx(attrib.colors[3 * 7 + 1]));
+  REQUIRE(1 == Approx(attrib.colors[3 * 7 + 2]));
+
+}
+
 #if 0
 int
 main(
