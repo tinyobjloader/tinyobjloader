@@ -631,13 +631,14 @@ TEST_CASE("vertex-col-ext", "[Issue144]") {
   std::vector<tinyobj::material_t> materials;
 
   std::string err;
+
   bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "../models/cube-vertexcol.obj", gMtlBasePath);
 
   if (!err.empty()) {
     std::cerr << err << std::endl;
   }
 
-  PrintInfo(attrib, shapes, materials);
+  //PrintInfo(attrib, shapes, materials);
 
   REQUIRE(true == ret);
   REQUIRE((8 * 3) == attrib.colors.size());
@@ -655,6 +656,41 @@ TEST_CASE("vertex-col-ext", "[Issue144]") {
   REQUIRE(1 == Approx(attrib.colors[3 * 7 + 0]));
   REQUIRE(1 == Approx(attrib.colors[3 * 7 + 1]));
   REQUIRE(1 == Approx(attrib.colors[3 * 7 + 2]));
+}
+
+TEST_CASE("norm_texopts", "[norm]") {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "../models/norm-texopt.obj", gMtlBasePath);
+
+  if (!err.empty()) {
+    std::cerr << err << std::endl;
+  }
+
+  REQUIRE(true == ret);
+  REQUIRE(1 == shapes.size());
+  REQUIRE(1 == materials.size());
+  REQUIRE(3.0 == Approx(materials[0].normal_texopt.bump_multiplier));
+
+}
+
+TEST_CASE("zero-face-idx-value", "[Issue140]") {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "../models/issue-140-zero-face-idx.obj", gMtlBasePath);
+
+  
+  if (!err.empty()) {
+    std::cerr << err << std::endl;
+  }
+  REQUIRE(false == ret);
+  REQUIRE(!err.empty());
 
 }
 

@@ -1,0 +1,17 @@
+mtllib issue-140-zero-face-idx.mtl
+
+v -0.5 -0.5 0
+v 0.5 -0.5 0
+v 0.5 0.5 0
+v -0.5 0.5 0
+
+vt 0 0 0
+vt 1 0 0
+vt 1 1 0
+vt 0 1 0
+
+vn 0 0 -1
+
+usemtl main
+f 0/0/0 1/1/0 3/3/0
+f 1/1/0 3/3/0 2/2/0
