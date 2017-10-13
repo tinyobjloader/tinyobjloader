@@ -721,22 +721,24 @@ static inline texture_type_t parseTextureType(
 static tag_sizes parseTagTriple(const char **token) {
   tag_sizes ts;
 
+  (*token) += strspn((*token), " \t");
   ts.num_ints = atoi((*token));
   (*token) += strcspn((*token), "/ \t\r");
   if ((*token)[0] != '/') {
     return ts;
   }
-  (*token)++;
 
+  (*token)++; // Skip '/'
+
+  (*token) += strspn((*token), " \t");
   ts.num_reals = atoi((*token));
   (*token) += strcspn((*token), "/ \t\r");
   if ((*token)[0] != '/') {
     return ts;
   }
-  (*token)++;
+  (*token)++; // Skip '/'
 
-  ts.num_strings = atoi((*token));
-  (*token) += strcspn((*token), "/ \t\r") + 1;
+  ts.num_strings = parseInt(token);
 
   return ts;
 }
@@ -906,11 +908,18 @@ static bool ParseTextureNameAndOption(std::string *texname,
       parseReal2(&(texopt->brightness), &(texopt->contrast), &token, 0.0, 1.0);
     } else {
       // Assume texture filename
+#if 0
       size_t len = strcspn(token, " \t\r");  // untile next space
       texture_name = std::string(token, token + len);
       token += len;
 
       token += strspn(token, " \t");  // skip space
+#else
+      // Read filename until line end to parse filename containing whitespace
+      // TODO(syoyo): Support parsing texture option flag after the filename.
+      texture_name = std::string(token);
+      token += texture_name.length();
+#endif
 
       found_texname = true;
     }
@@ -1762,33 +1771,25 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       tag_t tag;
 
       token += 2;
-      std::stringstream ss;
-      ss << token;
-      tag.name = ss.str();
 
-      token += tag.name.size() + 1;
+      tag.name = parseString(&token);
 
       tag_sizes ts = parseTagTriple(&token);
 
       tag.intValues.resize(static_cast<size_t>(ts.num_ints));
 
       for (size_t i = 0; i < static_cast<size_t>(ts.num_ints); ++i) {
-        tag.intValues[i] = atoi(token);
-        token += strcspn(token, "/ \t\r") + 1;
+        tag.intValues[i] = parseInt(&token);
       }
 
       tag.floatValues.resize(static_cast<size_t>(ts.num_reals));
       for (size_t i = 0; i < static_cast<size_t>(ts.num_reals); ++i) {
         tag.floatValues[i] = parseReal(&token);
-        token += strcspn(token, "/ \t\r") + 1;
       }
 
       tag.stringValues.resize(static_cast<size_t>(ts.num_strings));
       for (size_t i = 0; i < static_cast<size_t>(ts.num_strings); ++i) {
-        std::stringstream sstr;
-        sstr << token;
-        tag.stringValues[i] = sstr.str();
-        token += tag.stringValues[i].size() + 1;
+        tag.stringValues[i] = parseString(&token);
       }
 
       tags.push_back(tag);
