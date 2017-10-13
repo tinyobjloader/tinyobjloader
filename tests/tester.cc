@@ -694,6 +694,29 @@ TEST_CASE("zero-face-idx-value", "[Issue140]") {
 
 }
 
+TEST_CASE("texture-name-whitespace", "[Issue145]") {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "../models/texture-filename-with-whitespace.obj", gMtlBasePath);
+
+  
+  if (!err.empty()) {
+    std::cerr << "[Issue145] " << err << std::endl;
+  }
+
+  REQUIRE(true == ret);
+  REQUIRE(err.empty());
+  REQUIRE(2 < materials.size());
+
+  REQUIRE(0 == materials[0].diffuse_texname.compare("texture 01.png"));
+  REQUIRE(0 == materials[1].bump_texname.compare("bump 01.png"));
+  REQUIRE(2 == Approx(materials[1].bump_texopt.bump_multiplier));
+
+}
+
 #if 0
 int
 main(
