@@ -10,7 +10,7 @@
 
 [![Coverage Status](https://coveralls.io/repos/github/syoyo/tinyobjloader/badge.svg?branch=master)](https://coveralls.io/github/syoyo/tinyobjloader?branch=master)
 
-http://syoyo.github.io/tinyobjloader/
+[https://github.com/syoyo/tinyobjloader](https://github.com/syoyo/tinyobjloader)
 
 Tiny but powerful single file wavefront obj loader written in C++. No dependency except for C++ STL. It can parse over 10M polygons with moderate memory and time.
 
