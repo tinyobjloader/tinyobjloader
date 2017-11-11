@@ -108,6 +108,14 @@ typedef double real_t;
 typedef float real_t;
 #endif
 
+struct V3 { real_t x,y,z; };
+inline V3 operator+(const V3 &l,const V3 &r){V3 o;o.x=l.x+r.x;o.y=l.y+r.y;o.z=l.z+r.z;return o;}
+inline V3 operator-(const V3 &l,const V3 &r){V3 o;o.x=l.x-r.x;o.y=l.y-r.y;o.z=l.z-r.z;return o;}
+inline V3 operator*(const V3 &l,real_t r){V3 o;o.x=l.x*r;o.y=l.y*r;o.z=l.z*r;return o;}
+inline V3 cross(const V3 &l,const V3 &r){V3 o;o.x=l.y*r.z-r.y*l.z;o.y=l.z*r.x-r.z*l.x;o.z=l.x*r.y-r.x*l.y;return o;}
+inline real_t dot(const V3 &l,const V3 &r){return l.x*r.x+l.y*r.y+l.z*r.z;}
+struct V2 { real_t x,y; };
+
 typedef enum {
   TEXTURE_TYPE_NONE,  // default
   TEXTURE_TYPE_SPHERE,
@@ -228,9 +236,9 @@ typedef struct {
 
 // Vertex attributes
 typedef struct {
-  std::vector<real_t> vertices;   // 'v'
-  std::vector<real_t> normals;    // 'vn'
-  std::vector<real_t> texcoords;  // 'vt'
+  std::vector<V3> vertices;   // 'v'
+  std::vector<V3> normals;    // 'vn'
+  std::vector<V2> texcoords;  // 'vt'
   std::vector<real_t> colors;     // extension: vertex colors
 } attrib_t;
 
@@ -974,7 +982,7 @@ static void InitMaterial(material_t *material) {
 static bool exportFaceGroupToShape(
     shape_t *shape, const std::vector<std::vector<vertex_index> > &faceGroup,
     const std::vector<tag_t> &tags, const int material_id,
-    const std::string &name, bool triangulate) {
+    const std::string &name, bool triangulate, const std::vector<V3> &v ) {
   if (faceGroup.empty()) {
     return false;
   }
@@ -990,29 +998,124 @@ static bool exportFaceGroupToShape(
     size_t npolys = face.size();
 
     if (triangulate) {
-      // Polygon -> triangle fan conversion
-      for (size_t k = 2; k < npolys; k++) {
-        i1 = i2;
-        i2 = face[k];
+			V3 face_normal = {0,0,0};
 
-        index_t idx0, idx1, idx2;
-        idx0.vertex_index = i0.v_idx;
-        idx0.normal_index = i0.vn_idx;
-        idx0.texcoord_index = i0.vt_idx;
-        idx1.vertex_index = i1.v_idx;
-        idx1.normal_index = i1.vn_idx;
-        idx1.texcoord_index = i1.vt_idx;
-        idx2.vertex_index = i2.v_idx;
-        idx2.normal_index = i2.vn_idx;
-        idx2.texcoord_index = i2.vt_idx;
+			for(size_t k = 0; k < npolys; ++k) {
+				int vi0 = face[(k+0)%npolys].v_idx;
+				int vi1 = face[(k+1)%npolys].v_idx;
+				int vi2 = face[(k+2)%npolys].v_idx;
+				const V3 &v0 = v[vi0];
+				const V3 &v1 = v[vi1];
+				const V3 &v2 = v[vi2];
+				const V3 e0 = v1 - v0;
+				const V3 e1 = v2 - v1;
+				const V3 n = cross( e0, e1 );
+				face_normal = face_normal + n;
+			}
 
-        shape->mesh.indices.push_back(idx0);
-        shape->mesh.indices.push_back(idx1);
-        shape->mesh.indices.push_back(idx2);
+			// face_normal is currently area of face
+			{
+				real_t l = sqrt(dot( face_normal, face_normal ));
+				face_normal = face_normal * (1.0/l);
+			}
 
-        shape->mesh.num_face_vertices.push_back(3);
-        shape->mesh.material_ids.push_back(material_id);
-      }
+			int maxRounds = 10; // arbitrary max loop count to protect against unexpected errors
+
+			std::vector<vertex_index> remainingFace = face;
+			size_t guess_vert = 0;
+			while( remainingFace.size() > 3 && maxRounds > 0 ) {
+				npolys = remainingFace.size();
+				if( guess_vert >= npolys ) {
+					maxRounds -= 1;
+					guess_vert -= npolys;
+				}
+				i0 = remainingFace[(guess_vert+0)%npolys];
+				i1 = remainingFace[(guess_vert+1)%npolys];
+				i2 = remainingFace[(guess_vert+2)%npolys];
+				int vi0 = i0.v_idx;
+				int vi1 = i1.v_idx;
+				int vi2 = i2.v_idx;
+				const V3 &v0 = v[vi0];
+				const V3 &v1 = v[vi1];
+				const V3 &v2 = v[vi2];
+				const V3 e0 = v1 - v0;
+				const V3 e1 = v2 - v1;
+				const V3 n = cross( e0, e1 );
+				bool internal = dot( n, face_normal ) < 0.0f;
+				if( internal ) { guess_vert += 1; continue; }
+
+				// check all other verts in case they are inside this triangle
+				bool overlap = false;
+				for( size_t otherVert = 3; otherVert < npolys; ++otherVert ) {
+					int ovi = remainingFace[(guess_vert+otherVert)%npolys].v_idx;
+					const V3 &ov = v[ovi];
+					if( dot( face_normal, cross( e0, ov-v0 ) ) < 0 )
+						continue;
+					if( dot( face_normal, cross( e1, ov-v1 ) ) < 0 )
+						continue;
+					if( dot( face_normal, cross( v0-v2, ov-v2 ) ) < 0 )
+						continue;
+					// vert inside triangle
+					overlap = true;
+					break;
+				}
+
+				if( overlap ) { guess_vert += 1; continue; }
+
+				// this triangle is an ear
+				{
+					index_t idx0, idx1, idx2;
+					idx0.vertex_index = i0.v_idx;
+					idx0.normal_index = i0.vn_idx;
+					idx0.texcoord_index = i0.vt_idx;
+					idx1.vertex_index = i1.v_idx;
+					idx1.normal_index = i1.vn_idx;
+					idx1.texcoord_index = i1.vt_idx;
+					idx2.vertex_index = i2.v_idx;
+					idx2.normal_index = i2.vn_idx;
+					idx2.texcoord_index = i2.vt_idx;
+
+					shape->mesh.indices.push_back(idx0);
+					shape->mesh.indices.push_back(idx1);
+					shape->mesh.indices.push_back(idx2);
+
+					shape->mesh.num_face_vertices.push_back(3);
+					shape->mesh.material_ids.push_back(material_id);
+				}
+
+				// remove v1 from the list
+				size_t removed_vert_index = (guess_vert+1)%npolys;
+				while( removed_vert_index + 1 < npolys ) {
+					remainingFace[removed_vert_index] = remainingFace[removed_vert_index+1];
+					removed_vert_index += 1;
+				}
+				remainingFace.pop_back();
+			}
+
+			if( remainingFace.size() == 3 ) {
+				i0 = remainingFace[0];
+				i1 = remainingFace[1];
+				i2 = remainingFace[2];
+				{
+					index_t idx0, idx1, idx2;
+					idx0.vertex_index = i0.v_idx;
+					idx0.normal_index = i0.vn_idx;
+					idx0.texcoord_index = i0.vt_idx;
+					idx1.vertex_index = i1.v_idx;
+					idx1.normal_index = i1.vn_idx;
+					idx1.texcoord_index = i1.vt_idx;
+					idx2.vertex_index = i2.v_idx;
+					idx2.normal_index = i2.vn_idx;
+					idx2.texcoord_index = i2.vt_idx;
+
+					shape->mesh.indices.push_back(idx0);
+					shape->mesh.indices.push_back(idx1);
+					shape->mesh.indices.push_back(idx2);
+
+					shape->mesh.num_face_vertices.push_back(3);
+					shape->mesh.material_ids.push_back(material_id);
+				}
+			}
     } else {
       for (size_t k = 0; k < npolys; k++) {
         index_t idx;
@@ -1528,9 +1631,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              bool triangulate) {
   std::stringstream errss;
 
-  std::vector<real_t> v;
-  std::vector<real_t> vn;
-  std::vector<real_t> vt;
+  std::vector<V3> v;
+  std::vector<V3> vn;
+  std::vector<V2> vt;
   std::vector<real_t> vc;
   std::vector<tag_t> tags;
   std::vector<std::vector<vertex_index> > faceGroup;
@@ -1573,12 +1676,10 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     // vertex
     if (token[0] == 'v' && IS_SPACE((token[1]))) {
       token += 2;
-      real_t x, y, z;
+			V3 v3;
       real_t r, g, b;
-      parseVertexWithColor(&x, &y, &z, &r, &g, &b, &token);
-      v.push_back(x);
-      v.push_back(y);
-      v.push_back(z);
+      parseVertexWithColor(&v3.x, &v3.y, &v3.z, &r, &g, &b, &token);
+      v.push_back(v3);
 
       vc.push_back(r);
       vc.push_back(g);
@@ -1589,21 +1690,18 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     // normal
     if (token[0] == 'v' && token[1] == 'n' && IS_SPACE((token[2]))) {
       token += 3;
-      real_t x, y, z;
-      parseReal3(&x, &y, &z, &token);
-      vn.push_back(x);
-      vn.push_back(y);
-      vn.push_back(z);
+			V3 v3;
+      parseReal3(&v3.x, &v3.y, &v3.z, &token);
+      vn.push_back(v3);
       continue;
     }
 
     // texcoord
     if (token[0] == 'v' && token[1] == 't' && IS_SPACE((token[2]))) {
       token += 3;
-      real_t x, y;
-      parseReal2(&x, &y, &token);
-      vt.push_back(x);
-      vt.push_back(y);
+      V2 v2;
+      parseReal2(&v2.x, &v2.y, &token);
+      vt.push_back(v2);
       continue;
     }
 
@@ -1617,9 +1715,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
       while (!IS_NEW_LINE(token[0])) {
         vertex_index vi;
-        if (!parseTriple(&token, static_cast<int>(v.size() / 3),
-                         static_cast<int>(vn.size() / 3),
-                         static_cast<int>(vt.size() / 2), &vi)) {
+        if (!parseTriple(&token, static_cast<int>(v.size()),
+                         static_cast<int>(vn.size()),
+                         static_cast<int>(vt.size()), &vi)) {
           if (err) {
             (*err) = "Failed parse `f' line(e.g. zero value for face index).\n";
           }
@@ -1657,7 +1755,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
         // this time.
         // just clear `faceGroup` after `exportFaceGroupToShape()` call.
         exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
-                               triangulate);
+                               triangulate, v);
         faceGroup.clear();
         material = newMaterialId;
       }
@@ -1712,7 +1810,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     if (token[0] == 'g' && IS_SPACE((token[1]))) {
       // flush previous face group.
       bool ret = exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
-                                        triangulate);
+                                        triangulate, v);
       (void)ret;  // return value not used.
 
       if (shape.mesh.indices.size() > 0) {
@@ -1749,7 +1847,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     if (token[0] == 'o' && IS_SPACE((token[1]))) {
       // flush previous face group.
       bool ret = exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
-                                        triangulate);
+                                        triangulate, v);
       if (ret) {
         shapes->push_back(shape);
       }
@@ -1799,7 +1897,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   }
 
   bool ret = exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
-                                    triangulate);
+                                    triangulate, v);
   // exportFaceGroupToShape return false when `usemtl` is called in the last
   // line.
   // we also add `shape` to `shapes` when `shape.mesh` has already some
