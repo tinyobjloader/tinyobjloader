@@ -23,6 +23,7 @@ THE SOFTWARE.
 */
 
 //
+// version 2.0.0 : New API! And support triangulation of concave polygon(#151).
 // version 1.1.0 : Support parsing vertex color(#144)
 // version 1.0.8 : Fix parsing `g` tag just after `usemtl`(#138)
 // version 1.0.7 : Support multiple tex options(#126)
@@ -108,13 +109,13 @@ typedef double real_t;
 typedef float real_t;
 #endif
 
-struct V3 { real_t x,y,z; };
-inline V3 operator+(const V3 &l,const V3 &r){V3 o;o.x=l.x+r.x;o.y=l.y+r.y;o.z=l.z+r.z;return o;}
-inline V3 operator-(const V3 &l,const V3 &r){V3 o;o.x=l.x-r.x;o.y=l.y-r.y;o.z=l.z-r.z;return o;}
-inline V3 operator*(const V3 &l,real_t r){V3 o;o.x=l.x*r;o.y=l.y*r;o.z=l.z*r;return o;}
-inline V3 cross(const V3 &l,const V3 &r){V3 o;o.x=l.y*r.z-r.y*l.z;o.y=l.z*r.x-r.z*l.x;o.z=l.x*r.y-r.x*l.y;return o;}
-inline real_t dot(const V3 &l,const V3 &r){return l.x*r.x+l.y*r.y+l.z*r.z;}
-struct V2 { real_t x,y; };
+struct vec3_t { real_t x,y,z; };
+inline vec3_t operator+(const vec3_t &l,const vec3_t &r){vec3_t o;o.x=l.x+r.x;o.y=l.y+r.y;o.z=l.z+r.z;return o;}
+inline vec3_t operator-(const vec3_t &l,const vec3_t &r){vec3_t o;o.x=l.x-r.x;o.y=l.y-r.y;o.z=l.z-r.z;return o;}
+inline vec3_t operator*(const vec3_t &l,real_t r){vec3_t o;o.x=l.x*r;o.y=l.y*r;o.z=l.z*r;return o;}
+inline vec3_t cross(const vec3_t &l,const vec3_t &r){vec3_t o;o.x=l.y*r.z-r.y*l.z;o.y=l.z*r.x-r.z*l.x;o.z=l.x*r.y-r.x*l.y;return o;}
+inline real_t dot(const vec3_t &l,const vec3_t &r){return l.x*r.x+l.y*r.y+l.z*r.z;}
+struct vec2_t { real_t x,y; };
 
 typedef enum {
   TEXTURE_TYPE_NONE,  // default
@@ -236,9 +237,9 @@ typedef struct {
 
 // Vertex attributes
 typedef struct {
-  std::vector<V3> vertices;   // 'v'
-  std::vector<V3> normals;    // 'vn'
-  std::vector<V2> texcoords;  // 'vt'
+  std::vector<vec3_t> vertices;   // 'v'
+  std::vector<vec3_t> normals;    // 'vn'
+  std::vector<vec2_t> texcoords;  // 'vt'
   std::vector<real_t> colors;     // extension: vertex colors
 } attrib_t;
 
@@ -982,7 +983,7 @@ static void InitMaterial(material_t *material) {
 static bool exportFaceGroupToShape(
     shape_t *shape, const std::vector<std::vector<vertex_index> > &faceGroup,
     const std::vector<tag_t> &tags, const int material_id,
-    const std::string &name, bool triangulate, const std::vector<V3> &v ) {
+    const std::string &name, bool triangulate, const std::vector<vec3_t> &v ) {
   if (faceGroup.empty()) {
     return false;
   }
@@ -998,18 +999,18 @@ static bool exportFaceGroupToShape(
     size_t npolys = face.size();
 
     if (triangulate) {
-			V3 face_normal = {0,0,0};
+			vec3_t face_normal = {0,0,0};
 
 			for(size_t k = 0; k < npolys; ++k) {
 				int vi0 = face[(k+0)%npolys].v_idx;
 				int vi1 = face[(k+1)%npolys].v_idx;
 				int vi2 = face[(k+2)%npolys].v_idx;
-				const V3 &v0 = v[vi0];
-				const V3 &v1 = v[vi1];
-				const V3 &v2 = v[vi2];
-				const V3 e0 = v1 - v0;
-				const V3 e1 = v2 - v1;
-				const V3 n = cross( e0, e1 );
+				const vec3_t &v0 = v[vi0];
+				const vec3_t &v1 = v[vi1];
+				const vec3_t &v2 = v[vi2];
+				const vec3_t e0 = v1 - v0;
+				const vec3_t e1 = v2 - v1;
+				const vec3_t n = cross( e0, e1 );
 				face_normal = face_normal + n;
 			}
 
@@ -1035,12 +1036,12 @@ static bool exportFaceGroupToShape(
 				int vi0 = i0.v_idx;
 				int vi1 = i1.v_idx;
 				int vi2 = i2.v_idx;
-				const V3 &v0 = v[vi0];
-				const V3 &v1 = v[vi1];
-				const V3 &v2 = v[vi2];
-				const V3 e0 = v1 - v0;
-				const V3 e1 = v2 - v1;
-				const V3 n = cross( e0, e1 );
+				const vec3_t &v0 = v[vi0];
+				const vec3_t &v1 = v[vi1];
+				const vec3_t &v2 = v[vi2];
+				const vec3_t e0 = v1 - v0;
+				const vec3_t e1 = v2 - v1;
+				const vec3_t n = cross( e0, e1 );
 				bool internal = dot( n, face_normal ) < 0.0f;
 				if( internal ) { guess_vert += 1; continue; }
 
@@ -1048,7 +1049,7 @@ static bool exportFaceGroupToShape(
 				bool overlap = false;
 				for( size_t otherVert = 3; otherVert < npolys; ++otherVert ) {
 					int ovi = remainingFace[(guess_vert+otherVert)%npolys].v_idx;
-					const V3 &ov = v[ovi];
+					const vec3_t &ov = v[ovi];
 					if( dot( face_normal, cross( e0, ov-v0 ) ) < 0 )
 						continue;
 					if( dot( face_normal, cross( e1, ov-v1 ) ) < 0 )
@@ -1631,9 +1632,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              bool triangulate) {
   std::stringstream errss;
 
-  std::vector<V3> v;
-  std::vector<V3> vn;
-  std::vector<V2> vt;
+  std::vector<vec3_t> v;
+  std::vector<vec3_t> vn;
+  std::vector<vec2_t> vt;
   std::vector<real_t> vc;
   std::vector<tag_t> tags;
   std::vector<std::vector<vertex_index> > faceGroup;
@@ -1676,7 +1677,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     // vertex
     if (token[0] == 'v' && IS_SPACE((token[1]))) {
       token += 2;
-			V3 v3;
+			vec3_t v3;
       real_t r, g, b;
       parseVertexWithColor(&v3.x, &v3.y, &v3.z, &r, &g, &b, &token);
       v.push_back(v3);
@@ -1690,7 +1691,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     // normal
     if (token[0] == 'v' && token[1] == 'n' && IS_SPACE((token[2]))) {
       token += 3;
-			V3 v3;
+			vec3_t v3;
       parseReal3(&v3.x, &v3.y, &v3.z, &token);
       vn.push_back(v3);
       continue;
@@ -1699,7 +1700,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     // texcoord
     if (token[0] == 'v' && token[1] == 't' && IS_SPACE((token[2]))) {
       token += 3;
-      V2 v2;
+      vec2_t v2;
       parseReal2(&v2.x, &v2.y, &token);
       vt.push_back(v2);
       continue;

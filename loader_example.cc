@@ -106,24 +106,24 @@ static void PrintInfo(const tinyobj::attrib_t& attrib,
   std::cout << "# of shapes    : " << shapes.size() << std::endl;
   std::cout << "# of materials : " << materials.size() << std::endl;
 
-  for (size_t v = 0; v < attrib.vertices.size() / 3; v++) {
+  for (size_t v = 0; v < attrib.vertices.size(); v++) {
     printf("  v[%ld] = (%f, %f, %f)\n", static_cast<long>(v),
-           static_cast<const double>(attrib.vertices[3 * v + 0]),
-           static_cast<const double>(attrib.vertices[3 * v + 1]),
-           static_cast<const double>(attrib.vertices[3 * v + 2]));
+           static_cast<const double>(attrib.vertices[v].x),
+           static_cast<const double>(attrib.vertices[v].y),
+           static_cast<const double>(attrib.vertices[v].z));
   }
 
-  for (size_t v = 0; v < attrib.normals.size() / 3; v++) {
+  for (size_t v = 0; v < attrib.normals.size(); v++) {
     printf("  n[%ld] = (%f, %f, %f)\n", static_cast<long>(v),
-           static_cast<const double>(attrib.normals[3 * v + 0]),
-           static_cast<const double>(attrib.normals[3 * v + 1]),
-           static_cast<const double>(attrib.normals[3 * v + 2]));
+           static_cast<const double>(attrib.normals[v].x),
+           static_cast<const double>(attrib.normals[v].y),
+           static_cast<const double>(attrib.normals[v].z));
   }
 
-  for (size_t v = 0; v < attrib.texcoords.size() / 2; v++) {
+  for (size_t v = 0; v < attrib.texcoords.size(); v++) {
     printf("  uv[%ld] = (%f, %f)\n", static_cast<long>(v),
-           static_cast<const double>(attrib.texcoords[2 * v + 0]),
-           static_cast<const double>(attrib.texcoords[2 * v + 1]));
+           static_cast<const double>(attrib.texcoords[v].x),
+           static_cast<const double>(attrib.texcoords[v].y));
   }
 
   // For each shape

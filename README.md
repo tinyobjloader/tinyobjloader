@@ -26,11 +26,20 @@ Old version is available `v0.9.x` branch https://github.com/syoyo/tinyobjloader/
 
 ## What's new
 
+### Version 2.x
+
+* Refactor API
+* Support triangulation for concave polygons(#151)
+
+### Version 1.x
+
+Avaiable in `v1.x.y` branch.
+
 * 20 Aug, 2016 : Bump version v1.0.0. New data structure and API!
 
-### Old version
+### Older version
 
-Previous old version is avaiable in `v0.9.x` branch.
+Older version is avaiable in `v0.9.x` branch.
 
 ## Example
 
@@ -49,7 +58,11 @@ http://casual-effects.com/data/index.html
 
 TinyObjLoader is successfully used in ...
 
-### New version(v1.0.x)
+### New version(v2.x)
+
+* Your project here! (Letting us know via github issue is welcome!)
+
+### Old version(v1.x)
 
 * Double precision support through `TINYOBJLOADER_USE_DOUBLE` thanks to noma
 * Loading models in Vulkan Tutorial https://vulkan-tutorial.com/Loading_models
@@ -60,7 +73,7 @@ TinyObjLoader is successfully used in ...
 * VFPR - a Vulkan Forward Plus Renderer : https://github.com/WindyDarian/Vulkan-Forward-Plus-Renderer
 * Your project here! (Letting us know via github issue is welcome!)
 
-### Old version(v0.9.x)
+### Older version(v0.9.x)
 
 * bullet3 https://github.com/erwincoumans/bullet3
 * pbrt-v2 https://github.com/mmp/pbrt-v2
@@ -228,12 +241,12 @@ for (size_t s = 0; s < shapes.size(); s++) {
     for (size_t v = 0; v < fv; v++) {
       // access to vertex
       tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
-      tinyobj::real_t vx = attrib.vertices[3*idx.vertex_index+0];
-      tinyobj::real_t vy = attrib.vertices[3*idx.vertex_index+1];
-      tinyobj::real_t vz = attrib.vertices[3*idx.vertex_index+2];
-      tinyobj::real_t nx = attrib.normals[3*idx.normal_index+0];
-      tinyobj::real_t ny = attrib.normals[3*idx.normal_index+1];
-      tinyobj::real_t nz = attrib.normals[3*idx.normal_index+2];
+      tinyobj::real_t vx = attrib.vertices[idx.vertex_index].x;
+      tinyobj::real_t vy = attrib.vertices[idx.vertex_index].y;
+      tinyobj::real_t vz = attrib.vertices[idx.vertex_index].z;
+      tinyobj::real_t nx = attrib.normals[idx.normal_index].x;
+      tinyobj::real_t ny = attrib.normals[idx.normal_index].y;
+      tinyobj::real_t nz = attrib.normals[idx.normal_index].z;
       tinyobj::real_t tx = attrib.texcoords[2*idx.texcoord_index+0];
       tinyobj::real_t ty = attrib.texcoords[2*idx.texcoord_index+1];
       // Optional: vertex colors
