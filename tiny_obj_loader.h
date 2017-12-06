@@ -1723,6 +1723,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     }
 	
 	
+	//tigra: refactoring for new speedup release
 	//tigra: compares one more start
     // use mtl
     if ((0 == strncmp(token, "usemtl", 6)) && IS_SPACE((token[6]))) {
@@ -1793,7 +1794,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
       continue;
     }
-	//tigra: compares one more END
+	//tigra: compares one more END	
+	//tigra: refactoring for new speedup release
 
     // Ignore unknown command.
   }
@@ -2020,6 +2022,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
 
 
 
+	//tigra: refactoring for new speedup release
 	//tigra: compares start
     // use mtl
     if ((0 == strncmp(token, "usemtl", 6)) && IS_SPACE((token[6]))) {
@@ -2094,6 +2097,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
       continue;
     }
 	//tigra: compares end
+	//tigra: refactoring for new speedup release
 
     // Ignore unknown command.
   }
