@@ -1092,31 +1092,6 @@ void LoadMtl(std::map<std::string, int> *material_map,
 
     if (token[0] == '#') continue;  // comment line
 
-    // new mtl
-    if ((0 == strncmp(token, "newmtl", 6)) && IS_SPACE((token[6]))) {
-      // flush previous material.
-      if (!material.name.empty()) {
-        material_map->insert(std::pair<std::string, int>(
-            material.name, static_cast<int>(materials->size())));
-        materials->push_back(material);
-      }
-
-      // initial temporary material
-      InitMaterial(&material);
-
-      has_d = false;
-      has_tr = false;
-
-      // set new mtl name
-      token += 7;
-      {
-        std::stringstream sstr;
-        sstr << token;
-        material.name = sstr.str();
-      }
-      continue;
-    }
-
     // ambient
     if (token[0] == 'K' && token[1] == 'a' && IS_SPACE((token[2]))) {
       token += 2;
@@ -1187,13 +1162,6 @@ void LoadMtl(std::map<std::string, int> *material_map,
       continue;
     }
 
-    // illum model
-    if (0 == strncmp(token, "illum", 5) && IS_SPACE(token[5])) {
-      token += 6;
-      material.illum = parseInt(&token);
-      continue;
-    }
-
     // dissolve
     if ((token[0] == 'd' && IS_SPACE(token[1]))) {
       token += 1;
@@ -1224,33 +1192,62 @@ void LoadMtl(std::map<std::string, int> *material_map,
       continue;
     }
 
+	//tigra: refactoring for new speedup release
+    if (token[0] == 'P' && IS_SPACE(token[2])) {
+      token += 2;
+	  
     // PBR: roughness
-    if (token[0] == 'P' && token[1] == 'r' && IS_SPACE(token[2])) {
-      token += 2;
-      material.roughness = parseReal(&token);
-      continue;
-    }
-
+	  if(token[1] == 'r')
+		material.roughness = parseReal(&token);
+	  else
     // PBR: metallic
-    if (token[0] == 'P' && token[1] == 'm' && IS_SPACE(token[2])) {
-      token += 2;
-      material.metallic = parseReal(&token);
-      continue;
-    }
-
+	  if(token[1] == 'm')
+		material.metallic = parseReal(&token);
+	  else
     // PBR: sheen
-    if (token[0] == 'P' && token[1] == 's' && IS_SPACE(token[2])) {
-      token += 2;
-      material.sheen = parseReal(&token);
+	  if(token[1] == 's')
+		material.sheen = parseReal(&token);
+	  else
+    // PBR: clearcoat thickness
+	  if(token[1] == 'c')
+		material.clearcoat_thickness = parseReal(&token);
+    }	
+	
+
+	//tigra: refactoring for new speedup release
+    // new mtl
+    if ((0 == strncmp(token, "newmtl", 6)) && IS_SPACE((token[6]))) {
+      // flush previous material.
+      if (!material.name.empty()) {
+        material_map->insert(std::pair<std::string, int>(
+            material.name, static_cast<int>(materials->size())));
+        materials->push_back(material);
+      }
+
+      // initial temporary material
+      InitMaterial(&material);
+
+      has_d = false;
+      has_tr = false;
+
+      // set new mtl name
+      token += 7;
+      {
+        std::stringstream sstr;
+        sstr << token;
+        material.name = sstr.str();
+      }
       continue;
     }
 
-    // PBR: clearcoat thickness
-    if (token[0] == 'P' && token[1] == 'c' && IS_SPACE(token[2])) {
-      token += 2;
-      material.clearcoat_thickness = parseReal(&token);
+    // illum model
+    if (0 == strncmp(token, "illum", 5) && IS_SPACE(token[5])) {
+      token += 6;
+      material.illum = parseInt(&token);
       continue;
     }
+	
+	
 
     // PBR: clearcoat roughness
     if ((0 == strncmp(token, "Pcr", 3)) && IS_SPACE(token[3])) {
@@ -1638,76 +1635,6 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       continue;
     }
 
-    // use mtl
-    if ((0 == strncmp(token, "usemtl", 6)) && IS_SPACE((token[6]))) {
-      token += 7;
-      std::stringstream ss;
-      ss << token;
-      std::string namebuf = ss.str();
-
-      int newMaterialId = -1;
-      if (material_map.find(namebuf) != material_map.end()) {
-        newMaterialId = material_map[namebuf];
-      } else {
-        // { error!! material not found }
-      }
-
-      if (newMaterialId != material) {
-        // Create per-face material. Thus we don't add `shape` to `shapes` at
-        // this time.
-        // just clear `faceGroup` after `exportFaceGroupToShape()` call.
-        exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
-                               triangulate);
-        faceGroup.clear();
-        material = newMaterialId;
-      }
-
-      continue;
-    }
-
-    // load mtl
-    if ((0 == strncmp(token, "mtllib", 6)) && IS_SPACE((token[6]))) {
-      if (readMatFn) {
-        token += 7;
-
-        std::vector<std::string> filenames;
-        SplitString(std::string(token), ' ', filenames);
-
-        if (filenames.empty()) {
-          if (err) {
-            (*err) +=
-                "WARN: Looks like empty filename for mtllib. Use default "
-                "material. \n";
-          }
-        } else {
-          bool found = false;
-          for (size_t s = 0; s < filenames.size(); s++) {
-            std::string err_mtl;
-            bool ok = (*readMatFn)(filenames[s].c_str(), materials,
-                                   &material_map, &err_mtl);
-            if (err && (!err_mtl.empty())) {
-              (*err) += err_mtl;  // This should be warn message.
-            }
-
-            if (ok) {
-              found = true;
-              break;
-            }
-          }
-
-          if (!found) {
-            if (err) {
-              (*err) +=
-                  "WARN: Failed to load material file(s). Use default "
-                  "material.\n";
-            }
-          }
-        }
-      }
-
-      continue;
-    }
-
     // group name
     if (token[0] == 'g' && IS_SPACE((token[1]))) {
       // flush previous face group.
@@ -1794,6 +1721,79 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
       tags.push_back(tag);
     }
+	
+	
+	//tigra: compares one more start
+    // use mtl
+    if ((0 == strncmp(token, "usemtl", 6)) && IS_SPACE((token[6]))) {
+      token += 7;
+      std::stringstream ss;
+      ss << token;
+      std::string namebuf = ss.str();
+
+      int newMaterialId = -1;
+      if (material_map.find(namebuf) != material_map.end()) {
+        newMaterialId = material_map[namebuf];
+      } else {
+        // { error!! material not found }
+      }
+
+      if (newMaterialId != material) {
+        // Create per-face material. Thus we don't add `shape` to `shapes` at
+        // this time.
+        // just clear `faceGroup` after `exportFaceGroupToShape()` call.
+        exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
+                               triangulate);
+        faceGroup.clear();
+        material = newMaterialId;
+      }
+
+      continue;
+    }
+
+    // load mtl
+    if ((0 == strncmp(token, "mtllib", 6)) && IS_SPACE((token[6]))) {
+      if (readMatFn) {
+        token += 7;
+
+        std::vector<std::string> filenames;
+        SplitString(std::string(token), ' ', filenames);
+
+        if (filenames.empty()) {
+          if (err) {
+            (*err) +=
+                "WARN: Looks like empty filename for mtllib. Use default "
+                "material. \n";
+          }
+        } else {
+          bool found = false;
+          for (size_t s = 0; s < filenames.size(); s++) {
+            std::string err_mtl;
+            bool ok = (*readMatFn)(filenames[s].c_str(), materials,
+                                   &material_map, &err_mtl);
+            if (err && (!err_mtl.empty())) {
+              (*err) += err_mtl;  // This should be warn message.
+            }
+
+            if (ok) {
+              found = true;
+              break;
+            }
+          }
+
+          if (!found) {
+            if (err) {
+              (*err) +=
+                  "WARN: Failed to load material file(s). Use default "
+                  "material.\n";
+            }
+          }
+        }
+      }
+
+      continue;
+    }
+	//tigra: compares one more END
 
     // Ignore unknown command.
   }
@@ -1927,79 +1927,6 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
       continue;
     }
 
-    // use mtl
-    if ((0 == strncmp(token, "usemtl", 6)) && IS_SPACE((token[6]))) {
-      token += 7;
-      std::stringstream ss;
-      ss << token;
-      std::string namebuf = ss.str();
-
-      int newMaterialId = -1;
-      if (material_map.find(namebuf) != material_map.end()) {
-        newMaterialId = material_map[namebuf];
-      } else {
-        // { error!! material not found }
-      }
-
-      if (newMaterialId != material_id) {
-        material_id = newMaterialId;
-      }
-
-      if (callback.usemtl_cb) {
-        callback.usemtl_cb(user_data, namebuf.c_str(), material_id);
-      }
-
-      continue;
-    }
-
-    // load mtl
-    if ((0 == strncmp(token, "mtllib", 6)) && IS_SPACE((token[6]))) {
-      if (readMatFn) {
-        token += 7;
-
-        std::vector<std::string> filenames;
-        SplitString(std::string(token), ' ', filenames);
-
-        if (filenames.empty()) {
-          if (err) {
-            (*err) +=
-                "WARN: Looks like empty filename for mtllib. Use default "
-                "material. \n";
-          }
-        } else {
-          bool found = false;
-          for (size_t s = 0; s < filenames.size(); s++) {
-            std::string err_mtl;
-            bool ok = (*readMatFn)(filenames[s].c_str(), &materials,
-                                   &material_map, &err_mtl);
-            if (err && (!err_mtl.empty())) {
-              (*err) += err_mtl;  // This should be warn message.
-            }
-
-            if (ok) {
-              found = true;
-              break;
-            }
-          }
-
-          if (!found) {
-            if (err) {
-              (*err) +=
-                  "WARN: Failed to load material file(s). Use default "
-                  "material.\n";
-            }
-          } else {
-            if (callback.mtllib_cb) {
-              callback.mtllib_cb(user_data, &materials.at(0),
-                                 static_cast<int>(materials.size()));
-            }
-          }
-        }
-      }
-
-      continue;
-    }
-
     // group name
     if (token[0] == 'g' && IS_SPACE((token[1]))) {
       names.clear();
@@ -2090,6 +2017,83 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
       tags.push_back(tag);
     }
 #endif
+
+
+
+	//tigra: compares start
+    // use mtl
+    if ((0 == strncmp(token, "usemtl", 6)) && IS_SPACE((token[6]))) {
+      token += 7;
+      std::stringstream ss;
+      ss << token;
+      std::string namebuf = ss.str();
+
+      int newMaterialId = -1;
+      if (material_map.find(namebuf) != material_map.end()) {
+        newMaterialId = material_map[namebuf];
+      } else {
+        // { error!! material not found }
+      }
+
+      if (newMaterialId != material_id) {
+        material_id = newMaterialId;
+      }
+
+      if (callback.usemtl_cb) {
+        callback.usemtl_cb(user_data, namebuf.c_str(), material_id);
+      }
+
+      continue;
+    }
+
+    // load mtl
+    if ((0 == strncmp(token, "mtllib", 6)) && IS_SPACE((token[6]))) {
+      if (readMatFn) {
+        token += 7;
+
+        std::vector<std::string> filenames;
+        SplitString(std::string(token), ' ', filenames);
+
+        if (filenames.empty()) {
+          if (err) {
+            (*err) +=
+                "WARN: Looks like empty filename for mtllib. Use default "
+                "material. \n";
+          }
+        } else {
+          bool found = false;
+          for (size_t s = 0; s < filenames.size(); s++) {
+            std::string err_mtl;
+            bool ok = (*readMatFn)(filenames[s].c_str(), &materials,
+                                   &material_map, &err_mtl);
+            if (err && (!err_mtl.empty())) {
+              (*err) += err_mtl;  // This should be warn message.
+            }
+
+            if (ok) {
+              found = true;
+              break;
+            }
+          }
+
+          if (!found) {
+            if (err) {
+              (*err) +=
+                  "WARN: Failed to load material file(s). Use default "
+                  "material.\n";
+            }
+          } else {
+            if (callback.mtllib_cb) {
+              callback.mtllib_cb(user_data, &materials.at(0),
+                                 static_cast<int>(materials.size()));
+            }
+          }
+        }
+      }
+
+      continue;
+    }
+	//tigra: compares end
 
     // Ignore unknown command.
   }
