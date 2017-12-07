@@ -23,6 +23,7 @@ THE SOFTWARE.
 */
 
 //
+// version 1.1.2 : Used new hashed keywords
 // version 1.1.0 : Support parsing vertex color(#144)
 // version 1.0.8 : Fix parsing `g` tag just after `usemtl`(#138)
 // version 1.0.7 : Support multiple tex options(#126)
@@ -48,6 +49,9 @@ THE SOFTWARE.
 #include <map>
 #include <string>
 #include <vector>
+
+//tigra: unordered_map for hashed keywords
+#include <unordered_map>
 
 namespace tinyobj {
 
@@ -363,7 +367,138 @@ void LoadMtl(std::map<std::string, int> *material_map,
 #include <sstream>
 
 namespace tinyobj {
+	
+//tigra: x31 hash function
 
+typedef uint32_t khint_t;
+
+inline uint32_t X31_hash_string(const char *s)
+{		
+	khint_t h = *s;
+    for (++s ; *s; ++s) h = (h << 5) - h + *s;
+    return h;
+}
+
+inline uint32_t X31_hash_stringSZ(const char *s, int sz)
+{
+	int i;	
+	khint_t h = *s;
+	
+    for (++s, i = sz-1 ; i && *s; ++s, i--) h = (h << 5) - h + *s;
+    return h;
+}
+
+	
+//tigra: refactoring2 - add list of keywords	
+static char * keywords[] = {
+	//on off
+	"on","off",
+	
+	//TextureType
+	"cube_top", "cube_bottom", "cube_left", "cube_right", "cube_front", "cube_back", "sphere",
+	
+	//TextureNameAndOption
+	"-blendu", "-blendv", "-clamp", "-boost", "-bm", "-o", "-s", "-t", "-type", "-imfchan", "-mm",
+	
+	//newmtl, illum, mtllib, usemtl
+	"newmtl", "illum", "mtllib", "usemtl", 
+
+	//PBR params
+	"Pcr", "aniso", "anisor", 
+	
+	//maps
+	"map_Ka", "map_Kd", "map_Ks", "map_Ns", "map_bump", "map_Bump", "bump", 
+	
+	// alpha texture
+	"map_d", 
+
+    // displacement texture
+    "disp", 	
+
+    // reflection map
+    "refl", 
+
+    // PBR: roughness texture, metallic texture
+    "map_Pr", "map_Pm", 
+
+    // PBR: sheen texture
+    "map_Ps",
+
+    // PBR: emissive texture
+    "map_Ke", 
+
+    // PBR: normal map texture
+    "norm"
+};	
+
+//tigra: enum of tokens
+enum tokens_enum {
+	//on off
+	TOK_on, TOK_off,
+	
+	//TextureType
+	TOK_cube_top, TOK_cube_bottom, TOK_cube_left, TOK_cube_right, TOK_cube_front, TOK_cube_back, TOK_sphere,
+	
+	//TextureNameAndOption
+	TOK_blendu, TOK_blendv, TOK_clamp, TOK_boost, TOK_bm, TOK_o, TOK_s, TOK_t, TOK_type, TOK_imfchan, TOK_mm,
+	
+	//newmtl, illum, mtllib, usemtl
+	TOK_newmtl, TOK_illum, TOK_mtllib,  TOK_usemtl, 
+
+	//PBR params
+	TOK_Pcr, TOK_aniso, TOK_anisor, 
+	
+	//maps
+	TOK_map_Ka, TOK_map_Kd, TOK_map_Ks, TOK_map_Ns, TOK_map_bump, TOK_map_Bump, TOK_bump, 
+	
+	// alpha texture
+	TOK_map_d, 
+
+    // displacement texture
+    TOK_disp, 	
+
+    // reflection map
+    TOK_refl, 
+
+    // PBR: roughness texture, metallic texture
+    TOK_map_Pr, TOK_map_Pm, 
+
+    // PBR: sheen texture
+    TOK_map_Ps,
+
+    // PBR: emissive texture
+    TOK_map_Ke, 
+
+    // PBR: normal map texture
+    TOK_norm
+};
+
+std::unordered_map <uint32_t,int> hashed_toks;
+
+
+
+
+
+void initHashedTokensMap()
+{  
+  //init hashed tokens map
+  
+  uint32_t hhh;
+  int iii;
+  
+  if(hashed_toks.empty())
+  {
+	  for(iii=sizeof(keywords)/sizeof(char*);iii;iii--)
+	  {  
+		hhh = X31_hash_string(keywords[iii-1]);
+		hashed_toks[hhh] = iii-1;
+	  }
+  }
+  //init hashed tokens map END
+}  
+
+	
+	
 MaterialReader::~MaterialReader() {}
 
 struct vertex_index {
@@ -697,20 +832,56 @@ static inline texture_type_t parseTextureType(
   (*token) += strspn((*token), " \t");
   const char *end = (*token) + strcspn((*token), " \t\r");
   texture_type_t ty = default_value;
+  
+  
+  uint32_t a_hash;
+  
+  int a_tok;
+  
+  //init hashed tokens map  
+  initHashedTokensMap();
 
-  if ((0 == strncmp((*token), "cube_top", strlen("cube_top")))) {
+	
+	a_hash = X31_hash_string(*token);
+	
+	a_tok = -1;
+	if(hashed_toks.find(a_hash) != hashed_toks.end())
+		a_tok = hashed_toks[a_hash];
+	
+
+  //if ((0 == strncmp((*token), "cube_top", strlen("cube_top")))) 
+  if (a_tok == TOK_cube_top) 
+  {
     ty = TEXTURE_TYPE_CUBE_TOP;
-  } else if ((0 == strncmp((*token), "cube_bottom", strlen("cube_bottom")))) {
+  } else 
+	  //if ((0 == strncmp((*token), "cube_bottom", strlen("cube_bottom")))) 
+	  if (a_tok == TOK_cube_bottom) 
+	  {
     ty = TEXTURE_TYPE_CUBE_BOTTOM;
-  } else if ((0 == strncmp((*token), "cube_left", strlen("cube_left")))) {
+  } else 
+	  //if ((0 == strncmp((*token), "cube_left", strlen("cube_left")))) 
+	  if (a_tok == TOK_cube_left) 
+	  {
     ty = TEXTURE_TYPE_CUBE_LEFT;
-  } else if ((0 == strncmp((*token), "cube_right", strlen("cube_right")))) {
+  } else 
+	  //if ((0 == strncmp((*token), "cube_right", strlen("cube_right")))) 
+	  if (a_tok == TOK_cube_right) 
+	  {
     ty = TEXTURE_TYPE_CUBE_RIGHT;
-  } else if ((0 == strncmp((*token), "cube_front", strlen("cube_front")))) {
+  } else 
+	  //if ((0 == strncmp((*token), "cube_front", strlen("cube_front")))) 
+	  if (a_tok == TOK_cube_front) 
+	  {
     ty = TEXTURE_TYPE_CUBE_FRONT;
-  } else if ((0 == strncmp((*token), "cube_back", strlen("cube_back")))) {
+  } else 
+	  //if ((0 == strncmp((*token), "cube_back", strlen("cube_back")))) 
+	  if (a_tok == TOK_cube_back) 
+	  {
     ty = TEXTURE_TYPE_CUBE_BACK;
-  } else if ((0 == strncmp((*token), "sphere", strlen("sphere")))) {
+  } else 
+	  //if ((0 == strncmp((*token), "sphere", strlen("sphere")))) 
+	  if (a_tok == TOK_sphere) 
+	  {
     ty = TEXTURE_TYPE_SPHERE;
   }
 
@@ -862,40 +1033,93 @@ static bool ParseTextureNameAndOption(std::string *texname,
   texopt->type = TEXTURE_TYPE_NONE;
 
   const char *token = linebuf;  // Assume line ends with NULL
+  
+  
+  
+  uint32_t token_sz, a_hash;
+  
+  int a_tok;
+  
+  //init hashed tokens map  
+  initHashedTokensMap();
+  
+  
 
   while (!IS_NEW_LINE((*token))) {
     token += strspn(token, " \t");  // skip space
-    if ((0 == strncmp(token, "-blendu", 7)) && IS_SPACE((token[7]))) {
+	
+
+	
+    token_sz = strpbrk(token, " \t\r") - token;  // token length
+	
+	a_hash = X31_hash_stringSZ(token, token_sz);
+	
+	a_tok = -1;
+	if(hashed_toks.find(a_hash) != hashed_toks.end())
+		a_tok = hashed_toks[a_hash];
+
+	
+	
+    //if ((0 == strncmp(token, "-blendu", 7)) && IS_SPACE((token[7]))) 
+    if (a_tok == TOK_blendu) 
+	{
       token += 8;
       texopt->blendu = parseOnOff(&token, /* default */ true);
-    } else if ((0 == strncmp(token, "-blendv", 7)) && IS_SPACE((token[7]))) {
+    } else 
+		//if ((0 == strncmp(token, "-blendv", 7)) && IS_SPACE((token[7]))) 
+		if (a_tok == TOK_blendv) 
+	{
       token += 8;
       texopt->blendv = parseOnOff(&token, /* default */ true);
-    } else if ((0 == strncmp(token, "-clamp", 6)) && IS_SPACE((token[6]))) {
+    } else 
+		//if ((0 == strncmp(token, "-clamp", 6)) && IS_SPACE((token[6]))) 
+		if (a_tok == TOK_clamp) 
+	{
       token += 7;
       texopt->clamp = parseOnOff(&token, /* default */ true);
-    } else if ((0 == strncmp(token, "-boost", 6)) && IS_SPACE((token[6]))) {
+    } else 
+		//if ((0 == strncmp(token, "-boost", 6)) && IS_SPACE((token[6]))) 
+		if (a_tok == TOK_boost) 
+	{
       token += 7;
       texopt->sharpness = parseReal(&token, 1.0);
-    } else if ((0 == strncmp(token, "-bm", 3)) && IS_SPACE((token[3]))) {
+    } else 
+		//if ((0 == strncmp(token, "-bm", 3)) && IS_SPACE((token[3]))) 
+		if (a_tok == TOK_bm) 
+	{
       token += 4;
       texopt->bump_multiplier = parseReal(&token, 1.0);
-    } else if ((0 == strncmp(token, "-o", 2)) && IS_SPACE((token[2]))) {
+    } else 
+		//if ((0 == strncmp(token, "-o", 2)) && IS_SPACE((token[2]))) 
+		if (a_tok == TOK_o) 
+	{
       token += 3;
       parseReal3(&(texopt->origin_offset[0]), &(texopt->origin_offset[1]),
                  &(texopt->origin_offset[2]), &token);
-    } else if ((0 == strncmp(token, "-s", 2)) && IS_SPACE((token[2]))) {
+    } else 
+		//if ((0 == strncmp(token, "-s", 2)) && IS_SPACE((token[2]))) 
+		if (a_tok == TOK_s)
+	{
       token += 3;
       parseReal3(&(texopt->scale[0]), &(texopt->scale[1]), &(texopt->scale[2]),
                  &token, 1.0, 1.0, 1.0);
-    } else if ((0 == strncmp(token, "-t", 2)) && IS_SPACE((token[2]))) {
+    } else 
+		//if ((0 == strncmp(token, "-t", 2)) && IS_SPACE((token[2]))) 
+		if (a_tok == TOK_t) 
+	{
       token += 3;
       parseReal3(&(texopt->turbulence[0]), &(texopt->turbulence[1]),
                  &(texopt->turbulence[2]), &token);
-    } else if ((0 == strncmp(token, "-type", 5)) && IS_SPACE((token[5]))) {
+    } else 
+		//if ((0 == strncmp(token, "-type", 5)) && IS_SPACE((token[5]))) 
+		if (a_tok == TOK_type) 
+	{
       token += 5;
       texopt->type = parseTextureType((&token), TEXTURE_TYPE_NONE);
-    } else if ((0 == strncmp(token, "-imfchan", 8)) && IS_SPACE((token[8]))) {
+    } else 
+		//if ((0 == strncmp(token, "-imfchan", 8)) && IS_SPACE((token[8]))) 
+		if (a_tok == TOK_imfchan) 
+	{
       token += 9;
       token += strspn(token, " \t");
       const char *end = token + strcspn(token, " \t\r");
@@ -903,7 +1127,10 @@ static bool ParseTextureNameAndOption(std::string *texname,
         texopt->imfchan = (*token);
       }
       token = end;
-    } else if ((0 == strncmp(token, "-mm", 3)) && IS_SPACE((token[3]))) {
+    } else 
+		//if ((0 == strncmp(token, "-mm", 3)) && IS_SPACE((token[3]))) 
+		if (a_tok == TOK_mm) 
+	{
       token += 4;
       parseReal2(&(texopt->brightness), &(texopt->contrast), &token, 0.0, 1.0);
     } else {
@@ -1055,7 +1282,17 @@ void LoadMtl(std::map<std::string, int> *material_map,
 
   // Issue 43. `d` wins against `Tr` since `Tr` is not in the MTL specification.
   bool has_d = false;
-  bool has_tr = false;
+  bool has_tr = false; 
+  
+  
+  uint32_t token_sz, a_hash;
+  
+  int a_tok;
+  
+  //init hashed tokens map  
+  initHashedTokensMap();
+  
+  
 
   std::stringstream ss;
 
@@ -1213,10 +1450,24 @@ void LoadMtl(std::map<std::string, int> *material_map,
 		material.clearcoat_thickness = parseReal(&token);
     }	
 	
+	
+	//get token to char array
+	
+    token_sz = strpbrk(token, " \t\r") - token;  // token length
+	
+	a_hash = X31_hash_stringSZ(token, token_sz);
+	
+	a_tok = -1;
+	if(hashed_toks.find(a_hash) != hashed_toks.end())
+		a_tok = hashed_toks[a_hash];
+	
+	
 
 	//tigra: refactoring for new speedup release
-    // new mtl
-    if ((0 == strncmp(token, "newmtl", 6)) && IS_SPACE((token[6]))) {
+    // new mtl 
+    //if ((0 == strncmp(token, "newmtl", 6)) && IS_SPACE((token[6])))		
+    if (a_tok == TOK_newmtl)
+	{
       // flush previous material.
       if (!material.name.empty()) {
         material_map->insert(std::pair<std::string, int>(
@@ -1241,7 +1492,9 @@ void LoadMtl(std::map<std::string, int> *material_map,
     }
 
     // illum model
-    if (0 == strncmp(token, "illum", 5) && IS_SPACE(token[5])) {
+    //if (0 == strncmp(token, "illum", 5) && IS_SPACE(token[5]))
+    if (a_tok == TOK_illum) 
+	{
       token += 6;
       material.illum = parseInt(&token);
       continue;
@@ -1250,28 +1503,36 @@ void LoadMtl(std::map<std::string, int> *material_map,
 	
 
     // PBR: clearcoat roughness
-    if ((0 == strncmp(token, "Pcr", 3)) && IS_SPACE(token[3])) {
+    //if ((0 == strncmp(token, "Pcr", 3)) && IS_SPACE(token[3])) 
+    if (a_tok == TOK_Pcr) 
+	{
       token += 4;
       material.clearcoat_roughness = parseReal(&token);
       continue;
     }
 
     // PBR: anisotropy
-    if ((0 == strncmp(token, "aniso", 5)) && IS_SPACE(token[5])) {
+    //if ((0 == strncmp(token, "aniso", 5)) && IS_SPACE(token[5]))
+    if (a_tok == TOK_aniso) 
+	{
       token += 6;
       material.anisotropy = parseReal(&token);
       continue;
     }
 
     // PBR: anisotropy rotation
-    if ((0 == strncmp(token, "anisor", 6)) && IS_SPACE(token[6])) {
+    //if ((0 == strncmp(token, "anisor", 6)) && IS_SPACE(token[6])) 
+    if (a_tok == TOK_anisor) 
+	{
       token += 7;
       material.anisotropy_rotation = parseReal(&token);
       continue;
     }
 
     // ambient texture
-    if ((0 == strncmp(token, "map_Ka", 6)) && IS_SPACE(token[6])) {
+    //if ((0 == strncmp(token, "map_Ka", 6)) && IS_SPACE(token[6])) 
+    if (a_tok == TOK_map_Ka) 
+	{
       token += 7;
       ParseTextureNameAndOption(&(material.ambient_texname),
                                 &(material.ambient_texopt), token,
@@ -1280,7 +1541,9 @@ void LoadMtl(std::map<std::string, int> *material_map,
     }
 
     // diffuse texture
-    if ((0 == strncmp(token, "map_Kd", 6)) && IS_SPACE(token[6])) {
+    //if ((0 == strncmp(token, "map_Kd", 6)) && IS_SPACE(token[6]))
+    if (a_tok == TOK_map_Kd) 
+	{
       token += 7;
       ParseTextureNameAndOption(&(material.diffuse_texname),
                                 &(material.diffuse_texopt), token,
@@ -1289,7 +1552,9 @@ void LoadMtl(std::map<std::string, int> *material_map,
     }
 
     // specular texture
-    if ((0 == strncmp(token, "map_Ks", 6)) && IS_SPACE(token[6])) {
+    //if ((0 == strncmp(token, "map_Ks", 6)) && IS_SPACE(token[6])) 
+    if (a_tok == TOK_map_Ks) 
+	{
       token += 7;
       ParseTextureNameAndOption(&(material.specular_texname),
                                 &(material.specular_texopt), token,
@@ -1298,7 +1563,9 @@ void LoadMtl(std::map<std::string, int> *material_map,
     }
 
     // specular highlight texture
-    if ((0 == strncmp(token, "map_Ns", 6)) && IS_SPACE(token[6])) {
+    //if ((0 == strncmp(token, "map_Ns", 6)) && IS_SPACE(token[6])) 
+    if (a_tok == TOK_map_Ns) 
+	{
       token += 7;
       ParseTextureNameAndOption(&(material.specular_highlight_texname),
                                 &(material.specular_highlight_texopt), token,
@@ -1307,7 +1574,9 @@ void LoadMtl(std::map<std::string, int> *material_map,
     }
 
     // bump texture
-    if ((0 == strncmp(token, "map_bump", 8)) && IS_SPACE(token[8])) {
+    //if ((0 == strncmp(token, "map_bump", 8)) && IS_SPACE(token[8])) 
+    if (a_tok == TOK_map_bump) 
+	{
       token += 9;
       ParseTextureNameAndOption(&(material.bump_texname),
                                 &(material.bump_texopt), token,
@@ -1316,7 +1585,9 @@ void LoadMtl(std::map<std::string, int> *material_map,
     }
 
     // bump texture
-    if ((0 == strncmp(token, "map_Bump", 8)) && IS_SPACE(token[8])) {
+    //if ((0 == strncmp(token, "map_Bump", 8)) && IS_SPACE(token[8])) 
+    if (a_tok == TOK_map_Bump) 
+	{
       token += 9;
       ParseTextureNameAndOption(&(material.bump_texname),
                                 &(material.bump_texopt), token,
@@ -1325,7 +1596,9 @@ void LoadMtl(std::map<std::string, int> *material_map,
     }
 
     // bump texture
-    if ((0 == strncmp(token, "bump", 4)) && IS_SPACE(token[4])) {
+    //if ((0 == strncmp(token, "bump", 4)) && IS_SPACE(token[4])) 
+    if (a_tok == TOK_bump) 
+	{
       token += 5;
       ParseTextureNameAndOption(&(material.bump_texname),
                                 &(material.bump_texopt), token,
@@ -1334,7 +1607,9 @@ void LoadMtl(std::map<std::string, int> *material_map,
     }
 
     // alpha texture
-    if ((0 == strncmp(token, "map_d", 5)) && IS_SPACE(token[5])) {
+    //if ((0 == strncmp(token, "map_d", 5)) && IS_SPACE(token[5])) 
+    if (a_tok == TOK_map_d) 
+	{
       token += 6;
       material.alpha_texname = token;
       ParseTextureNameAndOption(&(material.alpha_texname),
@@ -1344,7 +1619,9 @@ void LoadMtl(std::map<std::string, int> *material_map,
     }
 
     // displacement texture
-    if ((0 == strncmp(token, "disp", 4)) && IS_SPACE(token[4])) {
+    //if ((0 == strncmp(token, "disp", 4)) && IS_SPACE(token[4])) 
+    if (a_tok == TOK_disp) 
+	{
       token += 5;
       ParseTextureNameAndOption(&(material.displacement_texname),
                                 &(material.displacement_texopt), token,
@@ -1353,7 +1630,9 @@ void LoadMtl(std::map<std::string, int> *material_map,
     }
 
     // reflection map
-    if ((0 == strncmp(token, "refl", 4)) && IS_SPACE(token[4])) {
+    //if ((0 == strncmp(token, "refl", 4)) && IS_SPACE(token[4])) 
+    if (a_tok == TOK_refl) 
+	{
       token += 5;
       ParseTextureNameAndOption(&(material.reflection_texname),
                                 &(material.reflection_texopt), token,
@@ -1362,7 +1641,9 @@ void LoadMtl(std::map<std::string, int> *material_map,
     }
 
     // PBR: roughness texture
-    if ((0 == strncmp(token, "map_Pr", 6)) && IS_SPACE(token[6])) {
+    //if ((0 == strncmp(token, "map_Pr", 6)) && IS_SPACE(token[6])) 
+    if (a_tok == TOK_map_Pr) 
+	{
       token += 7;
       ParseTextureNameAndOption(&(material.roughness_texname),
                                 &(material.roughness_texopt), token,
@@ -1371,7 +1652,9 @@ void LoadMtl(std::map<std::string, int> *material_map,
     }
 
     // PBR: metallic texture
-    if ((0 == strncmp(token, "map_Pm", 6)) && IS_SPACE(token[6])) {
+    //if ((0 == strncmp(token, "map_Pm", 6)) && IS_SPACE(token[6])) 
+    if (a_tok == TOK_map_Pm) 
+	{
       token += 7;
       ParseTextureNameAndOption(&(material.metallic_texname),
                                 &(material.metallic_texopt), token,
@@ -1380,7 +1663,9 @@ void LoadMtl(std::map<std::string, int> *material_map,
     }
 
     // PBR: sheen texture
-    if ((0 == strncmp(token, "map_Ps", 6)) && IS_SPACE(token[6])) {
+    //if ((0 == strncmp(token, "map_Ps", 6)) && IS_SPACE(token[6])) 
+    if (a_tok == TOK_map_Ps) 
+	{
       token += 7;
       ParseTextureNameAndOption(&(material.sheen_texname),
                                 &(material.sheen_texopt), token,
@@ -1389,7 +1674,9 @@ void LoadMtl(std::map<std::string, int> *material_map,
     }
 
     // PBR: emissive texture
-    if ((0 == strncmp(token, "map_Ke", 6)) && IS_SPACE(token[6])) {
+    //if ((0 == strncmp(token, "map_Ke", 6)) && IS_SPACE(token[6])) 
+    if (a_tok == TOK_map_Ke) 
+	{
       token += 7;
       ParseTextureNameAndOption(&(material.emissive_texname),
                                 &(material.emissive_texopt), token,
@@ -1398,7 +1685,9 @@ void LoadMtl(std::map<std::string, int> *material_map,
     }
 
     // PBR: normal map texture
-    if ((0 == strncmp(token, "norm", 4)) && IS_SPACE(token[4])) {
+    //if ((0 == strncmp(token, "norm", 4)) && IS_SPACE(token[4])) 
+    if (a_tok == TOK_norm) 
+	{
       token += 5;
       ParseTextureNameAndOption(
           &(material.normal_texname), &(material.normal_texopt), token,
@@ -1441,6 +1730,7 @@ bool MaterialFileReader::operator()(const std::string &matId,
     filepath = matId;
   }
 
+  //tigra: add buffered stream
   std::ifstream matIStream(filepath.c_str());
   if (!matIStream) {
     std::stringstream ss;
@@ -1500,6 +1790,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
   std::stringstream errss;
 
+  //tigra: add buffered stream
   std::ifstream ifs(filename);
   if (!ifs) {
     errss << "Cannot open file [" << filename << "]" << std::endl;
@@ -1532,6 +1823,17 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   std::vector<tag_t> tags;
   std::vector<std::vector<vertex_index> > faceGroup;
   std::string name;
+  
+  
+  
+  uint32_t token_sz, a_hash;
+  
+  int a_tok;
+  
+  //init hashed tokens map
+  initHashedTokensMap();
+  
+  
 
   // material
   std::map<std::string, int> material_map;
@@ -1725,8 +2027,22 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 	
 	//tigra: refactoring for new speedup release
 	//tigra: compares one more start
+	
+	//get token to char array
+	
+    token_sz = strpbrk(token, " \t\r") - token;  // token length
+	
+	a_hash = X31_hash_stringSZ(token, token_sz);
+	
+	a_tok = -1;
+	if(hashed_toks.find(a_hash) != hashed_toks.end())
+		a_tok = hashed_toks[a_hash];
+	
+	
     // use mtl
-    if ((0 == strncmp(token, "usemtl", 6)) && IS_SPACE((token[6]))) {
+    //if ((0 == strncmp(token, "usemtl", 6)) && IS_SPACE((token[6]))) 
+    if (a_tok==TOK_usemtl) 
+	{
       token += 7;
       std::stringstream ss;
       ss << token;
@@ -1753,7 +2069,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     }
 
     // load mtl
-    if ((0 == strncmp(token, "mtllib", 6)) && IS_SPACE((token[6]))) {
+    //if ((0 == strncmp(token, "mtllib", 6)) && IS_SPACE((token[6]))) 
+    if (a_tok==TOK_mtllib) 
+	{
       if (readMatFn) {
         token += 7;
 
@@ -1828,6 +2146,16 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
                          MaterialReader *readMatFn /*= NULL*/,
                          std::string *err /*= NULL*/) {
   std::stringstream errss;
+  
+    
+  uint32_t token_sz, a_hash;
+  
+  int a_tok;
+  
+  //init hashed tokens map  
+  initHashedTokensMap();
+  
+  
 
   // material
   std::map<std::string, int> material_map;
@@ -2024,8 +2352,22 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
 
 	//tigra: refactoring for new speedup release
 	//tigra: compares start
+	
+	//get token to char array
+	
+    token_sz = strpbrk(token, " \t\r") - token;  // token length
+	
+	a_hash = X31_hash_stringSZ(token, token_sz);
+	
+	a_tok = -1;
+	if(hashed_toks.find(a_hash) != hashed_toks.end())
+		a_tok = hashed_toks[a_hash];
+	
+	
     // use mtl
-    if ((0 == strncmp(token, "usemtl", 6)) && IS_SPACE((token[6]))) {
+    //if ((0 == strncmp(token, "usemtl", 6)) && IS_SPACE((token[6]))) 
+    if (a_tok==TOK_usemtl) 
+	{
       token += 7;
       std::stringstream ss;
       ss << token;
@@ -2050,7 +2392,9 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
     }
 
     // load mtl
-    if ((0 == strncmp(token, "mtllib", 6)) && IS_SPACE((token[6]))) {
+    //if ((0 == strncmp(token, "mtllib", 6)) && IS_SPACE((token[6]))) 
+    if (a_tok == TOK_mtllib) 
+	{
       if (readMatFn) {
         token += 7;
 
