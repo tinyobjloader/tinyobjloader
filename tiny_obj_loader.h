@@ -1582,9 +1582,13 @@ void LoadMtl(std::map<std::string, int> *material_map,
 		  // set new mtl name
 		  token += 7;
 		  {
+			  /*
 			std::stringstream sstr;
 			sstr << token;
 			material.name = sstr.str();
+			*/
+			
+			material.name = std::string(token);
 		  }
 		  continue;
 		}
@@ -2097,9 +2101,14 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
       // @todo { multiple object name? }
       token += 2;
+	  
+	  /*
       std::stringstream ss;
       ss << token;
       name = ss.str();
+	  */
+	  
+      name = std::string(token);
 
       continue;
     }
@@ -2145,9 +2154,13 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     if (a_tok==TOK_usemtl) 
 	{
       token += 7;
+	  /*
       std::stringstream ss;
       ss << token;
       std::string namebuf = ss.str();
+	  */
+	  
+      std::string namebuf = std::string(token);
 
       int newMaterialId = -1;
       if (material_map.find(namebuf) != material_map.end()) {
@@ -2398,12 +2411,18 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
       // @todo { multiple object name? }
       token += 2;
 
+	  /*
       std::stringstream ss;
       ss << token;
       std::string object_name = ss.str();
 
       if (callback.object_cb) {
         callback.object_cb(user_data, object_name.c_str());
+      }
+	  */
+	  
+      if (callback.object_cb) {
+        callback.object_cb(user_data, token);
       }
 
       continue;
@@ -2414,9 +2433,13 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
       tag_t tag;
 
       token += 2;
+	  /*
       std::stringstream ss;
       ss << token;
       tag.name = ss.str();
+	  */
+	  
+      tag.name = std::string(token);
 
       token += tag.name.size() + 1;
 
@@ -2437,9 +2460,15 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
 
       tag.stringValues.resize(static_cast<size_t>(ts.num_strings));
       for (size_t i = 0; i < static_cast<size_t>(ts.num_strings); ++i) {
-        std::stringstream ss;
+		  
+        /*
+		std::stringstream ss;
         ss << token;
         tag.stringValues[i] = ss.str();
+		*/
+		
+		tag.stringValues[i] = std::string(token);
+		
         token += tag.stringValues[i].size() + 1;
       }
 
@@ -2461,9 +2490,14 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
     if (a_tok==TOK_usemtl) 
 	{
       token += 7;
+	  /*
       std::stringstream ss;
       ss << token;
       std::string namebuf = ss.str();
+      */
+	  
+	  std::string namebuf = std::string(token);
+	  
 
       int newMaterialId = -1;
       if (material_map.find(namebuf) != material_map.end()) {
