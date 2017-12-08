@@ -497,6 +497,33 @@ void initHashedTokensMap()
   //init hashed tokens map END
 }  
 
+
+int token2tok(const char* token)
+{	
+
+  uint32_t token_sz, a_hash;
+  
+  int a_tok;
+  
+
+    token_sz = strpbrk(token, " \t\r") - token;  // token length
+	
+	if(token_sz<1) //delimiter not found, token_sz = strlen(token)
+	{
+		//token_sz=strlen(token);
+		a_hash = X31_hash_string(token);
+	}
+	else
+		a_hash = X31_hash_stringSZ(token, token_sz);
+		
+	
+	a_tok = -1;
+	if(hashed_toks.find(a_hash) != hashed_toks.end())
+		a_tok = hashed_toks[a_hash];
+	
+	return a_tok;
+}
+
 	
 	
 MaterialReader::~MaterialReader() {}
@@ -834,19 +861,13 @@ static inline texture_type_t parseTextureType(
   texture_type_t ty = default_value;
   
   
-  uint32_t a_hash;
   
   int a_tok;
   
   //init hashed tokens map  
   initHashedTokensMap();
-
 	
-	a_hash = X31_hash_string(*token);
-	
-	a_tok = -1;
-	if(hashed_toks.find(a_hash) != hashed_toks.end())
-		a_tok = hashed_toks[a_hash];
+	a_tok = token2tok(*token);
 	
 
   //if ((0 == strncmp((*token), "cube_top", strlen("cube_top")))) 
@@ -1035,9 +1056,6 @@ static bool ParseTextureNameAndOption(std::string *texname,
   const char *token = linebuf;  // Assume line ends with NULL
   
   
-  
-  uint32_t token_sz, a_hash;
-  
   int a_tok;
   
   //init hashed tokens map  
@@ -1048,17 +1066,8 @@ static bool ParseTextureNameAndOption(std::string *texname,
   while (!IS_NEW_LINE((*token))) {
     token += strspn(token, " \t");  // skip space
 	
-
-	
-    token_sz = strpbrk(token, " \t\r") - token;  // token length
-	
-	a_hash = X31_hash_stringSZ(token, token_sz);
-	
-	a_tok = -1;
-	if(hashed_toks.find(a_hash) != hashed_toks.end())
-		a_tok = hashed_toks[a_hash];
-
-	
+	a_tok = token2tok(token);
+		
 	
     //if ((0 == strncmp(token, "-blendu", 7)) && IS_SPACE((token[7]))) 
     if (a_tok == TOK_blendu) 
@@ -1284,9 +1293,6 @@ void LoadMtl(std::map<std::string, int> *material_map,
   bool has_d = false;
   bool has_tr = false; 
   
-  
-  uint32_t token_sz, a_hash;
-  
   int a_tok;
   
   //init hashed tokens map  
@@ -1451,16 +1457,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
     }	
 	
 	
-	//get token to char array
-	
-    token_sz = strpbrk(token, " \t\r") - token;  // token length
-	
-	a_hash = X31_hash_stringSZ(token, token_sz);
-	
-	a_tok = -1;
-	if(hashed_toks.find(a_hash) != hashed_toks.end())
-		a_tok = hashed_toks[a_hash];
-	
+	a_tok = token2tok(token);	
 	
 
 	//tigra: refactoring for new speedup release
@@ -1825,9 +1822,6 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   std::string name;
   
   
-  
-  uint32_t token_sz, a_hash;
-  
   int a_tok;
   
   //init hashed tokens map
@@ -2028,15 +2022,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 	//tigra: refactoring for new speedup release
 	//tigra: compares one more start
 	
-	//get token to char array
 	
-    token_sz = strpbrk(token, " \t\r") - token;  // token length
-	
-	a_hash = X31_hash_stringSZ(token, token_sz);
-	
-	a_tok = -1;
-	if(hashed_toks.find(a_hash) != hashed_toks.end())
-		a_tok = hashed_toks[a_hash];
+	a_tok = token2tok(token);
 	
 	
     // use mtl
@@ -2147,8 +2134,6 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
                          std::string *err /*= NULL*/) {
   std::stringstream errss;
   
-    
-  uint32_t token_sz, a_hash;
   
   int a_tok;
   
@@ -2353,22 +2338,8 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
 	//tigra: refactoring for new speedup release
 	//tigra: compares start
 	
-	//get token to char array
 	
-    token_sz = strpbrk(token, " \t\r") - token;  // token length
-	
-	if(token_sz<1) //delimiter not found, token_sz = strlen(token)
-	{
-		//token_sz=strlen(token);
-		a_hash = X31_hash_string(token);
-	}
-	else
-		a_hash = X31_hash_stringSZ(token, token_sz);
-		
-	
-	a_tok = -1;
-	if(hashed_toks.find(a_hash) != hashed_toks.end())
-		a_tok = hashed_toks[a_hash];
+	a_tok = token2tok(token);
 	
 	
     // use mtl
