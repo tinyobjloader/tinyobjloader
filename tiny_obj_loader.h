@@ -2357,7 +2357,14 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
 	
     token_sz = strpbrk(token, " \t\r") - token;  // token length
 	
-	a_hash = X31_hash_stringSZ(token, token_sz);
+	if(token_sz<1) //delimiter not found, token_sz = strlen(token)
+	{
+		//token_sz=strlen(token);
+		a_hash = X31_hash_string(token);
+	}
+	else
+		a_hash = X31_hash_stringSZ(token, token_sz);
+		
 	
 	a_tok = -1;
 	if(hashed_toks.find(a_hash) != hashed_toks.end())
