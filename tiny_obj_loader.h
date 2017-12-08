@@ -50,9 +50,6 @@ THE SOFTWARE.
 #include <string>
 #include <vector>
 
-//tigra: unordered_map for hashed keywords
-#include <unordered_map>
-
 namespace tinyobj {
 
 // https://en.wikipedia.org/wiki/Wavefront_.obj_file says ...
@@ -366,7 +363,98 @@ void LoadMtl(std::map<std::string, int> *material_map,
 #include <fstream>
 #include <sstream>
 
+//tigra: unordered_map for hashed keywords
+#include <unordered_map>
+
+
+#define TINYOBJLOADER_IMPLEMENTATION_BUFREAD
+
+
+
+#ifdef TINYOBJLOADER_IMPLEMENTATION_BUFREAD
+#include <fcntl.h>
+               #include <sys/types.h>
+               #include <sys/stat.h>
+               #include <io.h> 
+			   
+			   
+#define O_LARGEFILE 0100000
+#endif
+
 namespace tinyobj {
+	
+	
+#ifdef TINYOBJLOADER_IMPLEMENTATION_BUFREAD
+//tigra: ImportInBuf - buffered input file
+class ImportInBuf: public std::streambuf 
+{
+public:
+
+ImportInBuf(const char* filename, size_t buf_sz_=64*1024)
+:fd_(open(filename,O_RDONLY | O_LARGEFILE))
+{
+	//fprintf(stderr, "ImportInBuf(%s\n", filename);
+	
+if(fd_<0) 
+{
+	fprintf(stderr, "can't open file %s\n",filename);
+	exit(1);
+}
+
+buf_sz = buf_sz_;
+
+//fprintf(stderr, "buf_sz=%d\n", buf_sz);
+
+buffer_ = (char*) malloc(buf_sz);
+
+setg(buffer_,buffer_,buffer_);
+struct stat st;
+fstat(fd_,&st);
+fsize_=st.st_size;
+
+//fprintf(stderr, "file size: %ld\n", fsize_);
+}
+
+// you don't have to do it like this if your streams are 64 bit
+void seekg(uint64_t pos)
+{
+lseek(fd_,pos,SEEK_SET);
+pos_=pos;
+setg(buffer_,buffer_,buffer_);
+}
+
+uint64_t tellg()const { return pos_; }
+uint64_t size()const { return fsize_; }
+
+~ImportInBuf(){ close(fd_); free(buffer_); }
+
+private:
+ImportInBuf(const ImportInBuf&);
+ImportInBuf& operator=(const ImportInBuf&);
+virtual int underflow()
+{
+if(gptr()<egptr())
+{
+return *gptr();
+}
+int size = read(fd_,buffer_,buf_sz);
+if(size)
+{
+pos_+=size;
+setg(buffer_,buffer_,buffer_+size);
+return *gptr();
+}
+pos_=fsize_;
+return EOF;
+}
+
+char * buffer_;
+int fd_;
+uint64_t fsize_,pos_;
+size_t buf_sz;
+};
+#endif	
+	
 	
 //tigra: x31 hash function
 
@@ -1728,7 +1816,13 @@ bool MaterialFileReader::operator()(const std::string &matId,
   }
 
   //tigra: add buffered stream
-  std::ifstream matIStream(filepath.c_str());
+  #ifdef TINYOBJLOADER_IMPLEMENTATION_BUFREAD  
+  ImportInBuf buf(filepath.c_str()); 
+  std::istream matIStream(&buf);
+  #else
+	  std::ifstream matIStream(filepath.c_str());
+  #endif
+  
   if (!matIStream) {
     std::stringstream ss;
     ss << "WARN: Material file [ " << filepath << " ] not found." << std::endl;
@@ -1787,8 +1881,14 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
   std::stringstream errss;
 
-  //tigra: add buffered stream
-  std::ifstream ifs(filename);
+  //tigra: add buffered stream  
+  #ifdef TINYOBJLOADER_IMPLEMENTATION_BUFREAD  
+  ImportInBuf buf(filename); 
+  std::istream ifs(&buf);
+  #else
+	  std::ifstream ifs(filename);
+  #endif
+  
   if (!ifs) {
     errss << "Cannot open file [" << filename << "]" << std::endl;
     if (err) {
