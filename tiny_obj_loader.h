@@ -946,6 +946,7 @@ static inline texture_type_t parseTextureType(
     const char **token, texture_type_t default_value = TEXTURE_TYPE_NONE) {
   (*token) += strspn((*token), " \t");
   const char *end = (*token) + strcspn((*token), " \t\r");
+  
   texture_type_t ty = default_value;
   
   
@@ -957,42 +958,47 @@ static inline texture_type_t parseTextureType(
 	
 	a_tok = token2tok(*token);
 	
+	//tigra: dont check if wrong token
+	if(a_tok>=TOK_cube_top && a_tok<=TOK_sphere)
+	{
 
-  //if ((0 == strncmp((*token), "cube_top", strlen("cube_top")))) 
-  if (a_tok == TOK_cube_top) 
-  {
-    ty = TEXTURE_TYPE_CUBE_TOP;
-  } else 
-	  //if ((0 == strncmp((*token), "cube_bottom", strlen("cube_bottom")))) 
-	  if (a_tok == TOK_cube_bottom) 
+	  //if ((0 == strncmp((*token), "cube_top", strlen("cube_top")))) 
+	  if (a_tok == TOK_cube_top) 
 	  {
-    ty = TEXTURE_TYPE_CUBE_BOTTOM;
-  } else 
-	  //if ((0 == strncmp((*token), "cube_left", strlen("cube_left")))) 
-	  if (a_tok == TOK_cube_left) 
-	  {
-    ty = TEXTURE_TYPE_CUBE_LEFT;
-  } else 
-	  //if ((0 == strncmp((*token), "cube_right", strlen("cube_right")))) 
-	  if (a_tok == TOK_cube_right) 
-	  {
-    ty = TEXTURE_TYPE_CUBE_RIGHT;
-  } else 
-	  //if ((0 == strncmp((*token), "cube_front", strlen("cube_front")))) 
-	  if (a_tok == TOK_cube_front) 
-	  {
-    ty = TEXTURE_TYPE_CUBE_FRONT;
-  } else 
-	  //if ((0 == strncmp((*token), "cube_back", strlen("cube_back")))) 
-	  if (a_tok == TOK_cube_back) 
-	  {
-    ty = TEXTURE_TYPE_CUBE_BACK;
-  } else 
-	  //if ((0 == strncmp((*token), "sphere", strlen("sphere")))) 
-	  if (a_tok == TOK_sphere) 
-	  {
-    ty = TEXTURE_TYPE_SPHERE;
-  }
+		ty = TEXTURE_TYPE_CUBE_TOP;
+	  } else 
+		  //if ((0 == strncmp((*token), "cube_bottom", strlen("cube_bottom")))) 
+		  if (a_tok == TOK_cube_bottom) 
+		  {
+		ty = TEXTURE_TYPE_CUBE_BOTTOM;
+	  } else 
+		  //if ((0 == strncmp((*token), "cube_left", strlen("cube_left")))) 
+		  if (a_tok == TOK_cube_left) 
+		  {
+		ty = TEXTURE_TYPE_CUBE_LEFT;
+	  } else 
+		  //if ((0 == strncmp((*token), "cube_right", strlen("cube_right")))) 
+		  if (a_tok == TOK_cube_right) 
+		  {
+		ty = TEXTURE_TYPE_CUBE_RIGHT;
+	  } else 
+		  //if ((0 == strncmp((*token), "cube_front", strlen("cube_front")))) 
+		  if (a_tok == TOK_cube_front) 
+		  {
+		ty = TEXTURE_TYPE_CUBE_FRONT;
+	  } else 
+		  //if ((0 == strncmp((*token), "cube_back", strlen("cube_back")))) 
+		  if (a_tok == TOK_cube_back) 
+		  {
+		ty = TEXTURE_TYPE_CUBE_BACK;
+	  } else 
+		  //if ((0 == strncmp((*token), "sphere", strlen("sphere")))) 
+		  if (a_tok == TOK_sphere) 
+		  {
+		ty = TEXTURE_TYPE_SPHERE;
+	  }
+  
+	}
 
   (*token) = end;
   return ty;
@@ -1155,82 +1161,86 @@ static bool ParseTextureNameAndOption(std::string *texname,
     token += strspn(token, " \t");  // skip space
 	
 	a_tok = token2tok(token);
-		
 	
-    //if ((0 == strncmp(token, "-blendu", 7)) && IS_SPACE((token[7]))) 
-    if (a_tok == TOK_blendu) 
-	{
-      token += 8;
-      texopt->blendu = parseOnOff(&token, /* default */ true);
-    } else 
-		//if ((0 == strncmp(token, "-blendv", 7)) && IS_SPACE((token[7]))) 
-		if (a_tok == TOK_blendv) 
-	{
-      token += 8;
-      texopt->blendv = parseOnOff(&token, /* default */ true);
-    } else 
-		//if ((0 == strncmp(token, "-clamp", 6)) && IS_SPACE((token[6]))) 
-		if (a_tok == TOK_clamp) 
-	{
-      token += 7;
-      texopt->clamp = parseOnOff(&token, /* default */ true);
-    } else 
-		//if ((0 == strncmp(token, "-boost", 6)) && IS_SPACE((token[6]))) 
-		if (a_tok == TOK_boost) 
-	{
-      token += 7;
-      texopt->sharpness = parseReal(&token, 1.0);
-    } else 
-		//if ((0 == strncmp(token, "-bm", 3)) && IS_SPACE((token[3]))) 
-		if (a_tok == TOK_bm) 
-	{
-      token += 4;
-      texopt->bump_multiplier = parseReal(&token, 1.0);
-    } else 
-		//if ((0 == strncmp(token, "-o", 2)) && IS_SPACE((token[2]))) 
-		if (a_tok == TOK_o) 
-	{
-      token += 3;
-      parseReal3(&(texopt->origin_offset[0]), &(texopt->origin_offset[1]),
-                 &(texopt->origin_offset[2]), &token);
-    } else 
-		//if ((0 == strncmp(token, "-s", 2)) && IS_SPACE((token[2]))) 
-		if (a_tok == TOK_s)
-	{
-      token += 3;
-      parseReal3(&(texopt->scale[0]), &(texopt->scale[1]), &(texopt->scale[2]),
-                 &token, 1.0, 1.0, 1.0);
-    } else 
-		//if ((0 == strncmp(token, "-t", 2)) && IS_SPACE((token[2]))) 
-		if (a_tok == TOK_t) 
-	{
-      token += 3;
-      parseReal3(&(texopt->turbulence[0]), &(texopt->turbulence[1]),
-                 &(texopt->turbulence[2]), &token);
-    } else 
-		//if ((0 == strncmp(token, "-type", 5)) && IS_SPACE((token[5]))) 
-		if (a_tok == TOK_type) 
-	{
-      token += 5;
-      texopt->type = parseTextureType((&token), TEXTURE_TYPE_NONE);
-    } else 
-		//if ((0 == strncmp(token, "-imfchan", 8)) && IS_SPACE((token[8]))) 
-		if (a_tok == TOK_imfchan) 
-	{
-      token += 9;
-      token += strspn(token, " \t");
-      const char *end = token + strcspn(token, " \t\r");
-      if ((end - token) == 1) {  // Assume one char for -imfchan
-        texopt->imfchan = (*token);
-      }
-      token = end;
-    } else 
-		//if ((0 == strncmp(token, "-mm", 3)) && IS_SPACE((token[3]))) 
-		if (a_tok == TOK_mm) 
-	{
-      token += 4;
-      parseReal2(&(texopt->brightness), &(texopt->contrast), &token, 0.0, 1.0);
-    } else {
+	//tigra: minimize checks
+	if(a_tok>=TOK_blendu && a_tok<=TOK_mm)
+	{	
+		//if ((0 == strncmp(token, "-blendu", 7)) && IS_SPACE((token[7]))) 
+		if (a_tok == TOK_blendu) 
+		{
+		  token += 8;
+		  texopt->blendu = parseOnOff(&token, /* default */ true);
+		} else 
+			//if ((0 == strncmp(token, "-blendv", 7)) && IS_SPACE((token[7]))) 
+			if (a_tok == TOK_blendv) 
+		{
+		  token += 8;
+		  texopt->blendv = parseOnOff(&token, /* default */ true);
+		} else 
+			//if ((0 == strncmp(token, "-clamp", 6)) && IS_SPACE((token[6]))) 
+			if (a_tok == TOK_clamp) 
+		{
+		  token += 7;
+		  texopt->clamp = parseOnOff(&token, /* default */ true);
+		} else 
+			//if ((0 == strncmp(token, "-boost", 6)) && IS_SPACE((token[6]))) 
+			if (a_tok == TOK_boost) 
+		{
+		  token += 7;
+		  texopt->sharpness = parseReal(&token, 1.0);
+		} else 
+			//if ((0 == strncmp(token, "-bm", 3)) && IS_SPACE((token[3]))) 
+			if (a_tok == TOK_bm) 
+		{
+		  token += 4;
+		  texopt->bump_multiplier = parseReal(&token, 1.0);
+		} else 
+			//if ((0 == strncmp(token, "-o", 2)) && IS_SPACE((token[2]))) 
+			if (a_tok == TOK_o) 
+		{
+		  token += 3;
+		  parseReal3(&(texopt->origin_offset[0]), &(texopt->origin_offset[1]),
+					 &(texopt->origin_offset[2]), &token);
+		} else 
+			//if ((0 == strncmp(token, "-s", 2)) && IS_SPACE((token[2]))) 
+			if (a_tok == TOK_s)
+		{
+		  token += 3;
+		  parseReal3(&(texopt->scale[0]), &(texopt->scale[1]), &(texopt->scale[2]),
+					 &token, 1.0, 1.0, 1.0);
+		} else 
+			//if ((0 == strncmp(token, "-t", 2)) && IS_SPACE((token[2]))) 
+			if (a_tok == TOK_t) 
+		{
+		  token += 3;
+		  parseReal3(&(texopt->turbulence[0]), &(texopt->turbulence[1]),
+					 &(texopt->turbulence[2]), &token);
+		} else 
+			//if ((0 == strncmp(token, "-type", 5)) && IS_SPACE((token[5]))) 
+			if (a_tok == TOK_type) 
+		{
+		  token += 5;
+		  texopt->type = parseTextureType((&token), TEXTURE_TYPE_NONE);
+		} else 
+			//if ((0 == strncmp(token, "-imfchan", 8)) && IS_SPACE((token[8]))) 
+			if (a_tok == TOK_imfchan) 
+		{
+		  token += 9;
+		  token += strspn(token, " \t");
+		  const char *end = token + strcspn(token, " \t\r");
+		  if ((end - token) == 1) {  // Assume one char for -imfchan
+			texopt->imfchan = (*token);
+		  }
+		  token = end;
+		} else 
+			//if ((0 == strncmp(token, "-mm", 3)) && IS_SPACE((token[3]))) 
+			if (a_tok == TOK_mm) 
+		{
+		  token += 4;
+		  parseReal2(&(texopt->brightness), &(texopt->contrast), &token, 0.0, 1.0);
+		}
+	}
+	else {
       // Assume texture filename
 #if 0
       size_t len = strcspn(token, " \t\r");  // untile next space
@@ -1545,240 +1555,244 @@ void LoadMtl(std::map<std::string, int> *material_map,
     }	
 	
 	
-	a_tok = token2tok(token);	
+	a_tok = token2tok(token);
 	
-
-	//tigra: refactoring for new speedup release
-    // new mtl 
-    //if ((0 == strncmp(token, "newmtl", 6)) && IS_SPACE((token[6])))		
-    if (a_tok == TOK_newmtl)
+	//tigra: minimize checks
+	if(a_tok>=TOK_newmtl && a_tok<=TOK_norm)
 	{
-      // flush previous material.
-      if (!material.name.empty()) {
-        material_map->insert(std::pair<std::string, int>(
-            material.name, static_cast<int>(materials->size())));
-        materials->push_back(material);
-      }
+			
+		//tigra: refactoring for new speedup release
+		// new mtl 
+		//if ((0 == strncmp(token, "newmtl", 6)) && IS_SPACE((token[6])))		
+		if (a_tok == TOK_newmtl)
+		{
+		  // flush previous material.
+		  if (!material.name.empty()) {
+			material_map->insert(std::pair<std::string, int>(
+				material.name, static_cast<int>(materials->size())));
+			materials->push_back(material);
+		  }
 
-      // initial temporary material
-      InitMaterial(&material);
+		  // initial temporary material
+		  InitMaterial(&material);
 
-      has_d = false;
-      has_tr = false;
+		  has_d = false;
+		  has_tr = false;
 
-      // set new mtl name
-      token += 7;
-      {
-        std::stringstream sstr;
-        sstr << token;
-        material.name = sstr.str();
-      }
-      continue;
-    }
+		  // set new mtl name
+		  token += 7;
+		  {
+			std::stringstream sstr;
+			sstr << token;
+			material.name = sstr.str();
+		  }
+		  continue;
+		}
 
-    // illum model
-    //if (0 == strncmp(token, "illum", 5) && IS_SPACE(token[5]))
-    if (a_tok == TOK_illum) 
-	{
-      token += 6;
-      material.illum = parseInt(&token);
-      continue;
-    }
-	
-	
+		// illum model
+		//if (0 == strncmp(token, "illum", 5) && IS_SPACE(token[5]))
+		if (a_tok == TOK_illum) 
+		{
+		  token += 6;
+		  material.illum = parseInt(&token);
+		  continue;
+		}
+		
+		
 
-    // PBR: clearcoat roughness
-    //if ((0 == strncmp(token, "Pcr", 3)) && IS_SPACE(token[3])) 
-    if (a_tok == TOK_Pcr) 
-	{
-      token += 4;
-      material.clearcoat_roughness = parseReal(&token);
-      continue;
-    }
+		// PBR: clearcoat roughness
+		//if ((0 == strncmp(token, "Pcr", 3)) && IS_SPACE(token[3])) 
+		if (a_tok == TOK_Pcr) 
+		{
+		  token += 4;
+		  material.clearcoat_roughness = parseReal(&token);
+		  continue;
+		}
 
-    // PBR: anisotropy
-    //if ((0 == strncmp(token, "aniso", 5)) && IS_SPACE(token[5]))
-    if (a_tok == TOK_aniso) 
-	{
-      token += 6;
-      material.anisotropy = parseReal(&token);
-      continue;
-    }
+		// PBR: anisotropy
+		//if ((0 == strncmp(token, "aniso", 5)) && IS_SPACE(token[5]))
+		if (a_tok == TOK_aniso) 
+		{
+		  token += 6;
+		  material.anisotropy = parseReal(&token);
+		  continue;
+		}
 
-    // PBR: anisotropy rotation
-    //if ((0 == strncmp(token, "anisor", 6)) && IS_SPACE(token[6])) 
-    if (a_tok == TOK_anisor) 
-	{
-      token += 7;
-      material.anisotropy_rotation = parseReal(&token);
-      continue;
-    }
+		// PBR: anisotropy rotation
+		//if ((0 == strncmp(token, "anisor", 6)) && IS_SPACE(token[6])) 
+		if (a_tok == TOK_anisor) 
+		{
+		  token += 7;
+		  material.anisotropy_rotation = parseReal(&token);
+		  continue;
+		}
 
-    // ambient texture
-    //if ((0 == strncmp(token, "map_Ka", 6)) && IS_SPACE(token[6])) 
-    if (a_tok == TOK_map_Ka) 
-	{
-      token += 7;
-      ParseTextureNameAndOption(&(material.ambient_texname),
-                                &(material.ambient_texopt), token,
-                                /* is_bump */ false);
-      continue;
-    }
+		// ambient texture
+		//if ((0 == strncmp(token, "map_Ka", 6)) && IS_SPACE(token[6])) 
+		if (a_tok == TOK_map_Ka) 
+		{
+		  token += 7;
+		  ParseTextureNameAndOption(&(material.ambient_texname),
+									&(material.ambient_texopt), token,
+									/* is_bump */ false);
+		  continue;
+		}
 
-    // diffuse texture
-    //if ((0 == strncmp(token, "map_Kd", 6)) && IS_SPACE(token[6]))
-    if (a_tok == TOK_map_Kd) 
-	{
-      token += 7;
-      ParseTextureNameAndOption(&(material.diffuse_texname),
-                                &(material.diffuse_texopt), token,
-                                /* is_bump */ false);
-      continue;
-    }
+		// diffuse texture
+		//if ((0 == strncmp(token, "map_Kd", 6)) && IS_SPACE(token[6]))
+		if (a_tok == TOK_map_Kd) 
+		{
+		  token += 7;
+		  ParseTextureNameAndOption(&(material.diffuse_texname),
+									&(material.diffuse_texopt), token,
+									/* is_bump */ false);
+		  continue;
+		}
 
-    // specular texture
-    //if ((0 == strncmp(token, "map_Ks", 6)) && IS_SPACE(token[6])) 
-    if (a_tok == TOK_map_Ks) 
-	{
-      token += 7;
-      ParseTextureNameAndOption(&(material.specular_texname),
-                                &(material.specular_texopt), token,
-                                /* is_bump */ false);
-      continue;
-    }
+		// specular texture
+		//if ((0 == strncmp(token, "map_Ks", 6)) && IS_SPACE(token[6])) 
+		if (a_tok == TOK_map_Ks) 
+		{
+		  token += 7;
+		  ParseTextureNameAndOption(&(material.specular_texname),
+									&(material.specular_texopt), token,
+									/* is_bump */ false);
+		  continue;
+		}
 
-    // specular highlight texture
-    //if ((0 == strncmp(token, "map_Ns", 6)) && IS_SPACE(token[6])) 
-    if (a_tok == TOK_map_Ns) 
-	{
-      token += 7;
-      ParseTextureNameAndOption(&(material.specular_highlight_texname),
-                                &(material.specular_highlight_texopt), token,
-                                /* is_bump */ false);
-      continue;
-    }
+		// specular highlight texture
+		//if ((0 == strncmp(token, "map_Ns", 6)) && IS_SPACE(token[6])) 
+		if (a_tok == TOK_map_Ns) 
+		{
+		  token += 7;
+		  ParseTextureNameAndOption(&(material.specular_highlight_texname),
+									&(material.specular_highlight_texopt), token,
+									/* is_bump */ false);
+		  continue;
+		}
 
-    // bump texture
-    //if ((0 == strncmp(token, "map_bump", 8)) && IS_SPACE(token[8])) 
-    if (a_tok == TOK_map_bump) 
-	{
-      token += 9;
-      ParseTextureNameAndOption(&(material.bump_texname),
-                                &(material.bump_texopt), token,
-                                /* is_bump */ true);
-      continue;
-    }
+		// bump texture
+		//if ((0 == strncmp(token, "map_bump", 8)) && IS_SPACE(token[8])) 
+		if (a_tok == TOK_map_bump) 
+		{
+		  token += 9;
+		  ParseTextureNameAndOption(&(material.bump_texname),
+									&(material.bump_texopt), token,
+									/* is_bump */ true);
+		  continue;
+		}
 
-    // bump texture
-    //if ((0 == strncmp(token, "map_Bump", 8)) && IS_SPACE(token[8])) 
-    if (a_tok == TOK_map_Bump) 
-	{
-      token += 9;
-      ParseTextureNameAndOption(&(material.bump_texname),
-                                &(material.bump_texopt), token,
-                                /* is_bump */ true);
-      continue;
-    }
+		// bump texture
+		//if ((0 == strncmp(token, "map_Bump", 8)) && IS_SPACE(token[8])) 
+		if (a_tok == TOK_map_Bump) 
+		{
+		  token += 9;
+		  ParseTextureNameAndOption(&(material.bump_texname),
+									&(material.bump_texopt), token,
+									/* is_bump */ true);
+		  continue;
+		}
 
-    // bump texture
-    //if ((0 == strncmp(token, "bump", 4)) && IS_SPACE(token[4])) 
-    if (a_tok == TOK_bump) 
-	{
-      token += 5;
-      ParseTextureNameAndOption(&(material.bump_texname),
-                                &(material.bump_texopt), token,
-                                /* is_bump */ true);
-      continue;
-    }
+		// bump texture
+		//if ((0 == strncmp(token, "bump", 4)) && IS_SPACE(token[4])) 
+		if (a_tok == TOK_bump) 
+		{
+		  token += 5;
+		  ParseTextureNameAndOption(&(material.bump_texname),
+									&(material.bump_texopt), token,
+									/* is_bump */ true);
+		  continue;
+		}
 
-    // alpha texture
-    //if ((0 == strncmp(token, "map_d", 5)) && IS_SPACE(token[5])) 
-    if (a_tok == TOK_map_d) 
-	{
-      token += 6;
-      material.alpha_texname = token;
-      ParseTextureNameAndOption(&(material.alpha_texname),
-                                &(material.alpha_texopt), token,
-                                /* is_bump */ false);
-      continue;
-    }
+		// alpha texture
+		//if ((0 == strncmp(token, "map_d", 5)) && IS_SPACE(token[5])) 
+		if (a_tok == TOK_map_d) 
+		{
+		  token += 6;
+		  material.alpha_texname = token;
+		  ParseTextureNameAndOption(&(material.alpha_texname),
+									&(material.alpha_texopt), token,
+									/* is_bump */ false);
+		  continue;
+		}
 
-    // displacement texture
-    //if ((0 == strncmp(token, "disp", 4)) && IS_SPACE(token[4])) 
-    if (a_tok == TOK_disp) 
-	{
-      token += 5;
-      ParseTextureNameAndOption(&(material.displacement_texname),
-                                &(material.displacement_texopt), token,
-                                /* is_bump */ false);
-      continue;
-    }
+		// displacement texture
+		//if ((0 == strncmp(token, "disp", 4)) && IS_SPACE(token[4])) 
+		if (a_tok == TOK_disp) 
+		{
+		  token += 5;
+		  ParseTextureNameAndOption(&(material.displacement_texname),
+									&(material.displacement_texopt), token,
+									/* is_bump */ false);
+		  continue;
+		}
 
-    // reflection map
-    //if ((0 == strncmp(token, "refl", 4)) && IS_SPACE(token[4])) 
-    if (a_tok == TOK_refl) 
-	{
-      token += 5;
-      ParseTextureNameAndOption(&(material.reflection_texname),
-                                &(material.reflection_texopt), token,
-                                /* is_bump */ false);
-      continue;
-    }
+		// reflection map
+		//if ((0 == strncmp(token, "refl", 4)) && IS_SPACE(token[4])) 
+		if (a_tok == TOK_refl) 
+		{
+		  token += 5;
+		  ParseTextureNameAndOption(&(material.reflection_texname),
+									&(material.reflection_texopt), token,
+									/* is_bump */ false);
+		  continue;
+		}
 
-    // PBR: roughness texture
-    //if ((0 == strncmp(token, "map_Pr", 6)) && IS_SPACE(token[6])) 
-    if (a_tok == TOK_map_Pr) 
-	{
-      token += 7;
-      ParseTextureNameAndOption(&(material.roughness_texname),
-                                &(material.roughness_texopt), token,
-                                /* is_bump */ false);
-      continue;
-    }
+		// PBR: roughness texture
+		//if ((0 == strncmp(token, "map_Pr", 6)) && IS_SPACE(token[6])) 
+		if (a_tok == TOK_map_Pr) 
+		{
+		  token += 7;
+		  ParseTextureNameAndOption(&(material.roughness_texname),
+									&(material.roughness_texopt), token,
+									/* is_bump */ false);
+		  continue;
+		}
 
-    // PBR: metallic texture
-    //if ((0 == strncmp(token, "map_Pm", 6)) && IS_SPACE(token[6])) 
-    if (a_tok == TOK_map_Pm) 
-	{
-      token += 7;
-      ParseTextureNameAndOption(&(material.metallic_texname),
-                                &(material.metallic_texopt), token,
-                                /* is_bump */ false);
-      continue;
-    }
+		// PBR: metallic texture
+		//if ((0 == strncmp(token, "map_Pm", 6)) && IS_SPACE(token[6])) 
+		if (a_tok == TOK_map_Pm) 
+		{
+		  token += 7;
+		  ParseTextureNameAndOption(&(material.metallic_texname),
+									&(material.metallic_texopt), token,
+									/* is_bump */ false);
+		  continue;
+		}
 
-    // PBR: sheen texture
-    //if ((0 == strncmp(token, "map_Ps", 6)) && IS_SPACE(token[6])) 
-    if (a_tok == TOK_map_Ps) 
-	{
-      token += 7;
-      ParseTextureNameAndOption(&(material.sheen_texname),
-                                &(material.sheen_texopt), token,
-                                /* is_bump */ false);
-      continue;
-    }
+		// PBR: sheen texture
+		//if ((0 == strncmp(token, "map_Ps", 6)) && IS_SPACE(token[6])) 
+		if (a_tok == TOK_map_Ps) 
+		{
+		  token += 7;
+		  ParseTextureNameAndOption(&(material.sheen_texname),
+									&(material.sheen_texopt), token,
+									/* is_bump */ false);
+		  continue;
+		}
 
-    // PBR: emissive texture
-    //if ((0 == strncmp(token, "map_Ke", 6)) && IS_SPACE(token[6])) 
-    if (a_tok == TOK_map_Ke) 
-	{
-      token += 7;
-      ParseTextureNameAndOption(&(material.emissive_texname),
-                                &(material.emissive_texopt), token,
-                                /* is_bump */ false);
-      continue;
-    }
+		// PBR: emissive texture
+		//if ((0 == strncmp(token, "map_Ke", 6)) && IS_SPACE(token[6])) 
+		if (a_tok == TOK_map_Ke) 
+		{
+		  token += 7;
+		  ParseTextureNameAndOption(&(material.emissive_texname),
+									&(material.emissive_texopt), token,
+									/* is_bump */ false);
+		  continue;
+		}
 
-    // PBR: normal map texture
-    //if ((0 == strncmp(token, "norm", 4)) && IS_SPACE(token[4])) 
-    if (a_tok == TOK_norm) 
-	{
-      token += 5;
-      ParseTextureNameAndOption(
-          &(material.normal_texname), &(material.normal_texopt), token,
-          /* is_bump */ false);  // @fixme { is_bump will be true? }
-      continue;
-    }
+		// PBR: normal map texture
+		//if ((0 == strncmp(token, "norm", 4)) && IS_SPACE(token[4])) 
+		if (a_tok == TOK_norm) 
+		{
+		  token += 5;
+		  ParseTextureNameAndOption(
+			  &(material.normal_texname), &(material.normal_texopt), token,
+			  /* is_bump */ false);  // @fixme { is_bump will be true? }
+		  continue;
+		}	
+  }
 
     // unknown parameter
     const char *_space = strchr(token, ' ');
