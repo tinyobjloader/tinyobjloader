@@ -1432,75 +1432,109 @@ void LoadMtl(std::map<std::string, int> *material_map,
     if (token[0] == '\0') continue;  // empty line
 
     if (token[0] == '#') continue;  // comment line
+	
+	//group size==2
+	if(IS_SPACE((token[2])))
+	{		
+		//group K
+		if (token[0] == 'K')
+		{
+		switch(token[1])
+		{
+			case 'a':
+		// ambient
+				//if (token[1] == 'a') 
+				{
+				  token += 2;
+				  real_t r, g, b;
+				  parseReal3(&r, &g, &b, &token);
+				  material.ambient[0] = r;
+				  material.ambient[1] = g;
+				  material.ambient[2] = b;
+				  continue;
+				}
+		
+		// diffuse
+			case 'd':
+				//if (token[1] == 'd') 
+				{
+				  token += 2;
+				  real_t r, g, b;
+				  parseReal3(&r, &g, &b, &token);
+				  material.diffuse[0] = r;
+				  material.diffuse[1] = g;
+				  material.diffuse[2] = b;
+				  continue;
+				}
+	
+		// specular
+			case 's':
+				//if (token[1] == 's') 
+				{
+				  token += 2;
+				  real_t r, g, b;
+				  parseReal3(&r, &g, &b, &token);
+				  material.specular[0] = r;
+				  material.specular[1] = g;
+				  material.specular[2] = b;
+				  continue;
+				}		
 
-    // ambient
-    if (token[0] == 'K' && token[1] == 'a' && IS_SPACE((token[2]))) {
-      token += 2;
-      real_t r, g, b;
-      parseReal3(&r, &g, &b, &token);
-      material.ambient[0] = r;
-      material.ambient[1] = g;
-      material.ambient[2] = b;
-      continue;
-    }
+		// transmittance
+			case 't':
+				//if (token[1] == 't') 
+				{
+				  token += 2;
+				  real_t r, g, b;
+				  parseReal3(&r, &g, &b, &token);
+				  material.transmittance[0] = r;
+				  material.transmittance[1] = g;
+				  material.transmittance[2] = b;
+				  continue;
+				}
+		
+		// emission
+			case 'e':
+				//if (token[1] == 'e') 
+				{
+				  token += 2;
+				  real_t r, g, b;
+				  parseReal3(&r, &g, &b, &token);
+				  material.emission[0] = r;
+				  material.emission[1] = g;
+				  material.emission[2] = b;
+				  continue;
+				}
+		}
+		
+		}
 
-    // diffuse
-    if (token[0] == 'K' && token[1] == 'd' && IS_SPACE((token[2]))) {
-      token += 2;
-      real_t r, g, b;
-      parseReal3(&r, &g, &b, &token);
-      material.diffuse[0] = r;
-      material.diffuse[1] = g;
-      material.diffuse[2] = b;
-      continue;
-    }
+		// transmittance
+		if ( //(token[0] == 'K' && token[1] == 't') ||
+			token[0] == 'T' && token[1] == 'f') {
+		  token += 2;
+		  real_t r, g, b;
+		  parseReal3(&r, &g, &b, &token);
+		  material.transmittance[0] = r;
+		  material.transmittance[1] = g;
+		  material.transmittance[2] = b;
+		  continue;
+		}
 
-    // specular
-    if (token[0] == 'K' && token[1] == 's' && IS_SPACE((token[2]))) {
-      token += 2;
-      real_t r, g, b;
-      parseReal3(&r, &g, &b, &token);
-      material.specular[0] = r;
-      material.specular[1] = g;
-      material.specular[2] = b;
-      continue;
-    }
+		// ior(index of refraction)
+		if (token[0] == 'N' && token[1] == 'i') {
+		  token += 2;
+		  material.ior = parseReal(&token);
+		  continue;
+		}
 
-    // transmittance
-    if ((token[0] == 'K' && token[1] == 't' && IS_SPACE((token[2]))) ||
-        (token[0] == 'T' && token[1] == 'f' && IS_SPACE((token[2])))) {
-      token += 2;
-      real_t r, g, b;
-      parseReal3(&r, &g, &b, &token);
-      material.transmittance[0] = r;
-      material.transmittance[1] = g;
-      material.transmittance[2] = b;
-      continue;
-    }
-
-    // ior(index of refraction)
-    if (token[0] == 'N' && token[1] == 'i' && IS_SPACE((token[2]))) {
-      token += 2;
-      material.ior = parseReal(&token);
-      continue;
-    }
-
-    // emission
-    if (token[0] == 'K' && token[1] == 'e' && IS_SPACE(token[2])) {
-      token += 2;
-      real_t r, g, b;
-      parseReal3(&r, &g, &b, &token);
-      material.emission[0] = r;
-      material.emission[1] = g;
-      material.emission[2] = b;
-      continue;
-    }
-
-    // shininess
-    if (token[0] == 'N' && token[1] == 's' && IS_SPACE(token[2])) {
-      token += 2;
-      material.shininess = parseReal(&token);
-      continue;
+		// shininess
+		if (token[0] == 'N' && token[1] == 's') {
+		  token += 2;
+		  material.shininess = parseReal(&token);
+		  continue;
+		}
+	
     }
 
     // dissolve
@@ -1569,7 +1603,8 @@ void LoadMtl(std::map<std::string, int> *material_map,
 		  // flush previous material.
 		  if (!material.name.empty()) {
 			material_map->insert(std::pair<std::string, int>(
-				material.name, static_cast<int>(materials->size())));
+				material.name, static_cast<int>(materials->size()))
+				);
 			materials->push_back(material);
 		  }
 
