@@ -277,8 +277,8 @@ class MaterialReader {
 
   virtual bool operator()(const std::string &matId,
                           std::vector<material_t> *materials,
-                          //std::map<std::string, int> *matMap,
-                          std::map<uint32_t, int> *matMap,
+                          // std::map<std::string, int> *matMap,
+                          std::map<unsigned int, int> *matMap,
                           std::string *err) = 0;
 };
 
@@ -289,9 +289,8 @@ class MaterialFileReader : public MaterialReader {
   virtual ~MaterialFileReader() {}
   virtual bool operator()(const std::string &matId,
                           std::vector<material_t> *materials,
-                          //std::map<std::string, int> *matMap,
-                          std::map<uint32_t, int> *matMap,
-						  std::string *err);
+                          // std::map<std::string, int> *matMap,
+                          std::map<unsigned int, int> *matMap, std::string *err);
 
  private:
   std::string m_mtlBaseDir;
@@ -304,9 +303,8 @@ class MaterialStreamReader : public MaterialReader {
   virtual ~MaterialStreamReader() {}
   virtual bool operator()(const std::string &matId,
                           std::vector<material_t> *materials,
-                          //std::map<std::string, int> *matMap, 
-                          std::map<uint32_t, int> *matMap, 
-						  std::string *err);
+                          // std::map<std::string, int> *matMap,
+                          std::map<unsigned int, int> *matMap, std::string *err);
 
  private:
   std::istream &m_inStream;
@@ -349,10 +347,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
 /// Loads materials into std::map
 void LoadMtl(
-//std::map<std::string, int> *material_map,
-std::map<uint32_t, int> *material_map,
-             std::vector<material_t> *materials, std::istream *inStream,
-             std::string *warning);
+    // std::map<std::string, int> *material_map,
+    std::map<unsigned int, int> *material_map, std::vector<material_t> *materials,
+    std::istream *inStream, std::string *warning);
 
 }  // namespace tinyobj
 
@@ -370,254 +367,267 @@ std::map<uint32_t, int> *material_map,
 #include <fstream>
 #include <sstream>
 
-
-#define TINYOBJLOADER_IMPLEMENTATION_BUFREAD
-
-
+// #define TINYOBJLOADER_IMPLEMENTATION_BUFREAD
 
 #ifdef TINYOBJLOADER_IMPLEMENTATION_BUFREAD
+// TODO(syoyo): Support non-win32 system
 #include <fcntl.h>
-               #include <sys/types.h>
-               #include <sys/stat.h>
-               #include <io.h> 
-			   
-			   
+#include <io.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
 #define O_LARGEFILE 0100000
 #endif
 
 namespace tinyobj {
-	
-	
+
 #ifdef TINYOBJLOADER_IMPLEMENTATION_BUFREAD
-//tigra: ImportInBuf - buffered input file
-class ImportInBuf: public std::streambuf 
-{
-public:
+// tigra: ImportInBuf - buffered input file
+class ImportInBuf : public std::streambuf {
+ public:
+  ImportInBuf(const char *filename, size_t buf_sz_ = 64 * 1024)
+      : fd_(open(filename, O_RDONLY | O_LARGEFILE)) {
+    // fprintf(stderr, "ImportInBuf(%s\n", filename);
 
-ImportInBuf(const char* filename, size_t buf_sz_=64*1024)
-:fd_(open(filename,O_RDONLY | O_LARGEFILE))
-{
-	//fprintf(stderr, "ImportInBuf(%s\n", filename);
-	
-if(fd_<0) 
-{
-	fprintf(stderr, "can't open file %s\n",filename);
-	exit(1);
-}
+    if (fd_ < 0) {
+      fprintf(stderr, "can't open file %s\n", filename);
+      exit(1);
+    }
 
-buf_sz = buf_sz_;
+    buf_sz = buf_sz_;
 
-//fprintf(stderr, "buf_sz=%d\n", buf_sz);
+    // fprintf(stderr, "buf_sz=%d\n", buf_sz);
 
-buffer_ = (char*) malloc(buf_sz);
+    buffer_ = (char *)malloc(buf_sz);
 
-setg(buffer_,buffer_,buffer_);
-struct stat st;
-fstat(fd_,&st);
-fsize_=st.st_size;
+    setg(buffer_, buffer_, buffer_);
+    struct stat st;
+    fstat(fd_, &st);
+    fsize_ = st.st_size;
 
-//fprintf(stderr, "file size: %ld\n", fsize_);
-}
+    // fprintf(stderr, "file size: %ld\n", fsize_);
+  }
 
-// you don't have to do it like this if your streams are 64 bit
-void seekg(uint64_t pos)
-{
-lseek(fd_,pos,SEEK_SET);
-pos_=pos;
-setg(buffer_,buffer_,buffer_);
-}
+  // you don't have to do it like this if your streams are 64 bit
+  void seekg(uint64_t pos) {
+    lseek(fd_, pos, SEEK_SET);
+    pos_ = pos;
+    setg(buffer_, buffer_, buffer_);
+  }
 
-uint64_t tellg()const { return pos_; }
-uint64_t size()const { return fsize_; }
+  uint64_t tellg() const { return pos_; }
+  uint64_t size() const { return fsize_; }
 
-~ImportInBuf(){ close(fd_); free(buffer_); }
+  ~ImportInBuf() {
+    close(fd_);
+    free(buffer_);
+  }
 
-private:
-ImportInBuf(const ImportInBuf&);
-ImportInBuf& operator=(const ImportInBuf&);
-virtual int underflow()
-{
-if(gptr()<egptr())
-{
-return *gptr();
-}
-int size = read(fd_,buffer_,buf_sz);
-if(size)
-{
-pos_+=size;
-setg(buffer_,buffer_,buffer_+size);
-return *gptr();
-}
-pos_=fsize_;
-return EOF;
-}
+ private:
+  ImportInBuf(const ImportInBuf &);
+  ImportInBuf &operator=(const ImportInBuf &);
+  virtual int underflow() {
+    if (gptr() < egptr()) {
+      return *gptr();
+    }
+    int size = read(fd_, buffer_, buf_sz);
+    if (size) {
+      pos_ += size;
+      setg(buffer_, buffer_, buffer_ + size);
+      return *gptr();
+    }
+    pos_ = fsize_;
+    return EOF;
+  }
 
-char * buffer_;
-int fd_;
-uint64_t fsize_,pos_;
-size_t buf_sz;
+  char *buffer_;
+  int fd_;
+  unsigned long long fsize_, pos_;
+  size_t buf_sz;
 };
-#endif	
-	
-	
-//tigra: x31 hash function
+#endif
 
-typedef uint32_t khint_t;
+// tigra: x31 hash function
 
-inline uint32_t X31_hash_string(const char *s)
-{		
-	khint_t h = *s;
-    for (++s ; *s; ++s) h = (h << 5) - h + *s;
-    return h;
+typedef unsigned int khint_t;
+
+inline unsigned int X31_hash_string(const char *s) {
+  khint_t h = static_cast<khint_t>(*s);
+  for (++s; *s; ++s) h = (h << 5) - h + static_cast<khint_t>(*s);
+  return h;
 }
 
-inline uint32_t X31_hash_stringSZ(const char *s, int sz)
-{
-	int i;	
-	khint_t h = *s;
-	
-    for (++s, i = sz-1 ; i && *s; ++s, i--) h = (h << 5) - h + *s;
-    return h;
+inline unsigned int X31_hash_stringSZ(const char *s, int sz) {
+  int i;
+  khint_t h = static_cast<khint_t>(*s);
+
+  for (++s, i = sz - 1; i && *s; ++s, i--) h = (h << 5) - h + static_cast<khint_t>(*s);
+  return h;
 }
 
-	
-//tigra: refactoring2 - add list of keywords	
-static char * keywords[] = {
-	//on off
-	"on","off",
-	
-	//TextureType
-	"cube_top", "cube_bottom", "cube_left", "cube_right", "cube_front", "cube_back", "sphere",
-	
-	//TextureNameAndOption
-	"-blendu", "-blendv", "-clamp", "-boost", "-bm", "-o", "-s", "-t", "-type", "-imfchan", "-mm",
-	
-	//newmtl, illum, mtllib, usemtl
-	"newmtl", "illum", "mtllib", "usemtl", 
+// tigra: refactoring2 - add list of keywords
+static const char *keywords[] = {
+    // on off
+    "on", "off",
 
-	//PBR params
-	"Pcr", "aniso", "anisor", 
-	
-	//maps
-	"map_Ka", "map_Kd", "map_Ks", "map_Ns", "map_bump", "map_Bump", "bump", 
-	
-	// alpha texture
-	"map_d", 
+    // TextureType
+    "cube_top", "cube_bottom", "cube_left", "cube_right", "cube_front",
+    "cube_back", "sphere",
+
+    // TextureNameAndOption
+    "-blendu", "-blendv", "-clamp", "-boost", "-bm", "-o", "-s", "-t", "-type",
+    "-imfchan", "-mm",
+
+    // newmtl, illum, mtllib, usemtl
+    "newmtl", "illum", "mtllib", "usemtl",
+
+    // PBR params
+    "Pcr", "aniso", "anisor",
+
+    // maps
+    "map_Ka", "map_Kd", "map_Ks", "map_Ns", "map_bump", "map_Bump", "bump",
+
+    // alpha texture
+    "map_d",
 
     // displacement texture
-    "disp", 	
+    "disp",
 
     // reflection map
-    "refl", 
+    "refl",
 
     // PBR: roughness texture, metallic texture
-    "map_Pr", "map_Pm", 
+    "map_Pr", "map_Pm",
 
     // PBR: sheen texture
     "map_Ps",
 
     // PBR: emissive texture
-    "map_Ke", 
+    "map_Ke",
 
     // PBR: normal map texture
-    "norm"
-};	
+    "norm"};
 
-//tigra: enum of tokens
+// tigra: enum of tokens
 enum tokens_enum {
-	//on off
-	TOK_on, TOK_off,
-	
-	//TextureType
-	TOK_cube_top, TOK_cube_bottom, TOK_cube_left, TOK_cube_right, TOK_cube_front, TOK_cube_back, TOK_sphere,
-	
-	//TextureNameAndOption
-	TOK_blendu, TOK_blendv, TOK_clamp, TOK_boost, TOK_bm, TOK_o, TOK_s, TOK_t, TOK_type, TOK_imfchan, TOK_mm,
-	
-	//newmtl, illum, mtllib, usemtl
-	TOK_newmtl, TOK_illum, TOK_mtllib,  TOK_usemtl, 
+  // on off
+  TOK_on,
+  TOK_off,
 
-	//PBR params
-	TOK_Pcr, TOK_aniso, TOK_anisor, 
-	
-	//maps
-	TOK_map_Ka, TOK_map_Kd, TOK_map_Ks, TOK_map_Ns, TOK_map_bump, TOK_map_Bump, TOK_bump, 
-	
-	// alpha texture
-	TOK_map_d, 
+  // TextureType
+  TOK_cube_top,
+  TOK_cube_bottom,
+  TOK_cube_left,
+  TOK_cube_right,
+  TOK_cube_front,
+  TOK_cube_back,
+  TOK_sphere,
 
-    // displacement texture
-    TOK_disp, 	
+  // TextureNameAndOption
+  TOK_blendu,
+  TOK_blendv,
+  TOK_clamp,
+  TOK_boost,
+  TOK_bm,
+  TOK_o,
+  TOK_s,
+  TOK_t,
+  TOK_type,
+  TOK_imfchan,
+  TOK_mm,
 
-    // reflection map
-    TOK_refl, 
+  // newmtl, illum, mtllib, usemtl
+  TOK_newmtl,
+  TOK_illum,
+  TOK_mtllib,
+  TOK_usemtl,
 
-    // PBR: roughness texture, metallic texture
-    TOK_map_Pr, TOK_map_Pm, 
+  // PBR params
+  TOK_Pcr,
+  TOK_aniso,
+  TOK_anisor,
 
-    // PBR: sheen texture
-    TOK_map_Ps,
+  // maps
+  TOK_map_Ka,
+  TOK_map_Kd,
+  TOK_map_Ks,
+  TOK_map_Ns,
+  TOK_map_bump,
+  TOK_map_Bump,
+  TOK_bump,
 
-    // PBR: emissive texture
-    TOK_map_Ke, 
+  // alpha texture
+  TOK_map_d,
 
-    // PBR: normal map texture
-    TOK_norm
+  // displacement texture
+  TOK_disp,
+
+  // reflection map
+  TOK_refl,
+
+  // PBR: roughness texture, metallic texture
+  TOK_map_Pr,
+  TOK_map_Pm,
+
+  // PBR: sheen texture
+  TOK_map_Ps,
+
+  // PBR: emissive texture
+  TOK_map_Ke,
+
+  // PBR: normal map texture
+  TOK_norm
 };
 
-std::map <uint32_t,int> hashed_toks;
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wexit-time-destructors"
+#pragma clang diagnostic ignored "-Wglobal-constructors"
+#endif
+
+static std::map<unsigned int, int> hashed_toks;
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
 
+static void initHashedTokensMap() {
+  // init hashed tokens map
 
-
-
-void initHashedTokensMap()
-{  
-  //init hashed tokens map
-  
-  uint32_t hhh;
+  unsigned int hhh;
   int iii;
-  
-  if(hashed_toks.empty())
-  {
-	  for(iii=sizeof(keywords)/sizeof(char*);iii;iii--)
-	  {  
-		hhh = X31_hash_string(keywords[iii-1]);
-		hashed_toks[hhh] = iii-1;
-	  }
+
+  if (hashed_toks.empty()) {
+    for (iii = sizeof(keywords) / sizeof(char *); iii; iii--) {
+      hhh = X31_hash_string(keywords[iii - 1]);
+      hashed_toks[hhh] = iii - 1;
+    }
   }
-  //init hashed tokens map END
-}  
-
-
-int token2tok(const char* token)
-{	
-
-  uint32_t token_sz, a_hash;
-  
-  int a_tok;
-  
-
-    token_sz = strpbrk(token, " \t\r") - token;  // token length
-	
-	if(token_sz<1) //delimiter not found, token_sz = strlen(token)
-	{
-		//token_sz=strlen(token);
-		a_hash = X31_hash_string(token);
-	}
-	else
-		a_hash = X31_hash_stringSZ(token, token_sz);
-		
-	
-	a_tok = -1;
-	if(hashed_toks.find(a_hash) != hashed_toks.end())
-		a_tok = hashed_toks[a_hash];
-	
-	return a_tok;
+  // init hashed tokens map END
 }
 
-	
-	
+static int token2tok(const char *token) {
+  unsigned int token_sz, a_hash;
+
+  int a_tok;
+
+  token_sz = static_cast<unsigned int>(strpbrk(token, " \t\r") - token);  // token length
+
+  if (token_sz < 1)  // delimiter not found, token_sz = strlen(token)
+  {
+    // token_sz=strlen(token);
+    a_hash = X31_hash_string(token);
+  } else
+    a_hash = X31_hash_stringSZ(token, static_cast<int>(token_sz));
+
+  a_tok = -1;
+  if (hashed_toks.find(a_hash) != hashed_toks.end())
+    a_tok = hashed_toks[a_hash];
+
+  return a_tok;
+}
+
 MaterialReader::~MaterialReader() {}
 
 struct vertex_index {
@@ -915,11 +925,12 @@ static inline void parseV(real_t *x, real_t *y, real_t *z, real_t *w,
 }
 
 // Extension: parse vertex with colors(6 items)
-static inline bool parseVertexWithColor(real_t *x, real_t *y, real_t *z, real_t *r,
-                          real_t *g, real_t *b,
-                          const char **token, const double default_x = 0.0,
-                          const double default_y = 0.0,
-                          const double default_z = 0.0) {
+static inline bool parseVertexWithColor(real_t *x, real_t *y, real_t *z,
+                                        real_t *r, real_t *g, real_t *b,
+                                        const char **token,
+                                        const double default_x = 0.0,
+                                        const double default_y = 0.0,
+                                        const double default_z = 0.0) {
   (*x) = parseReal(token, default_x);
   (*y) = parseReal(token, default_y);
   (*z) = parseReal(token, default_z);
@@ -950,59 +961,47 @@ static inline texture_type_t parseTextureType(
     const char **token, texture_type_t default_value = TEXTURE_TYPE_NONE) {
   (*token) += strspn((*token), " \t");
   const char *end = (*token) + strcspn((*token), " \t\r");
-  
-  texture_type_t ty = default_value;
-  
-  
-  
-  int a_tok;
-  
-  //init hashed tokens map  
-  initHashedTokensMap();
-	
-	a_tok = token2tok(*token);
-	
-	//tigra: dont check if wrong token
-	if(a_tok>=TOK_cube_top && a_tok<=TOK_sphere)
-	{
 
-	  //if ((0 == strncmp((*token), "cube_top", strlen("cube_top")))) 
-	  if (a_tok == TOK_cube_top) 
-	  {
-		ty = TEXTURE_TYPE_CUBE_TOP;
-	  } else 
-		  //if ((0 == strncmp((*token), "cube_bottom", strlen("cube_bottom")))) 
-		  if (a_tok == TOK_cube_bottom) 
-		  {
-		ty = TEXTURE_TYPE_CUBE_BOTTOM;
-	  } else 
-		  //if ((0 == strncmp((*token), "cube_left", strlen("cube_left")))) 
-		  if (a_tok == TOK_cube_left) 
-		  {
-		ty = TEXTURE_TYPE_CUBE_LEFT;
-	  } else 
-		  //if ((0 == strncmp((*token), "cube_right", strlen("cube_right")))) 
-		  if (a_tok == TOK_cube_right) 
-		  {
-		ty = TEXTURE_TYPE_CUBE_RIGHT;
-	  } else 
-		  //if ((0 == strncmp((*token), "cube_front", strlen("cube_front")))) 
-		  if (a_tok == TOK_cube_front) 
-		  {
-		ty = TEXTURE_TYPE_CUBE_FRONT;
-	  } else 
-		  //if ((0 == strncmp((*token), "cube_back", strlen("cube_back")))) 
-		  if (a_tok == TOK_cube_back) 
-		  {
-		ty = TEXTURE_TYPE_CUBE_BACK;
-	  } else 
-		  //if ((0 == strncmp((*token), "sphere", strlen("sphere")))) 
-		  if (a_tok == TOK_sphere) 
-		  {
-		ty = TEXTURE_TYPE_SPHERE;
-	  }
-  
-	}
+  texture_type_t ty = default_value;
+
+  int a_tok;
+
+  // init hashed tokens map
+  initHashedTokensMap();
+
+  a_tok = token2tok(*token);
+
+  // tigra: dont check if wrong token
+  if (a_tok >= TOK_cube_top && a_tok <= TOK_sphere) {
+    // if ((0 == strncmp((*token), "cube_top", strlen("cube_top"))))
+    if (a_tok == TOK_cube_top) {
+      ty = TEXTURE_TYPE_CUBE_TOP;
+    } else
+        // if ((0 == strncmp((*token), "cube_bottom", strlen("cube_bottom"))))
+        if (a_tok == TOK_cube_bottom) {
+      ty = TEXTURE_TYPE_CUBE_BOTTOM;
+    } else
+        // if ((0 == strncmp((*token), "cube_left", strlen("cube_left"))))
+        if (a_tok == TOK_cube_left) {
+      ty = TEXTURE_TYPE_CUBE_LEFT;
+    } else
+        // if ((0 == strncmp((*token), "cube_right", strlen("cube_right"))))
+        if (a_tok == TOK_cube_right) {
+      ty = TEXTURE_TYPE_CUBE_RIGHT;
+    } else
+        // if ((0 == strncmp((*token), "cube_front", strlen("cube_front"))))
+        if (a_tok == TOK_cube_front) {
+      ty = TEXTURE_TYPE_CUBE_FRONT;
+    } else
+        // if ((0 == strncmp((*token), "cube_back", strlen("cube_back"))))
+        if (a_tok == TOK_cube_back) {
+      ty = TEXTURE_TYPE_CUBE_BACK;
+    } else
+        // if ((0 == strncmp((*token), "sphere", strlen("sphere"))))
+        if (a_tok == TOK_sphere) {
+      ty = TEXTURE_TYPE_SPHERE;
+    }
+  }
 
   (*token) = end;
   return ty;
@@ -1018,7 +1017,7 @@ static tag_sizes parseTagTriple(const char **token) {
     return ts;
   }
 
-  (*token)++; // Skip '/'
+  (*token)++;  // Skip '/'
 
   (*token) += strspn((*token), " \t");
   ts.num_reals = atoi((*token));
@@ -1026,7 +1025,7 @@ static tag_sizes parseTagTriple(const char **token) {
   if ((*token)[0] != '/') {
     return ts;
   }
-  (*token)++; // Skip '/'
+  (*token)++;  // Skip '/'
 
   ts.num_strings = parseInt(token);
 
@@ -1152,100 +1151,85 @@ static bool ParseTextureNameAndOption(std::string *texname,
   texopt->type = TEXTURE_TYPE_NONE;
 
   const char *token = linebuf;  // Assume line ends with NULL
-  
-  
+
   int a_tok;
-  
-  //init hashed tokens map  
+
+  // init hashed tokens map
   initHashedTokensMap();
-  
-  
 
   while (!IS_NEW_LINE((*token))) {
     token += strspn(token, " \t");  // skip space
-	
-	a_tok = token2tok(token);
-	
-	//tigra: minimize checks
-	if(a_tok>=TOK_blendu && a_tok<=TOK_mm)
-	{	
-		//if ((0 == strncmp(token, "-blendu", 7)) && IS_SPACE((token[7]))) 
-		if (a_tok == TOK_blendu) 
-		{
-		  token += 8;
-		  texopt->blendu = parseOnOff(&token, /* default */ true);
-		} else 
-			//if ((0 == strncmp(token, "-blendv", 7)) && IS_SPACE((token[7]))) 
-			if (a_tok == TOK_blendv) 
-		{
-		  token += 8;
-		  texopt->blendv = parseOnOff(&token, /* default */ true);
-		} else 
-			//if ((0 == strncmp(token, "-clamp", 6)) && IS_SPACE((token[6]))) 
-			if (a_tok == TOK_clamp) 
-		{
-		  token += 7;
-		  texopt->clamp = parseOnOff(&token, /* default */ true);
-		} else 
-			//if ((0 == strncmp(token, "-boost", 6)) && IS_SPACE((token[6]))) 
-			if (a_tok == TOK_boost) 
-		{
-		  token += 7;
-		  texopt->sharpness = parseReal(&token, 1.0);
-		} else 
-			//if ((0 == strncmp(token, "-bm", 3)) && IS_SPACE((token[3]))) 
-			if (a_tok == TOK_bm) 
-		{
-		  token += 4;
-		  texopt->bump_multiplier = parseReal(&token, 1.0);
-		} else 
-			//if ((0 == strncmp(token, "-o", 2)) && IS_SPACE((token[2]))) 
-			if (a_tok == TOK_o) 
-		{
-		  token += 3;
-		  parseReal3(&(texopt->origin_offset[0]), &(texopt->origin_offset[1]),
-					 &(texopt->origin_offset[2]), &token);
-		} else 
-			//if ((0 == strncmp(token, "-s", 2)) && IS_SPACE((token[2]))) 
-			if (a_tok == TOK_s)
-		{
-		  token += 3;
-		  parseReal3(&(texopt->scale[0]), &(texopt->scale[1]), &(texopt->scale[2]),
-					 &token, 1.0, 1.0, 1.0);
-		} else 
-			//if ((0 == strncmp(token, "-t", 2)) && IS_SPACE((token[2]))) 
-			if (a_tok == TOK_t) 
-		{
-		  token += 3;
-		  parseReal3(&(texopt->turbulence[0]), &(texopt->turbulence[1]),
-					 &(texopt->turbulence[2]), &token);
-		} else 
-			//if ((0 == strncmp(token, "-type", 5)) && IS_SPACE((token[5]))) 
-			if (a_tok == TOK_type) 
-		{
-		  token += 5;
-		  texopt->type = parseTextureType((&token), TEXTURE_TYPE_NONE);
-		} else 
-			//if ((0 == strncmp(token, "-imfchan", 8)) && IS_SPACE((token[8]))) 
-			if (a_tok == TOK_imfchan) 
-		{
-		  token += 9;
-		  token += strspn(token, " \t");
-		  const char *end = token + strcspn(token, " \t\r");
-		  if ((end - token) == 1) {  // Assume one char for -imfchan
-			texopt->imfchan = (*token);
-		  }
-		  token = end;
-		} else 
-			//if ((0 == strncmp(token, "-mm", 3)) && IS_SPACE((token[3]))) 
-			if (a_tok == TOK_mm) 
-		{
-		  token += 4;
-		  parseReal2(&(texopt->brightness), &(texopt->contrast), &token, 0.0, 1.0);
-		}
-	}
-	else {
-      // Assume texture filename
+
+    a_tok = token2tok(token);
+
+    // tigra: minimize checks
+    if (a_tok >= TOK_blendu && a_tok <= TOK_mm) {
+      // if ((0 == strncmp(token, "-blendu", 7)) && IS_SPACE((token[7])))
+      if (a_tok == TOK_blendu) {
+        token += 8;
+        texopt->blendu = parseOnOff(&token, /* default */ true);
+      } else
+          // if ((0 == strncmp(token, "-blendv", 7)) && IS_SPACE((token[7])))
+          if (a_tok == TOK_blendv) {
+        token += 8;
+        texopt->blendv = parseOnOff(&token, /* default */ true);
+      } else
+          // if ((0 == strncmp(token, "-clamp", 6)) && IS_SPACE((token[6])))
+          if (a_tok == TOK_clamp) {
+        token += 7;
+        texopt->clamp = parseOnOff(&token, /* default */ true);
+      } else
+          // if ((0 == strncmp(token, "-boost", 6)) && IS_SPACE((token[6])))
+          if (a_tok == TOK_boost) {
+        token += 7;
+        texopt->sharpness = parseReal(&token, 1.0);
+      } else
+          // if ((0 == strncmp(token, "-bm", 3)) && IS_SPACE((token[3])))
+          if (a_tok == TOK_bm) {
+        token += 4;
+        texopt->bump_multiplier = parseReal(&token, 1.0);
+      } else
+          // if ((0 == strncmp(token, "-o", 2)) && IS_SPACE((token[2])))
+          if (a_tok == TOK_o) {
+        token += 3;
+        parseReal3(&(texopt->origin_offset[0]), &(texopt->origin_offset[1]),
+                   &(texopt->origin_offset[2]), &token);
+      } else
+          // if ((0 == strncmp(token, "-s", 2)) && IS_SPACE((token[2])))
+          if (a_tok == TOK_s) {
+        token += 3;
+        parseReal3(&(texopt->scale[0]), &(texopt->scale[1]),
+                   &(texopt->scale[2]), &token, 1.0, 1.0, 1.0);
+      } else
+          // if ((0 == strncmp(token, "-t", 2)) && IS_SPACE((token[2])))
+          if (a_tok == TOK_t) {
+        token += 3;
+        parseReal3(&(texopt->turbulence[0]), &(texopt->turbulence[1]),
+                   &(texopt->turbulence[2]), &token);
+      } else
+          // if ((0 == strncmp(token, "-type", 5)) && IS_SPACE((token[5])))
+          if (a_tok == TOK_type) {
+        token += 5;
+        texopt->type = parseTextureType((&token), TEXTURE_TYPE_NONE);
+      } else
+          // if ((0 == strncmp(token, "-imfchan", 8)) && IS_SPACE((token[8])))
+          if (a_tok == TOK_imfchan) {
+        token += 9;
+        token += strspn(token, " \t");
+        const char *end = token + strcspn(token, " \t\r");
+        if ((end - token) == 1) {  // Assume one char for -imfchan
+          texopt->imfchan = (*token);
+        }
+        token = end;
+      } else
+          // if ((0 == strncmp(token, "-mm", 3)) && IS_SPACE((token[3])))
+          if (a_tok == TOK_mm) {
+        token += 4;
+        parseReal2(&(texopt->brightness), &(texopt->contrast), &token, 0.0,
+                   1.0);
+      }
+    } else {
+// Assume texture filename
 #if 0
       size_t len = strcspn(token, " \t\r");  // untile next space
       texture_name = std::string(token, token + len);
@@ -1385,24 +1369,21 @@ static void SplitString(const std::string &s, char delim,
 }
 
 void LoadMtl(
-//std::map<std::string, int> *material_map,
-std::map<uint32_t, int> *material_map,
-             std::vector<material_t> *materials, std::istream *inStream,
-             std::string *warning) {
+    // std::map<std::string, int> *material_map,
+    std::map<unsigned int, int> *material_map, std::vector<material_t> *materials,
+    std::istream *inStream, std::string *warning) {
   // Create a default material anyway.
   material_t material;
   InitMaterial(&material);
 
   // Issue 43. `d` wins against `Tr` since `Tr` is not in the MTL specification.
   bool has_d = false;
-  bool has_tr = false; 
-  
+  bool has_tr = false;
+
   int a_tok;
-  
-  //init hashed tokens map  
+
+  // init hashed tokens map
   initHashedTokensMap();
-  
-  
 
   std::stringstream ss;
 
@@ -1438,109 +1419,104 @@ std::map<uint32_t, int> *material_map,
     if (token[0] == '\0') continue;  // empty line
 
     if (token[0] == '#') continue;  // comment line
-	
-	//group size==2
-	if(IS_SPACE((token[2])))
-	{		
-		//group K
-		if (token[0] == 'K')
-		{
-		switch(token[1])
-		{
-			case 'a':
-		// ambient
-				//if (token[1] == 'a') 
-				{
-				  token += 2;
-				  real_t r, g, b;
-				  parseReal3(&r, &g, &b, &token);
-				  material.ambient[0] = r;
-				  material.ambient[1] = g;
-				  material.ambient[2] = b;
-				  continue;
-				}
-		
-		// diffuse
-			case 'd':
-				//if (token[1] == 'd') 
-				{
-				  token += 2;
-				  real_t r, g, b;
-				  parseReal3(&r, &g, &b, &token);
-				  material.diffuse[0] = r;
-				  material.diffuse[1] = g;
-				  material.diffuse[2] = b;
-				  continue;
-				}
-	
-		// specular
-			case 's':
-				//if (token[1] == 's') 
-				{
-				  token += 2;
-				  real_t r, g, b;
-				  parseReal3(&r, &g, &b, &token);
-				  material.specular[0] = r;
-				  material.specular[1] = g;
-				  material.specular[2] = b;
-				  continue;
-				}		
 
-		// transmittance
-			case 't':
-				//if (token[1] == 't') 
-				{
-				  token += 2;
-				  real_t r, g, b;
-				  parseReal3(&r, &g, &b, &token);
-				  material.transmittance[0] = r;
-				  material.transmittance[1] = g;
-				  material.transmittance[2] = b;
-				  continue;
-				}
-		
-		// emission
-			case 'e':
-				//if (token[1] == 'e') 
-				{
-				  token += 2;
-				  real_t r, g, b;
-				  parseReal3(&r, &g, &b, &token);
-				  material.emission[0] = r;
-				  material.emission[1] = g;
-				  material.emission[2] = b;
-				  continue;
-				}
-		}
-		
-		}
+    // group size==2
+    if (IS_SPACE((token[2]))) {
+      // group K
+      if (token[0] == 'K') {
+        switch (token[1]) {
+          case 'a':
+            // ambient
+            // if (token[1] == 'a')
+            {
+              token += 2;
+              real_t r, g, b;
+              parseReal3(&r, &g, &b, &token);
+              material.ambient[0] = r;
+              material.ambient[1] = g;
+              material.ambient[2] = b;
+              continue;
+            }
 
-		// transmittance
-		if ( //(token[0] == 'K' && token[1] == 't') ||
-			token[0] == 'T' && token[1] == 'f') {
-		  token += 2;
-		  real_t r, g, b;
-		  parseReal3(&r, &g, &b, &token);
-		  material.transmittance[0] = r;
-		  material.transmittance[1] = g;
-		  material.transmittance[2] = b;
-		  continue;
-		}
+          // diffuse
+          case 'd':
+            // if (token[1] == 'd')
+            {
+              token += 2;
+              real_t r, g, b;
+              parseReal3(&r, &g, &b, &token);
+              material.diffuse[0] = r;
+              material.diffuse[1] = g;
+              material.diffuse[2] = b;
+              continue;
+            }
 
-		// ior(index of refraction)
-		if (token[0] == 'N' && token[1] == 'i') {
-		  token += 2;
-		  material.ior = parseReal(&token);
-		  continue;
-		}
+          // specular
+          case 's':
+            // if (token[1] == 's')
+            {
+              token += 2;
+              real_t r, g, b;
+              parseReal3(&r, &g, &b, &token);
+              material.specular[0] = r;
+              material.specular[1] = g;
+              material.specular[2] = b;
+              continue;
+            }
 
-		// shininess
-		if (token[0] == 'N' && token[1] == 's') {
-		  token += 2;
-		  material.shininess = parseReal(&token);
-		  continue;
-		}
-	
+          // transmittance
+          case 't':
+            // if (token[1] == 't')
+            {
+              token += 2;
+              real_t r, g, b;
+              parseReal3(&r, &g, &b, &token);
+              material.transmittance[0] = r;
+              material.transmittance[1] = g;
+              material.transmittance[2] = b;
+              continue;
+            }
+
+          // emission
+          case 'e':
+            // if (token[1] == 'e')
+            {
+              token += 2;
+              real_t r, g, b;
+              parseReal3(&r, &g, &b, &token);
+              material.emission[0] = r;
+              material.emission[1] = g;
+              material.emission[2] = b;
+              continue;
+            }
+        }
+      }
+
+      // transmittance
+      if (  //(token[0] == 'K' && token[1] == 't') ||
+          token[0] == 'T' && token[1] == 'f') {
+        token += 2;
+        real_t r, g, b;
+        parseReal3(&r, &g, &b, &token);
+        material.transmittance[0] = r;
+        material.transmittance[1] = g;
+        material.transmittance[2] = b;
+        continue;
+      }
+
+      // ior(index of refraction)
+      if (token[0] == 'N' && token[1] == 'i') {
+        token += 2;
+        material.ior = parseReal(&token);
+        continue;
+      }
+
+      // shininess
+      if (token[0] == 'N' && token[1] == 's') {
+        token += 2;
+        material.shininess = parseReal(&token);
+        continue;
+      }
     }
 
     // dissolve
@@ -1573,280 +1549,253 @@ std::map<uint32_t, int> *material_map,
       continue;
     }
 
-	//tigra: refactoring for new speedup release
+    // tigra: refactoring for new speedup release
     if (token[0] == 'P' && IS_SPACE(token[2])) {
       token += 2;
-	  
-    // PBR: roughness
-	  if(token[1] == 'r')
-		material.roughness = parseReal(&token);
-	  else
-    // PBR: metallic
-	  if(token[1] == 'm')
-		material.metallic = parseReal(&token);
-	  else
-    // PBR: sheen
-	  if(token[1] == 's')
-		material.sheen = parseReal(&token);
-	  else
-    // PBR: clearcoat thickness
-	  if(token[1] == 'c')
-		material.clearcoat_thickness = parseReal(&token);
-    }	
-	
-	
-	a_tok = token2tok(token);
-	
-	//tigra: minimize checks
-	if(a_tok>=TOK_newmtl && a_tok<=TOK_norm)
-	{
-			
-		//tigra: refactoring for new speedup release
-		// new mtl 
-		//if ((0 == strncmp(token, "newmtl", 6)) && IS_SPACE((token[6])))		
-		if (a_tok == TOK_newmtl)
-		{
-		  // flush previous material.
-		  if (!material.name.empty()) {
-			  /*
-			material_map->insert(std::pair<std::string, int>(
-				material.name, static_cast<int>(materials->size()))
-				);
-				*/
-				
-				
-			uint32_t hsh1 = X31_hash_string(material.name.c_str());
-				
-			material_map->insert(std::pair<uint32_t, int>(
-				hsh1, static_cast<int>(materials->size()))
-				);
-			materials->push_back(material);
-		  }
 
-		  // initial temporary material
-		  InitMaterial(&material);
+      // PBR: roughness
+      if (token[1] == 'r')
+        material.roughness = parseReal(&token);
+      else
+          // PBR: metallic
+          if (token[1] == 'm')
+        material.metallic = parseReal(&token);
+      else
+          // PBR: sheen
+          if (token[1] == 's')
+        material.sheen = parseReal(&token);
+      else
+          // PBR: clearcoat thickness
+          if (token[1] == 'c')
+        material.clearcoat_thickness = parseReal(&token);
+    }
 
-		  has_d = false;
-		  has_tr = false;
+    a_tok = token2tok(token);
 
-		  // set new mtl name
-		  token += 7;
-		  {
-			  /*
-			std::stringstream sstr;
-			sstr << token;
-			material.name = sstr.str();
-			*/
-			
-			material.name = std::string(token);
-		  }
-		  continue;
-		}
+    // tigra: minimize checks
+    if (a_tok >= TOK_newmtl && a_tok <= TOK_norm) {
+      // tigra: refactoring for new speedup release
+      // new mtl
+      // if ((0 == strncmp(token, "newmtl", 6)) && IS_SPACE((token[6])))
+      if (a_tok == TOK_newmtl) {
+        // flush previous material.
+        if (!material.name.empty()) {
+          /*
+        material_map->insert(std::pair<std::string, int>(
+          material.name, static_cast<int>(materials->size()))
+          );
+          */
 
-		// illum model
-		//if (0 == strncmp(token, "illum", 5) && IS_SPACE(token[5]))
-		if (a_tok == TOK_illum) 
-		{
-		  token += 6;
-		  material.illum = parseInt(&token);
-		  continue;
-		}
-		
-		
+          unsigned int hsh1 = X31_hash_string(material.name.c_str());
 
-		// PBR: clearcoat roughness
-		//if ((0 == strncmp(token, "Pcr", 3)) && IS_SPACE(token[3])) 
-		if (a_tok == TOK_Pcr) 
-		{
-		  token += 4;
-		  material.clearcoat_roughness = parseReal(&token);
-		  continue;
-		}
+          material_map->insert(std::pair<unsigned int, int>(
+              hsh1, static_cast<int>(materials->size())));
+          materials->push_back(material);
+        }
 
-		// PBR: anisotropy
-		//if ((0 == strncmp(token, "aniso", 5)) && IS_SPACE(token[5]))
-		if (a_tok == TOK_aniso) 
-		{
-		  token += 6;
-		  material.anisotropy = parseReal(&token);
-		  continue;
-		}
+        // initial temporary material
+        InitMaterial(&material);
 
-		// PBR: anisotropy rotation
-		//if ((0 == strncmp(token, "anisor", 6)) && IS_SPACE(token[6])) 
-		if (a_tok == TOK_anisor) 
-		{
-		  token += 7;
-		  material.anisotropy_rotation = parseReal(&token);
-		  continue;
-		}
+        has_d = false;
+        has_tr = false;
 
-		// ambient texture
-		//if ((0 == strncmp(token, "map_Ka", 6)) && IS_SPACE(token[6])) 
-		if (a_tok == TOK_map_Ka) 
-		{
-		  token += 7;
-		  ParseTextureNameAndOption(&(material.ambient_texname),
-									&(material.ambient_texopt), token,
-									/* is_bump */ false);
-		  continue;
-		}
+        // set new mtl name
+        token += 7;
+        {
+          /*
+        std::stringstream sstr;
+        sstr << token;
+        material.name = sstr.str();
+        */
 
-		// diffuse texture
-		//if ((0 == strncmp(token, "map_Kd", 6)) && IS_SPACE(token[6]))
-		if (a_tok == TOK_map_Kd) 
-		{
-		  token += 7;
-		  ParseTextureNameAndOption(&(material.diffuse_texname),
-									&(material.diffuse_texopt), token,
-									/* is_bump */ false);
-		  continue;
-		}
+          material.name = std::string(token);
+        }
+        continue;
+      }
 
-		// specular texture
-		//if ((0 == strncmp(token, "map_Ks", 6)) && IS_SPACE(token[6])) 
-		if (a_tok == TOK_map_Ks) 
-		{
-		  token += 7;
-		  ParseTextureNameAndOption(&(material.specular_texname),
-									&(material.specular_texopt), token,
-									/* is_bump */ false);
-		  continue;
-		}
+      // illum model
+      // if (0 == strncmp(token, "illum", 5) && IS_SPACE(token[5]))
+      if (a_tok == TOK_illum) {
+        token += 6;
+        material.illum = parseInt(&token);
+        continue;
+      }
 
-		// specular highlight texture
-		//if ((0 == strncmp(token, "map_Ns", 6)) && IS_SPACE(token[6])) 
-		if (a_tok == TOK_map_Ns) 
-		{
-		  token += 7;
-		  ParseTextureNameAndOption(&(material.specular_highlight_texname),
-									&(material.specular_highlight_texopt), token,
-									/* is_bump */ false);
-		  continue;
-		}
+      // PBR: clearcoat roughness
+      // if ((0 == strncmp(token, "Pcr", 3)) && IS_SPACE(token[3]))
+      if (a_tok == TOK_Pcr) {
+        token += 4;
+        material.clearcoat_roughness = parseReal(&token);
+        continue;
+      }
 
-		// bump texture
-		//if ((0 == strncmp(token, "map_bump", 8)) && IS_SPACE(token[8])) 
-		if (a_tok == TOK_map_bump) 
-		{
-		  token += 9;
-		  ParseTextureNameAndOption(&(material.bump_texname),
-									&(material.bump_texopt), token,
-									/* is_bump */ true);
-		  continue;
-		}
+      // PBR: anisotropy
+      // if ((0 == strncmp(token, "aniso", 5)) && IS_SPACE(token[5]))
+      if (a_tok == TOK_aniso) {
+        token += 6;
+        material.anisotropy = parseReal(&token);
+        continue;
+      }
 
-		// bump texture
-		//if ((0 == strncmp(token, "map_Bump", 8)) && IS_SPACE(token[8])) 
-		if (a_tok == TOK_map_Bump) 
-		{
-		  token += 9;
-		  ParseTextureNameAndOption(&(material.bump_texname),
-									&(material.bump_texopt), token,
-									/* is_bump */ true);
-		  continue;
-		}
+      // PBR: anisotropy rotation
+      // if ((0 == strncmp(token, "anisor", 6)) && IS_SPACE(token[6]))
+      if (a_tok == TOK_anisor) {
+        token += 7;
+        material.anisotropy_rotation = parseReal(&token);
+        continue;
+      }
 
-		// bump texture
-		//if ((0 == strncmp(token, "bump", 4)) && IS_SPACE(token[4])) 
-		if (a_tok == TOK_bump) 
-		{
-		  token += 5;
-		  ParseTextureNameAndOption(&(material.bump_texname),
-									&(material.bump_texopt), token,
-									/* is_bump */ true);
-		  continue;
-		}
+      // ambient texture
+      // if ((0 == strncmp(token, "map_Ka", 6)) && IS_SPACE(token[6]))
+      if (a_tok == TOK_map_Ka) {
+        token += 7;
+        ParseTextureNameAndOption(&(material.ambient_texname),
+                                  &(material.ambient_texopt), token,
+                                  /* is_bump */ false);
+        continue;
+      }
 
-		// alpha texture
-		//if ((0 == strncmp(token, "map_d", 5)) && IS_SPACE(token[5])) 
-		if (a_tok == TOK_map_d) 
-		{
-		  token += 6;
-		  material.alpha_texname = token;
-		  ParseTextureNameAndOption(&(material.alpha_texname),
-									&(material.alpha_texopt), token,
-									/* is_bump */ false);
-		  continue;
-		}
+      // diffuse texture
+      // if ((0 == strncmp(token, "map_Kd", 6)) && IS_SPACE(token[6]))
+      if (a_tok == TOK_map_Kd) {
+        token += 7;
+        ParseTextureNameAndOption(&(material.diffuse_texname),
+                                  &(material.diffuse_texopt), token,
+                                  /* is_bump */ false);
+        continue;
+      }
 
-		// displacement texture
-		//if ((0 == strncmp(token, "disp", 4)) && IS_SPACE(token[4])) 
-		if (a_tok == TOK_disp) 
-		{
-		  token += 5;
-		  ParseTextureNameAndOption(&(material.displacement_texname),
-									&(material.displacement_texopt), token,
-									/* is_bump */ false);
-		  continue;
-		}
+      // specular texture
+      // if ((0 == strncmp(token, "map_Ks", 6)) && IS_SPACE(token[6]))
+      if (a_tok == TOK_map_Ks) {
+        token += 7;
+        ParseTextureNameAndOption(&(material.specular_texname),
+                                  &(material.specular_texopt), token,
+                                  /* is_bump */ false);
+        continue;
+      }
 
-		// reflection map
-		//if ((0 == strncmp(token, "refl", 4)) && IS_SPACE(token[4])) 
-		if (a_tok == TOK_refl) 
-		{
-		  token += 5;
-		  ParseTextureNameAndOption(&(material.reflection_texname),
-									&(material.reflection_texopt), token,
-									/* is_bump */ false);
-		  continue;
-		}
+      // specular highlight texture
+      // if ((0 == strncmp(token, "map_Ns", 6)) && IS_SPACE(token[6]))
+      if (a_tok == TOK_map_Ns) {
+        token += 7;
+        ParseTextureNameAndOption(&(material.specular_highlight_texname),
+                                  &(material.specular_highlight_texopt), token,
+                                  /* is_bump */ false);
+        continue;
+      }
 
-		// PBR: roughness texture
-		//if ((0 == strncmp(token, "map_Pr", 6)) && IS_SPACE(token[6])) 
-		if (a_tok == TOK_map_Pr) 
-		{
-		  token += 7;
-		  ParseTextureNameAndOption(&(material.roughness_texname),
-									&(material.roughness_texopt), token,
-									/* is_bump */ false);
-		  continue;
-		}
+      // bump texture
+      // if ((0 == strncmp(token, "map_bump", 8)) && IS_SPACE(token[8]))
+      if (a_tok == TOK_map_bump) {
+        token += 9;
+        ParseTextureNameAndOption(&(material.bump_texname),
+                                  &(material.bump_texopt), token,
+                                  /* is_bump */ true);
+        continue;
+      }
 
-		// PBR: metallic texture
-		//if ((0 == strncmp(token, "map_Pm", 6)) && IS_SPACE(token[6])) 
-		if (a_tok == TOK_map_Pm) 
-		{
-		  token += 7;
-		  ParseTextureNameAndOption(&(material.metallic_texname),
-									&(material.metallic_texopt), token,
-									/* is_bump */ false);
-		  continue;
-		}
+      // bump texture
+      // if ((0 == strncmp(token, "map_Bump", 8)) && IS_SPACE(token[8]))
+      if (a_tok == TOK_map_Bump) {
+        token += 9;
+        ParseTextureNameAndOption(&(material.bump_texname),
+                                  &(material.bump_texopt), token,
+                                  /* is_bump */ true);
+        continue;
+      }
 
-		// PBR: sheen texture
-		//if ((0 == strncmp(token, "map_Ps", 6)) && IS_SPACE(token[6])) 
-		if (a_tok == TOK_map_Ps) 
-		{
-		  token += 7;
-		  ParseTextureNameAndOption(&(material.sheen_texname),
-									&(material.sheen_texopt), token,
-									/* is_bump */ false);
-		  continue;
-		}
+      // bump texture
+      // if ((0 == strncmp(token, "bump", 4)) && IS_SPACE(token[4]))
+      if (a_tok == TOK_bump) {
+        token += 5;
+        ParseTextureNameAndOption(&(material.bump_texname),
+                                  &(material.bump_texopt), token,
+                                  /* is_bump */ true);
+        continue;
+      }
 
-		// PBR: emissive texture
-		//if ((0 == strncmp(token, "map_Ke", 6)) && IS_SPACE(token[6])) 
-		if (a_tok == TOK_map_Ke) 
-		{
-		  token += 7;
-		  ParseTextureNameAndOption(&(material.emissive_texname),
-									&(material.emissive_texopt), token,
-									/* is_bump */ false);
-		  continue;
-		}
+      // alpha texture
+      // if ((0 == strncmp(token, "map_d", 5)) && IS_SPACE(token[5]))
+      if (a_tok == TOK_map_d) {
+        token += 6;
+        material.alpha_texname = token;
+        ParseTextureNameAndOption(&(material.alpha_texname),
+                                  &(material.alpha_texopt), token,
+                                  /* is_bump */ false);
+        continue;
+      }
 
-		// PBR: normal map texture
-		//if ((0 == strncmp(token, "norm", 4)) && IS_SPACE(token[4])) 
-		if (a_tok == TOK_norm) 
-		{
-		  token += 5;
-		  ParseTextureNameAndOption(
-			  &(material.normal_texname), &(material.normal_texopt), token,
-			  /* is_bump */ false);  // @fixme { is_bump will be true? }
-		  continue;
-		}	
-  }
+      // displacement texture
+      // if ((0 == strncmp(token, "disp", 4)) && IS_SPACE(token[4]))
+      if (a_tok == TOK_disp) {
+        token += 5;
+        ParseTextureNameAndOption(&(material.displacement_texname),
+                                  &(material.displacement_texopt), token,
+                                  /* is_bump */ false);
+        continue;
+      }
+
+      // reflection map
+      // if ((0 == strncmp(token, "refl", 4)) && IS_SPACE(token[4]))
+      if (a_tok == TOK_refl) {
+        token += 5;
+        ParseTextureNameAndOption(&(material.reflection_texname),
+                                  &(material.reflection_texopt), token,
+                                  /* is_bump */ false);
+        continue;
+      }
+
+      // PBR: roughness texture
+      // if ((0 == strncmp(token, "map_Pr", 6)) && IS_SPACE(token[6]))
+      if (a_tok == TOK_map_Pr) {
+        token += 7;
+        ParseTextureNameAndOption(&(material.roughness_texname),
+                                  &(material.roughness_texopt), token,
+                                  /* is_bump */ false);
+        continue;
+      }
+
+      // PBR: metallic texture
+      // if ((0 == strncmp(token, "map_Pm", 6)) && IS_SPACE(token[6]))
+      if (a_tok == TOK_map_Pm) {
+        token += 7;
+        ParseTextureNameAndOption(&(material.metallic_texname),
+                                  &(material.metallic_texopt), token,
+                                  /* is_bump */ false);
+        continue;
+      }
+
+      // PBR: sheen texture
+      // if ((0 == strncmp(token, "map_Ps", 6)) && IS_SPACE(token[6]))
+      if (a_tok == TOK_map_Ps) {
+        token += 7;
+        ParseTextureNameAndOption(&(material.sheen_texname),
+                                  &(material.sheen_texopt), token,
+                                  /* is_bump */ false);
+        continue;
+      }
+
+      // PBR: emissive texture
+      // if ((0 == strncmp(token, "map_Ke", 6)) && IS_SPACE(token[6]))
+      if (a_tok == TOK_map_Ke) {
+        token += 7;
+        ParseTextureNameAndOption(&(material.emissive_texname),
+                                  &(material.emissive_texopt), token,
+                                  /* is_bump */ false);
+        continue;
+      }
+
+      // PBR: normal map texture
+      // if ((0 == strncmp(token, "norm", 4)) && IS_SPACE(token[4]))
+      if (a_tok == TOK_norm) {
+        token += 5;
+        ParseTextureNameAndOption(
+            &(material.normal_texname), &(material.normal_texopt), token,
+            /* is_bump */ false);  // @fixme { is_bump will be true? }
+        continue;
+      }
+    }
 
     // unknown parameter
     const char *_space = strchr(token, ' ');
@@ -1861,17 +1810,17 @@ std::map<uint32_t, int> *material_map,
           std::pair<std::string, std::string>(key, value));
     }
   }
-  
-  uint32_t hsh1 = X31_hash_string(material.name.c_str());
-  
+
+  unsigned int hsh1 = X31_hash_string(material.name.c_str());
+
   // flush last material.
   /*
   material_map->insert(std::pair<std::string, int>(
       material.name, static_cast<int>(materials->size())));
-	  */
-	  
-  material_map->insert(std::pair<uint32_t, int>(
-      hsh1, static_cast<int>(materials->size())));
+    */
+
+  material_map->insert(
+      std::pair<unsigned int, int>(hsh1, static_cast<int>(materials->size())));
   materials->push_back(material);
 
   if (warning) {
@@ -1881,8 +1830,8 @@ std::map<uint32_t, int> *material_map,
 
 bool MaterialFileReader::operator()(const std::string &matId,
                                     std::vector<material_t> *materials,
-                                    //std::map<std::string, int> *matMap,
-                                    std::map<uint32_t, int> *matMap,
+                                    // std::map<std::string, int> *matMap,
+                                    std::map<unsigned int, int> *matMap,
                                     std::string *err) {
   std::string filepath;
 
@@ -1892,14 +1841,14 @@ bool MaterialFileReader::operator()(const std::string &matId,
     filepath = matId;
   }
 
-  //tigra: add buffered stream
-  #ifdef TINYOBJLOADER_IMPLEMENTATION_BUFREAD  
-  ImportInBuf buf(filepath.c_str()); 
+// tigra: add buffered stream
+#ifdef TINYOBJLOADER_IMPLEMENTATION_BUFREAD
+  ImportInBuf buf(filepath.c_str());
   std::istream matIStream(&buf);
-  #else
-	  std::ifstream matIStream(filepath.c_str());
-  #endif
-  
+#else
+  std::ifstream matIStream(filepath.c_str());
+#endif
+
   if (!matIStream) {
     std::stringstream ss;
     ss << "WARN: Material file [ " << filepath << " ] not found." << std::endl;
@@ -1923,8 +1872,8 @@ bool MaterialFileReader::operator()(const std::string &matId,
 
 bool MaterialStreamReader::operator()(const std::string &matId,
                                       std::vector<material_t> *materials,
-                                      //std::map<std::string, int> *matMap,
-                                      std::map<uint32_t, int> *matMap,
+                                      // std::map<std::string, int> *matMap,
+                                      std::map<unsigned int, int> *matMap,
                                       std::string *err) {
   (void)matId;
   if (!m_inStream) {
@@ -1959,14 +1908,14 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
   std::stringstream errss;
 
-  //tigra: add buffered stream  
-  #ifdef TINYOBJLOADER_IMPLEMENTATION_BUFREAD  
-  ImportInBuf buf(filename); 
+// tigra: add buffered stream
+#ifdef TINYOBJLOADER_IMPLEMENTATION_BUFREAD
+  ImportInBuf buf(filename);
   std::istream ifs(&buf);
-  #else
-	  std::ifstream ifs(filename);
-  #endif
-  
+#else
+  std::ifstream ifs(filename);
+#endif
+
   if (!ifs) {
     errss << "Cannot open file [" << filename << "]" << std::endl;
     if (err) {
@@ -1998,19 +1947,18 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   std::vector<tag_t> tags;
   std::vector<std::vector<vertex_index> > faceGroup;
   std::string name;
-  
-  
+
   int a_tok;
-  
-  //init hashed tokens map
+
+  // init hashed tokens map
   initHashedTokensMap();
-  
+
   // material
-  //std::map<std::string, int> material_map;
-  
-  //tigra: key of material_map is uint32_t now
-  //because std::map is an red-black trees it is better to store key as int
-  std::map<uint32_t, int> material_map;
+  // std::map<std::string, int> material_map;
+
+  // tigra: key of material_map is unsigned int now
+  // because std::map is an red-black trees it is better to store key as int
+  std::map<unsigned int, int> material_map;
   int material = -1;
 
   shape_t shape;
@@ -2163,13 +2111,13 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
       // @todo { multiple object name? }
       token += 2;
-	  
-	  /*
-      std::stringstream ss;
-      ss << token;
-      name = ss.str();
-	  */
-	  
+
+      /*
+        std::stringstream ss;
+        ss << token;
+        name = ss.str();
+      */
+
       name = std::string(token);
 
       continue;
@@ -2202,41 +2150,35 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
       tags.push_back(tag);
     }
-	
-	
-	//tigra: refactoring for new speedup release
-	//tigra: compares one more start
-	
-	
-	a_tok = token2tok(token);
-	
-	
-    // use mtl
-    //if ((0 == strncmp(token, "usemtl", 6)) && IS_SPACE((token[6]))) 
-    if (a_tok==TOK_usemtl) 
-	{
-      token += 7;
-	  /*
-      std::stringstream ss;
-      ss << token;
-      std::string namebuf = ss.str();
-	  */
-	  
-	  /*
-      std::string namebuf = std::string(token);
 
-      int newMaterialId = -1;
-      if (material_map.find(namebuf) != material_map.end()) {
-        newMaterialId = material_map[namebuf];
-      } else {
-        // { error!! material not found }
-      }
-	  */
-	  
-	  
-	  
-	  uint32_t hsh = X31_hash_string(token);
-	  
+    // tigra: refactoring for new speedup release
+    // tigra: compares one more start
+
+    a_tok = token2tok(token);
+
+    // use mtl
+    // if ((0 == strncmp(token, "usemtl", 6)) && IS_SPACE((token[6])))
+    if (a_tok == TOK_usemtl) {
+      token += 7;
+      /*
+        std::stringstream ss;
+        ss << token;
+        std::string namebuf = ss.str();
+      */
+
+      /*
+        std::string namebuf = std::string(token);
+
+        int newMaterialId = -1;
+        if (material_map.find(namebuf) != material_map.end()) {
+          newMaterialId = material_map[namebuf];
+        } else {
+          // { error!! material not found }
+        }
+      */
+
+      unsigned int hsh = X31_hash_string(token);
+
       int newMaterialId = -1;
       if (material_map.find(hsh) != material_map.end()) {
         newMaterialId = material_map[hsh];
@@ -2258,9 +2200,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     }
 
     // load mtl
-    //if ((0 == strncmp(token, "mtllib", 6)) && IS_SPACE((token[6]))) 
-    if (a_tok==TOK_mtllib) 
-	{
+    // if ((0 == strncmp(token, "mtllib", 6)) && IS_SPACE((token[6])))
+    if (a_tok == TOK_mtllib) {
       if (readMatFn) {
         token += 7;
 
@@ -2301,8 +2242,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
       continue;
     }
-	//tigra: compares one more END	
-	//tigra: refactoring for new speedup release
+    // tigra: compares one more END
+    // tigra: refactoring for new speedup release
 
     // Ignore unknown command.
   }
@@ -2335,18 +2276,15 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
                          MaterialReader *readMatFn /*= NULL*/,
                          std::string *err /*= NULL*/) {
   std::stringstream errss;
-  
-  
+
   int a_tok;
-  
-  //init hashed tokens map  
+
+  // init hashed tokens map
   initHashedTokensMap();
-  
-  
 
   // material
-  //std::map<std::string, int> material_map;
-  std::map<uint32_t, int> material_map;
+  // std::map<std::string, int> material_map;
+  std::map<unsigned int, int> material_map;
   int material_id = -1;  // -1 = invalid
 
   std::vector<index_t> indices;
@@ -2487,16 +2425,16 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
       // @todo { multiple object name? }
       token += 2;
 
-	  /*
-      std::stringstream ss;
-      ss << token;
-      std::string object_name = ss.str();
+      /*
+        std::stringstream ss;
+        ss << token;
+        std::string object_name = ss.str();
 
-      if (callback.object_cb) {
-        callback.object_cb(user_data, object_name.c_str());
-      }
-	  */
-	  
+        if (callback.object_cb) {
+          callback.object_cb(user_data, object_name.c_str());
+        }
+      */
+
       if (callback.object_cb) {
         callback.object_cb(user_data, token);
       }
@@ -2552,40 +2490,35 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
     }
 #endif
 
+    // tigra: refactoring for new speedup release
+    // tigra: compares start
 
+    a_tok = token2tok(token);
 
-	//tigra: refactoring for new speedup release
-	//tigra: compares start
-	
-	
-	a_tok = token2tok(token);
-	
-	
     // use mtl
-    //if ((0 == strncmp(token, "usemtl", 6)) && IS_SPACE((token[6]))) 
-    if (a_tok==TOK_usemtl) 
-	{
+    // if ((0 == strncmp(token, "usemtl", 6)) && IS_SPACE((token[6])))
+    if (a_tok == TOK_usemtl) {
       token += 7;
-	  /*
-      std::stringstream ss;
-      ss << token;
-      std::string namebuf = ss.str();
+      /*
+        std::stringstream ss;
+        ss << token;
+        std::string namebuf = ss.str();
+        */
+
+      /*
+      std::string namebuf = std::string(token);
+
+        int newMaterialId = -1;
+        if (material_map.find(namebuf) != material_map.end()) {
+          newMaterialId = material_map[namebuf];
+        } else {
+          // { error!! material not found }
+        }
       */
-	  
-	  /*
-	  std::string namebuf = std::string(token);
-	  
-      int newMaterialId = -1;
-      if (material_map.find(namebuf) != material_map.end()) {
-        newMaterialId = material_map[namebuf];
-      } else {
-        // { error!! material not found }
-      }
-	  */	  
-	  
-	  //make a hash from token
-	  uint32_t hsh = X31_hash_string(token);
-	  
+
+      // make a hash from token
+      unsigned int hsh = X31_hash_string(token);
+
       int newMaterialId = -1;
       if (material_map.find(hsh) != material_map.end()) {
         newMaterialId = material_map[hsh];
@@ -2598,7 +2531,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
       }
 
       if (callback.usemtl_cb) {
-        //callback.usemtl_cb(user_data, namebuf.c_str(), material_id);
+        // callback.usemtl_cb(user_data, namebuf.c_str(), material_id);
         callback.usemtl_cb(user_data, token, material_id);
       }
 
@@ -2606,9 +2539,8 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
     }
 
     // load mtl
-    //if ((0 == strncmp(token, "mtllib", 6)) && IS_SPACE((token[6]))) 
-    if (a_tok == TOK_mtllib) 
-	{
+    // if ((0 == strncmp(token, "mtllib", 6)) && IS_SPACE((token[6])))
+    if (a_tok == TOK_mtllib) {
       if (readMatFn) {
         token += 7;
 
@@ -2654,8 +2586,8 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
 
       continue;
     }
-	//tigra: compares end
-	//tigra: refactoring for new speedup release
+    // tigra: compares end
+    // tigra: refactoring for new speedup release
 
     // Ignore unknown command.
   }
