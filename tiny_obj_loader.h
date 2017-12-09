@@ -277,7 +277,8 @@ class MaterialReader {
 
   virtual bool operator()(const std::string &matId,
                           std::vector<material_t> *materials,
-                          std::map<std::string, int> *matMap,
+                          //std::map<std::string, int> *matMap,
+                          std::map<uint32_t, int> *matMap,
                           std::string *err) = 0;
 };
 
@@ -288,7 +289,9 @@ class MaterialFileReader : public MaterialReader {
   virtual ~MaterialFileReader() {}
   virtual bool operator()(const std::string &matId,
                           std::vector<material_t> *materials,
-                          std::map<std::string, int> *matMap, std::string *err);
+                          //std::map<std::string, int> *matMap,
+                          std::map<uint32_t, int> *matMap,
+						  std::string *err);
 
  private:
   std::string m_mtlBaseDir;
@@ -301,7 +304,9 @@ class MaterialStreamReader : public MaterialReader {
   virtual ~MaterialStreamReader() {}
   virtual bool operator()(const std::string &matId,
                           std::vector<material_t> *materials,
-                          std::map<std::string, int> *matMap, std::string *err);
+                          //std::map<std::string, int> *matMap, 
+                          std::map<uint32_t, int> *matMap, 
+						  std::string *err);
 
  private:
   std::istream &m_inStream;
@@ -343,7 +348,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              bool triangulate = true);
 
 /// Loads materials into std::map
-void LoadMtl(std::map<std::string, int> *material_map,
+void LoadMtl(
+//std::map<std::string, int> *material_map,
+std::map<uint32_t, int> *material_map,
              std::vector<material_t> *materials, std::istream *inStream,
              std::string *warning);
 
@@ -1377,7 +1384,9 @@ static void SplitString(const std::string &s, char delim,
   }
 }
 
-void LoadMtl(std::map<std::string, int> *material_map,
+void LoadMtl(
+//std::map<std::string, int> *material_map,
+std::map<uint32_t, int> *material_map,
              std::vector<material_t> *materials, std::istream *inStream,
              std::string *warning) {
   // Create a default material anyway.
@@ -1599,8 +1608,17 @@ void LoadMtl(std::map<std::string, int> *material_map,
 		{
 		  // flush previous material.
 		  if (!material.name.empty()) {
+			  /*
 			material_map->insert(std::pair<std::string, int>(
 				material.name, static_cast<int>(materials->size()))
+				);
+				*/
+				
+				
+			uint32_t hsh1 = X31_hash_string(material.name.c_str());
+				
+			material_map->insert(std::pair<uint32_t, int>(
+				hsh1, static_cast<int>(materials->size()))
 				);
 			materials->push_back(material);
 		  }
@@ -1843,9 +1861,17 @@ void LoadMtl(std::map<std::string, int> *material_map,
           std::pair<std::string, std::string>(key, value));
     }
   }
+  
+  uint32_t hsh1 = X31_hash_string(material.name.c_str());
+  
   // flush last material.
+  /*
   material_map->insert(std::pair<std::string, int>(
       material.name, static_cast<int>(materials->size())));
+	  */
+	  
+  material_map->insert(std::pair<uint32_t, int>(
+      hsh1, static_cast<int>(materials->size())));
   materials->push_back(material);
 
   if (warning) {
@@ -1855,7 +1881,8 @@ void LoadMtl(std::map<std::string, int> *material_map,
 
 bool MaterialFileReader::operator()(const std::string &matId,
                                     std::vector<material_t> *materials,
-                                    std::map<std::string, int> *matMap,
+                                    //std::map<std::string, int> *matMap,
+                                    std::map<uint32_t, int> *matMap,
                                     std::string *err) {
   std::string filepath;
 
@@ -1896,7 +1923,8 @@ bool MaterialFileReader::operator()(const std::string &matId,
 
 bool MaterialStreamReader::operator()(const std::string &matId,
                                       std::vector<material_t> *materials,
-                                      std::map<std::string, int> *matMap,
+                                      //std::map<std::string, int> *matMap,
+                                      std::map<uint32_t, int> *matMap,
                                       std::string *err) {
   (void)matId;
   if (!m_inStream) {
@@ -1977,10 +2005,12 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   //init hashed tokens map
   initHashedTokensMap();
   
-  
-
   // material
-  std::map<std::string, int> material_map;
+  //std::map<std::string, int> material_map;
+  
+  //tigra: key of material_map is uint32_t now
+  //because std::map is an red-black trees it is better to store key as int
+  std::map<uint32_t, int> material_map;
   int material = -1;
 
   shape_t shape;
@@ -2192,11 +2222,24 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       std::string namebuf = ss.str();
 	  */
 	  
+	  /*
       std::string namebuf = std::string(token);
 
       int newMaterialId = -1;
       if (material_map.find(namebuf) != material_map.end()) {
         newMaterialId = material_map[namebuf];
+      } else {
+        // { error!! material not found }
+      }
+	  */
+	  
+	  
+	  
+	  uint32_t hsh = X31_hash_string(token);
+	  
+      int newMaterialId = -1;
+      if (material_map.find(hsh) != material_map.end()) {
+        newMaterialId = material_map[hsh];
       } else {
         // { error!! material not found }
       }
@@ -2302,7 +2345,8 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
   
 
   // material
-  std::map<std::string, int> material_map;
+  //std::map<std::string, int> material_map;
+  std::map<uint32_t, int> material_map;
   int material_id = -1;  // -1 = invalid
 
   std::vector<index_t> indices;
@@ -2528,12 +2572,23 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
       std::string namebuf = ss.str();
       */
 	  
+	  /*
 	  std::string namebuf = std::string(token);
 	  
-
       int newMaterialId = -1;
       if (material_map.find(namebuf) != material_map.end()) {
         newMaterialId = material_map[namebuf];
+      } else {
+        // { error!! material not found }
+      }
+	  */	  
+	  
+	  //make a hash from token
+	  uint32_t hsh = X31_hash_string(token);
+	  
+      int newMaterialId = -1;
+      if (material_map.find(hsh) != material_map.end()) {
+        newMaterialId = material_map[hsh];
       } else {
         // { error!! material not found }
       }
@@ -2543,7 +2598,8 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
       }
 
       if (callback.usemtl_cb) {
-        callback.usemtl_cb(user_data, namebuf.c_str(), material_id);
+        //callback.usemtl_cb(user_data, namebuf.c_str(), material_id);
+        callback.usemtl_cb(user_data, token, material_id);
       }
 
       continue;
