@@ -303,7 +303,8 @@ std::string matStream(
             virtual bool operator() (
               const std::string& matId,
               std::vector<material_t>* materials,
-              std::map<std::string, int>* matMap,
+              //std::map<std::string, int>* matMap,
+              std::map<uint32_t, int>* matMap,
               std::string* err)
             {
                 (void)matId;

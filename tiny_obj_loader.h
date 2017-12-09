@@ -1165,10 +1165,7 @@ static bool ParseTextureNameAndOption(std::string *texname,
     token += strspn(token, " \t");  // skip space
 	
 	a_tok = token2tok(token);
-	
-	//tigra: minimize checks
-	if(a_tok>=TOK_blendu && a_tok<=TOK_mm)
-	{	
+		
 		//if ((0 == strncmp(token, "-blendu", 7)) && IS_SPACE((token[7]))) 
 		if (a_tok == TOK_blendu) 
 		{
@@ -1243,7 +1240,6 @@ static bool ParseTextureNameAndOption(std::string *texname,
 		  token += 4;
 		  parseReal2(&(texopt->brightness), &(texopt->contrast), &token, 0.0, 1.0);
 		}
-	}
 	else {
       // Assume texture filename
 #if 0
@@ -1445,11 +1441,8 @@ std::map<uint32_t, int> *material_map,
 		//group K
 		if (token[0] == 'K')
 		{
-		switch(token[1])
-		{
-			case 'a':
 		// ambient
-				//if (token[1] == 'a') 
+				if (token[1] == 'a') 
 				{
 				  token += 2;
 				  real_t r, g, b;
@@ -1461,8 +1454,7 @@ std::map<uint32_t, int> *material_map,
 				}
 		
 		// diffuse
-			case 'd':
-				//if (token[1] == 'd') 
+				if (token[1] == 'd') 
 				{
 				  token += 2;
 				  real_t r, g, b;
@@ -1474,8 +1466,7 @@ std::map<uint32_t, int> *material_map,
 				}
 	
 		// specular
-			case 's':
-				//if (token[1] == 's') 
+				if (token[1] == 's') 
 				{
 				  token += 2;
 				  real_t r, g, b;
@@ -1487,8 +1478,7 @@ std::map<uint32_t, int> *material_map,
 				}		
 
 		// transmittance
-			case 't':
-				//if (token[1] == 't') 
+				if (token[1] == 't') 
 				{
 				  token += 2;
 				  real_t r, g, b;
@@ -1500,8 +1490,7 @@ std::map<uint32_t, int> *material_map,
 				}
 		
 		// emission
-			case 'e':
-				//if (token[1] == 'e') 
+				if (token[1] == 'e') 
 				{
 				  token += 2;
 				  real_t r, g, b;
@@ -1511,8 +1500,6 @@ std::map<uint32_t, int> *material_map,
 				  material.emission[2] = b;
 				  continue;
 				}
-		}
-		
 		}
 
 		// transmittance
@@ -1540,7 +1527,60 @@ std::map<uint32_t, int> *material_map,
 		  material.shininess = parseReal(&token);
 		  continue;
 		}
-	
+		
+		
+		if (token[0] == 'T' && token[1] == 'r') {
+		  token += 2;
+		  if (has_d) {
+			// `d` wins. Ignore `Tr` value.
+			ss << "WARN: Both `d` and `Tr` parameters defined for \""
+			   << material.name << "\". Use the value of `d` for dissolve."
+			   << std::endl;
+		  } else {
+			// We invert value of Tr(assume Tr is in range [0, 1])
+			// NOTE: Interpretation of Tr is application(exporter) dependent. For
+			// some application(e.g. 3ds max obj exporter), Tr = d(Issue 43)
+			material.dissolve = 1.0f - parseReal(&token);
+		  }
+		  has_tr = true;
+		  continue;
+		}
+
+		//tigra: refactoring for new speedup release
+		if (token[0] == 'P') {
+		  
+		// PBR: roughness
+		  if(token[1] == 'r')
+		  {
+			token += 2;
+			material.roughness = parseReal(&token);
+			continue;
+		  }
+		  else
+		// PBR: metallic
+		  if(token[1] == 'm')
+		  {
+			token += 2;
+			material.metallic = parseReal(&token);
+			continue;
+		  }
+		  else
+		// PBR: sheen
+		  if(token[1] == 's')
+		  {
+			token += 2;
+			material.sheen = parseReal(&token);
+			continue;
+		  }
+		  else
+		// PBR: clearcoat thickness
+		  if(token[1] == 'c')
+		  {
+			token += 2;
+			material.clearcoat_thickness = parseReal(&token);
+			continue;
+		  }
+		}	
     }
 
     // dissolve
@@ -1555,43 +1595,6 @@ std::map<uint32_t, int> *material_map,
       }
       has_d = true;
       continue;
-    }
-    if (token[0] == 'T' && token[1] == 'r' && IS_SPACE(token[2])) {
-      token += 2;
-      if (has_d) {
-        // `d` wins. Ignore `Tr` value.
-        ss << "WARN: Both `d` and `Tr` parameters defined for \""
-           << material.name << "\". Use the value of `d` for dissolve."
-           << std::endl;
-      } else {
-        // We invert value of Tr(assume Tr is in range [0, 1])
-        // NOTE: Interpretation of Tr is application(exporter) dependent. For
-        // some application(e.g. 3ds max obj exporter), Tr = d(Issue 43)
-        material.dissolve = 1.0f - parseReal(&token);
-      }
-      has_tr = true;
-      continue;
-    }
-
-	//tigra: refactoring for new speedup release
-    if (token[0] == 'P' && IS_SPACE(token[2])) {
-      token += 2;
-	  
-    // PBR: roughness
-	  if(token[1] == 'r')
-		material.roughness = parseReal(&token);
-	  else
-    // PBR: metallic
-	  if(token[1] == 'm')
-		material.metallic = parseReal(&token);
-	  else
-    // PBR: sheen
-	  if(token[1] == 's')
-		material.sheen = parseReal(&token);
-	  else
-    // PBR: clearcoat thickness
-	  if(token[1] == 'c')
-		material.clearcoat_thickness = parseReal(&token);
     }	
 	
 	
@@ -2043,166 +2046,171 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
     if (token[0] == '#') continue;  // comment line
 
-    // vertex
-    if (token[0] == 'v' && IS_SPACE((token[1]))) {
-      token += 2;
-      real_t x, y, z;
-      real_t r, g, b;
-      parseVertexWithColor(&x, &y, &z, &r, &g, &b, &token);
-      v.push_back(x);
-      v.push_back(y);
-      v.push_back(z);
+    if (IS_SPACE((token[1]))) {
+		// vertex
+		if (token[0] == 'v') {
+		  token += 2;
+		  real_t x, y, z;
+		  real_t r, g, b;
+		  parseVertexWithColor(&x, &y, &z, &r, &g, &b, &token);
+		  v.push_back(x);
+		  v.push_back(y);
+		  v.push_back(z);
 
-      vc.push_back(r);
-      vc.push_back(g);
-      vc.push_back(b);
-      continue;
-    }
+		  vc.push_back(r);
+		  vc.push_back(g);
+		  vc.push_back(b);
+		  continue;
+		}
 
-    // normal
-    if (token[0] == 'v' && token[1] == 'n' && IS_SPACE((token[2]))) {
-      token += 3;
-      real_t x, y, z;
-      parseReal3(&x, &y, &z, &token);
-      vn.push_back(x);
-      vn.push_back(y);
-      vn.push_back(z);
-      continue;
-    }
+		// face
+		if (token[0] == 'f') {
+		  token += 2;
+		  token += strspn(token, " \t");
 
-    // texcoord
-    if (token[0] == 'v' && token[1] == 't' && IS_SPACE((token[2]))) {
-      token += 3;
-      real_t x, y;
-      parseReal2(&x, &y, &token);
-      vt.push_back(x);
-      vt.push_back(y);
-      continue;
-    }
+		  std::vector<vertex_index> face;
+		  face.reserve(3);
 
-    // face
-    if (token[0] == 'f' && IS_SPACE((token[1]))) {
-      token += 2;
-      token += strspn(token, " \t");
+		  while (!IS_NEW_LINE(token[0])) {
+			vertex_index vi;
+			if (!parseTriple(&token, static_cast<int>(v.size() / 3),
+							 static_cast<int>(vn.size() / 3),
+							 static_cast<int>(vt.size() / 2), &vi)) {
+			  if (err) {
+				(*err) = "Failed parse `f' line(e.g. zero value for face index).\n";
+			  }
+			  return false;
+			}
 
-      std::vector<vertex_index> face;
-      face.reserve(3);
+			face.push_back(vi);
+			size_t n = strspn(token, " \t\r");
+			token += n;
+		  }
 
-      while (!IS_NEW_LINE(token[0])) {
-        vertex_index vi;
-        if (!parseTriple(&token, static_cast<int>(v.size() / 3),
-                         static_cast<int>(vn.size() / 3),
-                         static_cast<int>(vt.size() / 2), &vi)) {
-          if (err) {
-            (*err) = "Failed parse `f' line(e.g. zero value for face index).\n";
-          }
-          return false;
-        }
+		  // replace with emplace_back + std::move on C++11
+		  faceGroup.push_back(std::vector<vertex_index>());
+		  faceGroup[faceGroup.size() - 1].swap(face);
 
-        face.push_back(vi);
-        size_t n = strspn(token, " \t\r");
-        token += n;
-      }
+		  continue;
+		}
 
-      // replace with emplace_back + std::move on C++11
-      faceGroup.push_back(std::vector<vertex_index>());
-      faceGroup[faceGroup.size() - 1].swap(face);
+		// group name
+		if (token[0] == 'g') {
+		  // flush previous face group.
+		  bool ret = exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
+											triangulate);
+		  (void)ret;  // return value not used.
 
-      continue;
-    }
+		  if (shape.mesh.indices.size() > 0) {
+			shapes->push_back(shape);
+		  }
 
-    // group name
-    if (token[0] == 'g' && IS_SPACE((token[1]))) {
-      // flush previous face group.
-      bool ret = exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
-                                        triangulate);
-      (void)ret;  // return value not used.
+		  shape = shape_t();
 
-      if (shape.mesh.indices.size() > 0) {
-        shapes->push_back(shape);
-      }
+		  // material = -1;
+		  faceGroup.clear();
 
-      shape = shape_t();
+		  std::vector<std::string> names;
+		  names.reserve(2);
 
-      // material = -1;
-      faceGroup.clear();
+		  while (!IS_NEW_LINE(token[0])) {
+			std::string str = parseString(&token);
+			names.push_back(str);
+			token += strspn(token, " \t\r");  // skip tag
+		  }
 
-      std::vector<std::string> names;
-      names.reserve(2);
+		  assert(names.size() > 0);
 
-      while (!IS_NEW_LINE(token[0])) {
-        std::string str = parseString(&token);
-        names.push_back(str);
-        token += strspn(token, " \t\r");  // skip tag
-      }
+		  // names[0] must be 'g', so skip the 0th element.
+		  if (names.size() > 1) {
+			name = names[1];
+		  } else {
+			name = "";
+		  }
 
-      assert(names.size() > 0);
+		  continue;
+		}
 
-      // names[0] must be 'g', so skip the 0th element.
-      if (names.size() > 1) {
-        name = names[1];
-      } else {
-        name = "";
-      }
+		// object name
+		if (token[0] == 'o') {
+		  // flush previous face group.
+		  bool ret = exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
+											triangulate);
+		  if (ret) {
+			shapes->push_back(shape);
+		  }
 
-      continue;
-    }
+		  // material = -1;
+		  faceGroup.clear();
+		  shape = shape_t();
 
-    // object name
-    if (token[0] == 'o' && IS_SPACE((token[1]))) {
-      // flush previous face group.
-      bool ret = exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
-                                        triangulate);
-      if (ret) {
-        shapes->push_back(shape);
-      }
+		  // @todo { multiple object name? }
+		  token += 2;
+		  
+		  /*
+		  std::stringstream ss;
+		  ss << token;
+		  name = ss.str();
+		  */
+		  
+		  name = std::string(token);
 
-      // material = -1;
-      faceGroup.clear();
-      shape = shape_t();
+		  continue;
+		}
 
-      // @todo { multiple object name? }
-      token += 2;
-	  
-	  /*
-      std::stringstream ss;
-      ss << token;
-      name = ss.str();
-	  */
-	  
-      name = std::string(token);
+		if (token[0] == 't') {
+		  tag_t tag;
 
-      continue;
-    }
+		  token += 2;
 
-    if (token[0] == 't' && IS_SPACE(token[1])) {
-      tag_t tag;
+		  tag.name = parseString(&token);
 
-      token += 2;
+		  tag_sizes ts = parseTagTriple(&token);
 
-      tag.name = parseString(&token);
+		  tag.intValues.resize(static_cast<size_t>(ts.num_ints));
 
-      tag_sizes ts = parseTagTriple(&token);
+		  for (size_t i = 0; i < static_cast<size_t>(ts.num_ints); ++i) {
+			tag.intValues[i] = parseInt(&token);
+		  }
 
-      tag.intValues.resize(static_cast<size_t>(ts.num_ints));
+		  tag.floatValues.resize(static_cast<size_t>(ts.num_reals));
+		  for (size_t i = 0; i < static_cast<size_t>(ts.num_reals); ++i) {
+			tag.floatValues[i] = parseReal(&token);
+		  }
 
-      for (size_t i = 0; i < static_cast<size_t>(ts.num_ints); ++i) {
-        tag.intValues[i] = parseInt(&token);
-      }
+		  tag.stringValues.resize(static_cast<size_t>(ts.num_strings));
+		  for (size_t i = 0; i < static_cast<size_t>(ts.num_strings); ++i) {
+			tag.stringValues[i] = parseString(&token);
+		  }
 
-      tag.floatValues.resize(static_cast<size_t>(ts.num_reals));
-      for (size_t i = 0; i < static_cast<size_t>(ts.num_reals); ++i) {
-        tag.floatValues[i] = parseReal(&token);
-      }
-
-      tag.stringValues.resize(static_cast<size_t>(ts.num_strings));
-      for (size_t i = 0; i < static_cast<size_t>(ts.num_strings); ++i) {
-        tag.stringValues[i] = parseString(&token);
-      }
-
-      tags.push_back(tag);
-    }
+		  tags.push_back(tag);
+		}	
+    }	
 	
+
+    
+    if (token[0] == 'v' && IS_SPACE((token[2]))) {
+		// normal
+		if (token[1] == 'n') {
+		  token += 3;
+		  real_t x, y, z;
+		  parseReal3(&x, &y, &z, &token);
+		  vn.push_back(x);
+		  vn.push_back(y);
+		  vn.push_back(z);
+		  continue;
+		}
+
+		// texcoord
+		if (token[1] == 't') {
+		  token += 3;
+		  real_t x, y;
+		  parseReal2(&x, &y, &token);
+		  vt.push_back(x);
+		  vt.push_back(y);
+		  continue;
+		}
+    }
 	
 	//tigra: refactoring for new speedup release
 	//tigra: compares one more start
