@@ -363,9 +363,6 @@ void LoadMtl(std::map<std::string, int> *material_map,
 #include <fstream>
 #include <sstream>
 
-//tigra: unordered_map for hashed keywords
-#include <unordered_map>
-
 
 #define TINYOBJLOADER_IMPLEMENTATION_BUFREAD
 
@@ -561,7 +558,7 @@ enum tokens_enum {
     TOK_norm
 };
 
-std::unordered_map <uint32_t,int> hashed_toks;
+std::map <uint32_t,int> hashed_toks;
 
 
 
