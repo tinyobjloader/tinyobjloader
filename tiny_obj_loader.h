@@ -1165,7 +1165,11 @@ static bool ParseTextureNameAndOption(std::string *texname,
     token += strspn(token, " \t");  // skip space
 	
 	a_tok = token2tok(token);
-		
+	
+	
+	//tigra: minimize checks
+	if(a_tok>=TOK_blendu && a_tok<=TOK_mm)
+	{
 		//if ((0 == strncmp(token, "-blendu", 7)) && IS_SPACE((token[7]))) 
 		if (a_tok == TOK_blendu) 
 		{
@@ -1240,6 +1244,8 @@ static bool ParseTextureNameAndOption(std::string *texname,
 		  token += 4;
 		  parseReal2(&(texopt->brightness), &(texopt->contrast), &token, 0.0, 1.0);
 		}
+		
+	}
 	else {
       // Assume texture filename
 #if 0
