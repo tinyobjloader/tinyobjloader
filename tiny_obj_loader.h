@@ -569,12 +569,11 @@ enum tokens_enum {
     TOK_norm
 };
 
+
 std::map <uint32_t,int> hashed_toks;
 
 
-
-
-
+//functions!
 void initHashedTokensMap()
 {  
   //init hashed tokens map
@@ -594,6 +593,7 @@ void initHashedTokensMap()
 }  
 
 
+//search token in keywords hash map
 int token2tok(const char* token)
 {	
 
