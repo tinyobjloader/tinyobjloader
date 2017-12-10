@@ -457,8 +457,12 @@ int fd_;
 uint64_t fsize_,pos_;
 size_t buf_sz;
 };
-#endif	
-	
+#endif
+
+
+
+//***************************************************
+//*************** tigro keywords hash functions begin
 	
 //tigra: x31 hash function
 
@@ -615,6 +619,9 @@ int token2tok(const char* token)
 	
 	return a_tok;
 }
+
+//*************** tigro keywords hash functions END
+//*************************************************
 
 	
 	
