@@ -278,7 +278,7 @@ class MaterialReader {
   virtual bool operator()(const std::string &matId,
                           std::vector<material_t> *materials,
                           //std::map<std::string, int> *matMap,
-                          std::map<uint32_t, int> *matMap,
+                          std::map<unsigned int, int> *matMap,
                           std::string *err) = 0;
 };
 
@@ -290,7 +290,7 @@ class MaterialFileReader : public MaterialReader {
   virtual bool operator()(const std::string &matId,
                           std::vector<material_t> *materials,
                           //std::map<std::string, int> *matMap,
-                          std::map<uint32_t, int> *matMap,
+                          std::map<unsigned int, int> *matMap,
 						  std::string *err);
 
  private:
@@ -305,7 +305,7 @@ class MaterialStreamReader : public MaterialReader {
   virtual bool operator()(const std::string &matId,
                           std::vector<material_t> *materials,
                           //std::map<std::string, int> *matMap, 
-                          std::map<uint32_t, int> *matMap, 
+                          std::map<unsigned int, int> *matMap, 
 						  std::string *err);
 
  private:
@@ -350,7 +350,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 /// Loads materials into std::map
 void LoadMtl(
 //std::map<std::string, int> *material_map,
-std::map<uint32_t, int> *material_map,
+std::map<unsigned int, int> *material_map,
              std::vector<material_t> *materials, std::istream *inStream,
              std::string *warning);
 
@@ -371,7 +371,7 @@ std::map<uint32_t, int> *material_map,
 #include <sstream>
 
 
-#define TINYOBJLOADER_IMPLEMENTATION_BUFREAD
+//#define TINYOBJLOADER_IMPLEMENTATION_BUFREAD
 
 
 
@@ -466,27 +466,27 @@ size_t buf_sz;
 	
 //tigra: x31 hash function
 
-typedef uint32_t khint_t;
+typedef unsigned int khint_t;
 
-inline uint32_t X31_hash_string(const char *s)
+inline unsigned int X31_hash_string(const char *s)
 {		
-	khint_t h = *s;
-    for (++s ; *s; ++s) h = (h << 5) - h + *s;
+	khint_t h = static_cast<khint_t>(*s);
+    for (++s ; *s; ++s) h = (h << 5) - h + static_cast<khint_t>(*s);
     return h;
 }
 
-inline uint32_t X31_hash_stringSZ(const char *s, int sz)
+inline unsigned int X31_hash_stringSZ(const char *s, int sz)
 {
 	int i;	
-	khint_t h = *s;
+	khint_t h = static_cast<khint_t>(*s);
 	
-    for (++s, i = sz-1 ; i && *s; ++s, i--) h = (h << 5) - h + *s;
+    for (++s, i = sz-1 ; i && *s; ++s, i--) h = (h << 5) - h + static_cast<khint_t>(*s);
     return h;
 }
 
 	
 //tigra: refactoring2 - add list of keywords	
-static char * keywords[] = {
+static const char * keywords[] = {
 	//on off
 	"on","off",
 	
@@ -570,15 +570,27 @@ enum tokens_enum {
 };
 
 
-std::map <uint32_t,int> hashed_toks;
+// TODO(syoyo): Do not define in global scope.
+
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wglobal-constructors"
+#pragma clang diagnostic ignored "-Wexit-time-destructors"
+#endif
+
+static std::map <unsigned int,int> hashed_toks;
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
 
 //functions!
-void initHashedTokensMap()
+static void initHashedTokensMap()
 {  
   //init hashed tokens map
   
-  uint32_t hhh;
+  unsigned int hhh;
   int iii;
   
   if(hashed_toks.empty())
@@ -594,23 +606,24 @@ void initHashedTokensMap()
 
 
 //search token in keywords hash map
-int token2tok(const char* token)
+static int token2tok(const char* token)
 {	
 
-  uint32_t token_sz, a_hash;
+  unsigned int token_sz, a_hash;
   
   int a_tok;
   
 
-    token_sz = strpbrk(token, " \t\r") - token;  // token length
+    token_sz = static_cast<unsigned int>(strpbrk(token, " \t\r") - token);  // token length
 	
 	if(token_sz<1) //delimiter not found, token_sz = strlen(token)
 	{
 		//token_sz=strlen(token);
 		a_hash = X31_hash_string(token);
 	}
-	else
-		a_hash = X31_hash_stringSZ(token, token_sz);
+	else {
+		a_hash = X31_hash_stringSZ(token, static_cast<int>(token_sz));
+  }
 		
 	
 	a_tok = -1;
@@ -1395,7 +1408,7 @@ static void SplitString(const std::string &s, char delim,
 
 void LoadMtl(
 //std::map<std::string, int> *material_map,
-std::map<uint32_t, int> *material_map,
+std::map<unsigned int, int> *material_map,
              std::vector<material_t> *materials, std::istream *inStream,
              std::string *warning) {
   // Create a default material anyway.
@@ -1631,9 +1644,9 @@ std::map<uint32_t, int> *material_map,
 				*/
 				
 				
-			uint32_t hsh1 = X31_hash_string(material.name.c_str());
+			unsigned int hsh1 = X31_hash_string(material.name.c_str());
 				
-			material_map->insert(std::pair<uint32_t, int>(
+			material_map->insert(std::pair<unsigned int, int>(
 				hsh1, static_cast<int>(materials->size()))
 				);
 			materials->push_back(material);
@@ -1878,7 +1891,7 @@ std::map<uint32_t, int> *material_map,
     }
   }
   
-  uint32_t hsh1 = X31_hash_string(material.name.c_str());
+  unsigned int hsh1 = X31_hash_string(material.name.c_str());
   
   // flush last material.
   /*
@@ -1886,7 +1899,7 @@ std::map<uint32_t, int> *material_map,
       material.name, static_cast<int>(materials->size())));
 	  */
 	  
-  material_map->insert(std::pair<uint32_t, int>(
+  material_map->insert(std::pair<unsigned int, int>(
       hsh1, static_cast<int>(materials->size())));
   materials->push_back(material);
 
@@ -1898,7 +1911,7 @@ std::map<uint32_t, int> *material_map,
 bool MaterialFileReader::operator()(const std::string &matId,
                                     std::vector<material_t> *materials,
                                     //std::map<std::string, int> *matMap,
-                                    std::map<uint32_t, int> *matMap,
+                                    std::map<unsigned int, int> *matMap,
                                     std::string *err) {
   std::string filepath;
 
@@ -1940,7 +1953,7 @@ bool MaterialFileReader::operator()(const std::string &matId,
 bool MaterialStreamReader::operator()(const std::string &matId,
                                       std::vector<material_t> *materials,
                                       //std::map<std::string, int> *matMap,
-                                      std::map<uint32_t, int> *matMap,
+                                      std::map<unsigned int, int> *matMap,
                                       std::string *err) {
   (void)matId;
   if (!m_inStream) {
@@ -2024,9 +2037,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   // material
   //std::map<std::string, int> material_map;
   
-  //tigra: key of material_map is uint32_t now
+  //tigra: key of material_map is unsigned int now
   //because std::map is an red-black trees it is better to store key as int
-  std::map<uint32_t, int> material_map;
+  std::map<unsigned int, int> material_map;
   int material = -1;
 
   shape_t shape;
@@ -2256,7 +2269,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 	  
 	  
 	  
-	  uint32_t hsh = X31_hash_string(token);
+	  unsigned int hsh = X31_hash_string(token);
 	  
       int newMaterialId = -1;
       if (material_map.find(hsh) != material_map.end()) {
@@ -2367,7 +2380,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
 
   // material
   //std::map<std::string, int> material_map;
-  std::map<uint32_t, int> material_map;
+  std::map<unsigned int, int> material_map;
   int material_id = -1;  // -1 = invalid
 
   std::vector<index_t> indices;
@@ -2605,7 +2618,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
 	  */	  
 	  
 	  //make a hash from token
-	  uint32_t hsh = X31_hash_string(token);
+	  unsigned int hsh = X31_hash_string(token);
 	  
       int newMaterialId = -1;
       if (material_map.find(hsh) != material_map.end()) {
