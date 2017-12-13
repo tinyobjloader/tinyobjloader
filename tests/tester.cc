@@ -22,22 +22,22 @@ static void PrintInfo(const tinyobj::attrib_t &attrib, const std::vector<tinyobj
 
   for (size_t v = 0; v < attrib.vertices.size() / 3; v++) {
     printf("  v[%ld] = (%f, %f, %f)\n", v,
-      static_cast<const double>(attrib.vertices[3*v+0]),
-      static_cast<const double>(attrib.vertices[3*v+1]),
-      static_cast<const double>(attrib.vertices[3*v+2]));
+      static_cast<const double>(attrib.vertices[v].x),
+      static_cast<const double>(attrib.vertices[v].y),
+      static_cast<const double>(attrib.vertices[v].z));
   }
 
   for (size_t v = 0; v < attrib.normals.size() / 3; v++) {
     printf("  n[%ld] = (%f, %f, %f)\n", v,
-      static_cast<const double>(attrib.normals[3*v+0]),
-      static_cast<const double>(attrib.normals[3*v+1]),
-      static_cast<const double>(attrib.normals[3*v+2]));
+      static_cast<const double>(attrib.normals[v].x),
+      static_cast<const double>(attrib.normals[v].y),
+      static_cast<const double>(attrib.normals[v].z));
   }
 
   for (size_t v = 0; v < attrib.texcoords.size() / 2; v++) {
     printf("  uv[%ld] = (%f, %f)\n", v,
-      static_cast<const double>(attrib.texcoords[2*v+0]),
-      static_cast<const double>(attrib.texcoords[2*v+1]));
+      static_cast<const double>(attrib.texcoords[v].x),
+      static_cast<const double>(attrib.texcoords[v].y));
   }
 
   for (size_t i = 0; i < shapes.size(); i++) {
@@ -303,7 +303,8 @@ std::string matStream(
             virtual bool operator() (
               const std::string& matId,
               std::vector<material_t>* materials,
-              std::map<std::string, int>* matMap,
+              //std::map<std::string, int>* matMap,
+              std::map<uint32_t, int>* matMap,
               std::string* err)
             {
                 (void)matId;

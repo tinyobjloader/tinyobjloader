@@ -361,7 +361,7 @@ static bool TestStreamLoadObj() {
     virtual ~MaterialStringStreamReader() {}
     virtual bool operator()(const std::string& matId,
                             std::vector<material_t>* materials,
-                            std::map<std::string, int>* matMap,
+                            std::map<unsigned int, int>* matMap,
                             std::string* err) {
       (void)matId;
       std::string warning;
