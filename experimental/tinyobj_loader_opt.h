@@ -1518,13 +1518,13 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     StackVector<std::thread, 16> workers;
 
     for (size_t t = 0; t < num_threads; t++) {
-      int material_id = -1;  // -1 = default unknown material.
       workers->push_back(std::thread([&, t]() {
         size_t v_count = v_offsets[t];
         size_t n_count = n_offsets[t];
         size_t t_count = t_offsets[t];
         size_t f_count = f_offsets[t];
         size_t face_count = face_offsets[t];
+		int material_id = -1;  // -1 = default unknown material.
 
         for (size_t i = 0; i < commands[t].size(); i++) {
           if (commands[t][i].type == COMMAND_EMPTY) {
@@ -1581,7 +1581,19 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     for (size_t t = 0; t < workers->size(); t++) {
       workers[t].join();
     }
-
+	if(material_map.size()>1&& num_threads>1) {
+			for (size_t t = 0; t < num_threads; t++) {
+				size_t face_count = face_offsets[t];
+				if (-1 == attrib->material_ids[face_count]) {
+					int prev_material_id = attrib->material_ids[face_count - 1];
+					size_t max_face_offset = (t == num_threads - 1) ? attrib->material_ids.size() : face_offsets[t + 1];
+					for (int i = face_count; i<max_face_offset; ++i) {
+						if (attrib->material_ids[i] != -1) break;
+						attrib->material_ids[i] = prev_material_id;
+					}
+				}
+			}
+	}
     auto t_end = std::chrono::high_resolution_clock::now();
     ms_merge = t_end - t_start;
   }
