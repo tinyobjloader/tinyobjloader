@@ -1440,7 +1440,9 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     // std::cout << "mtllib :" << material_filename << std::endl;
 
     auto t1 = std::chrono::high_resolution_clock::now();
-
+	if (material_filename.back() == '\r') {
+			material_filename.pop_back();
+	}
     std::ifstream ifs(material_filename);
     if (ifs.good()) {
       LoadMtl(&material_map, materials, &ifs);
