@@ -51,6 +51,31 @@ THE SOFTWARE.
 
 namespace tinyobj {
 
+//
+// Please define `TINYOBJ_USE_CXX11` flag when you compile tinyobjloader with C++11 compiler.
+//
+#ifdef TINYOBJ_USE_CXX11
+#if defined(_MSC_VER)
+#  if _MSC_VER < 1800
+#    error This project needs at least Visual Studio 2013
+#  endif
+#elif __cplusplus <= 199711L
+#  error This project can only be compiled with a compiler that supports C++11
+#else
+
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc++98-compat"
+#endif
+
+#define tobj_null nullptr
+
+#endif
+#else // !TINYOBJ_USE_CXX11
+#define tobj_null NULL
+#endif
+
+
 // https://en.wikipedia.org/wiki/Wavefront_.obj_file says ...
 //
 //  -blendu on | off                       # set horizontal texture blending
@@ -259,14 +284,14 @@ typedef struct callback_t_ {
   void (*object_cb)(void *user_data, const char *name);
 
   callback_t_()
-      : vertex_cb(NULL),
-        normal_cb(NULL),
-        texcoord_cb(NULL),
-        index_cb(NULL),
-        usemtl_cb(NULL),
-        mtllib_cb(NULL),
-        group_cb(NULL),
-        object_cb(NULL) {}
+      : vertex_cb(tobj_null),
+        normal_cb(tobj_null),
+        texcoord_cb(tobj_null),
+        index_cb(tobj_null),
+        usemtl_cb(tobj_null),
+        mtllib_cb(tobj_null),
+        group_cb(tobj_null),
+        object_cb(tobj_null) {}
 } callback_t;
 
 class MaterialReader {
@@ -318,7 +343,7 @@ class MaterialStreamReader : public MaterialReader {
 /// or not.
 bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              std::vector<material_t> *materials, std::string *err,
-             const char *filename, const char *mtl_basedir = NULL,
+             const char *filename, const char *mtl_basedir = tobj_null,
              bool triangulate = true);
 
 /// Loads .obj from a file with custom user callback.
@@ -328,9 +353,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 /// Returns warning and error message into `err`
 /// See `examples/callback_api/` for how to use this function.
 bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
-                         void *user_data = NULL,
-                         MaterialReader *readMatFn = NULL,
-                         std::string *err = NULL);
+                         void *user_data = tobj_null,
+                         MaterialReader *readMatFn = tobj_null,
+                         std::string *err = tobj_null);
 
 /// Loads object from a std::istream, uses GetMtlIStreamFn to retrieve
 /// std::istream for materials.
@@ -338,7 +363,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
 /// Returns warning and error message into `err`
 bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              std::vector<material_t> *materials, std::string *err,
-             std::istream *inStream, MaterialReader *readMatFn = NULL,
+             std::istream *inStream, MaterialReader *readMatFn = tobj_null,
              bool triangulate = true);
 
 /// Loads materials into std::map
@@ -347,6 +372,10 @@ void LoadMtl(std::map<std::string, int> *material_map,
              std::string *warning);
 
 }  // namespace tinyobj
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
 #endif  // TINY_OBJ_LOADER_H_
 
@@ -363,6 +392,13 @@ void LoadMtl(std::map<std::string, int> *material_map,
 #include <sstream>
 
 namespace tinyobj {
+
+#ifdef TINYOBJ_USE_CXX11
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc++98-compat"
+#endif
+#endif
 
 MaterialReader::~MaterialReader() {}
 
@@ -2030,7 +2066,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
                             static_cast<int>(names_out.size()));
 
         } else {
-          callback.group_cb(user_data, NULL, 0);
+          callback.group_cb(user_data, tobj_null, 0);
         }
       }
 
@@ -2100,6 +2136,11 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
 
   return true;
 }
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+
 }  // namespace tinyobj
 
 #endif

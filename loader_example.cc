@@ -29,6 +29,13 @@ extern "C" {
 #endif
 #endif
 
+#ifdef TINYOBJ_USE_CXX11
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc++98-compat"
+#endif
+#endif
+
 class timerutil {
  public:
 #ifdef _WIN32
@@ -63,7 +70,7 @@ class timerutil {
   }
   time_t current() {
     struct timeval t;
-    gettimeofday(&t, NULL);
+    gettimeofday(&t, tobj_null);
     return static_cast<time_t>(t.tv_sec * 1000 + t.tv_usec);
   }
 
@@ -261,7 +268,7 @@ static void PrintInfo(const tinyobj::attrib_t& attrib,
   }
 }
 
-static bool TestLoadObj(const char* filename, const char* basepath = NULL,
+static bool TestLoadObj(const char* filename, const char* basepath = tobj_null,
                         bool triangulate = true) {
   std::cout << "Loading " << filename << std::endl;
 
