@@ -29,6 +29,12 @@ extern "C" {
 #endif
 #endif
 
+#ifdef __clang__
+#if __has_warning("-Wzero-as-null-pointer-constant")
+#pragma clang diagnostic ignored "-Wzero-as-null-pointer-constant"
+#endif
+#endif
+
 class timerutil {
  public:
 #ifdef _WIN32

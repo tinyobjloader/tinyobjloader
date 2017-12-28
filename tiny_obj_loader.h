@@ -53,6 +53,13 @@ THE SOFTWARE.
 
 namespace tinyobj {
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#if __has_warning("-Wzero-as-null-pointer-constant")
+#pragma clang diagnostic ignored "-Wzero-as-null-pointer-constant"
+#endif
+#endif
+
 // https://en.wikipedia.org/wiki/Wavefront_.obj_file says ...
 //
 //  -blendu on | off                       # set horizontal texture blending
@@ -110,13 +117,43 @@ typedef double real_t;
 typedef float real_t;
 #endif
 
-struct vec3_t { real_t x,y,z; };
-inline vec3_t operator+(const vec3_t &l,const vec3_t &r){vec3_t o;o.x=l.x+r.x;o.y=l.y+r.y;o.z=l.z+r.z;return o;}
-inline vec3_t operator-(const vec3_t &l,const vec3_t &r){vec3_t o;o.x=l.x-r.x;o.y=l.y-r.y;o.z=l.z-r.z;return o;}
-inline vec3_t operator*(const vec3_t &l,real_t r){vec3_t o;o.x=l.x*r;o.y=l.y*r;o.z=l.z*r;return o;}
-inline vec3_t cross(const vec3_t &l,const vec3_t &r){vec3_t o;o.x=l.y*r.z-r.y*l.z;o.y=l.z*r.x-r.z*l.x;o.z=l.x*r.y-r.x*l.y;return o;}
-inline real_t dot(const vec3_t &l,const vec3_t &r){return l.x*r.x+l.y*r.y+l.z*r.z;}
-struct vec2_t { real_t x,y; };
+struct vec3_t {
+  real_t x, y, z;
+};
+inline vec3_t operator+(const vec3_t &l, const vec3_t &r) {
+  vec3_t o;
+  o.x = l.x + r.x;
+  o.y = l.y + r.y;
+  o.z = l.z + r.z;
+  return o;
+}
+inline vec3_t operator-(const vec3_t &l, const vec3_t &r) {
+  vec3_t o;
+  o.x = l.x - r.x;
+  o.y = l.y - r.y;
+  o.z = l.z - r.z;
+  return o;
+}
+inline vec3_t operator*(const vec3_t &l, real_t r) {
+  vec3_t o;
+  o.x = l.x * r;
+  o.y = l.y * r;
+  o.z = l.z * r;
+  return o;
+}
+inline vec3_t cross(const vec3_t &l, const vec3_t &r) {
+  vec3_t o;
+  o.x = l.y * r.z - r.y * l.z;
+  o.y = l.z * r.x - r.z * l.x;
+  o.z = l.x * r.y - r.x * l.y;
+  return o;
+}
+inline real_t dot(const vec3_t &l, const vec3_t &r) {
+  return l.x * r.x + l.y * r.y + l.z * r.z;
+}
+struct vec2_t {
+  real_t x, y;
+};
 
 typedef enum {
   TEXTURE_TYPE_NONE,  // default
@@ -1320,7 +1357,7 @@ static void InitMaterial(material_t *material) {
 static bool exportFaceGroupToShape(
     shape_t *shape, const std::vector<std::vector<vertex_index> > &faceGroup,
     const std::vector<tag_t> &tags, const int material_id,
-    const std::string &name, bool triangulate, const std::vector<vec3_t> &v ) {
+    const std::string &name, bool triangulate, const std::vector<vec3_t> &v) {
   if (faceGroup.empty()) {
     return false;
   }
@@ -1336,124 +1373,129 @@ static bool exportFaceGroupToShape(
     size_t npolys = face.size();
 
     if (triangulate) {
-			vec3_t face_normal = {0,0,0};
+      vec3_t face_normal = {0, 0, 0};
 
-			for(size_t k = 0; k < npolys; ++k) {
-				int vi0 = face[(k+0)%npolys].v_idx;
-				int vi1 = face[(k+1)%npolys].v_idx;
-				int vi2 = face[(k+2)%npolys].v_idx;
-				const vec3_t &v0 = v[vi0];
-				const vec3_t &v1 = v[vi1];
-				const vec3_t &v2 = v[vi2];
-				const vec3_t e0 = v1 - v0;
-				const vec3_t e1 = v2 - v1;
-				const vec3_t n = cross( e0, e1 );
-				face_normal = face_normal + n;
-			}
+      for (size_t k = 0; k < npolys; ++k) {
+        int vi0 = face[(k + 0) % npolys].v_idx;
+        int vi1 = face[(k + 1) % npolys].v_idx;
+        int vi2 = face[(k + 2) % npolys].v_idx;
+        const vec3_t &v0 = v[size_t(vi0)];
+        const vec3_t &v1 = v[size_t(vi1)];
+        const vec3_t &v2 = v[size_t(vi2)];
+        const vec3_t e0 = v1 - v0;
+        const vec3_t e1 = v2 - v1;
+        const vec3_t n = cross(e0, e1);
+        face_normal = face_normal + n;
+      }
 
-			// face_normal is currently area of face
-			{
-				real_t l = sqrt(dot( face_normal, face_normal ));
-				face_normal = face_normal * (1.0/l);
-			}
+      // face_normal is currently area of face
+      {
+        real_t l = std::sqrt(dot(face_normal, face_normal));
+        face_normal = face_normal * (static_cast<real_t>(1.0) / l);
+      }
 
-			int maxRounds = 10; // arbitrary max loop count to protect against unexpected errors
+      int maxRounds =
+          10;  // arbitrary max loop count to protect against unexpected errors
 
-			std::vector<vertex_index> remainingFace = face;
-			size_t guess_vert = 0;
-			while( remainingFace.size() > 3 && maxRounds > 0 ) {
-				npolys = remainingFace.size();
-				if( guess_vert >= npolys ) {
-					maxRounds -= 1;
-					guess_vert -= npolys;
-				}
-				i0 = remainingFace[(guess_vert+0)%npolys];
-				i1 = remainingFace[(guess_vert+1)%npolys];
-				i2 = remainingFace[(guess_vert+2)%npolys];
-				int vi0 = i0.v_idx;
-				int vi1 = i1.v_idx;
-				int vi2 = i2.v_idx;
-				const vec3_t &v0 = v[vi0];
-				const vec3_t &v1 = v[vi1];
-				const vec3_t &v2 = v[vi2];
-				const vec3_t e0 = v1 - v0;
-				const vec3_t e1 = v2 - v1;
-				const vec3_t n = cross( e0, e1 );
-				bool internal = dot( n, face_normal ) < 0.0f;
-				if( internal ) { guess_vert += 1; continue; }
+      std::vector<vertex_index> remainingFace = face;
+      size_t guess_vert = 0;
+      while (remainingFace.size() > 3 && maxRounds > 0) {
+        npolys = remainingFace.size();
+        if (guess_vert >= npolys) {
+          maxRounds -= 1;
+          guess_vert -= npolys;
+        }
+        i0 = remainingFace[(guess_vert + 0) % npolys];
+        i1 = remainingFace[(guess_vert + 1) % npolys];
+        i2 = remainingFace[(guess_vert + 2) % npolys];
+        int vi0 = i0.v_idx;
+        int vi1 = i1.v_idx;
+        int vi2 = i2.v_idx;
+        const vec3_t &v0 = v[size_t(vi0)];
+        const vec3_t &v1 = v[size_t(vi1)];
+        const vec3_t &v2 = v[size_t(vi2)];
+        const vec3_t e0 = v1 - v0;
+        const vec3_t e1 = v2 - v1;
+        const vec3_t n = cross(e0, e1);
+        bool internal = dot(n, face_normal) < 0.0f;
+        if (internal) {
+          guess_vert += 1;
+          continue;
+        }
 
-				// check all other verts in case they are inside this triangle
-				bool overlap = false;
-				for( size_t otherVert = 3; otherVert < npolys; ++otherVert ) {
-					int ovi = remainingFace[(guess_vert+otherVert)%npolys].v_idx;
-					const vec3_t &ov = v[ovi];
-					if( dot( face_normal, cross( e0, ov-v0 ) ) < 0 )
-						continue;
-					if( dot( face_normal, cross( e1, ov-v1 ) ) < 0 )
-						continue;
-					if( dot( face_normal, cross( v0-v2, ov-v2 ) ) < 0 )
-						continue;
-					// vert inside triangle
-					overlap = true;
-					break;
-				}
+        // check all other verts in case they are inside this triangle
+        bool overlap = false;
+        for (size_t otherVert = 3; otherVert < npolys; ++otherVert) {
+          int ovi = remainingFace[(guess_vert + otherVert) % npolys].v_idx;
+          const vec3_t &ov = v[size_t(ovi)];
+          if (dot(face_normal, cross(e0, ov - v0)) < 0) continue;
+          if (dot(face_normal, cross(e1, ov - v1)) < 0) continue;
+          if (dot(face_normal, cross(v0 - v2, ov - v2)) < 0) continue;
+          // vert inside triangle
+          overlap = true;
+          break;
+        }
 
-				if( overlap ) { guess_vert += 1; continue; }
+        if (overlap) {
+          guess_vert += 1;
+          continue;
+        }
 
-				// this triangle is an ear
-				{
-					index_t idx0, idx1, idx2;
-					idx0.vertex_index = i0.v_idx;
-					idx0.normal_index = i0.vn_idx;
-					idx0.texcoord_index = i0.vt_idx;
-					idx1.vertex_index = i1.v_idx;
-					idx1.normal_index = i1.vn_idx;
-					idx1.texcoord_index = i1.vt_idx;
-					idx2.vertex_index = i2.v_idx;
-					idx2.normal_index = i2.vn_idx;
-					idx2.texcoord_index = i2.vt_idx;
+        // this triangle is an ear
+        {
+          index_t idx0, idx1, idx2;
+          idx0.vertex_index = i0.v_idx;
+          idx0.normal_index = i0.vn_idx;
+          idx0.texcoord_index = i0.vt_idx;
+          idx1.vertex_index = i1.v_idx;
+          idx1.normal_index = i1.vn_idx;
+          idx1.texcoord_index = i1.vt_idx;
+          idx2.vertex_index = i2.v_idx;
+          idx2.normal_index = i2.vn_idx;
+          idx2.texcoord_index = i2.vt_idx;
 
-					shape->mesh.indices.push_back(idx0);
-					shape->mesh.indices.push_back(idx1);
-					shape->mesh.indices.push_back(idx2);
+          shape->mesh.indices.push_back(idx0);
+          shape->mesh.indices.push_back(idx1);
+          shape->mesh.indices.push_back(idx2);
 
-					shape->mesh.num_face_vertices.push_back(3);
-					shape->mesh.material_ids.push_back(material_id);
-				}
+          shape->mesh.num_face_vertices.push_back(3);
+          shape->mesh.material_ids.push_back(material_id);
+        }
 
-				// remove v1 from the list
-				size_t removed_vert_index = (guess_vert+1)%npolys;
-				while( removed_vert_index + 1 < npolys ) {
-					remainingFace[removed_vert_index] = remainingFace[removed_vert_index+1];
-					removed_vert_index += 1;
-				}
-				remainingFace.pop_back();
-			}
+        // remove v1 from the list
+        size_t removed_vert_index = (guess_vert + 1) % npolys;
+        while (removed_vert_index + 1 < npolys) {
+          remainingFace[removed_vert_index] =
+              remainingFace[removed_vert_index + 1];
+          removed_vert_index += 1;
+        }
+        remainingFace.pop_back();
+      }
 
-			if( remainingFace.size() == 3 ) {
-				i0 = remainingFace[0];
-				i1 = remainingFace[1];
-				i2 = remainingFace[2];
-				{
-					index_t idx0, idx1, idx2;
-					idx0.vertex_index = i0.v_idx;
-					idx0.normal_index = i0.vn_idx;
-					idx0.texcoord_index = i0.vt_idx;
-					idx1.vertex_index = i1.v_idx;
-					idx1.normal_index = i1.vn_idx;
-					idx1.texcoord_index = i1.vt_idx;
-					idx2.vertex_index = i2.v_idx;
-					idx2.normal_index = i2.vn_idx;
-					idx2.texcoord_index = i2.vt_idx;
+      if (remainingFace.size() == 3) {
+        i0 = remainingFace[0];
+        i1 = remainingFace[1];
+        i2 = remainingFace[2];
+        {
+          index_t idx0, idx1, idx2;
+          idx0.vertex_index = i0.v_idx;
+          idx0.normal_index = i0.vn_idx;
+          idx0.texcoord_index = i0.vt_idx;
+          idx1.vertex_index = i1.v_idx;
+          idx1.normal_index = i1.vn_idx;
+          idx1.texcoord_index = i1.vt_idx;
+          idx2.vertex_index = i2.v_idx;
+          idx2.normal_index = i2.vn_idx;
+          idx2.texcoord_index = i2.vt_idx;
 
-					shape->mesh.indices.push_back(idx0);
-					shape->mesh.indices.push_back(idx1);
-					shape->mesh.indices.push_back(idx2);
+          shape->mesh.indices.push_back(idx0);
+          shape->mesh.indices.push_back(idx1);
+          shape->mesh.indices.push_back(idx2);
 
-					shape->mesh.num_face_vertices.push_back(3);
-					shape->mesh.material_ids.push_back(material_id);
-				}
-			}
+          shape->mesh.num_face_vertices.push_back(3);
+          shape->mesh.material_ids.push_back(material_id);
+        }
+      }
     } else {
       for (size_t k = 0; k < npolys; k++) {
         index_t idx;
@@ -2116,9 +2158,6 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
         parseVertexWithColor(&vtx.x, &vtx.y, &vtx.z, &r, &g, &b, &token);
         v.push_back(vtx);
 
-        real_t color;
-       
-
         vc.push_back(r);
         vc.push_back(g);
         vc.push_back(b);
@@ -2717,6 +2756,11 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
 
   return true;
 }
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+
 }  // namespace tinyobj
 
 #endif
