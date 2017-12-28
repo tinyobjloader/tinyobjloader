@@ -59,6 +59,7 @@ namespace tinyobj {
 #  if _MSC_VER < 1800
 #    error This project needs at least Visual Studio 2013
 #  endif
+#define tobj_null nullptr
 #elif __cplusplus <= 199711L
 #  error This project can only be compiled with a compiler that supports C++11
 #else
