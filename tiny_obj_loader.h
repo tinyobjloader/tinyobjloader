@@ -1029,7 +1029,8 @@ static bool exportFaceGroupToShape(
 				float cx = fabs(e0y*e1z - e0z*e1y);
 				float cy = fabs(e0z*e1x - e0x*e1z);
 				float cz = fabs(e0x*e1y - e0y*e1x);
-				if( cx > 0.0f || cy > 0.0f || cz > 0.0f ) {
+				const float epsilon = 0.0001f;
+				if( cx > epsilon || cy > epsilon || cz > epsilon ) {
 					// found a corner
 					if( cx > cy && cx > cz ) {
 					} else {
