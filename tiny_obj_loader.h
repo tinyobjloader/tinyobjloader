@@ -1002,34 +1002,8 @@ static bool exportFaceGroupToShape(
     size_t npolys = face.size();
 
     if (triangulate) {
-#define ENABLE_EAR_CLIPPING 1
-#if ENABLE_EAR_CLIPPING
 			// find the two axes to work in
-			float min_values[3], max_values[3];
-			for( size_t k = 0; k < 3; k++ ) {
-				min_values[k] = (HUGE_VAL);
-				max_values[k] = -(HUGE_VAL);
-			}
-
-			for(size_t f = 0; f < npolys; ++f) {
-				int vi = face[f].v_idx;
-				for(size_t k = 0; k < 3; k++ ) {
-					float value = v[size_t(vi)*3+k];
-					if( value < min_values[k] ) min_values[k] = value;
-					if( value > max_values[k] ) max_values[k] = value;
-				}
-			}
-			for(size_t k = 0; k < 3; k++ ) {
-				max_values[k] -= min_values[k];
-			}
 			size_t axes[2] = { 1, 2 };
-			if( max_values[0] > max_values[1] || max_values[0] > max_values[2] ) {
-				axes[0] = 0;
-				if( max_values[1] > max_values[2] )
-					axes[1] = 1;
-			}
-
-			real_t area = 0;
 			for(size_t k = 0; k < npolys; ++k) {
 				i0 = face[(k+0)%npolys];
 				i1 = face[(k+1)%npolys];
@@ -1037,17 +1011,47 @@ static bool exportFaceGroupToShape(
 				size_t vi0 = size_t(i0.v_idx);
 				size_t vi1 = size_t(i1.v_idx);
 				size_t vi2 = size_t(i2.v_idx);
+				real_t v0x = v[vi0*3+0];
+				real_t v0y = v[vi0*3+1];
+				real_t v0z = v[vi0*3+2];
+				real_t v1x = v[vi1*3+0];
+				real_t v1y = v[vi1*3+1];
+				real_t v1z = v[vi1*3+2];
+				real_t v2x = v[vi2*3+0];
+				real_t v2y = v[vi2*3+1];
+				real_t v2z = v[vi2*3+2];
+				real_t e0x = v1x - v0x;
+				real_t e0y = v1y - v0y;
+				real_t e0z = v1z - v0z;
+				real_t e1x = v2x - v1x;
+				real_t e1y = v2y - v1y;
+				real_t e1z = v2z - v1z;
+				float cx = fabs(e0y*e1z - e0z*e1y);
+				float cy = fabs(e0z*e1x - e0x*e1z);
+				float cz = fabs(e0x*e1y - e0y*e1x);
+				if( cx > 0.0f || cy > 0.0f || cz > 0.0f ) {
+					// found a corner
+					if( cx > cy && cx > cz ) {
+					} else {
+						axes[0] = 0;
+						if( cz > cx && cz > cy )
+							axes[1] = 1;
+					}
+					break;
+				}
+			}
+
+			real_t area = 0;
+			for(size_t k = 0; k < npolys; ++k) {
+				i0 = face[(k+0)%npolys];
+				i1 = face[(k+1)%npolys];
+				size_t vi0 = size_t(i0.v_idx);
+				size_t vi1 = size_t(i1.v_idx);
 				real_t v0x = v[vi0*3+axes[0]];
 				real_t v0y = v[vi0*3+axes[1]];
 				real_t v1x = v[vi1*3+axes[0]];
 				real_t v1y = v[vi1*3+axes[1]];
-				real_t v2x = v[vi2*3+axes[0]];
-				real_t v2y = v[vi2*3+axes[1]];
-				real_t e0x = v1x - v0x;
-				real_t e0y = v1y - v0y;
-				real_t e1x = v2x - v1x;
-				real_t e1y = v2y - v1y;
-				area += e0x*e1y - e0y*e1x;
+				area += (v0x*v1y - v0y*v1x)*0.5f;
 			}
 
 			int maxRounds = 10; // arbitrary max loop count to protect against unexpected errors
@@ -1145,31 +1149,6 @@ static bool exportFaceGroupToShape(
 					shape->mesh.material_ids.push_back(material_id);
 				}
 			}
-#else
-      // Polygon -> triangle fan conversion
-      for (size_t k = 2; k < npolys; k++) {
-        i1 = i2;
-        i2 = face[k];
-
-        index_t idx0, idx1, idx2;
-        idx0.vertex_index = i0.v_idx;
-        idx0.normal_index = i0.vn_idx;
-        idx0.texcoord_index = i0.vt_idx;
-        idx1.vertex_index = i1.v_idx;
-        idx1.normal_index = i1.vn_idx;
-        idx1.texcoord_index = i1.vt_idx;
-        idx2.vertex_index = i2.v_idx;
-        idx2.normal_index = i2.vn_idx;
-        idx2.texcoord_index = i2.vt_idx;
-
-        shape->mesh.indices.push_back(idx0);
-        shape->mesh.indices.push_back(idx1);
-        shape->mesh.indices.push_back(idx2);
-
-        shape->mesh.num_face_vertices.push_back(3);
-        shape->mesh.material_ids.push_back(material_id);
-      }
-#endif
     } else {
       for (size_t k = 0; k < npolys; k++) {
         index_t idx;
