@@ -971,10 +971,22 @@ static void InitMaterial(material_t *material) {
   material->unknown_parameter.clear();
 }
 
+// code from https://wrf.ecse.rpi.edu//Research/Short_Notes/pnpoly.html
+static int pnpoly(int nvert, float *vertx, float *verty, float testx, float testy)
+{
+  int i, j, c = 0;
+  for (i = 0, j = nvert-1; i < nvert; j = i++) {
+    if ( ((verty[i]>testy) != (verty[j]>testy)) &&
+	 (testx < (vertx[j]-vertx[i]) * (testy-verty[i]) / (verty[j]-verty[i]) + vertx[i]) )
+       c = !c;
+  }
+  return c;
+}
+
 static bool exportFaceGroupToShape(
     shape_t *shape, const std::vector<std::vector<vertex_index> > &faceGroup,
     const std::vector<tag_t> &tags, const int material_id,
-    const std::string &name, bool triangulate) {
+    const std::string &name, bool triangulate, const std::vector<real_t> &v) {
   if (faceGroup.empty()) {
     return false;
   }
@@ -990,29 +1002,154 @@ static bool exportFaceGroupToShape(
     size_t npolys = face.size();
 
     if (triangulate) {
-      // Polygon -> triangle fan conversion
-      for (size_t k = 2; k < npolys; k++) {
-        i1 = i2;
-        i2 = face[k];
+			// find the two axes to work in
+			size_t axes[2] = { 1, 2 };
+			for(size_t k = 0; k < npolys; ++k) {
+				i0 = face[(k+0)%npolys];
+				i1 = face[(k+1)%npolys];
+				i2 = face[(k+2)%npolys];
+				size_t vi0 = size_t(i0.v_idx);
+				size_t vi1 = size_t(i1.v_idx);
+				size_t vi2 = size_t(i2.v_idx);
+				real_t v0x = v[vi0*3+0];
+				real_t v0y = v[vi0*3+1];
+				real_t v0z = v[vi0*3+2];
+				real_t v1x = v[vi1*3+0];
+				real_t v1y = v[vi1*3+1];
+				real_t v1z = v[vi1*3+2];
+				real_t v2x = v[vi2*3+0];
+				real_t v2y = v[vi2*3+1];
+				real_t v2z = v[vi2*3+2];
+				real_t e0x = v1x - v0x;
+				real_t e0y = v1y - v0y;
+				real_t e0z = v1z - v0z;
+				real_t e1x = v2x - v1x;
+				real_t e1y = v2y - v1y;
+				real_t e1z = v2z - v1z;
+				float cx = fabs(e0y*e1z - e0z*e1y);
+				float cy = fabs(e0z*e1x - e0x*e1z);
+				float cz = fabs(e0x*e1y - e0y*e1x);
+				const float epsilon = 0.0001f;
+				if( cx > epsilon || cy > epsilon || cz > epsilon ) {
+					// found a corner
+					if( cx > cy && cx > cz ) {
+					} else {
+						axes[0] = 0;
+						if( cz > cx && cz > cy )
+							axes[1] = 1;
+					}
+					break;
+				}
+			}
 
-        index_t idx0, idx1, idx2;
-        idx0.vertex_index = i0.v_idx;
-        idx0.normal_index = i0.vn_idx;
-        idx0.texcoord_index = i0.vt_idx;
-        idx1.vertex_index = i1.v_idx;
-        idx1.normal_index = i1.vn_idx;
-        idx1.texcoord_index = i1.vt_idx;
-        idx2.vertex_index = i2.v_idx;
-        idx2.normal_index = i2.vn_idx;
-        idx2.texcoord_index = i2.vt_idx;
+			real_t area = 0;
+			for(size_t k = 0; k < npolys; ++k) {
+				i0 = face[(k+0)%npolys];
+				i1 = face[(k+1)%npolys];
+				size_t vi0 = size_t(i0.v_idx);
+				size_t vi1 = size_t(i1.v_idx);
+				real_t v0x = v[vi0*3+axes[0]];
+				real_t v0y = v[vi0*3+axes[1]];
+				real_t v1x = v[vi1*3+axes[0]];
+				real_t v1y = v[vi1*3+axes[1]];
+				area += (v0x*v1y - v0y*v1x)*0.5f;
+			}
 
-        shape->mesh.indices.push_back(idx0);
-        shape->mesh.indices.push_back(idx1);
-        shape->mesh.indices.push_back(idx2);
+			int maxRounds = 10; // arbitrary max loop count to protect against unexpected errors
 
-        shape->mesh.num_face_vertices.push_back(3);
-        shape->mesh.material_ids.push_back(material_id);
-      }
+			std::vector<vertex_index> remainingFace = face;
+			size_t guess_vert = 0;
+			vertex_index ind[3];
+			real_t vx[3];
+			real_t vy[3];
+			while( remainingFace.size() > 3 && maxRounds > 0 ) {
+				npolys = remainingFace.size();
+				if( guess_vert >= npolys ) {
+					maxRounds -= 1;
+					guess_vert -= npolys;
+				}
+				for( size_t k = 0; k < 3; k++ ) {
+					ind[k] = remainingFace[(guess_vert+k)%npolys];
+					size_t vi = size_t(ind[k].v_idx);
+					vx[k] = v[vi*3+axes[0]];
+					vy[k] = v[vi*3+axes[1]];
+				}
+				real_t e0x = vx[1] - vx[0];
+				real_t e0y = vy[1] - vy[0];
+				real_t e1x = vx[2] - vx[1];
+				real_t e1y = vy[2] - vy[1];
+				real_t cross = e0x*e1y - e0y*e1x;
+				// if an internal angle
+				if( cross * area < 0.0f ) { guess_vert += 1; continue; }
+
+				// check all other verts in case they are inside this triangle
+				bool overlap = false;
+				for( size_t otherVert = 3; otherVert < npolys; ++otherVert ) {
+					size_t ovi = size_t(remainingFace[(guess_vert+otherVert)%npolys].v_idx);
+					real_t tx = v[ovi*3+axes[0]];
+					real_t ty = v[ovi*3+axes[1]];
+					if( pnpoly( 3, vx, vy, tx, ty ) ) {
+						overlap = true;
+						break;
+					}
+				}
+
+				if( overlap ) { guess_vert += 1; continue; }
+
+				// this triangle is an ear
+				{
+					index_t idx0, idx1, idx2;
+					idx0.vertex_index = ind[0].v_idx;
+					idx0.normal_index = ind[0].vn_idx;
+					idx0.texcoord_index = ind[0].vt_idx;
+					idx1.vertex_index = ind[1].v_idx;
+					idx1.normal_index = ind[1].vn_idx;
+					idx1.texcoord_index = ind[1].vt_idx;
+					idx2.vertex_index = ind[2].v_idx;
+					idx2.normal_index = ind[2].vn_idx;
+					idx2.texcoord_index = ind[2].vt_idx;
+
+					shape->mesh.indices.push_back(idx0);
+					shape->mesh.indices.push_back(idx1);
+					shape->mesh.indices.push_back(idx2);
+
+					shape->mesh.num_face_vertices.push_back(3);
+					shape->mesh.material_ids.push_back(material_id);
+				}
+
+				// remove v1 from the list
+				size_t removed_vert_index = (guess_vert+1)%npolys;
+				while( removed_vert_index + 1 < npolys ) {
+					remainingFace[removed_vert_index] = remainingFace[removed_vert_index+1];
+					removed_vert_index += 1;
+				}
+				remainingFace.pop_back();
+			}
+
+			if( remainingFace.size() == 3 ) {
+				i0 = remainingFace[0];
+				i1 = remainingFace[1];
+				i2 = remainingFace[2];
+				{
+					index_t idx0, idx1, idx2;
+					idx0.vertex_index = i0.v_idx;
+					idx0.normal_index = i0.vn_idx;
+					idx0.texcoord_index = i0.vt_idx;
+					idx1.vertex_index = i1.v_idx;
+					idx1.normal_index = i1.vn_idx;
+					idx1.texcoord_index = i1.vt_idx;
+					idx2.vertex_index = i2.v_idx;
+					idx2.normal_index = i2.vn_idx;
+					idx2.texcoord_index = i2.vt_idx;
+
+					shape->mesh.indices.push_back(idx0);
+					shape->mesh.indices.push_back(idx1);
+					shape->mesh.indices.push_back(idx2);
+
+					shape->mesh.num_face_vertices.push_back(3);
+					shape->mesh.material_ids.push_back(material_id);
+				}
+			}
     } else {
       for (size_t k = 0; k < npolys; k++) {
         index_t idx;
@@ -1657,7 +1794,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
         // this time.
         // just clear `faceGroup` after `exportFaceGroupToShape()` call.
         exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
-                               triangulate);
+                               triangulate, v);
         faceGroup.clear();
         material = newMaterialId;
       }
@@ -1712,7 +1849,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     if (token[0] == 'g' && IS_SPACE((token[1]))) {
       // flush previous face group.
       bool ret = exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
-                                        triangulate);
+                                        triangulate, v);
       (void)ret;  // return value not used.
 
       if (shape.mesh.indices.size() > 0) {
@@ -1749,7 +1886,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     if (token[0] == 'o' && IS_SPACE((token[1]))) {
       // flush previous face group.
       bool ret = exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
-                                        triangulate);
+                                        triangulate, v);
       if (ret) {
         shapes->push_back(shape);
       }
@@ -1799,7 +1936,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   }
 
   bool ret = exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
-                                    triangulate);
+                                    triangulate, v);
   // exportFaceGroupToShape return false when `usemtl` is called in the last
   // line.
   // we also add `shape` to `shapes` when `shape.mesh` has already some
