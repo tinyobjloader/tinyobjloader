@@ -172,5 +172,3 @@ bool WriteObj(const std::string& filename, const std::vector<tinyobj::shape_t>& 
 
   return ret;
 }
-
-
