@@ -229,6 +229,7 @@ typedef struct {
 } mesh_t;
 
 typedef struct {
+  int smoothingGroupId;                          // Smoothing group id. 
   std::string name;
   mesh_t mesh;
 } shape_t;
@@ -1684,7 +1685,11 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   std::map<std::string, int> material_map;
   int material = -1;
 
+  // smoothing group id
+  int currentSmoothingId = 0;      // Initial value. 0 means no smoothing.
+
   shape_t shape;
+  shape.smoothingGroupId = currentSmoothingId;
 
   std::string linebuf;
   while (inStream->peek() != -1) {
@@ -1863,7 +1868,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
         shapes->push_back(shape);
       }
 
-      shape = shape_t();
+	  shape = shape_t();
+	  shape.smoothingGroupId = currentSmoothingId;
 
       // material = -1;
       faceGroup.clear();
@@ -1901,6 +1907,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       // material = -1;
       faceGroup.clear();
       shape = shape_t();
+	  shape.smoothingGroupId = currentSmoothingId;
 
       // @todo { multiple object name? }
       token += 2;
@@ -1938,6 +1945,33 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
       tags.push_back(tag);
     }
+
+	if (token[0] == 's' && IS_SPACE(token[1])) {
+	  // smoothing group id
+	  token += 2;
+	  int smGroupId = parseInt(&token);
+
+	  if (smGroupId == currentSmoothingId)
+		continue; // No change in smoothing group.
+
+	  // Encountering new smoothing group Id.
+	  // Export the current face group
+	  if (!faceGroup.empty()) {
+		bool ret = exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
+		           triangulate, v);
+		if (ret) {
+			shapes->push_back(shape);
+		}
+	  }
+
+	  // Clear the face group and initialize the shape with new smoothing group id
+	  // and keep the existing name and materials of the shape.
+	  faceGroup.clear();
+	  shape.mesh.indices.clear();
+	  shape.mesh.num_face_vertices.clear();
+	  shape.smoothingGroupId = smGroupId;
+	  currentSmoothingId = smGroupId;
+	}	// smoothing group id
 
     // Ignore unknown command.
   }

@@ -1,3 +1,5 @@
+#include "stdafx.h"		// Required to be included in a Visual Studio Win32 application
+
 /*
  * (c) Copyright 1993, 1994, Silicon Graphics, Inc.
  * ALL RIGHTS RESERVED

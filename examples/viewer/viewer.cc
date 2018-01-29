@@ -1,3 +1,4 @@
+#include "stdafx.h"		// Required to be included in a Visual Studio Win32 application
 //
 // Simple .obj viewer(vertex only)
 //
@@ -151,7 +152,8 @@ static std::string GetBaseDir(const std::string& filepath) {
 
 static bool FileExists(const std::string& abs_filename) {
   bool ret;
-  FILE* fp = fopen(abs_filename.c_str(), "rb");
+  FILE* fp;
+  fopen_s(&fp, abs_filename.c_str(), "rb");
   if (fp) {
     ret = true;
     fclose(fp);
@@ -190,9 +192,90 @@ static void CalcNormal(float N[3], float v0[3], float v1[3], float v2[3]) {
     float len = sqrtf(len2);
 
     N[0] /= len;
-    N[1] /= len;
+	N[1] /= len;
+	N[2] /= len;
   }
 }
+
+namespace // Local utility functions
+{
+	void addBtoA(float a[3], float b[3])
+	{
+		for (size_t i = 0; i < 3; ++i)
+			a[i] += b[i];
+	}
+
+	void assignBtoA(float a[3], float b[3])
+	{
+		for (size_t i = 0; i < 3; ++i)
+			a[i] = b[i];
+	}
+
+	void normalizeVector(float N[3])
+	{
+		float len2 = N[0] * N[0] + N[1] * N[1] + N[2] * N[2];
+		if (len2 > 0.0f) {
+			float len = sqrtf(len2);
+
+			N[0] /= len;
+			N[1] /= len;
+			N[2] /= len;
+		}
+	}
+
+	void computeSmoothingNormals(tinyobj::attrib_t &attrib, tinyobj::shape_t &shape,
+		std::map<int, float[3]>& smoothVertexNormals)
+	{
+		smoothVertexNormals.clear();
+		std::map<int, float[3]>::iterator iter;
+
+		for (size_t f = 0; f < shape.mesh.indices.size() / 3; f++) {
+			// Get the three indexes of the face (all faces are triangular)
+			tinyobj::index_t idx0 = shape.mesh.indices[3 * f + 0];
+			tinyobj::index_t idx1 = shape.mesh.indices[3 * f + 1];
+			tinyobj::index_t idx2 = shape.mesh.indices[3 * f + 2];
+
+			// Get the three vertex indexes and coordinates
+			int vi[3];		// indexes
+			float v[3][3];	// coordinates
+
+			for (int k = 0; k < 3; k++) {
+				vi[0] = idx0.vertex_index;
+				vi[1] = idx1.vertex_index;
+				vi[2] = idx2.vertex_index;
+				assert(vi[0] >= 0);
+				assert(vi[1] >= 0);
+				assert(vi[2] >= 0);
+
+				v[0][k] = attrib.vertices[3 * vi[0] + k];
+				v[1][k] = attrib.vertices[3 * vi[1] + k];
+				v[2][k] = attrib.vertices[3 * vi[2] + k];
+			}
+
+			// Compute the normal of the face
+			float normal[3];
+			CalcNormal(normal, v[0], v[1], v[2]);
+
+			// Add the normal to the three vertexes
+			for (size_t i = 0; i < 3; ++i)
+			{
+				iter = smoothVertexNormals.find(vi[i]);
+				if (iter != smoothVertexNormals.end())
+					addBtoA(iter->second, normal);
+				else
+					assignBtoA(smoothVertexNormals[vi[i]], normal);
+			}
+
+		} // f
+
+		  // Normalize the normals, that is, make them unit vectors
+		for (iter = smoothVertexNormals.begin(); iter != smoothVertexNormals.end(); iter++)
+		{
+			normalizeVector(iter->second);
+		}
+
+	} // computeSmoothingNormals
+} // namespace
 
 static bool LoadObjAndConvert(float bmin[3], float bmax[3],
                               std::vector<DrawObject>* drawObjects,
@@ -307,7 +390,13 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
     for (size_t s = 0; s < shapes.size(); s++) {
       DrawObject o;
       std::vector<float> buffer;  // pos(3float), normal(3float), color(3float)
-      for (size_t f = 0; f < shapes[s].mesh.indices.size() / 3; f++) {
+
+	  // Check for smoothing group and compute smoothing normals
+	  std::map<int, float[3]> smoothVertexNormals;
+	  if (shapes[s].smoothingGroupId > 0)
+		  computeSmoothingNormals(attrib, shapes[s], smoothVertexNormals);
+
+	  for (size_t f = 0; f < shapes[s].mesh.indices.size() / 3; f++) {
         tinyobj::index_t idx0 = shapes[s].mesh.indices[3 * f + 0];
         tinyobj::index_t idx1 = shapes[s].mesh.indices[3 * f + 1];
         tinyobj::index_t idx2 = shapes[s].mesh.indices[3 * f + 2];
@@ -410,6 +499,20 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
           } else {
             invalid_normal_index = true;
           }
+
+		  if (invalid_normal_index && !smoothVertexNormals.empty()) {
+		    // Use smoothing normals
+			int f0 = idx0.vertex_index;
+			int f1 = idx1.vertex_index;
+			int f2 = idx2.vertex_index;
+
+			if (f0 >= 0 && f1 >= 0 && f2 >= 0) {
+			  assignBtoA(n[0], smoothVertexNormals[f0]);
+			  assignBtoA(n[1], smoothVertexNormals[f1]);
+			  assignBtoA(n[2], smoothVertexNormals[f2]);
+			  invalid_normal_index = false;
+			}
+		  }
 
           if (invalid_normal_index) {
             // compute geometric normal
@@ -625,6 +728,10 @@ static void Draw(const std::vector<DrawObject>& drawObjects,
     glBindTexture(GL_TEXTURE_2D, 0);
   }
 
+  static bool bDrawWireFrame = false;
+  if (!bDrawWireFrame)
+	return;
+
   // draw wireframe
   glDisable(GL_POLYGON_OFFSET_FILL);
   glPolygonMode(GL_FRONT, GL_LINE);
@@ -668,6 +775,13 @@ static void Init() {
   up[2] = 0.0f;
 }
 
+// Gopal: I am commenting out the original main function.
+// Then, I make a copy and split in to two fuctions -  
+//  tinyObjectViewerMainCreateWindow and tinyObjectViewerMainLoop.
+// I need to separate these two functions in my windows project. 
+// Ths first one is used to create the OpenGL window and link it to my
+// main application window. After that the second function is called.
+/*
 int main(int argc, char** argv) {
   if (argc < 2) {
     std::cout << "Needs input.obj\n" << std::endl;
@@ -751,4 +865,97 @@ int main(int argc, char** argv) {
   }
 
   glfwTerminate();
+}
+*/
+
+// The parameters bmin, bmax, materials and textures are shared between the two funations.
+// They are also declared as static to retain the values.
+static float bmin[3], bmax[3];
+static std::vector<tinyobj::material_t> materials;
+static std::map<std::string, GLuint> textures;
+
+int tinyObjectViewerMainCreateWindow(int argc, char** argv) {
+	if (argc < 2) {
+		std::cout << "Needs input.obj\n" << std::endl;
+		return 0;
+	}
+
+	Init();
+
+	if (!glfwInit()) {
+		std::cerr << "Failed to initialize GLFW." << std::endl;
+		return -1;
+	}
+
+	window = glfwCreateWindow(width, height, "Obj viewer", NULL, NULL);
+	if (window == NULL) {
+		std::cerr << "Failed to open GLFW window. " << std::endl;
+		glfwTerminate();
+		return 1;
+	}
+
+	glfwMakeContextCurrent(window);
+	glfwSwapInterval(1);
+
+	// Callback
+	glfwSetWindowSizeCallback(window, reshapeFunc);
+	glfwSetKeyCallback(window, keyboardFunc);
+	glfwSetMouseButtonCallback(window, clickFunc);
+	glfwSetCursorPosCallback(window, motionFunc);
+
+	glewExperimental = true;
+	if (glewInit() != GLEW_OK) {
+		std::cerr << "Failed to initialize GLEW." << std::endl;
+		return -1;
+	}
+
+	reshapeFunc(window, width, height);
+
+	if (false == LoadObjAndConvert(bmin, bmax, &gDrawObjects, materials, textures, argv[1])) {
+		return -1;
+	}
+
+	return 0;
+}
+
+void tinyObjectViewerMainLoop()
+{
+	float maxExtent = 0.5f * (bmax[0] - bmin[0]);
+	if (maxExtent < 0.5f * (bmax[1] - bmin[1])) {
+		maxExtent = 0.5f * (bmax[1] - bmin[1]);
+	}
+	if (maxExtent < 0.5f * (bmax[2] - bmin[2])) {
+		maxExtent = 0.5f * (bmax[2] - bmin[2]);
+	}
+
+	while (glfwWindowShouldClose(window) == GL_FALSE) {
+		glfwPollEvents();
+		glClearColor(0.1f, 0.2f, 0.3f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		glEnable(GL_DEPTH_TEST);
+		glEnable(GL_TEXTURE_2D);
+
+		// camera & rotate
+		glMatrixMode(GL_MODELVIEW);
+		glLoadIdentity();
+		GLfloat mat[4][4];
+		gluLookAt(eye[0], eye[1], eye[2], lookat[0], lookat[1], lookat[2], up[0],
+			up[1], up[2]);
+		build_rotmatrix(mat, curr_quat);
+		glMultMatrixf(&mat[0][0]);
+
+		// Fit to -1, 1
+		glScalef(1.0f / maxExtent, 1.0f / maxExtent, 1.0f / maxExtent);
+
+		// Centerize object.
+		glTranslatef(-0.5 * (bmax[0] + bmin[0]), -0.5 * (bmax[1] + bmin[1]),
+			-0.5 * (bmax[2] + bmin[2]));
+
+		Draw(gDrawObjects, materials, textures);
+
+		glfwSwapBuffers(window);
+	}
+
+	glfwTerminate();
 }
