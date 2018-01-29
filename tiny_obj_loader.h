@@ -51,6 +51,13 @@ THE SOFTWARE.
 
 namespace tinyobj {
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#if __has_warning("-Wzero-as-null-pointer-constant")
+#pragma clang diagnostic ignored "-Wzero-as-null-pointer-constant"
+#endif
+#endif
+
 // https://en.wikipedia.org/wiki/Wavefront_.obj_file says ...
 //
 //  -blendu on | off                       # set horizontal texture blending
@@ -1026,9 +1033,9 @@ static bool exportFaceGroupToShape(
 				real_t e1x = v2x - v1x;
 				real_t e1y = v2y - v1y;
 				real_t e1z = v2z - v1z;
-				float cx = fabs(e0y*e1z - e0z*e1y);
-				float cy = fabs(e0z*e1x - e0x*e1z);
-				float cz = fabs(e0x*e1y - e0y*e1x);
+				float cx = std::fabs(e0y*e1z - e0z*e1y);
+				float cy = std::fabs(e0z*e1x - e0x*e1z);
+				float cz = std::fabs(e0x*e1y - e0y*e1x);
 				const float epsilon = 0.0001f;
 				if( cx > epsilon || cy > epsilon || cz > epsilon ) {
 					// found a corner
@@ -2237,6 +2244,10 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
 
   return true;
 }
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 }  // namespace tinyobj
 
 #endif
