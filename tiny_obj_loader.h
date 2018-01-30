@@ -1944,6 +1944,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       }
 
       tags.push_back(tag);
+
+	  continue;
     }
 
 	if (token[0] == 's' && IS_SPACE(token[1])) {
@@ -1971,6 +1973,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 	  shape.mesh.num_face_vertices.clear();
 	  shape.smoothingGroupId = smGroupId;
 	  currentSmoothingId = smGroupId;
+
+	  continue;
 	}	// smoothing group id
 
     // Ignore unknown command.

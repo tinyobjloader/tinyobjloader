@@ -727,10 +727,6 @@ static void Draw(const std::vector<DrawObject>& drawObjects,
     glBindTexture(GL_TEXTURE_2D, 0);
   }
 
-  static bool bDrawWireFrame = false;
-  if (!bDrawWireFrame)
-	return;
-
   // draw wireframe
   glDisable(GL_POLYGON_OFFSET_FILL);
   glPolygonMode(GL_FRONT, GL_LINE);
