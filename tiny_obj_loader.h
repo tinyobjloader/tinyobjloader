@@ -229,8 +229,6 @@ typedef struct {
 } mesh_t;
 
 typedef struct {
-  int smoothingGroupId;                          // Smoothing group id. 
-  int _pad0;
   std::string name;
   mesh_t mesh;
 } shape_t;
@@ -375,13 +373,25 @@ namespace tinyobj {
 
 MaterialReader::~MaterialReader() {}
 
-struct vertex_index {
+struct vertex_index_t {
   int v_idx, vt_idx, vn_idx;
-  vertex_index() : v_idx(-1), vt_idx(-1), vn_idx(-1) {}
-  explicit vertex_index(int idx) : v_idx(idx), vt_idx(idx), vn_idx(idx) {}
-  vertex_index(int vidx, int vtidx, int vnidx)
+  vertex_index_t() : v_idx(-1), vt_idx(-1), vn_idx(-1) {}
+  explicit vertex_index_t(int idx) : v_idx(idx), vt_idx(idx), vn_idx(idx) {}
+  vertex_index_t(int vidx, int vtidx, int vnidx)
       : v_idx(vidx), vt_idx(vtidx), vn_idx(vnidx) {}
 };
+
+// Internal data structure for face representation
+// index + smoothing group.
+struct face_t {
+  int smoothing_group_id; // smoothing group id. 0 = smoothing groupd is off.
+  int pad_;
+  std::vector<vertex_index_t> vertex_indices; // face vertex indices.
+
+  face_t() : smoothing_group_id(0) {
+  }
+};
+
 
 struct tag_sizes {
   tag_sizes() : num_ints(0), num_reals(0), num_strings(0) {}
@@ -754,12 +764,12 @@ static tag_sizes parseTagTriple(const char **token) {
 
 // Parse triples with index offsets: i, i/j/k, i//k, i/j
 static bool parseTriple(const char **token, int vsize, int vnsize, int vtsize,
-                        vertex_index *ret) {
+                        vertex_index_t *ret) {
   if (!ret) {
     return false;
   }
 
-  vertex_index vi(-1);
+  vertex_index_t vi(-1);
 
   if (!fixIndex(atoi((*token)), vsize, &(vi.v_idx))) {
     return false;
@@ -807,8 +817,8 @@ static bool parseTriple(const char **token, int vsize, int vnsize, int vtsize,
 }
 
 // Parse raw triples: i, i/j/k, i//k, i/j
-static vertex_index parseRawTriple(const char **token) {
-  vertex_index vi(static_cast<int>(0));  // 0 is an invalid index in OBJ
+static vertex_index_t parseRawTriple(const char **token) {
+  vertex_index_t vi(static_cast<int>(0));  // 0 is an invalid index in OBJ
 
   vi.v_idx = atoi((*token));
   (*token) += strcspn((*token), "/ \t\r");
@@ -992,8 +1002,9 @@ static int pnpoly(int nvert, float *vertx, float *verty, float testx, float test
   return c;
 }
 
+// TODO(syoyo): refactor function.
 static bool exportFaceGroupToShape(
-    shape_t *shape, const std::vector<std::vector<vertex_index> > &faceGroup,
+    shape_t *shape, const std::vector<face_t> &faceGroup,
     const std::vector<tag_t> &tags, const int material_id,
     const std::string &name, bool triangulate, const std::vector<real_t> &v) {
   if (faceGroup.empty()) {
@@ -1002,21 +1013,21 @@ static bool exportFaceGroupToShape(
 
   // Flatten vertices and indices
   for (size_t i = 0; i < faceGroup.size(); i++) {
-    const std::vector<vertex_index> &face = faceGroup[i];
+    const face_t &face = faceGroup[i];
 
-    vertex_index i0 = face[0];
-    vertex_index i1(-1);
-    vertex_index i2 = face[1];
+    vertex_index_t i0 = face.vertex_indices[0];
+    vertex_index_t i1(-1);
+    vertex_index_t i2 = face.vertex_indices[1];
 
-    size_t npolys = face.size();
+    size_t npolys = face.vertex_indices.size();
 
     if (triangulate) {
 			// find the two axes to work in
 			size_t axes[2] = { 1, 2 };
 			for(size_t k = 0; k < npolys; ++k) {
-				i0 = face[(k+0)%npolys];
-				i1 = face[(k+1)%npolys];
-				i2 = face[(k+2)%npolys];
+				i0 = face.vertex_indices[(k+0)%npolys];
+				i1 = face.vertex_indices[(k+1)%npolys];
+				i2 = face.vertex_indices[(k+2)%npolys];
 				size_t vi0 = size_t(i0.v_idx);
 				size_t vi1 = size_t(i1.v_idx);
 				size_t vi2 = size_t(i2.v_idx);
@@ -1053,8 +1064,8 @@ static bool exportFaceGroupToShape(
 
 			real_t area = 0;
 			for(size_t k = 0; k < npolys; ++k) {
-				i0 = face[(k+0)%npolys];
-				i1 = face[(k+1)%npolys];
+				i0 = face.vertex_indices[(k+0)%npolys];
+				i1 = face.vertex_indices[(k+1)%npolys];
 				size_t vi0 = size_t(i0.v_idx);
 				size_t vi1 = size_t(i1.v_idx);
 				real_t v0x = v[vi0*3+axes[0]];
@@ -1066,19 +1077,19 @@ static bool exportFaceGroupToShape(
 
 			int maxRounds = 10; // arbitrary max loop count to protect against unexpected errors
 
-			std::vector<vertex_index> remainingFace = face;
+			face_t remainingFace = face; // copy
 			size_t guess_vert = 0;
-			vertex_index ind[3];
+			vertex_index_t ind[3];
 			real_t vx[3];
 			real_t vy[3];
-			while( remainingFace.size() > 3 && maxRounds > 0 ) {
-				npolys = remainingFace.size();
+			while( remainingFace.vertex_indices.size() > 3 && maxRounds > 0 ) {
+				npolys = remainingFace.vertex_indices.size();
 				if( guess_vert >= npolys ) {
 					maxRounds -= 1;
 					guess_vert -= npolys;
 				}
 				for( size_t k = 0; k < 3; k++ ) {
-					ind[k] = remainingFace[(guess_vert+k)%npolys];
+					ind[k] = remainingFace.vertex_indices[(guess_vert+k)%npolys];
 					size_t vi = size_t(ind[k].v_idx);
 					vx[k] = v[vi*3+axes[0]];
 					vy[k] = v[vi*3+axes[1]];
@@ -1094,7 +1105,7 @@ static bool exportFaceGroupToShape(
 				// check all other verts in case they are inside this triangle
 				bool overlap = false;
 				for( size_t otherVert = 3; otherVert < npolys; ++otherVert ) {
-					size_t ovi = size_t(remainingFace[(guess_vert+otherVert)%npolys].v_idx);
+					size_t ovi = size_t(remainingFace.vertex_indices[(guess_vert+otherVert)%npolys].v_idx);
 					real_t tx = v[ovi*3+axes[0]];
 					real_t ty = v[ovi*3+axes[1]];
 					if( pnpoly( 3, vx, vy, tx, ty ) ) {
@@ -1129,16 +1140,16 @@ static bool exportFaceGroupToShape(
 				// remove v1 from the list
 				size_t removed_vert_index = (guess_vert+1)%npolys;
 				while( removed_vert_index + 1 < npolys ) {
-					remainingFace[removed_vert_index] = remainingFace[removed_vert_index+1];
+					remainingFace.vertex_indices[removed_vert_index] = remainingFace.vertex_indices[removed_vert_index+1];
 					removed_vert_index += 1;
 				}
-				remainingFace.pop_back();
+				remainingFace.vertex_indices.pop_back();
 			}
 
-			if( remainingFace.size() == 3 ) {
-				i0 = remainingFace[0];
-				i1 = remainingFace[1];
-				i2 = remainingFace[2];
+			if( remainingFace.vertex_indices.size() == 3 ) {
+				i0 = remainingFace.vertex_indices[0];
+				i1 = remainingFace.vertex_indices[1];
+				i2 = remainingFace.vertex_indices[2];
 				{
 					index_t idx0, idx1, idx2;
 					idx0.vertex_index = i0.v_idx;
@@ -1162,9 +1173,9 @@ static bool exportFaceGroupToShape(
     } else {
       for (size_t k = 0; k < npolys; k++) {
         index_t idx;
-        idx.vertex_index = face[k].v_idx;
-        idx.normal_index = face[k].vn_idx;
-        idx.texcoord_index = face[k].vt_idx;
+        idx.vertex_index = face.vertex_indices[k].v_idx;
+        idx.normal_index = face.vertex_indices[k].vn_idx;
+        idx.texcoord_index = face.vertex_indices[k].vt_idx;
         shape->mesh.indices.push_back(idx);
       }
 
@@ -1679,7 +1690,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   std::vector<real_t> vt;
   std::vector<real_t> vc;
   std::vector<tag_t> tags;
-  std::vector<std::vector<vertex_index> > faceGroup;
+  std::vector<int> smoothing_groups;
+  std::vector<face_t> faceGroup;
   std::string name;
 
   // material
@@ -1687,10 +1699,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   int material = -1;
 
   // smoothing group id
-  int currentSmoothingId = 0;      // Initial value. 0 means no smoothing.
+  int current_smoothing_id = 0;      // Initial value. 0 means no smoothing.
 
   shape_t shape;
-  shape.smoothingGroupId = currentSmoothingId;
 
   std::string linebuf;
   while (inStream->peek() != -1) {
@@ -1762,11 +1773,13 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       token += 2;
       token += strspn(token, " \t");
 
-      std::vector<vertex_index> face;
-      face.reserve(3);
+      face_t face;
+
+      face.smoothing_group_id = current_smoothing_id;
+      face.vertex_indices.reserve(3);
 
       while (!IS_NEW_LINE(token[0])) {
-        vertex_index vi;
+        vertex_index_t vi;
         if (!parseTriple(&token, static_cast<int>(v.size() / 3),
                          static_cast<int>(vn.size() / 3),
                          static_cast<int>(vt.size() / 2), &vi)) {
@@ -1776,14 +1789,13 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
           return false;
         }
 
-        face.push_back(vi);
+        face.vertex_indices.push_back(vi);
         size_t n = strspn(token, " \t\r");
         token += n;
       }
 
       // replace with emplace_back + std::move on C++11
-      faceGroup.push_back(std::vector<vertex_index>());
-      faceGroup[faceGroup.size() - 1].swap(face);
+      faceGroup.push_back(face);
 
       continue;
     }
@@ -1870,7 +1882,6 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       }
 
 	  shape = shape_t();
-	  shape.smoothingGroupId = currentSmoothingId;
 
       // material = -1;
       faceGroup.clear();
@@ -1908,7 +1919,6 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       // material = -1;
       faceGroup.clear();
       shape = shape_t();
-	  shape.smoothingGroupId = currentSmoothingId;
 
       // @todo { multiple object name? }
       token += 2;
@@ -1952,28 +1962,32 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 	if (token[0] == 's' && IS_SPACE(token[1])) {
 	  // smoothing group id
 	  token += 2;
-	  int smGroupId = parseInt(&token);
 
-	  if (smGroupId == currentSmoothingId)
-		continue; // No change in smoothing group.
+    // skip space.
+    token += strspn(token, " \t");  // skip space
 
-	  // Encountering new smoothing group Id.
-	  // Export the current face group
-	  if (!faceGroup.empty()) {
-		bool ret = exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
-		           triangulate, v);
-		if (ret) {
-			shapes->push_back(shape);
-		}
-	  }
+    if (token[0] == '\0') {
+      continue;
+    }
 
-	  // Clear the face group and initialize the shape with new smoothing group id
-	  // and keep the existing name and materials of the shape.
-	  faceGroup.clear();
-	  shape.mesh.indices.clear();
-	  shape.mesh.num_face_vertices.clear();
-	  shape.smoothingGroupId = smGroupId;
-	  currentSmoothingId = smGroupId;
+    if (token[0] == '\r' || token[1] == '\n') {
+      continue;
+    }
+
+    if (strlen(token) >= 3) {
+      if (token[0] == 'o' && token[1] == 'f' && token[2] == 'f') {
+        current_smoothing_id = 0;
+      }
+    } else {
+      // assume number
+	    int smGroupId = parseInt(&token);
+      if (smGroupId < 0) {
+        // ???
+        continue;
+      }
+
+      current_smoothing_id = smGroupId;
+    }
 
 	  continue;
 	}	// smoothing group id
@@ -2090,7 +2104,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
 
       indices.clear();
       while (!IS_NEW_LINE(token[0])) {
-        vertex_index vi = parseRawTriple(&token);
+        vertex_index_t vi = parseRawTriple(&token);
 
         index_t idx;
         idx.vertex_index = vi.v_idx;
