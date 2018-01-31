@@ -230,6 +230,7 @@ typedef struct {
 
 typedef struct {
   int smoothingGroupId;                          // Smoothing group id. 
+  int _pad0;
   std::string name;
   mesh_t mesh;
 } shape_t;
