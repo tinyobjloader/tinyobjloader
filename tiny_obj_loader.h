@@ -219,19 +219,42 @@ typedef struct {
   int texcoord_index;
 } index_t;
 
-typedef struct {
+// mesh_t will contain faces corresponsing to a smoothing group id.
+struct mesh_t{
+  int smoothingGroupId;                          // Smoothing group id. 
   std::vector<index_t> indices;
   std::vector<unsigned char> num_face_vertices;  // The number of vertices per
                                                  // face. 3 = polygon, 4 = quad,
                                                  // ... Up to 255.
   std::vector<int> material_ids;                 // per-face material ID
   std::vector<tag_t> tags;                       // SubD tag
-} mesh_t;
 
-typedef struct {
+  // Constructor
+  mesh_t(int smGrpId = 0) { smoothingGroupId = smGrpId; }
+};
+
+// shape_t will contain all faces under a group.
+// The faces will be stored in a collection of mesh_t, 
+// each mesh_t corresponds to a smoothing group id.
+struct shape_t{
   std::string name;
-  mesh_t mesh;
-} shape_t;
+  std::vector<mesh_t> meshes;
+
+  // Methods
+  mesh_t* addMesh(int smGrpId = 0) {
+	  meshes.push_back(mesh_t(smGrpId));
+	  return &(meshes[meshes.size() - 1]);
+  }
+
+  bool hasNonEmptyMesh() {
+	  for (int i = 0; i < meshes.size(); ++i)
+	  {
+		  if (!meshes[i].indices.empty())
+			  return true;
+	  }
+	  return false;
+  }
+};
 
 // Vertex attributes
 typedef struct {
@@ -990,10 +1013,10 @@ static int pnpoly(int nvert, float *vertx, float *verty, float testx, float test
   return c;
 }
 
-static bool exportFaceGroupToShape(
-    shape_t *shape, const std::vector<std::vector<vertex_index> > &faceGroup,
+static bool exportFaceGroupToMesh(
+    mesh_t *mesh, const std::vector<std::vector<vertex_index> > &faceGroup,
     const std::vector<tag_t> &tags, const int material_id,
-    const std::string &name, bool triangulate, const std::vector<real_t> &v) {
+    bool triangulate, const std::vector<real_t> &v) {
   if (faceGroup.empty()) {
     return false;
   }
@@ -1116,12 +1139,12 @@ static bool exportFaceGroupToShape(
 					idx2.normal_index = ind[2].vn_idx;
 					idx2.texcoord_index = ind[2].vt_idx;
 
-					shape->mesh.indices.push_back(idx0);
-					shape->mesh.indices.push_back(idx1);
-					shape->mesh.indices.push_back(idx2);
+					mesh->indices.push_back(idx0);
+					mesh->indices.push_back(idx1);
+					mesh->indices.push_back(idx2);
 
-					shape->mesh.num_face_vertices.push_back(3);
-					shape->mesh.material_ids.push_back(material_id);
+					mesh->num_face_vertices.push_back(3);
+					mesh->material_ids.push_back(material_id);
 				}
 
 				// remove v1 from the list
@@ -1149,12 +1172,12 @@ static bool exportFaceGroupToShape(
 					idx2.normal_index = i2.vn_idx;
 					idx2.texcoord_index = i2.vt_idx;
 
-					shape->mesh.indices.push_back(idx0);
-					shape->mesh.indices.push_back(idx1);
-					shape->mesh.indices.push_back(idx2);
+					mesh->indices.push_back(idx0);
+					mesh->indices.push_back(idx1);
+					mesh->indices.push_back(idx2);
 
-					shape->mesh.num_face_vertices.push_back(3);
-					shape->mesh.material_ids.push_back(material_id);
+					mesh->num_face_vertices.push_back(3);
+					mesh->material_ids.push_back(material_id);
 				}
 			}
     } else {
@@ -1163,17 +1186,16 @@ static bool exportFaceGroupToShape(
         idx.vertex_index = face[k].v_idx;
         idx.normal_index = face[k].vn_idx;
         idx.texcoord_index = face[k].vt_idx;
-        shape->mesh.indices.push_back(idx);
+        mesh->indices.push_back(idx);
       }
 
-      shape->mesh.num_face_vertices.push_back(
+      mesh->num_face_vertices.push_back(
           static_cast<unsigned char>(npolys));
-      shape->mesh.material_ids.push_back(material_id);  // per face
+      mesh->material_ids.push_back(material_id);  // per face
     }
   }
 
-  shape->name = name;
-  shape->mesh.tags = tags;
+  mesh->tags = tags;
 
   return true;
 }
@@ -1684,7 +1706,13 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   std::map<std::string, int> material_map;
   int material = -1;
 
+  // smoothing group id
+  int currentSmoothingId = 0;      // Initial value. 0 means no smoothing.
+
   shape_t shape;
+
+  // Initialize shape with one mesh
+  mesh_t* meshPtr = shape.addMesh(currentSmoothingId);
 
   std::string linebuf;
   while (inStream->peek() != -1) {
@@ -1799,10 +1827,11 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       if (newMaterialId != material) {
         // Create per-face material. Thus we don't add `shape` to `shapes` at
         // this time.
-        // just clear `faceGroup` after `exportFaceGroupToShape()` call.
-        exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
-                               triangulate, v);
-        faceGroup.clear();
+        // just clear `faceGroup` after `exportFaceGroupToMesh()` call.
+				if (faceGroup.size() > 0) {
+					exportFaceGroupToMesh(meshPtr, faceGroup, tags, material, triangulate, v);
+					faceGroup.clear();
+				}
         material = newMaterialId;
       }
 
@@ -1855,18 +1884,25 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     // group name
     if (token[0] == 'g' && IS_SPACE((token[1]))) {
       // flush previous face group.
-      bool ret = exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
-                                        triangulate, v);
-      (void)ret;  // return value not used.
+			if (faceGroup.size() > 0) {
+				bool ret = exportFaceGroupToMesh(meshPtr, faceGroup, tags, material,
+					triangulate, v);
+				(void)ret;  // return value not used.
+			}
 
-      if (shape.mesh.indices.size() > 0) {
-        shapes->push_back(shape);
-      }
+			// Add the current shape.
+			shape.name = name;
 
-      shape = shape_t();
+			if (shape.hasNonEmptyMesh()) {
+				shapes->push_back(shape);
+			}
 
-      // material = -1;
-      faceGroup.clear();
+			// New shape
+			shape = shape_t();
+			meshPtr = shape.addMesh(currentSmoothingId);
+
+			// material = -1;
+			faceGroup.clear();
 
       std::vector<std::string> names;
       names.reserve(2);
@@ -1892,15 +1928,25 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     // object name
     if (token[0] == 'o' && IS_SPACE((token[1]))) {
       // flush previous face group.
-      bool ret = exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
-                                        triangulate, v);
-      if (ret) {
-        shapes->push_back(shape);
-      }
+			if (faceGroup.size() > 0)
+			{
+				bool ret = exportFaceGroupToMesh(meshPtr, faceGroup, tags, material,
+					triangulate, v);
+				(void)ret;  // return value not used.
+			}
 
-      // material = -1;
-      faceGroup.clear();
-      shape = shape_t();
+			// Add the current shape.
+			shape.name = name;
+			if (shape.hasNonEmptyMesh()) {
+				shapes->push_back(shape);
+			}
+
+			// material = -1;
+			faceGroup.clear();
+
+			// New shape
+			shape = shape_t();
+			meshPtr = shape.addMesh(currentSmoothingId);
 
       // @todo { multiple object name? }
       token += 2;
@@ -1937,18 +1983,51 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       }
 
       tags.push_back(tag);
+
+	  continue;
     }
+
+	if (token[0] == 's' && IS_SPACE(token[1])) {
+	  // smoothing group id
+	  token += 2;
+	  int smGroupId = parseInt(&token);
+
+	  if (smGroupId == currentSmoothingId)
+		continue; // No change in smoothing group.
+
+	  // Encountering new smoothing group Id.
+	  // Export the current face group to the current mesh
+		if (!faceGroup.empty()) {
+			bool ret = exportFaceGroupToMesh(meshPtr, faceGroup, tags, material,
+				triangulate, v);
+			(void)ret;  // return value not used.
+
+			// Clear the face group  
+			faceGroup.clear();
+
+		// Add a new mesh to the shape with new smoothing group id
+		// and keep the existing name and materials of the shape.
+			meshPtr = shape.addMesh(smGroupId);
+		}
+		else {
+			// Add the name of the smoothing group id to the mesh
+			meshPtr->smoothingGroupId = smGroupId;
+		}
+		currentSmoothingId = smGroupId;
+
+	  continue;
+	}	// smoothing group id
 
     // Ignore unknown command.
   }
 
-  bool ret = exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
+  bool ret = exportFaceGroupToMesh(meshPtr, faceGroup, tags, material,
                                     triangulate, v);
   // exportFaceGroupToShape return false when `usemtl` is called in the last
   // line.
   // we also add `shape` to `shapes` when `shape.mesh` has already some
   // faces(indices)
-  if (ret || shape.mesh.indices.size()) {
+  if (ret || shape.hasNonEmptyMesh()) {
     shapes->push_back(shape);
   }
   faceGroup.clear();  // for safety
