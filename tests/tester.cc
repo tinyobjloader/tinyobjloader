@@ -717,6 +717,40 @@ TEST_CASE("texture-name-whitespace", "[Issue145]") {
 
 }
 
+TEST_CASE("smoothing-group", "[Issue162]") {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "../models/issue-162-smoothing-group.obj", gMtlBasePath);
+
+  
+  if (!err.empty()) {
+    std::cerr << "[Issue162] " << err << std::endl;
+  }
+
+  REQUIRE(true == ret);
+  REQUIRE(2 == shapes.size());
+
+  REQUIRE(2 == shapes[0].mesh.smoothing_group_ids.size());
+  REQUIRE(1 == shapes[0].mesh.smoothing_group_ids[0]);
+  REQUIRE(1 == shapes[0].mesh.smoothing_group_ids[1]);
+
+  REQUIRE(10 == shapes[1].mesh.smoothing_group_ids.size());
+  REQUIRE(0 == shapes[1].mesh.smoothing_group_ids[0]);
+  REQUIRE(0 == shapes[1].mesh.smoothing_group_ids[1]);
+  REQUIRE(3 == shapes[1].mesh.smoothing_group_ids[2]);
+  REQUIRE(3 == shapes[1].mesh.smoothing_group_ids[3]);
+  REQUIRE(4 == shapes[1].mesh.smoothing_group_ids[4]);
+  REQUIRE(4 == shapes[1].mesh.smoothing_group_ids[5]);
+  REQUIRE(0 == shapes[1].mesh.smoothing_group_ids[6]);
+  REQUIRE(0 == shapes[1].mesh.smoothing_group_ids[7]);
+  REQUIRE(6 == shapes[1].mesh.smoothing_group_ids[8]);
+  REQUIRE(6 == shapes[1].mesh.smoothing_group_ids[9]);
+
+}
+
 #if 0
 int
 main(
