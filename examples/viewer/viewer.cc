@@ -190,90 +190,101 @@ static void CalcNormal(float N[3], float v0[3], float v1[3], float v2[3]) {
     float len = sqrtf(len2);
 
     N[0] /= len;
-	N[1] /= len;
-	N[2] /= len;
+    N[1] /= len;
+    N[2] /= len;
   }
 }
 
-namespace // Local utility functions
+namespace  // Local utility functions
 {
-	void addBtoA(float a[3], float b[3])
-	{
-		for (size_t i = 0; i < 3; ++i)
-			a[i] += b[i];
-	}
+struct vec3 {
+  float v[3];
+  vec3() {
+    v[0] = 0.0f;
+    v[1] = 0.0f;
+    v[2] = 0.0f;
+  }
+};
 
-	void assignBtoA(float a[3], float b[3])
-	{
-		for (size_t i = 0; i < 3; ++i)
-			a[i] = b[i];
-	}
+void normalizeVector(vec3 &v) {
+  float len2 = v.v[0] * v.v[0] + v.v[1] * v.v[1] + v.v[2] * v.v[2];
+  if (len2 > 0.0f) {
+    float len = sqrtf(len2);
 
-	void normalizeVector(float N[3])
-	{
-		float len2 = N[0] * N[0] + N[1] * N[1] + N[2] * N[2];
-		if (len2 > 0.0f) {
-			float len = sqrtf(len2);
+    v.v[0] /= len;
+    v.v[1] /= len;
+    v.v[2] /= len;
+  }
+}
 
-			N[0] /= len;
-			N[1] /= len;
-			N[2] /= len;
-		}
-	}
+// Check if `mesh_t` contains smoothing group id.
+bool hasSmoothingGroup(const tinyobj::shape_t& shape)
+{
+  for (size_t i = 0; i < shape.mesh.smoothing_group_ids.size(); i++) {
+    if (shape.mesh.smoothing_group_ids[i] > 0) {
+      return true;
+    }
+  }
+  return false;
+}
 
-	void computeSmoothingNormals(tinyobj::attrib_t &attrib, tinyobj::shape_t &shape,
-		std::map<int, float[3]>& smoothVertexNormals)
-	{
-		smoothVertexNormals.clear();
-		std::map<int, float[3]>::iterator iter;
+void computeSmoothingNormals(const tinyobj::attrib_t& attrib, const tinyobj::shape_t& shape,
+                             std::map<int, vec3>& smoothVertexNormals) {
+  smoothVertexNormals.clear();
+  std::map<int, vec3>::iterator iter;
 
-		for (size_t f = 0; f < shape.mesh.indices.size() / 3; f++) {
-			// Get the three indexes of the face (all faces are triangular)
-			tinyobj::index_t idx0 = shape.mesh.indices[3 * f + 0];
-			tinyobj::index_t idx1 = shape.mesh.indices[3 * f + 1];
-			tinyobj::index_t idx2 = shape.mesh.indices[3 * f + 2];
+  for (size_t f = 0; f < shape.mesh.indices.size() / 3; f++) {
+    // Get the three indexes of the face (all faces are triangular)
+    tinyobj::index_t idx0 = shape.mesh.indices[3 * f + 0];
+    tinyobj::index_t idx1 = shape.mesh.indices[3 * f + 1];
+    tinyobj::index_t idx2 = shape.mesh.indices[3 * f + 2];
 
-			// Get the three vertex indexes and coordinates
-			int vi[3];		// indexes
-			float v[3][3];	// coordinates
+    // Get the three vertex indexes and coordinates
+    int vi[3];      // indexes
+    float v[3][3];  // coordinates
 
-			for (int k = 0; k < 3; k++) {
-				vi[0] = idx0.vertex_index;
-				vi[1] = idx1.vertex_index;
-				vi[2] = idx2.vertex_index;
-				assert(vi[0] >= 0);
-				assert(vi[1] >= 0);
-				assert(vi[2] >= 0);
+    for (int k = 0; k < 3; k++) {
+      vi[0] = idx0.vertex_index;
+      vi[1] = idx1.vertex_index;
+      vi[2] = idx2.vertex_index;
+      assert(vi[0] >= 0);
+      assert(vi[1] >= 0);
+      assert(vi[2] >= 0);
 
-				v[0][k] = attrib.vertices[3 * vi[0] + k];
-				v[1][k] = attrib.vertices[3 * vi[1] + k];
-				v[2][k] = attrib.vertices[3 * vi[2] + k];
-			}
+      v[0][k] = attrib.vertices[3 * vi[0] + k];
+      v[1][k] = attrib.vertices[3 * vi[1] + k];
+      v[2][k] = attrib.vertices[3 * vi[2] + k];
+    }
 
-			// Compute the normal of the face
-			float normal[3];
-			CalcNormal(normal, v[0], v[1], v[2]);
+    // Compute the normal of the face
+    float normal[3];
+    CalcNormal(normal, v[0], v[1], v[2]);
 
-			// Add the normal to the three vertexes
-			for (size_t i = 0; i < 3; ++i)
-			{
-				iter = smoothVertexNormals.find(vi[i]);
-				if (iter != smoothVertexNormals.end())
-					addBtoA(iter->second, normal);
-				else
-					assignBtoA(smoothVertexNormals[vi[i]], normal);
-			}
+    // Add the normal to the three vertexes
+    for (size_t i = 0; i < 3; ++i) {
+      iter = smoothVertexNormals.find(vi[i]);
+      if (iter != smoothVertexNormals.end()) {
+        // add
+        iter->second.v[0] += normal[0];
+        iter->second.v[1] += normal[1];
+        iter->second.v[2] += normal[2];
+      } else {
+        smoothVertexNormals[vi[i]].v[0] = normal[0];
+        smoothVertexNormals[vi[i]].v[1] = normal[1];
+        smoothVertexNormals[vi[i]].v[2] = normal[2];
+      }
+    }
 
-		} // f
+  }  // f
 
-		  // Normalize the normals, that is, make them unit vectors
-		for (iter = smoothVertexNormals.begin(); iter != smoothVertexNormals.end(); iter++)
-		{
-			normalizeVector(iter->second);
-		}
+  // Normalize the normals, that is, make them unit vectors
+  for (iter = smoothVertexNormals.begin(); iter != smoothVertexNormals.end();
+       iter++) {
+    normalizeVector(iter->second);
+  }
 
-	} // computeSmoothingNormals
-} // namespace
+}  // computeSmoothingNormals
+}  // namespace
 
 static bool LoadObjAndConvert(float bmin[3], float bmax[3],
                               std::vector<DrawObject>* drawObjects,
@@ -389,12 +400,14 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
       DrawObject o;
       std::vector<float> buffer;  // pos(3float), normal(3float), color(3float)
 
-	  // Check for smoothing group and compute smoothing normals
-	  std::map<int, float[3]> smoothVertexNormals;
-	  if (shapes[s].smoothingGroupId > 0)
-		  computeSmoothingNormals(attrib, shapes[s], smoothVertexNormals);
+      // Check for smoothing group and compute smoothing normals
+      std::map<int, vec3> smoothVertexNormals;
+      if (hasSmoothingGroup(shapes[s]) > 0) {
+        std::cout << "Compute smoothingNormal for shape [" << s << "]" << std::endl;
+        computeSmoothingNormals(attrib, shapes[s], smoothVertexNormals);
+      }
 
-	  for (size_t f = 0; f < shapes[s].mesh.indices.size() / 3; f++) {
+      for (size_t f = 0; f < shapes[s].mesh.indices.size() / 3; f++) {
         tinyobj::index_t idx0 = shapes[s].mesh.indices[3 * f + 0];
         tinyobj::index_t idx1 = shapes[s].mesh.indices[3 * f + 1];
         tinyobj::index_t idx2 = shapes[s].mesh.indices[3 * f + 2];
@@ -498,19 +511,28 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
             invalid_normal_index = true;
           }
 
-		  if (invalid_normal_index && !smoothVertexNormals.empty()) {
-		    // Use smoothing normals
-			int f0 = idx0.vertex_index;
-			int f1 = idx1.vertex_index;
-			int f2 = idx2.vertex_index;
+          if (invalid_normal_index && !smoothVertexNormals.empty()) {
+            // Use smoothing normals
+            int f0 = idx0.vertex_index;
+            int f1 = idx1.vertex_index;
+            int f2 = idx2.vertex_index;
 
-			if (f0 >= 0 && f1 >= 0 && f2 >= 0) {
-			  assignBtoA(n[0], smoothVertexNormals[f0]);
-			  assignBtoA(n[1], smoothVertexNormals[f1]);
-			  assignBtoA(n[2], smoothVertexNormals[f2]);
-			  invalid_normal_index = false;
-			}
-		  }
+            if (f0 >= 0 && f1 >= 0 && f2 >= 0) {
+              n[0][0] = smoothVertexNormals[f0].v[0];
+              n[0][1] = smoothVertexNormals[f0].v[1];
+              n[0][2] = smoothVertexNormals[f0].v[2];
+
+              n[1][0] = smoothVertexNormals[f1].v[0];
+              n[1][1] = smoothVertexNormals[f1].v[1];
+              n[1][2] = smoothVertexNormals[f1].v[2];
+
+              n[2][0] = smoothVertexNormals[f2].v[0];
+              n[2][1] = smoothVertexNormals[f2].v[1];
+              n[2][2] = smoothVertexNormals[f2].v[2];
+
+              invalid_normal_index = false;
+            }
+          }
 
           if (invalid_normal_index) {
             // compute geometric normal

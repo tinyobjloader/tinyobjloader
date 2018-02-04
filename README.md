@@ -98,6 +98,7 @@ TinyObjLoader is successfully used in ...
 * PBR material extension for .MTL. Its proposed here: http://exocortex.com/blog/extending_wavefront_mtl_to_support_pbr
 * Callback API for custom loading.
 * Double precision support(for HPC application).
+* Smoothing group
 
 
 ## TODO
@@ -105,8 +106,6 @@ TinyObjLoader is successfully used in ...
 * [ ] Fix obj_sticker example.
 * [ ] More unit test codes.
 * [x] Texture options
-* [ ] Normal vector generation
-  * [ ] Support smoothing groups
 
 ## License
 

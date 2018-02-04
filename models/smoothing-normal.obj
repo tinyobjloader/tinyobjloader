@@ -1,0 +1,35 @@
+mtllib smoothing-normal.mtl
+
+v 0.000000 2.000000 2.000000
+v 0.000000 0.000000 2.000000
+v 2.000000 0.000000 2.000000
+v 2.000000 2.000000 2.000000
+v 0.000000 2.000000 0.000000
+v 0.000000 0.000000 0.000000
+v 2.000000 0.000000 0.000000
+v 2.000000 2.000000 0.000000
+# 8 vertices
+
+g front cube
+usemtl white
+s 1
+f 1 2 3 4
+#g bottom cube
+#usemtl white
+s 1
+f 2 6 7 3
+
+g back cube
+# expects white material
+s off
+f 8 7 6 5
+#g right cube
+#usemtl red
+#f 4 3 7 8
+#g top cube
+#usemtl white
+#f 5 1 4 8
+#g left cube
+#usemtl green
+#f 5 6 2 1
+# 6 elements
