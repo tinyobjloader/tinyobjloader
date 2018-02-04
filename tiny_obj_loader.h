@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2012-2017 Syoyo Fujita and many contributors.
+Copyright (c) 2012-2018 Syoyo Fujita and many contributors.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,7 @@ THE SOFTWARE.
 */
 
 //
+// version 1.1.1 : Support smoothing groups(#162)
 // version 1.1.0 : Support parsing vertex color(#144)
 // version 1.0.8 : Fix parsing `g` tag just after `usemtl`(#138)
 // version 1.0.7 : Support multiple tex options(#126)
