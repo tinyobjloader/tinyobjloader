@@ -1329,11 +1329,10 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
           }
         }
 
-        // Find extra line which spand across chunk boundary.
-        if ((t < num_threads) && (buf[end_idx - 1] != '\n')) {
-          auto extra_span_idx = (std::min)(end_idx - 1 + chunk_size, len);
-          for (size_t i = end_idx; i < extra_span_idx; i++) {
-            if (is_line_ending(buf, i, extra_span_idx)) {
+        // If at least one line started in this chunk, find where it ends in the rest of the buffer
+        if ((prev_pos != start_idx) && (t < num_threads) && (buf[end_idx - 1] != '\n')) {
+          for (size_t i = end_idx; i < len; i++) {
+            if (is_line_ending(buf, i, len)) {
               LineInfo info;
               info.pos = prev_pos;
               info.len = i - prev_pos;
