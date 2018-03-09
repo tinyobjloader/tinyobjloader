@@ -151,7 +151,7 @@ int main(int argc, char **argv)
   Material out_material;
   StichObjs(out_attribute, out_shape, out_material, attributes, shapes, materials);
 
-  bool coordTransform = false;
+  bool coordTransform = true;
   bool ret = WriteObj(out_filename, out_attribute, out_shape, out_material, coordTransform);
   assert(ret);
 
