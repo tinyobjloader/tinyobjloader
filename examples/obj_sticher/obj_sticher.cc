@@ -112,7 +112,7 @@ StichObjs(
     normal_idx_offset += attributes[i].normals.size() / 3;
     std::copy(attributes[i].texcoords.begin(), attributes[i].texcoords.end(), out_attribute.texcoords.begin() + texcoord_idx_offset * 2);
     texcoord_idx_offset += attributes[i].texcoords.size() / 2;
-    std::copy(attributes[i].colors.begin(), attributes[i].colors.end(), out_attribute.colors.begin() + color_idx_offset * 3);
+    std::copy(attributes[i].colors.begin(), attributes[i].colors.end(), out_attribute.colors.begin() + color_idx_offset);
     color_idx_offset += attributes[i].colors.size();
   }
 }
