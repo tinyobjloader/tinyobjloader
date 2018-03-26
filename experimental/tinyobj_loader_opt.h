@@ -1306,15 +1306,17 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
           end_idx = len - 1;
         }
 
+        // true if the line currently read must be added to the current line info
+        bool new_line_found = (t == 0) || is_line_ending(buf, start_idx - 1, end_idx);
+
         size_t prev_pos = start_idx;
         for (size_t i = start_idx; i < end_idx; i++) {
           if (is_line_ending(buf, i, end_idx)) {
-            if ((t > 0) && (prev_pos == start_idx) &&
-                (!is_line_ending(buf, start_idx - 1, end_idx))) {
+            if (!new_line_found) {
               // first linebreak found in (chunk > 0), and a line before this
               // linebreak belongs to previous chunk, so skip it.
               prev_pos = i + 1;
-              continue;
+              new_line_found = true;
             } else {
               LineInfo info;
               info.pos = prev_pos;
@@ -1330,7 +1332,7 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
         }
 
         // If at least one line started in this chunk, find where it ends in the rest of the buffer
-        if ((prev_pos != start_idx) && (t < num_threads) && (buf[end_idx - 1] != '\n')) {
+        if (new_line_found && (t < num_threads) && (buf[end_idx - 1] != '\n')) {
           for (size_t i = end_idx; i < len; i++) {
             if (is_line_ending(buf, i, len)) {
               LineInfo info;
