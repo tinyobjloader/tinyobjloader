@@ -1028,6 +1028,11 @@ static bool exportFaceGroupToShape(shape_t *shape,
   for (size_t i = 0; i < faceGroup.size(); i++) {
     const face_t &face = faceGroup[i];
 
+    if (face.vertex_indices.size() < 3) {
+      // Face must have 3+ vertices.
+      continue;
+    }
+
     vertex_index_t i0 = face.vertex_indices[0];
     vertex_index_t i1(-1);
     vertex_index_t i2 = face.vertex_indices[1];
