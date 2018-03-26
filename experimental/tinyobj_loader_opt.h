@@ -1523,7 +1523,6 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
         size_t t_count = t_offsets[t];
         size_t f_count = f_offsets[t];
         size_t face_count = face_offsets[t];
-        int material_id = -1;  // -1 = default unknown material.
 
         for (size_t i = 0; i < commands[t].size(); i++) {
           if (commands[t][i].type == COMMAND_EMPTY) {
