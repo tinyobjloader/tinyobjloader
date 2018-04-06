@@ -460,13 +460,11 @@ static inline bool fixIndex(int idx, int n, int *ret) {
     (*ret) = idx - 1;
     return true;
   }
-
-  if (idx == 0) {
+  else if (idx == 0) {
     // zero is not allowed according to the spec.
     return false;
   }
-
-  if (idx < 0) {
+  else if (idx < 0) {
     (*ret) = n + idx;  // negative value = relative
     return true;
   }
@@ -1249,16 +1247,11 @@ void LoadMtl(std::map<std::string, int> *material_map,
     // Trim trailing whitespace.
     if (linebuf.size() > 0) {
       linebuf = linebuf.substr(0, linebuf.find_last_not_of(" \t") + 1);
-    }
 
-    // Trim newline '\r\n' or '\n'
-    if (linebuf.size() > 0) {
-      if (linebuf[linebuf.size() - 1] == '\n')
-        linebuf.erase(linebuf.size() - 1);
-    }
-    if (linebuf.size() > 0) {
-      if (linebuf[linebuf.size() - 1] == '\r')
-        linebuf.erase(linebuf.size() - 1);
+      // Trim newline '\r\n' or '\n'
+      if (linebuf[linebuf.size() - 1] == '\n') linebuf.erase(linebuf.size() - 1);
+    
+      if (linebuf[linebuf.size() - 1] == '\r') linebuf.erase(linebuf.size() - 1);
     }
 
     // Skip if empty line.
@@ -1271,9 +1264,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
     token += strspn(token, " \t");
 
     assert(token);
-    if (token[0] == '\0') continue;  // empty line
-
-    if (token[0] == '#') continue;  // comment line
+    if (token[0] == '\0' || token[0] == '#') continue;  // empty line or comment line
 
     // new mtl
     if ((0 == strncmp(token, "newmtl", 6)) && IS_SPACE((token[6]))) {
@@ -1808,7 +1799,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
         vertex_index_t vi;
         if (!parseTriple(&token, static_cast<int>(v.size() / 3),
                          static_cast<int>(vn.size() / 3),
-                         static_cast<int>(vt.size() / 2), &vi)) {
+                         static_cast<int>(vt.size() >> 1), &vi)) {
           if (err) {
             (*err) = "Failed parse `f' line(e.g. zero value for face index).\n";
           }
