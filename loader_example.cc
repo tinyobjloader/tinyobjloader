@@ -266,7 +266,7 @@ static void PrintInfo(const tinyobj::attrib_t& attrib,
     std::map<std::string, std::string>::const_iterator itEnd(
         materials[i].unknown_parameter.end());
 
-    for (; it != itEnd; it++) {
+    for (; it != itEnd; ++it) {
       printf("  material.%s = %s\n", it->first.c_str(), it->second.c_str());
     }
     printf("\n");
