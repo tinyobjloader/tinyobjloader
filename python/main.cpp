@@ -71,7 +71,7 @@ static PyObject* pyLoadObj(PyObject* self, PyObject* args) {
         break;
     }
 
-    for (vectd::iterator it = vect.begin(); it != vect.end(); it++) {
+    for (vectd::iterator it = vect.begin(); it != vect.end(); ++it) {
       PyList_Insert(current, it - vect.begin(), PyFloat_FromDouble(*it));
     }
 
