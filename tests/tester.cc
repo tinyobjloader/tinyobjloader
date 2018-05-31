@@ -751,6 +751,23 @@ TEST_CASE("smoothing-group", "[Issue162]") {
 
 }
 
+TEST_CASE("invalid-face-definition", "[face]") {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "../models/invalid-face-definition.obj", gMtlBasePath);
+
+  if (!err.empty()) {
+    std::cerr << "[face] " << err << std::endl;
+  }
+
+  REQUIRE(true == ret);
+  REQUIRE(1 == shapes.size());
+  REQUIRE(0 == shapes[0].mesh.indices.size());
+}
+
 // Fuzzer test.
 // Just check if it does not crash.
 

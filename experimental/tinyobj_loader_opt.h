@@ -1306,15 +1306,17 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
           end_idx = len - 1;
         }
 
+        // true if the line currently read must be added to the current line info
+        bool new_line_found = (t == 0) || is_line_ending(buf, start_idx - 1, end_idx);
+
         size_t prev_pos = start_idx;
         for (size_t i = start_idx; i < end_idx; i++) {
           if (is_line_ending(buf, i, end_idx)) {
-            if ((t > 0) && (prev_pos == start_idx) &&
-                (!is_line_ending(buf, start_idx - 1, end_idx))) {
+            if (!new_line_found) {
               // first linebreak found in (chunk > 0), and a line before this
               // linebreak belongs to previous chunk, so skip it.
               prev_pos = i + 1;
-              continue;
+              new_line_found = true;
             } else {
               LineInfo info;
               info.pos = prev_pos;
@@ -1329,11 +1331,10 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
           }
         }
 
-        // Find extra line which spand across chunk boundary.
-        if ((t < num_threads) && (buf[end_idx - 1] != '\n')) {
-          auto extra_span_idx = (std::min)(end_idx - 1 + chunk_size, len);
-          for (size_t i = end_idx; i < extra_span_idx; i++) {
-            if (is_line_ending(buf, i, extra_span_idx)) {
+        // If at least one line started in this chunk, find where it ends in the rest of the buffer
+        if (new_line_found && (t < num_threads) && (buf[end_idx - 1] != '\n')) {
+          for (size_t i = end_idx; i < len; i++) {
+            if (is_line_ending(buf, i, len)) {
               LineInfo info;
               info.pos = prev_pos;
               info.len = i - prev_pos;
@@ -1493,7 +1494,7 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     attrib->texcoords.resize(num_vt * 2);
     attrib->indices.resize(num_f);
     attrib->face_num_verts.resize(num_indices);
-    attrib->material_ids.resize(num_indices);
+    attrib->material_ids.resize(num_indices, -1);
 
     size_t v_offsets[kMaxThreads];
     size_t n_offsets[kMaxThreads];
@@ -1524,22 +1525,43 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
         size_t t_count = t_offsets[t];
         size_t f_count = f_offsets[t];
         size_t face_count = face_offsets[t];
-		int material_id = -1;  // -1 = default unknown material.
 
         for (size_t i = 0; i < commands[t].size(); i++) {
           if (commands[t][i].type == COMMAND_EMPTY) {
             continue;
           } else if (commands[t][i].type == COMMAND_USEMTL) {
             if (commands[t][i].material_name &&
-                commands[t][i].material_name_len > 0) {
-              std::string material_name(commands[t][i].material_name,
-                                        commands[t][i].material_name_len);
-
-              if (material_map.find(material_name) != material_map.end()) {
-                material_id = material_map[material_name];
-              } else {
-                // Assign invalid material ID
-                material_id = -1;
+                commands[t][i].material_name_len > 0 &&
+                // check if there are still faces after this command
+                face_count < num_indices) {
+              // Find next face
+              bool found = false;
+              size_t i_start = i + 1, t_next, i_next;
+              for (t_next = t; t_next < num_threads; t_next++) {
+                for (i_next = i_start; i_next < commands[t_next].size(); i_next++) {
+                  if (commands[t_next][i_next].type == COMMAND_F) {
+                    found = true;
+                    break;
+                  }
+                }
+                if (found)
+                  break;
+                i_start = 0;
+              }
+              // Assign material to this face
+              if (found) {
+                std::string material_name(commands[t][i].material_name,
+                                          commands[t][i].material_name_len);
+                for (size_t k = 0; k < commands[t_next][i_next].f_num_verts.size(); k++) {
+                  if (material_map.find(material_name) != material_map.end()) {
+                      attrib->material_ids[face_count + k] = material_map[material_name];
+                  } else {
+                    // Assign invalid material ID
+                    // Set a different value than the default, to
+                    // prevent following faces from being assigned a valid material
+                    attrib->material_ids[face_count + k] = -2;
+                  }
+                }
               }
             }
           } else if (commands[t][i].type == COMMAND_V) {
@@ -1566,7 +1588,6 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
                   index_t(vertex_index, texcoord_index, normal_index);
             }
             for (size_t k = 0; k < commands[t][i].f_num_verts.size(); k++) {
-              attrib->material_ids[face_count + k] = material_id;
               attrib->face_num_verts[face_count + k] =
                   commands[t][i].f_num_verts[k];
             }
@@ -1581,19 +1602,13 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     for (size_t t = 0; t < workers->size(); t++) {
       workers[t].join();
     }
-	if(material_map.size()>1&& num_threads>1) {
-			for (size_t t = 0; t < num_threads; t++) {
-				size_t face_count = face_offsets[t];
-				if (-1 == attrib->material_ids[face_count]) {
-					int prev_material_id = attrib->material_ids[face_count - 1];
-					size_t max_face_offset = (t == num_threads - 1) ? attrib->material_ids.size() : face_offsets[t + 1];
-					for (int i = face_count; i<max_face_offset; ++i) {
-						if (attrib->material_ids[i] != -1) break;
-						attrib->material_ids[i] = prev_material_id;
-					}
-				}
-			}
-	}
+    
+    // To each face with uninitialized material id,
+    // assign the material id of the last face preceding it that has one
+    for (size_t face_count = 1; face_count < num_indices; ++face_count)
+      if (attrib->material_ids[face_count] == -1)
+        attrib->material_ids[face_count] = attrib->material_ids[face_count - 1];
+    
     auto t_end = std::chrono::high_resolution_clock::now();
     ms_merge = t_end - t_start;
   }
