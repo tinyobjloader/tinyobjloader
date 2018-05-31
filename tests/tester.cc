@@ -751,6 +751,31 @@ TEST_CASE("smoothing-group", "[Issue162]") {
 
 }
 
+// Fuzzer test.
+// Just check if it does not crash.
+
+TEST_CASE("afl000000", "[AFL]") {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "./afl/id:000000,sig:11,src:000000,op:havoc,rep:128", gMtlBasePath);
+
+  REQUIRE(true == ret);
+}
+
+TEST_CASE("afl000001", "[AFL]") {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "./afl/id:000001,sig:11,src:000000,op:havoc,rep:64", gMtlBasePath);
+
+  REQUIRE(true == ret);
+}
+
 #if 0
 int
 main(
