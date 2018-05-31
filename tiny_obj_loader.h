@@ -1992,6 +1992,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     }
 
     if (token[0] == 't' && IS_SPACE(token[1])) {
+      const int max_tag_nums = 8192; // FIXME(syoyo): Parameterize.
       tag_t tag;
 
       token += 2;
@@ -2003,13 +2004,22 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       if (ts.num_ints < 0) {
         ts.num_ints = 0;
       }
+      if (ts.num_ints > max_tag_nums) {
+        ts.num_ints = max_tag_nums;
+      }
 
       if (ts.num_reals < 0) {
         ts.num_reals = 0;
       }
+      if (ts.num_reals > max_tag_nums) {
+        ts.num_reals = max_tag_nums;
+      }
 
       if (ts.num_strings < 0) {
         ts.num_strings = 0;
+      }
+      if (ts.num_strings > max_tag_nums) {
+        ts.num_strings = max_tag_nums;
       }
 
       tag.intValues.resize(static_cast<size_t>(ts.num_ints));
