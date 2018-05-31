@@ -23,7 +23,7 @@ THE SOFTWARE.
 */
 
 //
-// version 1.2.0 : Hardened implementation(#xxx)
+// version 1.2.0 : Hardened implementation(#175)
 // version 1.1.1 : Support smoothing groups(#162)
 // version 1.1.0 : Support parsing vertex color(#144)
 // version 1.0.8 : Fix parsing `g` tag just after `usemtl`(#138)
