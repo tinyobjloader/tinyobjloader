@@ -23,6 +23,7 @@ THE SOFTWARE.
 */
 
 //
+// version 1.2.0 : Hardened implementation(#xxx)
 // version 1.1.1 : Support smoothing groups(#162)
 // version 1.1.0 : Support parsing vertex color(#144)
 // version 1.0.8 : Fix parsing `g` tag just after `usemtl`(#138)
@@ -1023,11 +1024,16 @@ static bool exportFaceGroupToShape(shape_t *shape,
   for (size_t i = 0; i < faceGroup.size(); i++) {
     const face_t &face = faceGroup[i];
 
+    size_t npolys = face.vertex_indices.size();
+
+    if (npolys < 3) {
+      // ??? Invalid face definition.
+      continue;
+    }
+
     vertex_index_t i0 = face.vertex_indices[0];
     vertex_index_t i1(-1);
     vertex_index_t i2 = face.vertex_indices[1];
-
-    size_t npolys = face.vertex_indices.size();
 
     if (triangulate) {
       // find the two axes to work in
@@ -1039,6 +1045,14 @@ static bool exportFaceGroupToShape(shape_t *shape,
         size_t vi0 = size_t(i0.v_idx);
         size_t vi1 = size_t(i1.v_idx);
         size_t vi2 = size_t(i2.v_idx);
+
+        if (((3 * vi0 + 2) >= v.size()) ||
+            ((3 * vi1 + 2) >= v.size()) ||
+            ((3 * vi2 + 2) >= v.size())) {
+          // Invalid triangle.
+          // FIXME(syoyo): Is it ok to simply skip this invalid triangle?
+          continue;
+        }
         real_t v0x = v[vi0 * 3 + 0];
         real_t v0y = v[vi0 * 3 + 1];
         real_t v0z = v[vi0 * 3 + 2];
@@ -1075,6 +1089,13 @@ static bool exportFaceGroupToShape(shape_t *shape,
         i1 = face.vertex_indices[(k + 1) % npolys];
         size_t vi0 = size_t(i0.v_idx);
         size_t vi1 = size_t(i1.v_idx);
+        if (((vi0 * 3 + axes[0]) >= v.size()) ||
+            ((vi0 * 3 + axes[1]) >= v.size()) ||
+            ((vi1 * 3 + axes[0]) >= v.size()) ||
+            ((vi1 * 3 + axes[1]) >= v.size())) {
+          // Invalid index.
+          continue;
+        }
         real_t v0x = v[vi0 * 3 + axes[0]];
         real_t v0y = v[vi0 * 3 + axes[1]];
         real_t v1x = v[vi1 * 3 + axes[0]];
@@ -1099,8 +1120,15 @@ static bool exportFaceGroupToShape(shape_t *shape,
         for (size_t k = 0; k < 3; k++) {
           ind[k] = remainingFace.vertex_indices[(guess_vert + k) % npolys];
           size_t vi = size_t(ind[k].v_idx);
-          vx[k] = v[vi * 3 + axes[0]];
-          vy[k] = v[vi * 3 + axes[1]];
+          if (((vi * 3 + axes[0]) >= v.size()) ||
+              ((vi * 3 + axes[1]) >= v.size())) {
+            // ???
+            vx[k] = static_cast<real_t>(0.0);
+            vy[k] = static_cast<real_t>(0.0);
+          } else {
+            vx[k] = v[vi * 3 + axes[0]];
+            vy[k] = v[vi * 3 + axes[1]];
+          }
         }
         real_t e0x = vx[1] - vx[0];
         real_t e0y = vy[1] - vy[0];
@@ -1116,9 +1144,22 @@ static bool exportFaceGroupToShape(shape_t *shape,
         // check all other verts in case they are inside this triangle
         bool overlap = false;
         for (size_t otherVert = 3; otherVert < npolys; ++otherVert) {
+          size_t idx = (guess_vert + otherVert) % npolys;
+
+          if (idx >= remainingFace.vertex_indices.size()) {
+            // ???
+            continue;
+          }
+          
           size_t ovi = size_t(
-              remainingFace.vertex_indices[(guess_vert + otherVert) % npolys]
+              remainingFace.vertex_indices[idx]
                   .v_idx);
+
+          if (((ovi * 3 + axes[0]) >= v.size()) ||
+              ((ovi * 3 + axes[1]) >= v.size())) {
+            // ???
+            continue;
+          }
           real_t tx = v[ovi * 3 + axes[0]];
           real_t ty = v[ovi * 3 + axes[1]];
           if (pnpoly(3, vx, vy, tx, ty)) {
@@ -1958,6 +1999,18 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       tag.name = parseString(&token);
 
       tag_sizes ts = parseTagTriple(&token);
+
+      if (ts.num_ints < 0) {
+        ts.num_ints = 0;
+      }
+
+      if (ts.num_reals < 0) {
+        ts.num_reals = 0;
+      }
+
+      if (ts.num_strings < 0) {
+        ts.num_strings = 0;
+      }
 
       tag.intValues.resize(static_cast<size_t>(ts.num_ints));
 
