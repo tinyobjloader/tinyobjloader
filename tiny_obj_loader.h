@@ -1155,7 +1155,7 @@ static bool exportFaceGroupToShape(shape_t *shape,
             // ???
             continue;
           }
-          
+
           size_t ovi = size_t(
               remainingFace.vertex_indices[idx]
                   .v_idx);
@@ -1739,6 +1739,13 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   std::string baseDir;
   if (mtl_basedir) {
     baseDir = mtl_basedir;
+#ifndef _WIN32
+    const char dirsep = '/';
+#else
+    const char dirsep = '\\';
+#endif
+    if (baseDir[baseDir.length() - 1] != dirsep)
+      baseDir += dirsep;
   }
   MaterialFileReader matFileReader(baseDir);
 
