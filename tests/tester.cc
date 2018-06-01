@@ -770,6 +770,8 @@ TEST_CASE("invalid-face-definition", "[face]") {
 
 // Fuzzer test.
 // Just check if it does not crash.
+// Disable by default since Windows filesystem can't create filename of afl testdata
+#if 0 
 
 TEST_CASE("afl000000", "[AFL]") {
   tinyobj::attrib_t attrib;
@@ -792,6 +794,7 @@ TEST_CASE("afl000001", "[AFL]") {
 
   REQUIRE(true == ret);
 }
+#endif
 
 #if 0
 int
