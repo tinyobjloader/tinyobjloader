@@ -768,6 +768,22 @@ TEST_CASE("invalid-face-definition", "[face]") {
   REQUIRE(0 == shapes[0].mesh.indices.size());
 }
 
+TEST_CASE("Empty mtl basedir", "[Issue177]") {
+  // Win32 spesific?
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "issue-177.obj");
+
+  if (!err.empty()) {
+    std::cerr << "[Issue177] " << err << std::endl;
+  }
+
+  REQUIRE(true == ret);
+}
+
 // Fuzzer test.
 // Just check if it does not crash.
 // Disable by default since Windows filesystem can't create filename of afl testdata
