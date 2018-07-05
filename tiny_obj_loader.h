@@ -2149,12 +2149,6 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   }
   faceGroup.clear();  // for safety
 
-
-        for(int i=0;i<lineGroup.size();i++){
-            //printf("facegroup indices size: %i\n", faceGroup[i].vertex_indices.size());
-            printf("linegroup[%i]: %i\n", i, lineGroup[i]);
-        }
-
   if (err) {
     (*err) += errss.str();
   }
