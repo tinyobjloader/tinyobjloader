@@ -1937,7 +1937,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       if (newMaterialId != material) {
         // Create per-face material. Thus we don't add `shape` to `shapes` at
         // this time.
-        // just clear `faceGroup` after `exportFaceGroupToShape()` call.
+        // just clear `faceGroup` after `exportGroupsToShape()` call.
         exportGroupsToShape(&shape, faceGroup, lineGroup, tags, material, name,
                                triangulate, v);
         faceGroup.clear();
@@ -2140,7 +2140,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
   bool ret = exportGroupsToShape(&shape, faceGroup, lineGroup, tags, material, name,
                                     triangulate, v);
-  // exportFaceGroupToShape return false when `usemtl` is called in the last
+  // exportGroupsToShape return false when `usemtl` is called in the last
   // line.
   // we also add `shape` to `shapes` when `shape.mesh` has already some
   // faces(indices)
