@@ -1043,11 +1043,10 @@ static bool exportGroupsToShape(shape_t *shape,
 
     size_t npolys = face.vertex_indices.size();
 
-    /*
     if (npolys < 3) {
       // Face must have 3+ vertices.
       continue;
-    }*/
+    }
 
     vertex_index_t i0 = face.vertex_indices[0];
     vertex_index_t i1(-1);
