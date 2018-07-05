@@ -1270,7 +1270,7 @@ static bool exportGroupsToShape(shape_t *shape,
 
 
   if(!lineGroup.empty()){
-      shape->path.indices = std::move(lineGroup);
+      shape->path.indices.swap(lineGroup);
   }
 
   return true;
