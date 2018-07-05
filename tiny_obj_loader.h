@@ -1027,7 +1027,7 @@ static int pnpoly(int nvert, T *vertx, T *verty, T testx,
 // TODO(syoyo): refactor function.
 static bool exportGroupsToShape(shape_t *shape,
                                    const std::vector<face_t> &faceGroup,
-                                   const std::vector<int> &lineGroup,
+                                   std::vector<int> &lineGroup,
                                    const std::vector<tag_t> &tags,
                                    const int material_id,
                                    const std::string &name, bool triangulate,
