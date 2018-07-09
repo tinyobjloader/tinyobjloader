@@ -768,14 +768,20 @@ TEST_CASE("invalid-face-definition", "[face]") {
   REQUIRE(0 == shapes[0].mesh.indices.size());
 }
 
-TEST_CASE("Empty mtl basedir", "[Issue177]") {
-  // Win32 spesific?
+TEST_CASE("Empty mtl basedir", "[Issue177]") {  
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
-
+    
   std::string err;
-  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "issue-177.obj");
+  
+  // A case where the user explicitly provides an empty string
+  // Win32 specific?
+  const char * userBaseDir = "";
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "issue-177.obj", userBaseDir);
+  
+  // if mtl loading fails, we get an error message (WARN) here
+  ret &= err.empty();
 
   if (!err.empty()) {
     std::cerr << "[Issue177] " << err << std::endl;
