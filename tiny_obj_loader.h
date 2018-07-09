@@ -1736,9 +1736,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     return false;
   }
 
-  std::string baseDir;
-  if (mtl_basedir) {
-    baseDir = mtl_basedir;
+  std::string baseDir = mtl_basedir ? mtl_basedir : "";
+  if (!baseDir.empty()) {    
 #ifndef _WIN32
     const char dirsep = '/';
 #else
