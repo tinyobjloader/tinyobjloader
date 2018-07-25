@@ -137,8 +137,10 @@ static void PrintInfo(const tinyobj::attrib_t& attrib,
   for (size_t i = 0; i < shapes.size(); i++) {
     printf("shape[%ld].name = %s\n", static_cast<long>(i),
            shapes[i].name.c_str());
-    printf("Size of shape[%ld].indices: %lu\n", static_cast<long>(i),
+    printf("Size of shape[%ld].mesh.indices: %lu\n", static_cast<long>(i),
            static_cast<unsigned long>(shapes[i].mesh.indices.size()));
+    printf("Size of shape[%ld].path.indices: %lu\n", static_cast<long>(i),
+           static_cast<unsigned long>(shapes[i].path.indices.size()));
 
     size_t index_offset = 0;
 
