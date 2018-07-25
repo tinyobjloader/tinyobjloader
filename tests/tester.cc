@@ -790,6 +790,23 @@ TEST_CASE("Empty mtl basedir", "[Issue177]") {
   REQUIRE(true == ret);
 }
 
+TEST_CASE("line-primitive", "[line]") {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "../models/line-prim.obj", gMtlBasePath);
+
+  if (!err.empty()) {
+    std::cerr << "[line] " << err << std::endl;
+  }
+
+  REQUIRE(true == ret);
+  REQUIRE(1 == shapes.size());
+  REQUIRE(6 == shapes[0].path.indices.size());
+}
+
 // Fuzzer test.
 // Just check if it does not crash.
 // Disable by default since Windows filesystem can't create filename of afl testdata
