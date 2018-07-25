@@ -237,8 +237,13 @@ typedef struct {
 } mesh_t;
 
 typedef struct {
+    std::vector<int> indices; // pairs of indices for lines
+} path_t;
+
+typedef struct {
   std::string name;
   mesh_t mesh;
+  path_t path;
 } shape_t;
 
 // Vertex attributes
@@ -399,6 +404,11 @@ struct face_t {
   std::vector<vertex_index_t> vertex_indices;  // face vertex indices.
 
   face_t() : smoothing_group_id(0) {}
+};
+
+struct line_t {
+    int idx0;
+    int idx1;
 };
 
 struct tag_sizes {
@@ -1015,15 +1025,21 @@ static int pnpoly(int nvert, T *vertx, T *verty, T testx,
 }
 
 // TODO(syoyo): refactor function.
-static bool exportFaceGroupToShape(shape_t *shape,
+static bool exportGroupsToShape(shape_t *shape,
                                    const std::vector<face_t> &faceGroup,
+                                   std::vector<int> &lineGroup,
                                    const std::vector<tag_t> &tags,
                                    const int material_id,
                                    const std::string &name, bool triangulate,
                                    const std::vector<real_t> &v) {
-  if (faceGroup.empty()) {
+
+
+
+  if (faceGroup.empty() && lineGroup.empty()) {
     return false;
   }
+
+  if (!faceGroup.empty()) {
 
   // Flatten vertices and indices
   for (size_t i = 0; i < faceGroup.size(); i++) {
@@ -1254,6 +1270,12 @@ static bool exportFaceGroupToShape(shape_t *shape,
 
   shape->name = name;
   shape->mesh.tags = tags;
+  }
+
+
+  if(!lineGroup.empty()){
+      shape->path.indices.swap(lineGroup);
+  }
 
   return true;
 }
@@ -1764,6 +1786,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   std::vector<real_t> vc;
   std::vector<tag_t> tags;
   std::vector<face_t> faceGroup;
+  std::vector<int> lineGroup;
   std::string name;
 
   // material
@@ -1841,6 +1864,32 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       continue;
     }
 
+    // line
+    if (token[0] == 'l' && IS_SPACE((token[1]))){
+        token += 2;
+
+        line_t line_cache;
+        bool end_line_bit = 0;
+        while(!IS_NEW_LINE(token[0])){
+            //get index from string
+            int idx;
+            fixIndex(parseInt(&token), 0, &idx);
+            // move to next space or end of string (\0 / \n)
+            token += strcspn(token, " \t\r")+1;
+
+            if(!end_line_bit){
+                line_cache.idx0 = idx;
+            } else {
+                line_cache.idx1 = idx;
+                lineGroup.push_back(line_cache.idx0);
+                lineGroup.push_back(line_cache.idx1);
+                line_cache = line_t();
+            }
+            end_line_bit = !end_line_bit;
+        }
+
+        continue;
+    }
     // face
     if (token[0] == 'f' && IS_SPACE((token[1]))) {
       token += 2;
@@ -1890,8 +1939,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       if (newMaterialId != material) {
         // Create per-face material. Thus we don't add `shape` to `shapes` at
         // this time.
-        // just clear `faceGroup` after `exportFaceGroupToShape()` call.
-        exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
+        // just clear `faceGroup` after `exportGroupsToShape()` call.
+        exportGroupsToShape(&shape, faceGroup, lineGroup, tags, material, name,
                                triangulate, v);
         faceGroup.clear();
         material = newMaterialId;
@@ -1946,7 +1995,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     // group name
     if (token[0] == 'g' && IS_SPACE((token[1]))) {
       // flush previous face group.
-      bool ret = exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
+      bool ret = exportGroupsToShape(&shape, faceGroup, lineGroup, tags, material, name,
                                         triangulate, v);
       (void)ret;  // return value not used.
 
@@ -1983,7 +2032,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     // object name
     if (token[0] == 'o' && IS_SPACE((token[1]))) {
       // flush previous face group.
-      bool ret = exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
+      bool ret = exportGroupsToShape(&shape, faceGroup, lineGroup, tags, material, name,
                                         triangulate, v);
       if (ret) {
         shapes->push_back(shape);
@@ -2091,9 +2140,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     // Ignore unknown command.
   }
 
-  bool ret = exportFaceGroupToShape(&shape, faceGroup, tags, material, name,
+  bool ret = exportGroupsToShape(&shape, faceGroup, lineGroup, tags, material, name,
                                     triangulate, v);
-  // exportFaceGroupToShape return false when `usemtl` is called in the last
+  // exportGroupsToShape return false when `usemtl` is called in the last
   // line.
   // we also add `shape` to `shapes` when `shape.mesh` has already some
   // faces(indices)
