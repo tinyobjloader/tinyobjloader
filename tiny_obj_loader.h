@@ -1035,6 +1035,10 @@ static bool exportGroupsToShape(shape_t *shape,
 
 
 
+  if (faceGroup.empty() && lineGroup.empty()) {
+    return false;
+  }
+
   if (!faceGroup.empty()) {
 
   // Flatten vertices and indices
