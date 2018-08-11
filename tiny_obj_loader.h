@@ -23,6 +23,7 @@ THE SOFTWARE.
 */
 
 //
+// version 1.2.2 : Parse multiple group names.
 // version 1.2.1 : Added initial support for line('l') primitive(PR #178)
 // version 1.2.0 : Hardened implementation(#175)
 // version 1.1.1 : Support smoothing groups(#162)
@@ -1790,9 +1791,12 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
   shape_t shape;
 
+  size_t line_num = 0;
   std::string linebuf;
   while (inStream->peek() != -1) {
     safeGetline(*inStream, linebuf);
+
+    line_num++;
 
     // Trim newline '\r\n' or '\n'
     if (linebuf.size() > 0) {
@@ -2001,7 +2005,6 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       faceGroup.clear();
 
       std::vector<std::string> names;
-      names.reserve(2);
 
       while (!IS_NEW_LINE(token[0])) {
         std::string str = parseString(&token);
@@ -2009,13 +2012,31 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
         token += strspn(token, " \t\r");  // skip tag
       }
 
-      assert(names.size() > 0);
+      // names[0] must be 'g'
 
-      // names[0] must be 'g', so skip the 0th element.
-      if (names.size() > 1) {
-        name = names[1];
+      if (names.size() < 2) {
+        // 'g' with empty names
+        if (err) {
+          std::stringstream ss;
+          ss << "WARN: Empty group name. line: " << line_num << "\n";
+          (*err) += ss.str();
+          name = "";
+        }
       } else {
-        name = "";
+
+        std::stringstream ss;
+        ss << names[1];
+
+        // tinyobjloader does not support multiple groups for a primitive.
+        // Currently we concatinate multiple group names with a space to get
+        // single group name.
+
+        for (size_t i = 2; i < names.size(); i++) {
+          ss << " " << names[i];
+        }
+
+        name = ss.str();
+
       }
 
       continue;
@@ -2169,7 +2190,6 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
   std::vector<material_t> materials;
   std::vector<std::string> names;
   names.reserve(2);
-  std::string name;
   std::vector<const char *> names_out;
 
   std::string linebuf;
@@ -2345,13 +2365,6 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
       }
 
       assert(names.size() > 0);
-
-      // names[0] must be 'g', so skip the 0th element.
-      if (names.size() > 1) {
-        name = names[1];
-      } else {
-        name.clear();
-      }
 
       if (callback.group_cb) {
         if (names.size() > 1) {
