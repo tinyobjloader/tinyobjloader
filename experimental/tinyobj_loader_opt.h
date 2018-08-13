@@ -1238,6 +1238,8 @@ typedef struct {
 // 3. Do parallel parsing for each line.
 // 4. Reconstruct final mesh data structure.
 
+// Raise # of max threads if you have more CPU cores...
+// In 2018, 32 cores are getting common in high-end workstaion PC.
 #define kMaxThreads (32)
 
 static inline bool is_line_ending(const char *p, size_t i, size_t end_i) {
