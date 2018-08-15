@@ -1789,9 +1789,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   unsigned int current_smoothing_id =
       0;  // Initial value. 0 means no smoothing.
 
-  int greatest_vertex_index = -1;
-  int greatest_normal_index = -1;
-  int greatest_texcoord_index = -1;
+  int greatest_v_idx = -1;
+  int greatest_vn_idx = -1;
+  int greatest_vt_idx = -1;
 
   shape_t shape;
 
@@ -1911,9 +1911,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
           return false;
         }
 
-        greatest_vertex_index = std::max(greatest_vertex_index, vi.v_idx);
-        greatest_normal_index = std::max(greatest_normal_index, vi.vn_idx);
-        greatest_texcoord_index = std::max(greatest_texcoord_index, vi.vt_idx);
+        greatest_v_idx = greatest_v_idx > vi.v_idx ? greatest_v_idx : vi.v_idx;
+        greatest_vn_idx = greatest_vn_idx > vi.vn_idx ? greatest_vn_idx : vi.vn_idx;
+        greatest_vt_idx = greatest_vt_idx > vi.vt_idx ? greatest_vt_idx : vi.vt_idx;
 
         face.vertex_indices.push_back(vi);
         size_t n = strspn(token, " \t\r");
@@ -2161,9 +2161,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     // Ignore unknown command.
   }
 
-  if (greatest_vertex_index * 3 >= int(v.size())
-    || greatest_normal_index * 3 >= int(vn.size())
-    || greatest_texcoord_index * 2 >= int(vt.size()))
+  if (greatest_v_idx * 3 >= int(v.size())
+    || greatest_vn_idx * 3 >= int(vn.size())
+    || greatest_vt_idx * 2 >= int(vt.size()))
   {
     if (err) {
       std::stringstream ss;
