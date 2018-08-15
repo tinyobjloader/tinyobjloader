@@ -2161,9 +2161,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     // Ignore unknown command.
   }
 
-  if (greatest_vertex_index >= v.size()
-    || greatest_normal_index >= vn.size()
-    || greatest_texcoord_index >= vt.size())
+  if (greatest_vertex_index * 3 >= int(v.size())
+    || greatest_normal_index * 3 >= int(vn.size())
+    || greatest_texcoord_index * 2 >= int(vt.size()))
   {
     if (err) {
       std::stringstream ss;
