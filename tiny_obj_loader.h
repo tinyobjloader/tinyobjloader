@@ -1789,6 +1789,10 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   unsigned int current_smoothing_id =
       0;  // Initial value. 0 means no smoothing.
 
+  int greatest_v_idx = -1;
+  int greatest_vn_idx = -1;
+  int greatest_vt_idx = -1;
+
   shape_t shape;
 
   size_t line_num = 0;
@@ -1906,6 +1910,10 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
           }
           return false;
         }
+
+        greatest_v_idx = greatest_v_idx > vi.v_idx ? greatest_v_idx : vi.v_idx;
+        greatest_vn_idx = greatest_vn_idx > vi.vn_idx ? greatest_vn_idx : vi.vn_idx;
+        greatest_vt_idx = greatest_vt_idx > vi.vt_idx ? greatest_vt_idx : vi.vt_idx;
 
         face.vertex_indices.push_back(vi);
         size_t n = strspn(token, " \t\r");
@@ -2151,6 +2159,31 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     }  // smoothing group id
 
     // Ignore unknown command.
+  }
+
+  if (greatest_v_idx >= static_cast<int>(v.size() / 3))
+  {
+    if (err) {
+      std::stringstream ss;
+      ss << "WARN: Vertex indices out of bounds.\n" << std::endl;
+      (*err) += ss.str();
+    }
+  }
+  if (greatest_vn_idx >= static_cast<int>(vn.size() / 3))
+  {
+    if (err) {
+      std::stringstream ss;
+      ss << "WARN: Vertex normal indices out of bounds.\n" << std::endl;
+      (*err) += ss.str();
+    }
+  }
+  if (greatest_vt_idx >= static_cast<int>(vt.size() / 2))
+  {
+    if (err) {
+      std::stringstream ss;
+      ss << "WARN: Vertex texcoord indices out of bounds.\n" << std::endl;
+      (*err) += ss.str();
+    }
   }
 
   bool ret = exportGroupsToShape(&shape, faceGroup, lineGroup, tags, material,
