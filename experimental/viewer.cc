@@ -357,7 +357,7 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int n
         std::vector<float> vb; // pos(3float), normal(3float), color(3float)
         size_t face_offset = 0;
         for (size_t v = 0; v < attrib.face_num_verts.size(); v++) {
-          assert(attrib.face_num_verts[v] == 3); // assume all triangle face.
+          assert(attrib.face_num_verts[v] % 3 == 0); // assume all triangle face(multiple of 3).
           for (size_t f = 0; f < attrib.face_num_verts[v] / 3; f++) {
             tinyobj_opt::index_t idx0 = attrib.indices[face_offset+3*f+0];
             tinyobj_opt::index_t idx1 = attrib.indices[face_offset+3*f+1];
