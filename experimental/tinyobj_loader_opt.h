@@ -312,6 +312,10 @@ typedef struct {
 
 typedef struct {
   std::string name;  // group name or object name.
+  // Shape's corresponding faces are accessed by attrib.indices[face_offset,
+  // face_offset + length] NOTE: you'll need to sum up
+  // attrib.face_num_verts[face_offset, face_offset + length] to find actual
+  // number of faces.
   unsigned int face_offset;
   unsigned int length;
 } shape_t;
@@ -330,7 +334,14 @@ typedef struct {
   std::vector<float, lfpAlloc::lfpAllocator<float> > normals;
   std::vector<float, lfpAlloc::lfpAllocator<float> > texcoords;
   std::vector<index_t, lfpAlloc::lfpAllocator<index_t> > indices;
+
+  // # of vertices for each face.
+  // 3 for triangle, 4 for qual, ...
+  // If triangulation is enabled and the original face are quad,
+  // face_num_verts will be 6(3 + 3)
   std::vector<int, lfpAlloc::lfpAllocator<int> > face_num_verts;
+
+  // Per-face material IDs.
   std::vector<int, lfpAlloc::lfpAllocator<int> > material_ids;
 } attrib_t;
 
@@ -1046,7 +1057,7 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
               std::vector<material_t> *materials, const char *buf, size_t len,
               const LoadOption &option);
 
-} // namespace tinyobj_opt
+}  // namespace tinyobj_opt
 
 #endif  // TINOBJ_LOADER_OPT_H_
 
@@ -1308,8 +1319,10 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
           end_idx = len - 1;
         }
 
-        // true if the line currently read must be added to the current line info
-        bool new_line_found = (t == 0) || is_line_ending(buf, start_idx - 1, end_idx);
+        // true if the line currently read must be added to the current line
+        // info
+        bool new_line_found =
+            (t == 0) || is_line_ending(buf, start_idx - 1, end_idx);
 
         size_t prev_pos = start_idx;
         for (size_t i = start_idx; i < end_idx; i++) {
@@ -1333,7 +1346,8 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
           }
         }
 
-        // If at least one line started in this chunk, find where it ends in the rest of the buffer
+        // If at least one line started in this chunk, find where it ends in the
+        // rest of the buffer
         if (new_line_found && (t < num_threads) && (buf[end_idx - 1] != '\n')) {
           for (size_t i = end_idx; i < len; i++) {
             if (is_line_ending(buf, i, len)) {
@@ -1393,7 +1407,6 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
     for (size_t t = 0; t < num_threads; t++) {
       workers->push_back(std::thread([&, t]() {
-
         for (size_t i = 0; i < line_infos[t].size(); i++) {
           Command command;
           bool ret = parseLine(&command, &buf[line_infos[t][i].pos],
@@ -1418,7 +1431,6 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
             commands[t].emplace_back(std::move(command));
           }
         }
-
       }));
     }
 
@@ -1443,9 +1455,9 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     // std::cout << "mtllib :" << material_filename << std::endl;
 
     auto t1 = std::chrono::high_resolution_clock::now();
-	if (material_filename.back() == '\r') {
-			material_filename.pop_back();
-	}
+    if (material_filename.back() == '\r') {
+      material_filename.pop_back();
+    }
     std::ifstream ifs(material_filename);
     if (ifs.good()) {
       LoadMtl(&material_map, materials, &ifs);
@@ -1540,27 +1552,30 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
               bool found = false;
               size_t i_start = i + 1, t_next, i_next;
               for (t_next = t; t_next < num_threads; t_next++) {
-                for (i_next = i_start; i_next < commands[t_next].size(); i_next++) {
+                for (i_next = i_start; i_next < commands[t_next].size();
+                     i_next++) {
                   if (commands[t_next][i_next].type == COMMAND_F) {
                     found = true;
                     break;
                   }
                 }
-                if (found)
-                  break;
+                if (found) break;
                 i_start = 0;
               }
               // Assign material to this face
               if (found) {
                 std::string material_name(commands[t][i].material_name,
                                           commands[t][i].material_name_len);
-                for (size_t k = 0; k < commands[t_next][i_next].f_num_verts.size(); k++) {
+                for (size_t k = 0;
+                     k < commands[t_next][i_next].f_num_verts.size(); k++) {
                   if (material_map.find(material_name) != material_map.end()) {
-                      attrib->material_ids[face_count + k] = material_map[material_name];
+                    attrib->material_ids[face_count + k] =
+                        material_map[material_name];
                   } else {
                     // Assign invalid material ID
                     // Set a different value than the default, to
-                    // prevent following faces from being assigned a valid material
+                    // prevent following faces from being assigned a valid
+                    // material
                     attrib->material_ids[face_count + k] = -2;
                   }
                 }
@@ -1604,13 +1619,13 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     for (size_t t = 0; t < workers->size(); t++) {
       workers[t].join();
     }
-    
+
     // To each face with uninitialized material id,
     // assign the material id of the last face preceding it that has one
     for (size_t face_count = 1; face_count < num_indices; ++face_count)
       if (attrib->material_ids[face_count] == -1)
         attrib->material_ids[face_count] = attrib->material_ids[face_count - 1];
-    
+
     auto t_end = std::chrono::high_resolution_clock::now();
     ms_merge = t_end - t_start;
   }
