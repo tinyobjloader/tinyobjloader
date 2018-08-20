@@ -1685,7 +1685,8 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
           }
         }
         if (commands[t][i].type == COMMAND_F) {
-          face_count++;
+          // Consider generation of multiple faces per `f` line by triangulation
+          face_count += commands[t][i].f_num_verts.size();
         }
       }
     }
