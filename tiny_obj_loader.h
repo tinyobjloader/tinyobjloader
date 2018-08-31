@@ -338,10 +338,12 @@ class MaterialStreamReader : public MaterialReader {
 /// directory.
 /// 'triangulate' is optional, and used whether triangulate polygon face in .obj
 /// or not.
+/// Option 'default_vcols_fallback' specifies whether vertex colors should
+/// always be defined, even if no colors are given (fallback to white).
 bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              std::vector<material_t> *materials, std::string *err,
              const char *filename, const char *mtl_basedir = NULL,
-             bool triangulate = true);
+             bool triangulate = true, bool default_vcols_fallback = true);
 
 /// Loads .obj from a file with custom user callback.
 /// .mtl is loaded as usual and parsed material_t data will be passed to
@@ -361,7 +363,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
 bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              std::vector<material_t> *materials, std::string *err,
              std::istream *inStream, MaterialReader *readMatFn = NULL,
-             bool triangulate = true);
+             bool triangulate = true, bool default_vcols_fallback = true);
 
 /// Loads materials into std::map
 void LoadMtl(std::map<std::string, int> *material_map,
@@ -710,11 +712,13 @@ static inline bool parseVertexWithColor(real_t *x, real_t *y, real_t *z,
   (*y) = parseReal(token, default_y);
   (*z) = parseReal(token, default_z);
 
-  (*r) = parseReal(token, 1.0);
-  (*g) = parseReal(token, 1.0);
-  (*b) = parseReal(token, 1.0);
-
-  return true;
+  const bool found_color = parseReal(token, r) && parseReal(token, g) && parseReal(token, b);
+  
+  if (!found_color) {
+    (*r) = (*g) = (*b) = 1.0;
+  }
+  
+  return found_color;
 }
 
 static inline bool parseOnOff(const char **token, bool default_value = true) {
@@ -1733,7 +1737,8 @@ bool MaterialStreamReader::operator()(const std::string &matId,
 
 bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              std::vector<material_t> *materials, std::string *err,
-             const char *filename, const char *mtl_basedir, bool trianglulate) {
+             const char *filename, const char *mtl_basedir,
+             bool trianglulate, bool default_vcols_fallback) {
   attrib->vertices.clear();
   attrib->normals.clear();
   attrib->texcoords.clear();
@@ -1763,13 +1768,13 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   MaterialFileReader matFileReader(baseDir);
 
   return LoadObj(attrib, shapes, materials, err, &ifs, &matFileReader,
-                 trianglulate);
+                 trianglulate, default_vcols_fallback);
 }
 
 bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              std::vector<material_t> *materials, std::string *err,
              std::istream *inStream, MaterialReader *readMatFn /*= NULL*/,
-             bool triangulate) {
+             bool triangulate, bool default_vcols_fallback) {
   std::stringstream errss;
 
   std::vector<real_t> v;
@@ -1795,6 +1800,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
   shape_t shape;
 
+  bool found_all_colors = true;
+  
   size_t line_num = 0;
   std::string linebuf;
   while (inStream->peek() != -1) {
@@ -1831,14 +1838,19 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       token += 2;
       real_t x, y, z;
       real_t r, g, b;
-      parseVertexWithColor(&x, &y, &z, &r, &g, &b, &token);
+            
+      found_all_colors &= parseVertexWithColor(&x, &y, &z, &r, &g, &b, &token);
+      
       v.push_back(x);
       v.push_back(y);
       v.push_back(z);
 
-      vc.push_back(r);
-      vc.push_back(g);
-      vc.push_back(b);
+      if (found_all_colors || default_vcols_fallback) {
+        vc.push_back(r);
+        vc.push_back(g);
+        vc.push_back(b);
+      }
+      
       continue;
     }
 
@@ -1925,7 +1937,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
       continue;
     }
-
+      
     // use mtl
     if ((0 == strncmp(token, "usemtl", 6)) && IS_SPACE((token[6]))) {
       token += 7;
@@ -2160,7 +2172,12 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
     // Ignore unknown command.
   }
-
+  
+  // not all vertices have colors, no default colors desired? -> clear colors
+  if (!found_all_colors && !default_vcols_fallback) { 
+    vc.clear();
+  }
+  
   if (greatest_v_idx >= static_cast<int>(v.size() / 3))
   {
     if (err) {
