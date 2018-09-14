@@ -825,6 +825,25 @@ TEST_CASE("multiple-group-names", "[group]") {
   REQUIRE(0 == shapes[1].name.compare("back cube")); // multiple whitespaces are aggregated as single white space.
 }
 
+TEST_CASE("colorspace", "[Issue184]") {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "../models/colorspace-issue-184.obj", gMtlBasePath);
+
+  if (!err.empty()) {
+    std::cerr << err << std::endl;
+  }
+  REQUIRE(true == ret);
+  REQUIRE(1 == shapes.size());
+  REQUIRE(1 == materials.size());
+  REQUIRE(0 == materials[0].diffuse_texopt.colorspace.compare("sRGB"));
+  REQUIRE(0 == materials[0].specular_texopt.colorspace.size());
+  REQUIRE(0 == materials[0].bump_texopt.colorspace.compare("linear"));
+}
+
 // Fuzzer test.
 // Just check if it does not crash.
 // Disable by default since Windows filesystem can't create filename of afl testdata

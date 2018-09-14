@@ -23,6 +23,7 @@ THE SOFTWARE.
 */
 
 //
+// version 1.2.3 : Added color space extension('-colorspace') to tex opts.
 // version 1.2.2 : Parse multiple group names.
 // version 1.2.1 : Added initial support for line('l') primitive(PR #178)
 // version 1.2.0 : Hardened implementation(#175)
@@ -113,6 +114,11 @@ namespace tinyobj {
 //         cube_front  | cube_back   |      # side of the cube is specified
 //         separately
 //         cube_left   | cube_right
+//
+// TinyObjLoader extension.
+//
+//   -colorspace SPACE                      # Color space of the texture. e.g.  'sRGB` or 'linear' 
+// 
 
 #ifdef TINYOBJLOADER_USE_DOUBLE
 //#pragma message "using double"
@@ -147,6 +153,9 @@ typedef struct {
   bool blendu;   // -blendu (default on)
   bool blendv;   // -blendv (default on)
   real_t bump_multiplier;  // -bm (for bump maps only, default 1.0)
+  
+  // extension
+  std::string colorspace;   // Explicitly specify color space of stored value. Usually `sRGB` or `linear` (default empty).
 } texture_option_t;
 
 typedef struct {
@@ -950,6 +959,9 @@ static bool ParseTextureNameAndOption(std::string *texname,
     } else if ((0 == strncmp(token, "-mm", 3)) && IS_SPACE((token[3]))) {
       token += 4;
       parseReal2(&(texopt->brightness), &(texopt->contrast), &token, 0.0, 1.0);
+    } else if ((0 == strncmp(token, "-colorspace", 11)) && IS_SPACE((token[11]))) {
+      token += 12;
+      texopt->colorspace = parseString(&token);
     } else {
       // Assume texture filename
 #if 0
