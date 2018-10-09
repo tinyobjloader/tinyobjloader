@@ -308,9 +308,13 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
   base_dir += "/";
 #endif
 
+  std::string warn;
   std::string err;
-  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, filename,
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename,
                               base_dir.c_str());
+  if (!warn.empty()) {
+    std::cout << "WARN: " << warn << std::endl;
+  }
   if (!err.empty()) {
     std::cerr << err << std::endl;
   }
