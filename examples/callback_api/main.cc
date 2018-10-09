@@ -129,6 +129,7 @@ int main(int argc, char **argv) {
   cb.object_cb = object_cb;
 
   MyMesh mesh;
+  std::string warn;
   std::string err;
   std::string filename = "../../models/cornell_box.obj";
   if (argc > 1) {
@@ -143,7 +144,11 @@ int main(int argc, char **argv) {
 
   tinyobj::MaterialFileReader mtlReader("../../models/");
 
-  bool ret = tinyobj::LoadObjWithCallback(ifs, cb, &mesh, &mtlReader, &err);
+  bool ret = tinyobj::LoadObjWithCallback(ifs, cb, &mesh, &mtlReader, &warn, &err);
+
+  if (!warn.empty()) {
+    std::cout << "WARN: " << warn << std::endl;
+  }
 
   if (!err.empty()) {
     std::cerr << err << std::endl;

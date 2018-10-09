@@ -285,14 +285,19 @@ static bool TestLoadObj(const char* filename, const char* basepath = NULL,
 
   timerutil t;
   t.start();
+  std::string warn;
   std::string err;
-  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, filename,
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename,
                               basepath, triangulate);
   t.end();
   printf("Parsing time: %lu [msecs]\n", t.msec());
 
+  if (!warn.empty()) {
+    std::cout << "WARN: " << warn << std::endl;
+  }
+
   if (!err.empty()) {
-    std::cerr << err << std::endl;
+    std::cerr << "ERR: " << err << std::endl;
   }
 
   if (!ret) {
@@ -376,16 +381,12 @@ static bool TestStreamLoadObj() {
     virtual bool operator()(const std::string& matId,
                             std::vector<material_t>* materials,
                             std::map<std::string, int>* matMap,
+                            std::string* warn,
                             std::string* err) {
+      (void)err;
       (void)matId;
-      std::string warning;
-      LoadMtl(matMap, materials, &m_matSStream, &warning);
+      LoadMtl(matMap, materials, &m_matSStream, warn);
 
-      if (!warning.empty()) {
-        if (err) {
-          (*err) += warning;
-        }
-      }
       return true;
     }
 
@@ -397,8 +398,9 @@ static bool TestStreamLoadObj() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
+  std::string warn;
   std::string err;
-  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, &objStream,
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, &objStream,
                               &matSSReader);
 
   if (!err.empty()) {
