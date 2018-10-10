@@ -385,7 +385,7 @@ static bool TestStreamLoadObj() {
                             std::string* err) {
       (void)err;
       (void)matId;
-      LoadMtl(matMap, materials, &m_matSStream, warn);
+      LoadMtl(matMap, materials, &m_matSStream, warn, err);
 
       return true;
     }
