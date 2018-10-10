@@ -1325,9 +1325,11 @@ void LoadMtl(std::map<std::string, int> *material_map,
 
   std::stringstream warn_ss;
 
+  size_t line_no = 0;
   std::string linebuf;
   while (inStream->peek() != -1) {
     safeGetline(*inStream, linebuf);
+      line_no++;
 
     // Trim trailing whitespace.
     if (linebuf.size() > 0) {
@@ -1467,7 +1469,8 @@ void LoadMtl(std::map<std::string, int> *material_map,
 
       if (has_tr) {
         warn_ss << "Both `d` and `Tr` parameters defined for \""
-                << material.name << "\". Use the value of `d` for dissolve."
+                << material.name << "\". Use the value of `d` for dissolve (line "
+                << line_no << " in .mtl.)"
                 << std::endl;
       }
       has_d = true;
@@ -1478,7 +1481,8 @@ void LoadMtl(std::map<std::string, int> *material_map,
       if (has_d) {
         // `d` wins. Ignore `Tr` value.
         warn_ss << "Both `d` and `Tr` parameters defined for \""
-                << material.name << "\". Use the value of `d` for dissolve."
+                << material.name << "\". Use the value of `d` for dissolve (line "
+                << line_no << " in .mtl.)"
                 << std::endl;
       } else {
         // We invert value of Tr(assume Tr is in range [0, 1])
@@ -1929,7 +1933,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
                          static_cast<int>(vn.size() / 3),
                          static_cast<int>(vt.size() / 2), &vi)) {
           if (err) {
-            (*err) = "Failed parse `f' line(e.g. zero value for face index).\n";
+            std::stringstream ss;
+            ss <<  "Failed parse `f' line(e.g. zero value for face index. line " << line_num << ".)\n";
+            (*err) += ss.str();
           }
           return false;
         }
@@ -1988,9 +1994,11 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
         if (filenames.empty()) {
           if (warn) {
-            (*warn) +=
-                "Looks like empty filename for mtllib. Use default "
-                "material. \n";
+            std::stringstream ss;
+            ss << "Looks like empty filename for mtllib. Use default "
+                "material (line " << line_num << ".)\n";
+
+            (*warn) += ss.str();
           }
         } else {
           bool found = false;
@@ -2197,21 +2205,21 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   if (greatest_v_idx >= static_cast<int>(v.size() / 3)) {
     if (warn) {
       std::stringstream ss;
-      ss << "Vertex indices out of bounds.\n" << std::endl;
+      ss << "Vertex indices out of bounds (line " << line_num << ".)\n" << std::endl;
       (*warn) += ss.str();
     }
   }
   if (greatest_vn_idx >= static_cast<int>(vn.size() / 3)) {
     if (warn) {
       std::stringstream ss;
-      ss << "Vertex normal indices out of bounds.\n" << std::endl;
+      ss << "Vertex normal indices out of bounds (line " << line_num << ".)\n" << std::endl;
       (*warn) += ss.str();
     }
   }
   if (greatest_vt_idx >= static_cast<int>(vt.size() / 2)) {
     if (warn) {
       std::stringstream ss;
-      ss << "Vertex texcoord indices out of bounds.\n" << std::endl;
+      ss << "Vertex texcoord indices out of bounds (line " << line_num << ".)\n" << std::endl;
       (*warn) += ss.str();
     }
   }
