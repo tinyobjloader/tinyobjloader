@@ -23,6 +23,7 @@ THE SOFTWARE.
 */
 
 //
+// version 1.3.1 : Make ParseTextureNameAndOption API public
 // version 1.3.0 : Separate warning and error message(breaking API of LoadObj)
 // version 1.2.3 : Added color space extension('-colorspace') to tex opts.
 // version 1.2.2 : Parse multiple group names.
@@ -386,6 +387,18 @@ void LoadMtl(std::map<std::string, int> *material_map,
              std::vector<material_t> *materials, std::istream *inStream,
              std::string *warning, std::string *err);
 
+///
+/// Parse texture name and texture option for custom texture parameter through material::unknown_parameter
+///
+/// @param[out] texname Parsed texture name
+/// @param[out] texopt Parsed texopt
+/// @param[in] linebuf Input string
+/// @param[in] is_bump Is this texture bump/normal?
+///
+bool ParseTextureNameAndOption(std::string *texname,
+                               texture_option_t *texopt,
+                               const char *linebuf,
+                               const bool is_bump);
 }  // namespace tinyobj
 
 #endif  // TINY_OBJ_LOADER_H_
@@ -891,7 +904,7 @@ static vertex_index_t parseRawTriple(const char **token) {
   return vi;
 }
 
-static bool ParseTextureNameAndOption(std::string *texname,
+bool ParseTextureNameAndOption(std::string *texname,
                                       texture_option_t *texopt,
                                       const char *linebuf, const bool is_bump) {
   // @todo { write more robust lexer and parser. }
