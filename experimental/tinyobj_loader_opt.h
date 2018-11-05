@@ -605,19 +605,9 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result) {
   }
 
 assemble :
-
-{
-  // = pow(5.0, exponent);
-  double a = 1.0;
-  for (int i = 0; i < exponent; i++) {
-    a = a * 5.0;
-  }
-  *result =
-      //(sign == '+' ? 1 : -1) * ldexp(mantissa * pow(5.0, exponent), exponent);
-      (sign == '+' ? 1 : -1) * (mantissa * a) *
-      static_cast<double>(1ULL << exponent);  // 5.0^exponent * 2^exponent
-}
-
+  *result = (sign == '+' ? 1 : -1) *
+            (exponent ? std::ldexp(mantissa * std::pow(5.0, exponent), exponent)
+                      : mantissa);
   return true;
 fail:
   return false;
