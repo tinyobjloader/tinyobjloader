@@ -204,9 +204,10 @@ std::string inputfile = "cornell_box.obj";
 tinyobj::attrib_t attrib;
 std::vector<tinyobj::shape_t> shapes;
 std::vector<tinyobj::material_t> materials;
-  
+
+std::string warn;
 std::string err;
-bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, inputfile.c_str());
+bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, inputfile.c_str());
   
 if (!err.empty()) { // `err` may contain warning message.
   std::cerr << err << std::endl;
