@@ -906,34 +906,10 @@ static vertex_index_t parseRawTriple(const char **token) {
 
 bool ParseTextureNameAndOption(std::string *texname,
                                       texture_option_t *texopt,
-                                      const char *linebuf, const bool is_bump) {
+                                      const char *linebuf) {
   // @todo { write more robust lexer and parser. }
   bool found_texname = false;
   std::string texture_name;
-
-  // Fill with default value for texopt.
-  if (is_bump) {
-    texopt->imfchan = 'l';
-  } else {
-    texopt->imfchan = 'm';
-  }
-  texopt->bump_multiplier = static_cast<real_t>(1.0);
-  texopt->clamp = false;
-  texopt->blendu = true;
-  texopt->blendv = true;
-  texopt->sharpness = static_cast<real_t>(1.0);
-  texopt->brightness = static_cast<real_t>(0.0);
-  texopt->contrast = static_cast<real_t>(1.0);
-  texopt->origin_offset[0] = static_cast<real_t>(0.0);
-  texopt->origin_offset[1] = static_cast<real_t>(0.0);
-  texopt->origin_offset[2] = static_cast<real_t>(0.0);
-  texopt->scale[0] = static_cast<real_t>(1.0);
-  texopt->scale[1] = static_cast<real_t>(1.0);
-  texopt->scale[2] = static_cast<real_t>(1.0);
-  texopt->turbulence[0] = static_cast<real_t>(0.0);
-  texopt->turbulence[1] = static_cast<real_t>(0.0);
-  texopt->turbulence[2] = static_cast<real_t>(0.0);
-  texopt->type = TEXTURE_TYPE_NONE;
 
   const char *token = linebuf;  // Assume line ends with NULL
 
@@ -1011,7 +987,45 @@ bool ParseTextureNameAndOption(std::string *texname,
   }
 }
 
+static void InitTexOpt(texture_option_t *texopt, const bool is_bump) {
+  if (is_bump) {
+    texopt->imfchan = 'l';
+  } else {
+    texopt->imfchan = 'm';
+  }
+  texopt->bump_multiplier = static_cast<real_t>(1.0);
+  texopt->clamp = false;
+  texopt->blendu = true;
+  texopt->blendv = true;
+  texopt->sharpness = static_cast<real_t>(1.0);
+  texopt->brightness = static_cast<real_t>(0.0);
+  texopt->contrast = static_cast<real_t>(1.0);
+  texopt->origin_offset[0] = static_cast<real_t>(0.0);
+  texopt->origin_offset[1] = static_cast<real_t>(0.0);
+  texopt->origin_offset[2] = static_cast<real_t>(0.0);
+  texopt->scale[0] = static_cast<real_t>(1.0);
+  texopt->scale[1] = static_cast<real_t>(1.0);
+  texopt->scale[2] = static_cast<real_t>(1.0);
+  texopt->turbulence[0] = static_cast<real_t>(0.0);
+  texopt->turbulence[1] = static_cast<real_t>(0.0);
+  texopt->turbulence[2] = static_cast<real_t>(0.0);
+  texopt->type = TEXTURE_TYPE_NONE;
+}
+
 static void InitMaterial(material_t *material) {
+  InitTexOpt(&material->ambient_texopt,            /* is_bump */ false);
+  InitTexOpt(&material->diffuse_texopt,            /* is_bump */ false);
+  InitTexOpt(&material->specular_texopt,           /* is_bump */ false);
+  InitTexOpt(&material->specular_highlight_texopt, /* is_bump */ false);
+  InitTexOpt(&material->bump_texopt,               /* is_bump */ true);
+  InitTexOpt(&material->displacement_texopt,       /* is_bump */ false);
+  InitTexOpt(&material->alpha_texopt,              /* is_bump */ false);
+  InitTexOpt(&material->reflection_texopt,         /* is_bump */ false);
+  InitTexOpt(&material->roughness_texopt,          /* is_bump */ false);
+  InitTexOpt(&material->metallic_texopt,           /* is_bump */ false);
+  InitTexOpt(&material->sheen_texopt,              /* is_bump */ false);
+  InitTexOpt(&material->emissive_texopt,           /* is_bump */ false);
+  InitTexOpt(&material->normal_texopt,             /* is_bump */ false); // @fixme { is_bump will be true? }
   material->name = "";
   material->ambient_texname = "";
   material->diffuse_texname = "";
@@ -1560,8 +1574,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
     if ((0 == strncmp(token, "map_Ka", 6)) && IS_SPACE(token[6])) {
       token += 7;
       ParseTextureNameAndOption(&(material.ambient_texname),
-                                &(material.ambient_texopt), token,
-                                /* is_bump */ false);
+                                &(material.ambient_texopt), token);
       continue;
     }
 
@@ -1569,8 +1582,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
     if ((0 == strncmp(token, "map_Kd", 6)) && IS_SPACE(token[6])) {
       token += 7;
       ParseTextureNameAndOption(&(material.diffuse_texname),
-                                &(material.diffuse_texopt), token,
-                                /* is_bump */ false);
+                                &(material.diffuse_texopt), token);
       continue;
     }
 
@@ -1578,8 +1590,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
     if ((0 == strncmp(token, "map_Ks", 6)) && IS_SPACE(token[6])) {
       token += 7;
       ParseTextureNameAndOption(&(material.specular_texname),
-                                &(material.specular_texopt), token,
-                                /* is_bump */ false);
+                                &(material.specular_texopt), token);
       continue;
     }
 
@@ -1587,8 +1598,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
     if ((0 == strncmp(token, "map_Ns", 6)) && IS_SPACE(token[6])) {
       token += 7;
       ParseTextureNameAndOption(&(material.specular_highlight_texname),
-                                &(material.specular_highlight_texopt), token,
-                                /* is_bump */ false);
+                                &(material.specular_highlight_texopt), token);
       continue;
     }
 
@@ -1596,8 +1606,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
     if ((0 == strncmp(token, "map_bump", 8)) && IS_SPACE(token[8])) {
       token += 9;
       ParseTextureNameAndOption(&(material.bump_texname),
-                                &(material.bump_texopt), token,
-                                /* is_bump */ true);
+                                &(material.bump_texopt), token);
       continue;
     }
 
@@ -1605,8 +1614,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
     if ((0 == strncmp(token, "map_Bump", 8)) && IS_SPACE(token[8])) {
       token += 9;
       ParseTextureNameAndOption(&(material.bump_texname),
-                                &(material.bump_texopt), token,
-                                /* is_bump */ true);
+                                &(material.bump_texopt), token);
       continue;
     }
 
@@ -1614,8 +1622,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
     if ((0 == strncmp(token, "bump", 4)) && IS_SPACE(token[4])) {
       token += 5;
       ParseTextureNameAndOption(&(material.bump_texname),
-                                &(material.bump_texopt), token,
-                                /* is_bump */ true);
+                                &(material.bump_texopt), token);
       continue;
     }
 
@@ -1624,8 +1631,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
       token += 6;
       material.alpha_texname = token;
       ParseTextureNameAndOption(&(material.alpha_texname),
-                                &(material.alpha_texopt), token,
-                                /* is_bump */ false);
+                                &(material.alpha_texopt), token);
       continue;
     }
 
@@ -1633,8 +1639,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
     if ((0 == strncmp(token, "disp", 4)) && IS_SPACE(token[4])) {
       token += 5;
       ParseTextureNameAndOption(&(material.displacement_texname),
-                                &(material.displacement_texopt), token,
-                                /* is_bump */ false);
+                                &(material.displacement_texopt), token);
       continue;
     }
 
@@ -1642,8 +1647,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
     if ((0 == strncmp(token, "refl", 4)) && IS_SPACE(token[4])) {
       token += 5;
       ParseTextureNameAndOption(&(material.reflection_texname),
-                                &(material.reflection_texopt), token,
-                                /* is_bump */ false);
+                                &(material.reflection_texopt), token);
       continue;
     }
 
@@ -1651,8 +1655,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
     if ((0 == strncmp(token, "map_Pr", 6)) && IS_SPACE(token[6])) {
       token += 7;
       ParseTextureNameAndOption(&(material.roughness_texname),
-                                &(material.roughness_texopt), token,
-                                /* is_bump */ false);
+                                &(material.roughness_texopt), token);
       continue;
     }
 
@@ -1660,8 +1663,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
     if ((0 == strncmp(token, "map_Pm", 6)) && IS_SPACE(token[6])) {
       token += 7;
       ParseTextureNameAndOption(&(material.metallic_texname),
-                                &(material.metallic_texopt), token,
-                                /* is_bump */ false);
+                                &(material.metallic_texopt), token);
       continue;
     }
 
@@ -1669,8 +1671,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
     if ((0 == strncmp(token, "map_Ps", 6)) && IS_SPACE(token[6])) {
       token += 7;
       ParseTextureNameAndOption(&(material.sheen_texname),
-                                &(material.sheen_texopt), token,
-                                /* is_bump */ false);
+                                &(material.sheen_texopt), token);
       continue;
     }
 
@@ -1678,17 +1679,15 @@ void LoadMtl(std::map<std::string, int> *material_map,
     if ((0 == strncmp(token, "map_Ke", 6)) && IS_SPACE(token[6])) {
       token += 7;
       ParseTextureNameAndOption(&(material.emissive_texname),
-                                &(material.emissive_texopt), token,
-                                /* is_bump */ false);
+                                &(material.emissive_texopt), token);
       continue;
     }
 
     // PBR: normal map texture
     if ((0 == strncmp(token, "norm", 4)) && IS_SPACE(token[4])) {
       token += 5;
-      ParseTextureNameAndOption(
-          &(material.normal_texname), &(material.normal_texopt), token,
-          /* is_bump */ false);  // @fixme { is_bump will be true? }
+      ParseTextureNameAndOption(&(material.normal_texname),
+                                &(material.normal_texopt), token);
       continue;
     }
 
