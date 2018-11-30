@@ -397,8 +397,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
 ///
 bool ParseTextureNameAndOption(std::string *texname,
                                texture_option_t *texopt,
-                               const char *linebuf,
-                               const bool is_bump);
+                               const char *linebuf);
 }  // namespace tinyobj
 
 #endif  // TINY_OBJ_LOADER_H_
