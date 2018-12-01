@@ -986,6 +986,49 @@ TEST_CASE("multiple-group-names", "[group]") {
                                                       // single white space.
 }
 
+TEST_CASE("initialize_all_texopts", "[ensure unparsed texopts are initialized to defaults]") {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string warn;
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              "../models/cornell_box.obj", gMtlBasePath, false);
+
+  REQUIRE(0 < materials.size());
+
+  #define REQUIRE_DEFAULT_TEXOPT(texopt)                \
+    REQUIRE(tinyobj::TEXTURE_TYPE_NONE == texopt.type); \
+    REQUIRE(0.0   == texopt.brightness);                \
+    REQUIRE(1.0   == texopt.contrast);                  \
+    REQUIRE(false == texopt.clamp);                     \
+    REQUIRE(true  == texopt.blendu);                    \
+    REQUIRE(true  == texopt.blendv);                    \
+    REQUIRE(1.0   == texopt.bump_multiplier);           \
+    for (int j = 0; j < 3; j++) {                       \
+      REQUIRE(0.0 == texopt.origin_offset[j]);          \
+      REQUIRE(1.0 == texopt.scale[j]);                  \
+      REQUIRE(0.0 == texopt.turbulence[j]);             \
+    }
+  for (size_t i = 0; i < materials.size(); i++) {
+    REQUIRE_DEFAULT_TEXOPT(materials[i].ambient_texopt);
+    REQUIRE_DEFAULT_TEXOPT(materials[i].diffuse_texopt);
+    REQUIRE_DEFAULT_TEXOPT(materials[i].specular_texopt);
+    REQUIRE_DEFAULT_TEXOPT(materials[i].specular_highlight_texopt);
+    REQUIRE_DEFAULT_TEXOPT(materials[i].bump_texopt);
+    REQUIRE_DEFAULT_TEXOPT(materials[i].displacement_texopt);
+    REQUIRE_DEFAULT_TEXOPT(materials[i].alpha_texopt);
+    REQUIRE_DEFAULT_TEXOPT(materials[i].reflection_texopt);
+    REQUIRE_DEFAULT_TEXOPT(materials[i].roughness_texopt);
+    REQUIRE_DEFAULT_TEXOPT(materials[i].metallic_texopt);
+    REQUIRE_DEFAULT_TEXOPT(materials[i].sheen_texopt);
+    REQUIRE_DEFAULT_TEXOPT(materials[i].emissive_texopt);
+    REQUIRE_DEFAULT_TEXOPT(materials[i].normal_texopt);
+  }
+  #undef REQUIRE_DEFAULT_TEXOPT
+}
+
 TEST_CASE("colorspace", "[Issue184]") {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
