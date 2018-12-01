@@ -23,6 +23,7 @@ THE SOFTWARE.
 */
 
 //
+// version 1.4.0 : Modifed ParseTextureNameAndOption API
 // version 1.3.1 : Make ParseTextureNameAndOption API public
 // version 1.3.0 : Separate warning and error message(breaking API of LoadObj)
 // version 1.2.3 : Added color space extension('-colorspace') to tex opts.
@@ -158,8 +159,8 @@ typedef struct {
   real_t bump_multiplier;  // -bm (for bump maps only, default 1.0)
 
   // extension
-  std::string colorspace;  // Explicitly specify color space of stored value.
-                           // Usually `sRGB` or `linear` (default empty).
+  std::string colorspace;  // Explicitly specify color space of stored texel
+                           // value. Usually `sRGB` or `linear` (default empty).
 } texture_option_t;
 
 typedef struct {
@@ -388,15 +389,14 @@ void LoadMtl(std::map<std::string, int> *material_map,
              std::string *warning, std::string *err);
 
 ///
-/// Parse texture name and texture option for custom texture parameter through material::unknown_parameter
+/// Parse texture name and texture option for custom texture parameter through
+/// material::unknown_parameter
 ///
 /// @param[out] texname Parsed texture name
 /// @param[out] texopt Parsed texopt
 /// @param[in] linebuf Input string
-/// @param[in] is_bump Is this texture bump/normal?
 ///
-bool ParseTextureNameAndOption(std::string *texname,
-                               texture_option_t *texopt,
+bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
                                const char *linebuf);
 }  // namespace tinyobj
 
@@ -903,9 +903,8 @@ static vertex_index_t parseRawTriple(const char **token) {
   return vi;
 }
 
-bool ParseTextureNameAndOption(std::string *texname,
-                                      texture_option_t *texopt,
-                                      const char *linebuf) {
+bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
+                               const char *linebuf) {
   // @todo { write more robust lexer and parser. }
   bool found_texname = false;
   std::string texture_name;
@@ -1012,19 +1011,20 @@ static void InitTexOpt(texture_option_t *texopt, const bool is_bump) {
 }
 
 static void InitMaterial(material_t *material) {
-  InitTexOpt(&material->ambient_texopt,            /* is_bump */ false);
-  InitTexOpt(&material->diffuse_texopt,            /* is_bump */ false);
-  InitTexOpt(&material->specular_texopt,           /* is_bump */ false);
+  InitTexOpt(&material->ambient_texopt, /* is_bump */ false);
+  InitTexOpt(&material->diffuse_texopt, /* is_bump */ false);
+  InitTexOpt(&material->specular_texopt, /* is_bump */ false);
   InitTexOpt(&material->specular_highlight_texopt, /* is_bump */ false);
-  InitTexOpt(&material->bump_texopt,               /* is_bump */ true);
-  InitTexOpt(&material->displacement_texopt,       /* is_bump */ false);
-  InitTexOpt(&material->alpha_texopt,              /* is_bump */ false);
-  InitTexOpt(&material->reflection_texopt,         /* is_bump */ false);
-  InitTexOpt(&material->roughness_texopt,          /* is_bump */ false);
-  InitTexOpt(&material->metallic_texopt,           /* is_bump */ false);
-  InitTexOpt(&material->sheen_texopt,              /* is_bump */ false);
-  InitTexOpt(&material->emissive_texopt,           /* is_bump */ false);
-  InitTexOpt(&material->normal_texopt,             /* is_bump */ false); // @fixme { is_bump will be true? }
+  InitTexOpt(&material->bump_texopt, /* is_bump */ true);
+  InitTexOpt(&material->displacement_texopt, /* is_bump */ false);
+  InitTexOpt(&material->alpha_texopt, /* is_bump */ false);
+  InitTexOpt(&material->reflection_texopt, /* is_bump */ false);
+  InitTexOpt(&material->roughness_texopt, /* is_bump */ false);
+  InitTexOpt(&material->metallic_texopt, /* is_bump */ false);
+  InitTexOpt(&material->sheen_texopt, /* is_bump */ false);
+  InitTexOpt(&material->emissive_texopt, /* is_bump */ false);
+  InitTexOpt(&material->normal_texopt,
+             /* is_bump */ false);  // @fixme { is_bump will be true? }
   material->name = "";
   material->ambient_texname = "";
   material->diffuse_texname = "";
@@ -1355,7 +1355,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
   std::string linebuf;
   while (inStream->peek() != -1) {
     safeGetline(*inStream, linebuf);
-      line_no++;
+    line_no++;
 
     // Trim trailing whitespace.
     if (linebuf.size() > 0) {
@@ -1495,9 +1495,9 @@ void LoadMtl(std::map<std::string, int> *material_map,
 
       if (has_tr) {
         warn_ss << "Both `d` and `Tr` parameters defined for \""
-                << material.name << "\". Use the value of `d` for dissolve (line "
-                << line_no << " in .mtl.)"
-                << std::endl;
+                << material.name
+                << "\". Use the value of `d` for dissolve (line " << line_no
+                << " in .mtl.)" << std::endl;
       }
       has_d = true;
       continue;
@@ -1507,9 +1507,9 @@ void LoadMtl(std::map<std::string, int> *material_map,
       if (has_d) {
         // `d` wins. Ignore `Tr` value.
         warn_ss << "Both `d` and `Tr` parameters defined for \""
-                << material.name << "\". Use the value of `d` for dissolve (line "
-                << line_no << " in .mtl.)"
-                << std::endl;
+                << material.name
+                << "\". Use the value of `d` for dissolve (line " << line_no
+                << " in .mtl.)" << std::endl;
       } else {
         // We invert value of Tr(assume Tr is in range [0, 1])
         // NOTE: Interpretation of Tr is application(exporter) dependent. For
@@ -1945,7 +1945,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
                          static_cast<int>(vt.size() / 2), &vi)) {
           if (err) {
             std::stringstream ss;
-            ss <<  "Failed parse `f' line(e.g. zero value for face index. line " << line_num << ".)\n";
+            ss << "Failed parse `f' line(e.g. zero value for face index. line "
+               << line_num << ".)\n";
             (*err) += ss.str();
           }
           return false;
@@ -2007,7 +2008,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
           if (warn) {
             std::stringstream ss;
             ss << "Looks like empty filename for mtllib. Use default "
-                "material (line " << line_num << ".)\n";
+                  "material (line "
+               << line_num << ".)\n";
 
             (*warn) += ss.str();
           }
@@ -2216,21 +2218,24 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   if (greatest_v_idx >= static_cast<int>(v.size() / 3)) {
     if (warn) {
       std::stringstream ss;
-      ss << "Vertex indices out of bounds (line " << line_num << ".)\n" << std::endl;
+      ss << "Vertex indices out of bounds (line " << line_num << ".)\n"
+         << std::endl;
       (*warn) += ss.str();
     }
   }
   if (greatest_vn_idx >= static_cast<int>(vn.size() / 3)) {
     if (warn) {
       std::stringstream ss;
-      ss << "Vertex normal indices out of bounds (line " << line_num << ".)\n" << std::endl;
+      ss << "Vertex normal indices out of bounds (line " << line_num << ".)\n"
+         << std::endl;
       (*warn) += ss.str();
     }
   }
   if (greatest_vt_idx >= static_cast<int>(vt.size() / 2)) {
     if (warn) {
       std::stringstream ss;
-      ss << "Vertex texcoord indices out of bounds (line " << line_num << ".)\n" << std::endl;
+      ss << "Vertex texcoord indices out of bounds (line " << line_num << ".)\n"
+         << std::endl;
       (*warn) += ss.str();
     }
   }
