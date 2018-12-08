@@ -1171,20 +1171,34 @@ static bool exportGroupsToShape(shape_t *shape,
           area += (v0x * v1y - v0y * v1x) * static_cast<real_t>(0.5);
         }
 
-        int maxRounds = 10;  // arbitrary max loop count to protect against
-                             // unexpected errors
 
         face_t remainingFace = face;  // copy
         size_t guess_vert = 0;
         vertex_index_t ind[3];
         real_t vx[3];
         real_t vy[3];
-        while (remainingFace.vertex_indices.size() > 3 && maxRounds > 0) {
+
+        // How many iterations can we do without decreasing the remaining
+        // vertices.
+        size_t remainingIterations = face.vertex_indices.size();
+        size_t previousRemainingVertices = remainingFace.vertex_indices.size();
+
+        while (remainingFace.vertex_indices.size() > 3 && remainingIterations > 0){
           npolys = remainingFace.vertex_indices.size();
           if (guess_vert >= npolys) {
-            maxRounds -= 1;
             guess_vert -= npolys;
           }
+
+          if (previousRemainingVertices != npolys) {
+            // The number of remaining vertices decreased. Reset counters.
+            previousRemainingVertices = npolys;
+            remainingIterations = npolys;
+          } else {
+            // We didn't consume a vertex on previous iteration, reduce the
+            // available iterations.
+            remainingIterations--;
+          }
+
           for (size_t k = 0; k < 3; k++) {
             ind[k] = remainingFace.vertex_indices[(guess_vert + k) % npolys];
             size_t vi = size_t(ind[k].v_idx);
