@@ -435,7 +435,7 @@ struct face_t {
   int pad_;
   std::vector<vertex_index_t> vertex_indices;  // face vertex indices.
 
-  face_t() : smoothing_group_id(0) {}
+  face_t() : pad_(0), smoothing_group_id(0) {}
 };
 
 struct line_t {
