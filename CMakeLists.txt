@@ -46,15 +46,13 @@ set(TINYOBJLOADER_PKGCONFIG_DIR ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
 set(TINYOBJLOADER_RUNTIME_DIR ${CMAKE_INSTALL_BINDIR})
 
 option(TINYOBJLOADER_BUILD_TEST_LOADER "Build Example Loader Application" OFF)
-option(TINYOBJLOADER_COMPILATION_SHARED "Build as shared library" OFF)
 
-if(TINYOBJLOADER_COMPILATION_SHARED)
-  add_library(${LIBRARY_NAME} SHARED ${tinyobjloader-Source})
+add_library(${LIBRARY_NAME} ${tinyobjloader-Source})
+
+if(BUILD_SHARED_LIBS)
   set_target_properties(${LIBRARY_NAME} PROPERTIES
     SOVERSION ${TINYOBJLOADER_SOVERSION}
   )
-else()
-  add_library(${LIBRARY_NAME} STATIC ${tinyobjloader-Source})
 endif()
 
 set_target_properties(${LIBRARY_NAME} PROPERTIES VERSION ${TINYOBJLOADER_VERSION})
