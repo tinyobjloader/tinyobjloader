@@ -1414,8 +1414,9 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
             }
 
             if (command.type == COMMAND_MTLLIB) {
+              // Save the indices of the `mtllib` command in `commands` to easily find it later
               mtllib_t_index = t;
-              mtllib_i_index = commands->size();
+              mtllib_i_index = commands[t].size();
             }
 
             commands[t].emplace_back(std::move(command));
