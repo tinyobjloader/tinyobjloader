@@ -120,6 +120,8 @@ install(TARGETS
   )
 install(EXPORT
   ${PROJECT_NAME}-targets
+  NAMESPACE
+  tinyobjloader::
   DESTINATION
   ${TINYOBJLOADER_CMAKE_DIR}
   )
