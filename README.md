@@ -100,6 +100,16 @@ TinyObjLoader is successfully used in ...
 * Double precision support(for HPC application).
 * Smoothing group
 
+### Primitives
+
+* [x] face(`f`)
+* [x] lines(`l`)
+* [ ] points(`p`)
+* [ ] curve
+* [ ] 2D curve
+* [ ] surface.
+* [ ] Free form curve/surfaces
+
 
 ## TODO
 
