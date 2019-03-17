@@ -35,7 +35,8 @@ PYBIND11_MODULE(tinyobjloader, tobj_module)
   tobj_module.doc() = "Python bindings for TinyObjLoader.";
 
   // register struct
-  py::class_<attrib_t>(tobj_module, "Attrib");
+  py::class_<attrib_t>(tobj_module, "Attrib")
+    .def(py::init<>());
   py::class_<shape_t>(tobj_module, "Shape");
   py::class_<material_t>(tobj_module, "Material");
 
