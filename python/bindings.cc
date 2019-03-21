@@ -35,10 +35,13 @@ PYBIND11_MODULE(tinyobjloader, tobj_module)
   tobj_module.doc() = "Python bindings for TinyObjLoader.";
 
   // register struct
+  // py::init<>() for default constructor
   py::class_<attrib_t>(tobj_module, "Attrib")
     .def(py::init<>());
-  py::class_<shape_t>(tobj_module, "Shape");
-  py::class_<material_t>(tobj_module, "Material");
+  py::class_<shape_t>(tobj_module, "Shape")
+    .def(py::init<>());
+  py::class_<material_t>(tobj_module, "Material")
+    .def(py::init<>());
 
   tobj_module.def("load_obj", &load_obj, "Load wavefront .obj file.");
   tobj_module.def("load_mtl", &load_mtl, "Load wavefront material file.");
