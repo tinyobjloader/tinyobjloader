@@ -260,7 +260,7 @@ typedef struct {
 typedef struct {
   // Linear flattened indices.
   std::vector<index_t> indices;       // indices for vertices(poly lines)
-  std::vector<int> num_line_vertces;  // The number of vertices per line.
+  std::vector<int> num_line_vertices;  // The number of vertices per line.
 } lines_t;
 
 typedef struct {
@@ -590,6 +590,10 @@ struct PrimGroup {
     faceGroup.clear();
     lineGroup.clear();
     pointGroup.clear();
+  }
+
+  bool IsEmpty() const {
+    return faceGroup.empty() && lineGroup.empty() && pointGroup.empty();
   }
 
   // TODO(syoyo): bspline, surface, ...
@@ -1221,10 +1225,13 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
                                 const int material_id, const std::string &name,
                                 bool triangulate,
                                 const std::vector<real_t> &v) {
-  if (prim_group.faceGroup.empty() && prim_group.lineGroup.empty()) {
+  if (prim_group.IsEmpty()) {
     return false;
   }
 
+  shape->name = name;
+
+  // polygon
   if (!prim_group.faceGroup.empty()) {
     // Flatten vertices and indices
     for (size_t i = 0; i < prim_group.faceGroup.size(); i++) {
@@ -1464,13 +1471,28 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
       }
     }
 
-    shape->name = name;
     shape->mesh.tags = tags;
   }
 
-  // if (!lineGroup.empty()) {
-  //  shape->lines.indices.swap(lineGroup);
-  //}
+  // line
+  if (!prim_group.lineGroup.empty()) {
+    // Flatten indices
+    for (size_t i = 0; i < prim_group.lineGroup.size(); i++) {
+      for (size_t j = 0; j < prim_group.lineGroup[i].vertex_indices.size(); j++) {
+
+        const vertex_index_t &vi = prim_group.lineGroup[i].vertex_indices[j];
+
+        index_t idx;
+        idx.vertex_index = vi.v_idx;
+        idx.normal_index = vi.vn_idx;
+        idx.texcoord_index = vi.vt_idx;
+
+        shape->lines.indices.push_back(idx);
+      }
+
+      shape->lines.num_line_vertices.push_back(int(prim_group.lineGroup[i].vertex_indices.size()));
+    }
+  }
 
   return true;
 }
