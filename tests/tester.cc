@@ -957,7 +957,8 @@ TEST_CASE("line-primitive", "[line]") {
 
   REQUIRE(true == ret);
   REQUIRE(1 == shapes.size());
-  REQUIRE(6 == shapes[0].path.indices.size());
+  REQUIRE(8 == shapes[0].lines.indices.size());
+  REQUIRE(2 == shapes[0].lines.num_line_vertices.size());
 }
 
 TEST_CASE("multiple-group-names", "[group]") {
@@ -1060,7 +1061,7 @@ TEST_CASE("colorspace", "[Issue184]") {
 // Just check if it does not crash.
 // Disable by default since Windows filesystem can't create filename of afl
 // testdata
-#if 0 
+#if 0
 
 TEST_CASE("afl000000", "[AFL]") {
   tinyobj::attrib_t attrib;

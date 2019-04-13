@@ -3,13 +3,13 @@
 CXX ?= g++
 CXXFLAGS ?= -g -O2
 
-tester: tester.cc
-	$(CXX) $(CXXFLAGS) -o tester tester.cc
+tester: tester.cc ../tiny_obj_loader.h
+	$(CXX) $(CXXFLAGS) -fsanitize=address -o tester tester.cc
 
 all: tester
 
 check: tester
-	./tester	
+	./tester
 
 clean:
 	rm -rf tester
