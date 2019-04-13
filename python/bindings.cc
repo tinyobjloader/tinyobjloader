@@ -8,30 +8,22 @@ namespace py = pybind11;
 
 using namespace tinyobj;
 
-// Simple wrapper for LoadMtl.
-// TODO(syoyo): Make it more pythonic.
-void load_mtl(std::map<std::string, int> *material_map,
-             std::vector<material_t> *materials, std::istream *inStream,
-             std::string *warning, std::string *err) {
-  LoadMtl(material_map, materials, inStream, warning, err);
-}
-
-
 PYBIND11_MODULE(tinyobjloader, tobj_module)
 {
   tobj_module.doc() = "Python bindings for TinyObjLoader.";
 
   // register struct
   // py::init<>() for default constructor
-  py::class_<ObjLoader>(tobj_module, "ObjLoader")
+  py::class_<ObjReader>(tobj_module, "ObjReader")
     .def(py::init<>())
-    .def("Load", &ObjLoader::Load)
-    .def("Valid", &ObjLoader::Valid)
-    .def("GetAttrib", &ObjLoader::GetAttrib)
-    .def("GetShapes", &ObjLoader::GetShapes)
-    .def("GetMaterials", &ObjLoader::GetMaterials)
-    .def("Warning", &ObjLoader::Warning)
-    .def("Error", &ObjLoader::Error);
+    .def("ParseFromFile", &ObjReader::ParseFromFile)
+    .def("ParseFromString", &ObjReader::ParseFromString)
+    .def("Valid", &ObjReader::Valid)
+    .def("GetAttrib", &ObjReader::GetAttrib)
+    .def("GetShapes", &ObjReader::GetShapes)
+    .def("GetMaterials", &ObjReader::GetMaterials)
+    .def("Warning", &ObjReader::Warning)
+    .def("Error", &ObjReader::Error);
 
   py::class_<attrib_t>(tobj_module, "attrib_t")
     .def(py::init<>())
@@ -43,7 +35,7 @@ PYBIND11_MODULE(tinyobjloader, tobj_module)
   py::class_<material_t>(tobj_module, "material_t")
     .def(py::init<>());
 
-  py::class_<ObjLoaderConfig>(tobj_module, "ObjLoaderConfig")
+  py::class_<ObjReaderConfig>(tobj_module, "ObjReaderConfig")
     .def(py::init<>());
 
 }
