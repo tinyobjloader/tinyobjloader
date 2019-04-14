@@ -24,6 +24,8 @@ THE SOFTWARE.
 
 //
 // version 2.0.0 : Add new object oriented API. 1.x API is still provided.
+//                 * Support line primitive.
+//                 * Support points primitive.
 // version 1.4.0 : Modifed ParseTextureNameAndOption API
 // version 1.3.1 : Make ParseTextureNameAndOption API public
 // version 1.3.0 : Separate warning and error message(breaking API of LoadObj)
@@ -410,12 +412,19 @@ class ObjReader {
   ///
   /// Load .obj and .mtl from a file.
   ///
+  /// @param[in] filename wavefront .obj filename
+  /// @param[in] config Reader configuration
+  ///
   bool ParseFromFile(const std::string &filename, const ObjReaderConfig &config);
 
   ///
   /// Parse .obj from a text string.
   /// Need to supply .mtl text string by `mtl_text`.
   /// This function ignores `mtllib` line in .obj text.
+  ///
+  /// @param[in] obj_text wavefront .obj filename
+  /// @param[in] mtl_text wavefront .mtl filename
+  /// @param[in] config Reader configuration
   ///
   bool ParseFromString(const std::string &obj_text, const std::string &mtl_text, const ObjReaderConfig &config);
 
@@ -551,15 +560,15 @@ struct face_t {
 };
 
 // Internal data structure for line representation
-struct line_t {
+struct __line_t {
   // l v1/vt1 v2/vt2 ...
   // In the specification, line primitrive does not have normal index, but
   // TinyObjLoader allow it
   std::vector<vertex_index_t> vertex_indices;
 };
 
-// Internal data structure for pint representation
-struct point_t {
+// Internal data structure for points representation
+struct __points_t {
   // p v1 v2 ...
   // In the specification, point primitrive does not have normal index and
   // texture coord index, but TinyObjLoader allow it.
@@ -580,20 +589,20 @@ struct obj_shape {
 };
 
 //
-// Manages group of primitives(face, line, point, ...)
+// Manages group of primitives(face, line, points, ...)
 struct PrimGroup {
   std::vector<face_t> faceGroup;
-  std::vector<line_t> lineGroup;
-  std::vector<point_t> pointGroup;
+  std::vector<__line_t> lineGroup;
+  std::vector<__points_t> pointsGroup;
 
   void clear() {
     faceGroup.clear();
     lineGroup.clear();
-    pointGroup.clear();
+    pointsGroup.clear();
   }
 
   bool IsEmpty() const {
-    return faceGroup.empty() && lineGroup.empty() && pointGroup.empty();
+    return faceGroup.empty() && lineGroup.empty() && pointsGroup.empty();
   }
 
   // TODO(syoyo): bspline, surface, ...
@@ -1494,6 +1503,24 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
     }
   }
 
+  // points
+  if (!prim_group.pointsGroup.empty()) {
+    // Flatten & convert indices
+    for (size_t i = 0; i < prim_group.pointsGroup.size(); i++) {
+      for (size_t j = 0; j < prim_group.pointsGroup[i].vertex_indices.size(); j++) {
+
+        const vertex_index_t &vi = prim_group.pointsGroup[i].vertex_indices[j];
+
+        index_t idx;
+        idx.vertex_index = vi.v_idx;
+        idx.normal_index = vi.vn_idx;
+        idx.texcoord_index = vi.vt_idx;
+
+        shape->points.indices.push_back(idx);
+      }
+    }
+  }
+
   return true;
 }
 
@@ -2077,7 +2104,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     if (token[0] == 'l' && IS_SPACE((token[1]))) {
       token += 2;
 
-      line_t line;
+      __line_t line;
 
       while (!IS_NEW_LINE(token[0])) {
         vertex_index_t vi;
@@ -2086,7 +2113,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
                          static_cast<int>(vt.size() / 2), &vi)) {
           if (err) {
             std::stringstream ss;
-            ss << "Failed parse `l' line(e.g. zero value for face index. line "
+            ss << "Failed parse `l' line(e.g. zero value for vertex index. line "
                << line_num << ".)\n";
             (*err) += ss.str();
           }
@@ -2100,6 +2127,37 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       }
 
       prim_group.lineGroup.push_back(line);
+
+      continue;
+    }
+
+    // points
+    if (token[0] == 'p' && IS_SPACE((token[1]))) {
+      token += 2;
+
+      __points_t pts;
+
+      while (!IS_NEW_LINE(token[0])) {
+        vertex_index_t vi;
+        if (!parseTriple(&token, static_cast<int>(v.size() / 3),
+                         static_cast<int>(vn.size() / 3),
+                         static_cast<int>(vt.size() / 2), &vi)) {
+          if (err) {
+            std::stringstream ss;
+            ss << "Failed parse `p' line(e.g. zero value for vertex index. line "
+               << line_num << ".)\n";
+            (*err) += ss.str();
+          }
+          return false;
+        }
+
+        pts.vertex_indices.push_back(vi);
+
+        size_t n = strspn(token, " \t\r");
+        token += n;
+      }
+
+      prim_group.pointsGroup.push_back(pts);
 
       continue;
     }

@@ -1,19 +1,24 @@
 import sys
-import tinyobjloader
+import tinyobj
 
 filename = "../models/cornell_box.obj";
 
-config = tinyobjloader.ObjLoaderConfig()
+config = tinyobj.ObjReaderConfig()
 
-loader = tinyobjloader.ObjLoader()
+reader = tinyobj.ObjReader()
 
-ret = loader.Load(filename, config)
+ret = reader.ParseFromFile(filename, config)
 
 if ret == False:
     print("Failed to load : ", filename)
     sys.exit(-1)
 
-attrib = loader.GetAttrib()
+attrib = reader.GetAttrib()
 print("attrib.vertices = ", len(attrib.vertices))
 for v in attrib.vertices:
     print(v)
+
+# TODO(syoyo): print mesh
+for shape in reader.GetShapes():
+    print(shape.name)
+    print(len(shape.mesh.indices))

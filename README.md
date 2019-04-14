@@ -26,6 +26,7 @@ Old version is available `v0.9.x` branch https://github.com/syoyo/tinyobjloader/
 
 ## What's new
 
+* 14 Apr, 2019 : Bump version v2.0.0 rc0. New C++ API and python bindings!(1.x API still exists for backward compatibility)
 * 20 Aug, 2016 : Bump version v1.0.0. New data structure and API!
 
 ### Old version
@@ -39,11 +40,11 @@ Previous old version is avaiable in `v0.9.x` branch.
 tinyobjloader can successfully load 6M triangles Rungholt scene.
 http://casual-effects.com/data/index.html
 
-![](images/sanmugel.png) 
+![](images/sanmugel.png)
 
-* [examples/viewer/](examples/viewer) OpenGL .obj viewer 
-* [examples/callback_api/](examples/callback_api/) Callback API example 
-* [examples/voxelize/](examples/voxelize/) Voxelizer example 
+* [examples/viewer/](examples/viewer) OpenGL .obj viewer
+* [examples/callback_api/](examples/callback_api/) Callback API example
+* [examples/voxelize/](examples/voxelize/) Voxelizer example
 
 ## Use case
 
@@ -191,7 +192,7 @@ mesh_t::num_face_vertices => array of the number of vertices per face(e.g. 3 = t
 
   |    face[0]   |       face[1]     |    face[2]   |     |      face[n-1]           |
   +----+----+----+----+----+----+----+----+----+----+     +--------+--------+--------+
-  | i0 | i1 | i2 | i3 | i4 | i5 | i6 | i7 | i8 | i9 | ... | i(n-3) | i(n-2) | i(n-1) | 
+  | i0 | i1 | i2 | i3 | i4 | i5 | i6 | i7 | i8 | i9 | ... | i(n-3) | i(n-2) | i(n-1) |
   +----+----+----+----+----+----+----+----+----+----+     +--------+--------+--------+
 
 ```
@@ -201,7 +202,7 @@ Note that when `triangulate` flas is true in `tinyobj::LoadObj()` argument, `num
 ### float data type
 
 TinyObjLoader now use `real_t` for floating point data type.
-Default is `float(32bit)`. 
+Default is `float(32bit)`.
 You can enable `double(64bit)` precision by using `TINYOBJLOADER_USE_DOUBLE` define.
 
 #### Example code
@@ -218,7 +219,7 @@ std::vector<tinyobj::material_t> materials;
 std::string warn;
 std::string err;
 bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, inputfile.c_str());
-  
+
 if (!err.empty()) { // `err` may contain warning message.
   std::cerr << err << std::endl;
 }

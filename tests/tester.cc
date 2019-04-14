@@ -961,6 +961,29 @@ TEST_CASE("line-primitive", "[line]") {
   REQUIRE(2 == shapes[0].lines.num_line_vertices.size());
 }
 
+TEST_CASE("points-primitive", "[points]") {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string warn;
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              "../models/points-prim.obj", gMtlBasePath);
+
+  if (!warn.empty()) {
+    std::cout << "WARN: " << warn << std::endl;
+  }
+
+  if (!err.empty()) {
+    std::cerr << "ERR: " << err << std::endl;
+  }
+
+  REQUIRE(true == ret);
+  REQUIRE(1 == shapes.size());
+  REQUIRE(8 == shapes[0].points.indices.size());
+}
+
 TEST_CASE("multiple-group-names", "[group]") {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
