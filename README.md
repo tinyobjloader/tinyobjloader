@@ -22,7 +22,7 @@ Notice!
 -------
 
 We have released new version v1.0.0 on 20 Aug, 2016.
-Old version is available `v0.9.x` branch https://github.com/syoyo/tinyobjloader/tree/v0.9.x
+Old version is available as `v0.9.x` branch https://github.com/syoyo/tinyobjloader/tree/v0.9.x
 
 ## What's new
 
@@ -120,7 +120,11 @@ TinyObjLoader is successfully used in ...
 
 ## License
 
-Licensed under MIT license.
+TinyObjLoader is licensed under MIT license.
+
+### Third party licences.
+
+* pybind11 : BSD-style license.
 
 ## Usage
 
@@ -218,6 +222,7 @@ std::vector<tinyobj::material_t> materials;
 
 std::string warn;
 std::string err;
+
 bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, inputfile.c_str());
 
 if (!err.empty()) { // `err` may contain warning message.
