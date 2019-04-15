@@ -21,4 +21,5 @@ for v in attrib.vertices:
 # TODO(syoyo): print mesh
 for shape in reader.GetShapes():
     print(shape.name)
-    print(len(shape.mesh.indices))
+    for idx in shape.mesh.indices:
+        print("v_idx ", idx.vertex_index)

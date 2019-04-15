@@ -36,12 +36,20 @@ PYBIND11_MODULE(tinyobj, tobj_module)
     .def_readonly("lines", &shape_t::lines)
     .def_readonly("points", &shape_t::points);
 
+  py::class_<index_t>(tobj_module, "index_t")
+    .def(py::init<>())
+    .def_readonly("vertex_index", &index_t::vertex_index)
+    .def_readonly("normal_index", &index_t::normal_index)
+    .def_readonly("texcoord_index", &index_t::texcoord_index)
+    ;
+
   // TODO(syoyo): write more bindings
   py::class_<material_t>(tobj_module, "material_t")
     .def(py::init<>());
 
   py::class_<mesh_t>(tobj_module, "mesh_t")
-    .def(py::init<>());
+    .def(py::init<>())
+    .def_readonly("indices", &mesh_t::indices);
 
   py::class_<lines_t>(tobj_module, "lines_t")
     .def(py::init<>());
