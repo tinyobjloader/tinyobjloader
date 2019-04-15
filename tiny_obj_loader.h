@@ -415,7 +415,7 @@ class ObjReader {
   /// @param[in] filename wavefront .obj filename
   /// @param[in] config Reader configuration
   ///
-  bool ParseFromFile(const std::string &filename, const ObjReaderConfig &config);
+  bool ParseFromFile(const std::string &filename, const ObjReaderConfig &config = ObjReaderConfig());
 
   ///
   /// Parse .obj from a text string.
@@ -426,7 +426,7 @@ class ObjReader {
   /// @param[in] mtl_text wavefront .mtl filename
   /// @param[in] config Reader configuration
   ///
-  bool ParseFromString(const std::string &obj_text, const std::string &mtl_text, const ObjReaderConfig &config);
+  bool ParseFromString(const std::string &obj_text, const std::string &mtl_text, const ObjReaderConfig &config = ObjReaderConfig());
 
   ///
   /// .obj was loaded or parsed correctly.

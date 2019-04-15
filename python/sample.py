@@ -3,11 +3,16 @@ import tinyobj
 
 filename = "../models/cornell_box.obj";
 
-config = tinyobj.ObjReaderConfig()
 
 reader = tinyobj.ObjReader()
 
-ret = reader.ParseFromFile(filename, config)
+# Load .obj(and .mtl) using default configuration
+ret = reader.ParseFromFile(filename)
+
+# Optionally you can set custom `config`
+# config = tinyobj.ObjReaderConfig()
+# config.triangulate = False
+# ret = reader.ParseFromFile(filename, config)
 
 if ret == False:
     print("Failed to load : ", filename)
