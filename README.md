@@ -201,7 +201,7 @@ mesh_t::num_face_vertices => array of the number of vertices per face(e.g. 3 = t
 
 ```
 
-Note that when `triangulate` flas is true in `tinyobj::LoadObj()` argument, `num_face_vertices` are all filled with 3(triangle).
+Note that when `triangulate` flag is true in `tinyobj::LoadObj()` argument, `num_face_vertices` are all filled with 3(triangle).
 
 ### float data type
 
