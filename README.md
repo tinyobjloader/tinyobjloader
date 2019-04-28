@@ -225,7 +225,11 @@ std::string err;
 
 bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, inputfile.c_str());
 
-if (!err.empty()) { // `err` may contain warning message.
+if (!warn.empty()) {
+  std::cout << warn << std::endl;
+}
+
+if (!err.empty()) {
   std::cerr << err << std::endl;
 }
 
