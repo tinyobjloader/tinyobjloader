@@ -741,6 +741,7 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result) {
   int read = 0;
   // Tells whether a loop terminated due to reaching s_end.
   bool end_not_reached = false;
+  bool leading_decimal_dots = false;
 
   /*
           BEGIN PARSING.
@@ -750,23 +751,35 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result) {
   if (*curr == '+' || *curr == '-') {
     sign = *curr;
     curr++;
+    if ((curr != s_end) && (*curr == '.')) {
+      // accept. Somethig like `.7e+2`, `-.5234`
+      leading_decimal_dots = true;
+    }
   } else if (IS_DIGIT(*curr)) { /* Pass through. */
+  } else if (*curr == '.') {
+    // accept. Somethig like `.7e+2`, `-.5234`
+    leading_decimal_dots = true;
   } else {
     goto fail;
   }
 
   // Read the integer part.
   end_not_reached = (curr != s_end);
-  while (end_not_reached && IS_DIGIT(*curr)) {
-    mantissa *= 10;
-    mantissa += static_cast<int>(*curr - 0x30);
-    curr++;
-    read++;
-    end_not_reached = (curr != s_end);
+  if (!leading_decimal_dots) {
+    while (end_not_reached && IS_DIGIT(*curr)) {
+      mantissa *= 10;
+      mantissa += static_cast<int>(*curr - 0x30);
+      curr++;
+      read++;
+      end_not_reached = (curr != s_end);
+    }
   }
 
   // We must make sure we actually got something.
-  if (read == 0) goto fail;
+  if (!leading_decimal_dots) {
+    if (read == 0) goto fail;
+  }
+
   // We allow numbers of form "#", "###" etc.
   if (!end_not_reached) goto assemble;
 
