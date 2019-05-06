@@ -1080,6 +1080,35 @@ TEST_CASE("colorspace", "[Issue184]") {
   REQUIRE(0 == materials[0].bump_texopt.colorspace.compare("linear"));
 }
 
+TEST_CASE("leading-decimal-dots", "[Issue201]") {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string warn;
+  std::string err;
+  bool ret =
+      tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                       "../models/leading-decimal-dot-issue-201.obj", gMtlBasePath);
+
+  if (!warn.empty()) {
+    std::cout << "WARN: " << warn << std::endl;
+  }
+
+  if (!err.empty()) {
+    std::cerr << "ERR: " << err << std::endl;
+  }
+
+  REQUIRE(true == ret);
+  REQUIRE(1 == shapes.size());
+  REQUIRE(1 == materials.size());
+  REQUIRE(0.8e-1 == Approx(attrib.vertices[0]));
+  REQUIRE(-.7e+2 == Approx(attrib.vertices[1]));
+  REQUIRE(.575869 == Approx(attrib.vertices[3]));
+  REQUIRE(-.666304 == Approx(attrib.vertices[4]));
+  REQUIRE(.940448 == Approx(attrib.vertices[6]));
+}
+
 // Fuzzer test.
 // Just check if it does not crash.
 // Disable by default since Windows filesystem can't create filename of afl

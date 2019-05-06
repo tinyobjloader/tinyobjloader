@@ -1,0 +1,7 @@
+mtllib leading-decimal-dot-issue-201.mtl
+o Test
+v .8e-1 -.7e+2 -5.532511
+v .575869 -.666304 5.896140
+v .940448 1.000000 -1.971128
+usemtl default
+f 1 2 3
