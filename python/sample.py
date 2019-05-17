@@ -1,10 +1,10 @@
 import sys
-import tinyobj
+import tinyobjloader
 
 filename = "../models/cornell_box.obj";
 
 
-reader = tinyobj.ObjReader()
+reader = tinyobjloader.ObjReader()
 
 # Load .obj(and .mtl) using default configuration
 ret = reader.ParseFromFile(filename)
