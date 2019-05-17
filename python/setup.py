@@ -1,9 +1,9 @@
 from distutils.core import setup, Extension
 
 
-# `../tiny_obj_loader.cc` contains implementation of tiny_obj_loader.
+# `tiny_obj_loader.cc` contains implementation of tiny_obj_loader.
 m = Extension('tinyobj',
-              sources = ['bindings.cc', '../tiny_obj_loader.cc'],
+              sources = ['bindings.cc', 'tiny_obj_loader.cc'],
               extra_compile_args=['-std=c++11'],
               include_dirs = ['../', '../pybind11/include']
               )
