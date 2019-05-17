@@ -13,7 +13,7 @@ namespace py = pybind11;
 
 using namespace tinyobj;
 
-PYBIND11_MODULE(tinyobj, tobj_module)
+PYBIND11_MODULE(tinyobjloader, tobj_module)
 {
   tobj_module.doc() = "Python bindings for TinyObjLoader.";
 
