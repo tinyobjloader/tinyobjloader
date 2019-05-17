@@ -1,16 +1,16 @@
-# tinyobj, Wavefront .obj loader
+# tinyobjloader, Wavefront .obj loader
 
-tinyobj is a python wrapper for C++ wavefront .obj loader.
-tinyobj is rather fast and feature rich than other pure python version of .obj loader.
+`tinyobjloader` is a python wrapper for C++ wavefront .obj loader.
+`tinyobjloader` is rather fast and feature rich than other pure python version of .obj loader.
 
 ## Quick tutorial
 
 ```py
 import sys
-import tinyobj
+import tinyobjloader
 
 # Create reader.
-reader = tinyobj.ObjReader()
+reader = tinyobjloader.ObjReader()
 
 filename = "cornellbox.obj"
 
