@@ -16,10 +16,12 @@ ret = reader.ParseFromFile(filename)
 
 if ret == False:
     print("Failed to load : ", filename)
+    print("Warn:", reader.Warning())
+    print("Err:", reader.Error())
     sys.exit(-1)
 
-print("Warn:", reader.Warning())
-print("Err:", reader.Error())
+if reader.Warning():
+    print("Warn:", reader.Warning())
 
 attrib = reader.GetAttrib()
 print("attrib.vertices = ", len(attrib.vertices))
