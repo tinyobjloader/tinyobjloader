@@ -225,6 +225,89 @@ typedef struct {
   int pad2;
 
   std::map<std::string, std::string> unknown_parameter;
+
+#ifdef TINY_OBJ_LOADER_PYTHON_BINDING
+  // For pybind11
+  std::array<double, 3> GetDiffuse() {
+    std::array<double, 3> values;
+    values[0] = double(diffuse[0]);
+    values[1] = double(diffuse[1]);
+    values[2] = double(diffuse[2]);
+
+    return values;
+  }
+
+  std::array<double, 3> GetSpecular() {
+    std::array<double, 3> values;
+    values[0] = double(specular[0]);
+    values[1] = double(specular[1]);
+    values[2] = double(specular[2]);
+
+    return values;
+  }
+
+  std::array<double, 3> GetTransmittance() {
+    std::array<double, 3> values;
+    values[0] = double(transmittance[0]);
+    values[1] = double(transmittance[1]);
+    values[2] = double(transmittance[2]);
+
+    return values;
+  }
+
+  std::array<double, 3> GetEmission() {
+    std::array<double, 3> values;
+    values[0] = double(emission[0]);
+    values[1] = double(emission[1]);
+    values[2] = double(emission[2]);
+
+    return values;
+  }
+
+  std::array<double, 3> GetAmbient() {
+    std::array<double, 3> values;
+    values[0] = double(ambient[0]);
+    values[1] = double(ambient[1]);
+    values[2] = double(ambient[2]);
+
+    return values;
+  }
+
+  void SetDiffuse(std::array<double, 3> &a) {
+    diffuse[0] = real_t(a[0]);
+    diffuse[1] = real_t(a[1]);
+    diffuse[2] = real_t(a[2]);
+  }
+
+  void SetAmbient(std::array<double, 3> &a) {
+    ambient[0] = real_t(a[0]);
+    ambient[1] = real_t(a[1]);
+    ambient[2] = real_t(a[2]);
+  }
+
+  void SetSpecular(std::array<double, 3> &a) {
+    specular[0] = real_t(a[0]);
+    specular[1] = real_t(a[1]);
+    specular[2] = real_t(a[2]);
+  }
+
+  void SetTransmittance(std::array<double, 3> &a) {
+    transmittance[0] = real_t(a[0]);
+    transmittance[1] = real_t(a[1]);
+    transmittance[2] = real_t(a[2]);
+  }
+
+  std::string GetCustomParameter(const std::string &key) {
+     std::map<std::string, std::string>::const_iterator it = unknown_parameter.find(key);
+
+      if (it != unknown_parameter.end()) {
+        return it->second;
+      }
+      return std::string();
+  }
+
+#endif
+
 } material_t;
 
 typedef struct {

@@ -18,13 +18,54 @@ if ret == False:
     print("Failed to load : ", filename)
     sys.exit(-1)
 
+print("Warn:", reader.Warning())
+print("Err:", reader.Error())
+
 attrib = reader.GetAttrib()
 print("attrib.vertices = ", len(attrib.vertices))
-for v in attrib.vertices:
-    print(v)
+print("attrib.normals = ", len(attrib.normals))
+print("attrib.texcoords = ", len(attrib.texcoords))
 
-# TODO(syoyo): print mesh
-for shape in reader.GetShapes():
+# vertex data must be `xyzxyzxyz...`
+assert len(attrib.vertices) % 3 == 0
+
+# normal data must be `xyzxyzxyz...`
+assert len(attrib.normals) % 3 == 0
+
+# texcoords data must be `uvuvuv...`
+assert len(attrib.texcoords) % 2 == 0
+
+for (i, v) in enumerate(attrib.vertices):
+    print("v[{}] = {}".format(i, v))
+
+for (i, v) in enumerate(attrib.normals):
+    print("vn[{}] = {}".format(i, v))
+
+for (i, v) in enumerate(attrib.texcoords):
+    print("vt[{}] = {}".format(i, t))
+
+materials = reader.GetMaterials()
+print("Num materials: ", len(materials))
+for m in materials:
+    print(m.name)
+    print(m.diffuse)
+    print(m.diffuse_texname)
+    # Partial update(array indexing) does not work
+    # m.diffuse[1] = 1.0
+
+    # Update with full object assignment works
+    m.diffuse = [1, 2, 3]
+    print(m.diffuse)
+
+    #print(m.shininess)
+    #print(m.illum)
+
+shapes = reader.GetShapes()
+print("Num shapes: ", len(shapes))
+for shape in shapes:
     print(shape.name)
-    for idx in shape.mesh.indices:
-        print("v_idx ", idx.vertex_index)
+    print("num_indices = {}".format(len(shape.mesh.indices)))
+    for (i, idx) in enumerate(shape.mesh.indices):
+        print("[{}] v_idx {}".format(i, idx.vertex_index))
+        print("[{}] vn_idx {}".format(i, idx.normal_index))
+        print("[{}] vt_idx {}".format(i, idx.texcoord_index))
