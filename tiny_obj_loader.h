@@ -2077,14 +2077,24 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     return false;
   }
 
+  #ifndef _WIN32
+  const char dirsep = '/';
+  #else
+  const char dirsep = '\\';
+  #endif
+  
   std::string baseDir = mtl_basedir ? mtl_basedir : "";
   if (!baseDir.empty()) {
-#ifndef _WIN32
-    const char dirsep = '/';
-#else
-    const char dirsep = '\\';
-#endif
-    if (baseDir[baseDir.length() - 1] != dirsep) baseDir += dirsep;
+	  
+	  if (baseDir[baseDir.length() - 1] != dirsep) baseDir += dirsep;
+  } else {
+	  std::string filenameStr(filename);
+	  int dirsepPos = filenameStr.size() - 1;
+	  while(filenameStr[dirsepPos] != dirsep && dirsep >= 0)
+		  dirsepPos--;
+	  
+	  if(dirsepPos + 1 < filenameStr.size())
+		  baseDir = filenameStr.substr(0, dirsepPos + 1);
   }
   MaterialFileReader matFileReader(baseDir);
 
