@@ -298,12 +298,13 @@ typedef struct {
   }
 
   std::string GetCustomParameter(const std::string &key) {
-     std::map<std::string, std::string>::const_iterator it = unknown_parameter.find(key);
+    std::map<std::string, std::string>::const_iterator it =
+        unknown_parameter.find(key);
 
-      if (it != unknown_parameter.end()) {
-        return it->second;
-      }
-      return std::string();
+    if (it != unknown_parameter.end()) {
+      return it->second;
+    }
+    return std::string();
   }
 
 #endif
@@ -344,7 +345,7 @@ typedef struct {
 
 typedef struct {
   // Linear flattened indices.
-  std::vector<index_t> indices;       // indices for vertices(poly lines)
+  std::vector<index_t> indices;        // indices for vertices(poly lines)
   std::vector<int> num_line_vertices;  // The number of vertices per line.
 } lines_t;
 
@@ -475,13 +476,12 @@ struct ObjReaderConfig {
 
   ///
   /// Search path to .mtl file.
-  /// Default = search from same directory of .obj file.
+  /// Default = "" = search from the same directory of .obj file.
   /// Valid only when loading .obj from a file.
   ///
   std::string mtl_search_path;
 
-  ObjReaderConfig()
-      : triangulate(true), vertex_color(true), mtl_search_path("./") {}
+  ObjReaderConfig() : triangulate(true), vertex_color(true) {}
 };
 
 ///
@@ -498,7 +498,8 @@ class ObjReader {
   /// @param[in] filename wavefront .obj filename
   /// @param[in] config Reader configuration
   ///
-  bool ParseFromFile(const std::string &filename, const ObjReaderConfig &config = ObjReaderConfig());
+  bool ParseFromFile(const std::string &filename,
+                     const ObjReaderConfig &config = ObjReaderConfig());
 
   ///
   /// Parse .obj from a text string.
@@ -509,7 +510,8 @@ class ObjReader {
   /// @param[in] mtl_text wavefront .mtl filename
   /// @param[in] config Reader configuration
   ///
-  bool ParseFromString(const std::string &obj_text, const std::string &mtl_text, const ObjReaderConfig &config = ObjReaderConfig());
+  bool ParseFromString(const std::string &obj_text, const std::string &mtl_text,
+                       const ObjReaderConfig &config = ObjReaderConfig());
 
   ///
   /// .obj was loaded or parsed correctly.
@@ -1583,8 +1585,8 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
   if (!prim_group.lineGroup.empty()) {
     // Flatten indices
     for (size_t i = 0; i < prim_group.lineGroup.size(); i++) {
-      for (size_t j = 0; j < prim_group.lineGroup[i].vertex_indices.size(); j++) {
-
+      for (size_t j = 0; j < prim_group.lineGroup[i].vertex_indices.size();
+           j++) {
         const vertex_index_t &vi = prim_group.lineGroup[i].vertex_indices[j];
 
         index_t idx;
@@ -1595,7 +1597,8 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
         shape->lines.indices.push_back(idx);
       }
 
-      shape->lines.num_line_vertices.push_back(int(prim_group.lineGroup[i].vertex_indices.size()));
+      shape->lines.num_line_vertices.push_back(
+          int(prim_group.lineGroup[i].vertex_indices.size()));
     }
   }
 
@@ -1603,8 +1606,8 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
   if (!prim_group.pointsGroup.empty()) {
     // Flatten & convert indices
     for (size_t i = 0; i < prim_group.pointsGroup.size(); i++) {
-      for (size_t j = 0; j < prim_group.pointsGroup[i].vertex_indices.size(); j++) {
-
+      for (size_t j = 0; j < prim_group.pointsGroup[i].vertex_indices.size();
+           j++) {
         const vertex_index_t &vi = prim_group.pointsGroup[i].vertex_indices[j];
 
         index_t idx;
@@ -2209,7 +2212,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
                          static_cast<int>(vt.size() / 2), &vi)) {
           if (err) {
             std::stringstream ss;
-            ss << "Failed parse `l' line(e.g. zero value for vertex index. line "
+            ss << "Failed parse `l' line(e.g. zero value for vertex index. "
+                  "line "
                << line_num << ".)\n";
             (*err) += ss.str();
           }
@@ -2240,7 +2244,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
                          static_cast<int>(vt.size() / 2), &vi)) {
           if (err) {
             std::stringstream ss;
-            ss << "Failed parse `p' line(e.g. zero value for vertex index. line "
+            ss << "Failed parse `p' line(e.g. zero value for vertex index. "
+                  "line "
                << line_num << ".)\n";
             (*err) += ss.str();
           }
@@ -2876,16 +2881,29 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
 }
 
 bool ObjReader::ParseFromFile(const std::string &filename,
-                     const ObjReaderConfig &config) {
+                              const ObjReaderConfig &config) {
+  std::string mtl_search_path;
+
+  if (config.mtl_search_path.empty()) {
+    //
+    // split at last '\'(for unixish system) or '\\'(for windows) to get
+    // the base directory of .obj file
+    //
+    if (filename.find_last_of("/\\") != std::string::npos) {
+      mtl_search_path = filename.substr(0, filename.find_last_of("/\\"));
+    }
+  }
+
   valid_ = LoadObj(&attrib_, &shapes_, &materials_, &warning_, &error_,
-                   filename.c_str(), config.mtl_search_path.c_str(),
+                   filename.c_str(), mtl_search_path.c_str(),
                    config.triangulate, config.vertex_color);
 
   return valid_;
 }
 
-bool ObjReader::ParseFromString(const std::string &obj_text, const std::string &mtl_text,
-                     const ObjReaderConfig &config) {
+bool ObjReader::ParseFromString(const std::string &obj_text,
+                                const std::string &mtl_text,
+                                const ObjReaderConfig &config) {
   std::stringbuf obj_buf(obj_text);
   std::stringbuf mtl_buf(mtl_text);
 
