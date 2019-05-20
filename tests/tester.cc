@@ -1109,6 +1109,18 @@ TEST_CASE("leading-decimal-dots", "[Issue201]") {
   REQUIRE(.940448 == Approx(attrib.vertices[6]));
 }
 
+TEST_CASE("mtl-default-search-path-v2-API", "[Issue208]") {
+
+  tinyobj::ObjReader reader;
+
+  bool ret = reader.ParseFromFile("../models/cornell_box.obj");
+
+  std::cout << "WARN: " << reader.Warning() << "\n";
+
+  REQUIRE(ret == true);
+  REQUIRE(reader.Warning().empty());
+}
+
 // Fuzzer test.
 // Just check if it does not crash.
 // Disable by default since Windows filesystem can't create filename of afl

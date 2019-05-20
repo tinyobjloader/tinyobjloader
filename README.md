@@ -26,6 +26,7 @@ Old version is available as `v0.9.x` branch https://github.com/syoyo/tinyobjload
 
 ## What's new
 
+* 18 May, 2019 : Python binding!(See `python` folder. Also see https://pypi.org/project/tinyobjloader/)
 * 14 Apr, 2019 : Bump version v2.0.0 rc0. New C++ API and python bindings!(1.x API still exists for backward compatibility)
 * 20 Aug, 2016 : Bump version v1.0.0. New data structure and API!
 
@@ -100,6 +101,8 @@ TinyObjLoader is successfully used in ...
 * Callback API for custom loading.
 * Double precision support(for HPC application).
 * Smoothing group
+* Python binding : See `python` folder.
+  * Precompiled binary(manylinux1-x86_64 only) is hosted at pypi https://pypi.org/project/tinyobjloader/)
 
 ### Primitives
 
