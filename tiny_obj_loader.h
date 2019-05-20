@@ -2886,7 +2886,7 @@ bool ObjReader::ParseFromFile(const std::string &filename,
 
   if (config.mtl_search_path.empty()) {
     //
-    // split at last '\'(for unixish system) or '\\'(for windows) to get
+    // split at last '/'(for unixish system) or '\\'(for windows) to get
     // the base directory of .obj file
     //
     if (filename.find_last_of("/\\") != std::string::npos) {
