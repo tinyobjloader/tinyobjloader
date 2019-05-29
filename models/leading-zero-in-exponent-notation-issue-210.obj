@@ -1,0 +1,7 @@
+mtllib leading-zero-in-exponent-notation-issue-210.mtl
+o Test
+v .8e-001 -.7e+02 -5.532511
+v .575869 -.666304 5.896140
+v .940448 1.000000 -1.971128
+usemtl default
+f 1 2 3

@@ -1,9 +1,16 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "../tiny_obj_loader.h"
 
-#define CATCH_CONFIG_MAIN  // This tells Catch to provide a main() - only do
-                           // this in one cpp file
-#include "catch.hpp"
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
+#endif
+
+#include "acutest.h"
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
 #include <cassert>
 #include <cstdio>
@@ -11,6 +18,20 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+
+template <typename T>
+static bool FloatEquals(const T& a, const T& b) {
+  // Edit eps value as you wish.
+  const T eps = std::numeric_limits<T>::epsilon() * static_cast<T>(100);
+
+  const T abs_diff = std::abs(a - b);
+
+  if (abs_diff < eps) {
+    return true;
+  } else {
+    return false;
+  }
+}
 
 static void PrintInfo(const tinyobj::attrib_t& attrib,
                       const std::vector<tinyobj::shape_t>& shapes,
@@ -367,11 +388,11 @@ static bool TestStreamLoadObj() {
 
 const char* gMtlBasePath = "../models/";
 
-TEST_CASE("cornell_box", "[Loader]") {
-  REQUIRE(true == TestLoadObj("../models/cornell_box.obj", gMtlBasePath));
+void test_cornell_box() {
+  TEST_CHECK(true == TestLoadObj("../models/cornell_box.obj", gMtlBasePath));
 }
 
-TEST_CASE("catmark_torus_creases0", "[Loader]") {
+void test_catmark_torus_creases0() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -390,13 +411,13 @@ TEST_CASE("catmark_torus_creases0", "[Loader]") {
     std::cerr << "ERR: " << err << std::endl;
   }
 
-  REQUIRE(true == ret);
+  TEST_CHECK(true == ret);
 
-  REQUIRE(1 == shapes.size());
-  REQUIRE(8 == shapes[0].mesh.tags.size());
+  TEST_CHECK(1 == shapes.size());
+  TEST_CHECK(8 == shapes[0].mesh.tags.size());
 }
 
-TEST_CASE("pbr", "[Loader]") {
+void test_pbr() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -414,37 +435,37 @@ TEST_CASE("pbr", "[Loader]") {
   if (!err.empty()) {
     std::cerr << "ERR: " << err << std::endl;
   }
-  REQUIRE(true == ret);
-  REQUIRE(1 == materials.size());
-  REQUIRE(0.2 == Approx(materials[0].roughness));
-  REQUIRE(0.3 == Approx(materials[0].metallic));
-  REQUIRE(0.4 == Approx(materials[0].sheen));
-  REQUIRE(0.5 == Approx(materials[0].clearcoat_thickness));
-  REQUIRE(0.6 == Approx(materials[0].clearcoat_roughness));
-  REQUIRE(0.7 == Approx(materials[0].anisotropy));
-  REQUIRE(0.8 == Approx(materials[0].anisotropy_rotation));
-  REQUIRE(0 == materials[0].roughness_texname.compare("roughness.tex"));
-  REQUIRE(0 == materials[0].metallic_texname.compare("metallic.tex"));
-  REQUIRE(0 == materials[0].sheen_texname.compare("sheen.tex"));
-  REQUIRE(0 == materials[0].emissive_texname.compare("emissive.tex"));
-  REQUIRE(0 == materials[0].normal_texname.compare("normalmap.tex"));
+  TEST_CHECK(true == ret);
+  TEST_CHECK(1 == materials.size());
+  TEST_CHECK(FloatEquals(0.2f, materials[0].roughness));
+  TEST_CHECK(FloatEquals(0.3f, materials[0].metallic));
+  TEST_CHECK(FloatEquals(0.4f, materials[0].sheen));
+  TEST_CHECK(FloatEquals(0.5f, materials[0].clearcoat_thickness));
+  TEST_CHECK(FloatEquals(0.6f, materials[0].clearcoat_roughness));
+  TEST_CHECK(FloatEquals(0.7f, materials[0].anisotropy));
+  TEST_CHECK(FloatEquals(0.8f, materials[0].anisotropy_rotation));
+  TEST_CHECK(0 == materials[0].roughness_texname.compare("roughness.tex"));
+  TEST_CHECK(0 == materials[0].metallic_texname.compare("metallic.tex"));
+  TEST_CHECK(0 == materials[0].sheen_texname.compare("sheen.tex"));
+  TEST_CHECK(0 == materials[0].emissive_texname.compare("emissive.tex"));
+  TEST_CHECK(0 == materials[0].normal_texname.compare("normalmap.tex"));
 }
 
-TEST_CASE("stream_load", "[Stream]") { REQUIRE(true == TestStreamLoadObj()); }
+void test_stream_load() { TEST_CHECK(true == TestStreamLoadObj()); }
 
-TEST_CASE("stream_load_from_file_skipping_materials", "[Stream]") {
-  REQUIRE(true == TestLoadObjFromPreopenedFile(
-                      "../models/pbr-mat-ext.obj", gMtlBasePath,
-                      /*readMaterials*/ false, /*triangulate*/ false));
+void test_stream_load_from_file_skipping_materials() {
+  TEST_CHECK(true == TestLoadObjFromPreopenedFile(
+                         "../models/pbr-mat-ext.obj", gMtlBasePath,
+                         /*readMaterials*/ false, /*triangulate*/ false));
 }
 
-TEST_CASE("stream_load_from_file_with_materials", "[Stream]") {
-  REQUIRE(true == TestLoadObjFromPreopenedFile(
-                      "../models/pbr-mat-ext.obj", gMtlBasePath,
-                      /*readMaterials*/ true, /*triangulate*/ false));
+void test_stream_load_from_file_with_materials() {
+  TEST_CHECK(true == TestLoadObjFromPreopenedFile(
+                         "../models/pbr-mat-ext.obj", gMtlBasePath,
+                         /*readMaterials*/ true, /*triangulate*/ false));
 }
 
-TEST_CASE("trailing_whitespace_in_mtl", "[Issue92]") {
+void test_trailing_whitespace_in_mtl_issue92() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -461,12 +482,12 @@ TEST_CASE("trailing_whitespace_in_mtl", "[Issue92]") {
   if (!err.empty()) {
     std::cerr << "ERR: " << err << std::endl;
   }
-  REQUIRE(true == ret);
-  REQUIRE(1 == materials.size());
-  REQUIRE(0 == materials[0].diffuse_texname.compare("tmp.png"));
+  TEST_CHECK(true == ret);
+  TEST_CHECK(1 == materials.size());
+  TEST_CHECK(0 == materials[0].diffuse_texname.compare("tmp.png"));
 }
 
-TEST_CASE("transmittance_filter", "[Issue95]") {
+void test_transmittance_filter_issue95() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -483,14 +504,14 @@ TEST_CASE("transmittance_filter", "[Issue95]") {
   if (!err.empty()) {
     std::cerr << "ERR: " << err << std::endl;
   }
-  REQUIRE(true == ret);
-  REQUIRE(1 == materials.size());
-  REQUIRE(0.1 == Approx(materials[0].transmittance[0]));
-  REQUIRE(0.2 == Approx(materials[0].transmittance[1]));
-  REQUIRE(0.3 == Approx(materials[0].transmittance[2]));
+  TEST_CHECK(true == ret);
+  TEST_CHECK(1 == materials.size());
+  TEST_CHECK(FloatEquals(0.1f, materials[0].transmittance[0]));
+  TEST_CHECK(FloatEquals(0.2f, materials[0].transmittance[1]));
+  TEST_CHECK(FloatEquals(0.3f, materials[0].transmittance[2]));
 }
 
-TEST_CASE("transmittance_filter_Tf", "[Issue95-Tf]") {
+void test_transmittance_filter_Tf_issue95() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -507,14 +528,14 @@ TEST_CASE("transmittance_filter_Tf", "[Issue95-Tf]") {
   if (!err.empty()) {
     std::cerr << "ERR: " << err << std::endl;
   }
-  REQUIRE(true == ret);
-  REQUIRE(1 == materials.size());
-  REQUIRE(0.1 == Approx(materials[0].transmittance[0]));
-  REQUIRE(0.2 == Approx(materials[0].transmittance[1]));
-  REQUIRE(0.3 == Approx(materials[0].transmittance[2]));
+  TEST_CHECK(true == ret);
+  TEST_CHECK(1 == materials.size());
+  TEST_CHECK(FloatEquals(0.1f, materials[0].transmittance[0]));
+  TEST_CHECK(FloatEquals(0.2f, materials[0].transmittance[1]));
+  TEST_CHECK(FloatEquals(0.3f, materials[0].transmittance[2]));
 }
 
-TEST_CASE("transmittance_filter_Kt", "[Issue95-Kt]") {
+void test_transmittance_filter_Kt_issue95() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -531,14 +552,14 @@ TEST_CASE("transmittance_filter_Kt", "[Issue95-Kt]") {
   if (!err.empty()) {
     std::cerr << "ERR: " << err << std::endl;
   }
-  REQUIRE(true == ret);
-  REQUIRE(1 == materials.size());
-  REQUIRE(0.1 == Approx(materials[0].transmittance[0]));
-  REQUIRE(0.2 == Approx(materials[0].transmittance[1]));
-  REQUIRE(0.3 == Approx(materials[0].transmittance[2]));
+  TEST_CHECK(true == ret);
+  TEST_CHECK(1 == materials.size());
+  TEST_CHECK(FloatEquals(0.1f, materials[0].transmittance[0]));
+  TEST_CHECK(FloatEquals(0.2f, materials[0].transmittance[1]));
+  TEST_CHECK(FloatEquals(0.3f, materials[0].transmittance[2]));
 }
 
-TEST_CASE("usemtl_at_last_line", "[Issue104]") {
+void test_usemtl_at_last_line_issue104() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -555,11 +576,11 @@ TEST_CASE("usemtl_at_last_line", "[Issue104]") {
   if (!err.empty()) {
     std::cerr << "ERR: " << err << std::endl;
   }
-  REQUIRE(true == ret);
-  REQUIRE(1 == shapes.size());
+  TEST_CHECK(true == ret);
+  TEST_CHECK(1 == shapes.size());
 }
 
-TEST_CASE("texture_opts", "[Issue85]") {
+void test_texture_opts_issue85() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -577,40 +598,48 @@ TEST_CASE("texture_opts", "[Issue85]") {
   if (!err.empty()) {
     std::cerr << "ERR: " << err << std::endl;
   }
-  REQUIRE(true == ret);
-  REQUIRE(1 == shapes.size());
-  REQUIRE(3 == materials.size());
-  REQUIRE(0 == materials[0].name.compare("default"));
-  REQUIRE(0 == materials[1].name.compare("bm2"));
-  REQUIRE(0 == materials[2].name.compare("bm3"));
-  REQUIRE(true == materials[0].ambient_texopt.clamp);
-  REQUIRE(0.1 == Approx(materials[0].diffuse_texopt.origin_offset[0]));
-  REQUIRE(0.0 == Approx(materials[0].diffuse_texopt.origin_offset[1]));
-  REQUIRE(0.0 == Approx(materials[0].diffuse_texopt.origin_offset[2]));
-  REQUIRE(0.1 == Approx(materials[0].specular_texopt.scale[0]));
-  REQUIRE(0.2 == Approx(materials[0].specular_texopt.scale[1]));
-  REQUIRE(1.0 == Approx(materials[0].specular_texopt.scale[2]));
-  REQUIRE(0.1 == Approx(materials[0].specular_highlight_texopt.turbulence[0]));
-  REQUIRE(0.2 == Approx(materials[0].specular_highlight_texopt.turbulence[1]));
-  REQUIRE(0.3 == Approx(materials[0].specular_highlight_texopt.turbulence[2]));
-  REQUIRE(3.0 == Approx(materials[0].bump_texopt.bump_multiplier));
+  TEST_CHECK(true == ret);
+  TEST_CHECK(1 == shapes.size());
+  TEST_CHECK(3 == materials.size());
+  TEST_CHECK(0 == materials[0].name.compare("default"));
+  TEST_CHECK(0 == materials[1].name.compare("bm2"));
+  TEST_CHECK(0 == materials[2].name.compare("bm3"));
+  TEST_CHECK(true == materials[0].ambient_texopt.clamp);
+  TEST_CHECK(FloatEquals(0.1f, materials[0].diffuse_texopt.origin_offset[0]));
+  TEST_CHECK(FloatEquals(0.0f, materials[0].diffuse_texopt.origin_offset[1]));
+  TEST_CHECK(FloatEquals(0.0f, materials[0].diffuse_texopt.origin_offset[2]));
+  TEST_CHECK(FloatEquals(0.1f, materials[0].specular_texopt.scale[0]));
+  TEST_CHECK(FloatEquals(0.2f, materials[0].specular_texopt.scale[1]));
+  TEST_CHECK(FloatEquals(1.0f, materials[0].specular_texopt.scale[2]));
+  TEST_CHECK(
+      FloatEquals(0.1f, materials[0].specular_highlight_texopt.turbulence[0]));
+  TEST_CHECK(
+      FloatEquals(0.2f, materials[0].specular_highlight_texopt.turbulence[1]));
+  TEST_CHECK(
+      FloatEquals(0.3f, materials[0].specular_highlight_texopt.turbulence[2]));
+  TEST_CHECK(FloatEquals(3.0f, materials[0].bump_texopt.bump_multiplier));
 
-  REQUIRE(0.1 == Approx(materials[1].specular_highlight_texopt.brightness));
-  REQUIRE(0.3 == Approx(materials[1].specular_highlight_texopt.contrast));
-  REQUIRE('r' == materials[1].bump_texopt.imfchan);
+  TEST_CHECK(
+      FloatEquals(0.1f, materials[1].specular_highlight_texopt.brightness));
+  TEST_CHECK(
+      FloatEquals(0.3f, materials[1].specular_highlight_texopt.contrast));
+  TEST_CHECK('r' == materials[1].bump_texopt.imfchan);
 
-  REQUIRE(tinyobj::TEXTURE_TYPE_SPHERE == materials[2].diffuse_texopt.type);
-  REQUIRE(tinyobj::TEXTURE_TYPE_CUBE_TOP == materials[2].specular_texopt.type);
-  REQUIRE(tinyobj::TEXTURE_TYPE_CUBE_BOTTOM ==
-          materials[2].specular_highlight_texopt.type);
-  REQUIRE(tinyobj::TEXTURE_TYPE_CUBE_LEFT == materials[2].ambient_texopt.type);
-  REQUIRE(tinyobj::TEXTURE_TYPE_CUBE_RIGHT == materials[2].alpha_texopt.type);
-  REQUIRE(tinyobj::TEXTURE_TYPE_CUBE_FRONT == materials[2].bump_texopt.type);
-  REQUIRE(tinyobj::TEXTURE_TYPE_CUBE_BACK ==
-          materials[2].displacement_texopt.type);
+  TEST_CHECK(tinyobj::TEXTURE_TYPE_SPHERE == materials[2].diffuse_texopt.type);
+  TEST_CHECK(tinyobj::TEXTURE_TYPE_CUBE_TOP ==
+             materials[2].specular_texopt.type);
+  TEST_CHECK(tinyobj::TEXTURE_TYPE_CUBE_BOTTOM ==
+             materials[2].specular_highlight_texopt.type);
+  TEST_CHECK(tinyobj::TEXTURE_TYPE_CUBE_LEFT ==
+             materials[2].ambient_texopt.type);
+  TEST_CHECK(tinyobj::TEXTURE_TYPE_CUBE_RIGHT ==
+             materials[2].alpha_texopt.type);
+  TEST_CHECK(tinyobj::TEXTURE_TYPE_CUBE_FRONT == materials[2].bump_texopt.type);
+  TEST_CHECK(tinyobj::TEXTURE_TYPE_CUBE_BACK ==
+             materials[2].displacement_texopt.type);
 }
 
-TEST_CASE("mtllib_multiple_filenames", "[Issue112]") {
+void test_mtllib_multiple_filenames_issue112() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -628,11 +657,11 @@ TEST_CASE("mtllib_multiple_filenames", "[Issue112]") {
   if (!err.empty()) {
     std::cerr << "ERR: " << err << std::endl;
   }
-  REQUIRE(true == ret);
-  REQUIRE(1 == materials.size());
+  TEST_CHECK(true == ret);
+  TEST_CHECK(1 == materials.size());
 }
 
-TEST_CASE("tr_and_d", "[Issue43]") {
+void test_tr_and_d_issue43() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -649,14 +678,14 @@ TEST_CASE("tr_and_d", "[Issue43]") {
   if (!err.empty()) {
     std::cerr << "ERR: " << err << std::endl;
   }
-  REQUIRE(true == ret);
-  REQUIRE(2 == materials.size());
+  TEST_CHECK(true == ret);
+  TEST_CHECK(2 == materials.size());
 
-  REQUIRE(0.75 == Approx(materials[0].dissolve));
-  REQUIRE(0.75 == Approx(materials[1].dissolve));
+  TEST_CHECK(FloatEquals(0.75f, materials[0].dissolve));
+  TEST_CHECK(FloatEquals(0.75f, materials[1].dissolve));
 }
 
-TEST_CASE("refl", "[refl]") {
+void test_refl() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -676,13 +705,13 @@ TEST_CASE("refl", "[refl]") {
 
   PrintInfo(attrib, shapes, materials);
 
-  REQUIRE(true == ret);
-  REQUIRE(5 == materials.size());
+  TEST_CHECK(true == ret);
+  TEST_CHECK(5 == materials.size());
 
-  REQUIRE(materials[0].reflection_texname.compare("reflection.tga") == 0);
+  TEST_CHECK(materials[0].reflection_texname.compare("reflection.tga") == 0);
 }
 
-TEST_CASE("map_Bump", "[bump]") {
+void test_map_Bump() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -702,13 +731,13 @@ TEST_CASE("map_Bump", "[bump]") {
 
   PrintInfo(attrib, shapes, materials);
 
-  REQUIRE(true == ret);
-  REQUIRE(2 == materials.size());
+  TEST_CHECK(true == ret);
+  TEST_CHECK(2 == materials.size());
 
-  REQUIRE(materials[0].bump_texname.compare("bump.jpg") == 0);
+  TEST_CHECK(materials[0].bump_texname.compare("bump.jpg") == 0);
 }
 
-TEST_CASE("g_ignored", "[Issue138]") {
+void test_g_ignored_issue138() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -728,12 +757,12 @@ TEST_CASE("g_ignored", "[Issue138]") {
 
   PrintInfo(attrib, shapes, materials);
 
-  REQUIRE(true == ret);
-  REQUIRE(2 == shapes.size());
-  REQUIRE(2 == materials.size());
+  TEST_CHECK(true == ret);
+  TEST_CHECK(2 == shapes.size());
+  TEST_CHECK(2 == materials.size());
 }
 
-TEST_CASE("vertex-col-ext", "[Issue144]") {
+void test_vertex_col_ext_issue144() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -754,25 +783,25 @@ TEST_CASE("vertex-col-ext", "[Issue144]") {
 
   // PrintInfo(attrib, shapes, materials);
 
-  REQUIRE(true == ret);
-  REQUIRE((8 * 3) == attrib.colors.size());
+  TEST_CHECK(true == ret);
+  TEST_CHECK((8 * 3) == attrib.colors.size());
 
-  REQUIRE(0 == Approx(attrib.colors[3 * 0 + 0]));
-  REQUIRE(0 == Approx(attrib.colors[3 * 0 + 1]));
-  REQUIRE(0 == Approx(attrib.colors[3 * 0 + 2]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.colors[3 * 0 + 0]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.colors[3 * 0 + 1]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.colors[3 * 0 + 2]));
 
-  REQUIRE(0 == Approx(attrib.colors[3 * 1 + 0]));
-  REQUIRE(0 == Approx(attrib.colors[3 * 1 + 1]));
-  REQUIRE(1 == Approx(attrib.colors[3 * 1 + 2]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.colors[3 * 1 + 0]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.colors[3 * 1 + 1]));
+  TEST_CHECK(FloatEquals(1.0f, attrib.colors[3 * 1 + 2]));
 
-  REQUIRE(1 == Approx(attrib.colors[3 * 4 + 0]));
+  TEST_CHECK(FloatEquals(1.0f, attrib.colors[3 * 4 + 0]));
 
-  REQUIRE(1 == Approx(attrib.colors[3 * 7 + 0]));
-  REQUIRE(1 == Approx(attrib.colors[3 * 7 + 1]));
-  REQUIRE(1 == Approx(attrib.colors[3 * 7 + 2]));
+  TEST_CHECK(FloatEquals(1.0f, attrib.colors[3 * 7 + 0]));
+  TEST_CHECK(FloatEquals(1.0f, attrib.colors[3 * 7 + 1]));
+  TEST_CHECK(FloatEquals(1.0f, attrib.colors[3 * 7 + 2]));
 }
 
-TEST_CASE("norm_texopts", "[norm]") {
+void test_norm_texopts() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -790,13 +819,13 @@ TEST_CASE("norm_texopts", "[norm]") {
     std::cerr << "ERR: " << err << std::endl;
   }
 
-  REQUIRE(true == ret);
-  REQUIRE(1 == shapes.size());
-  REQUIRE(1 == materials.size());
-  REQUIRE(3.0 == Approx(materials[0].normal_texopt.bump_multiplier));
+  TEST_CHECK(true == ret);
+  TEST_CHECK(1 == shapes.size());
+  TEST_CHECK(1 == materials.size());
+  TEST_CHECK(FloatEquals(3.0f, materials[0].normal_texopt.bump_multiplier));
 }
 
-TEST_CASE("zero-face-idx-value", "[Issue140]") {
+void test_zero_face_idx_value_issue140() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -814,11 +843,11 @@ TEST_CASE("zero-face-idx-value", "[Issue140]") {
   if (!err.empty()) {
     std::cerr << "ERR: " << err << std::endl;
   }
-  REQUIRE(false == ret);
-  REQUIRE(!err.empty());
+  TEST_CHECK(false == ret);
+  TEST_CHECK(!err.empty());
 }
 
-TEST_CASE("texture-name-whitespace", "[Issue145]") {
+void test_texture_name_whitespace_issue145() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -837,16 +866,16 @@ TEST_CASE("texture-name-whitespace", "[Issue145]") {
     std::cerr << "ERR: " << err << std::endl;
   }
 
-  REQUIRE(true == ret);
-  REQUIRE(err.empty());
-  REQUIRE(2 < materials.size());
+  TEST_CHECK(true == ret);
+  TEST_CHECK(err.empty());
+  TEST_CHECK(2 < materials.size());
 
-  REQUIRE(0 == materials[0].diffuse_texname.compare("texture 01.png"));
-  REQUIRE(0 == materials[1].bump_texname.compare("bump 01.png"));
-  REQUIRE(2 == Approx(materials[1].bump_texopt.bump_multiplier));
+  TEST_CHECK(0 == materials[0].diffuse_texname.compare("texture 01.png"));
+  TEST_CHECK(0 == materials[1].bump_texname.compare("bump 01.png"));
+  TEST_CHECK(FloatEquals(2.0f, materials[1].bump_texopt.bump_multiplier));
 }
 
-TEST_CASE("smoothing-group", "[Issue162]") {
+void test_smoothing_group_issue162() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -865,27 +894,27 @@ TEST_CASE("smoothing-group", "[Issue162]") {
     std::cerr << "ERR: " << err << std::endl;
   }
 
-  REQUIRE(true == ret);
-  REQUIRE(2 == shapes.size());
+  TEST_CHECK(true == ret);
+  TEST_CHECK(2 == shapes.size());
 
-  REQUIRE(2 == shapes[0].mesh.smoothing_group_ids.size());
-  REQUIRE(1 == shapes[0].mesh.smoothing_group_ids[0]);
-  REQUIRE(1 == shapes[0].mesh.smoothing_group_ids[1]);
+  TEST_CHECK(2 == shapes[0].mesh.smoothing_group_ids.size());
+  TEST_CHECK(1 == shapes[0].mesh.smoothing_group_ids[0]);
+  TEST_CHECK(1 == shapes[0].mesh.smoothing_group_ids[1]);
 
-  REQUIRE(10 == shapes[1].mesh.smoothing_group_ids.size());
-  REQUIRE(0 == shapes[1].mesh.smoothing_group_ids[0]);
-  REQUIRE(0 == shapes[1].mesh.smoothing_group_ids[1]);
-  REQUIRE(3 == shapes[1].mesh.smoothing_group_ids[2]);
-  REQUIRE(3 == shapes[1].mesh.smoothing_group_ids[3]);
-  REQUIRE(4 == shapes[1].mesh.smoothing_group_ids[4]);
-  REQUIRE(4 == shapes[1].mesh.smoothing_group_ids[5]);
-  REQUIRE(0 == shapes[1].mesh.smoothing_group_ids[6]);
-  REQUIRE(0 == shapes[1].mesh.smoothing_group_ids[7]);
-  REQUIRE(6 == shapes[1].mesh.smoothing_group_ids[8]);
-  REQUIRE(6 == shapes[1].mesh.smoothing_group_ids[9]);
+  TEST_CHECK(10 == shapes[1].mesh.smoothing_group_ids.size());
+  TEST_CHECK(0 == shapes[1].mesh.smoothing_group_ids[0]);
+  TEST_CHECK(0 == shapes[1].mesh.smoothing_group_ids[1]);
+  TEST_CHECK(3 == shapes[1].mesh.smoothing_group_ids[2]);
+  TEST_CHECK(3 == shapes[1].mesh.smoothing_group_ids[3]);
+  TEST_CHECK(4 == shapes[1].mesh.smoothing_group_ids[4]);
+  TEST_CHECK(4 == shapes[1].mesh.smoothing_group_ids[5]);
+  TEST_CHECK(0 == shapes[1].mesh.smoothing_group_ids[6]);
+  TEST_CHECK(0 == shapes[1].mesh.smoothing_group_ids[7]);
+  TEST_CHECK(6 == shapes[1].mesh.smoothing_group_ids[8]);
+  TEST_CHECK(6 == shapes[1].mesh.smoothing_group_ids[9]);
 }
 
-TEST_CASE("invalid-face-definition", "[face]") {
+void test_invalid_face_definition() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -904,12 +933,12 @@ TEST_CASE("invalid-face-definition", "[face]") {
     std::cerr << "ERR: " << err << std::endl;
   }
 
-  REQUIRE(true == ret);
-  REQUIRE(1 == shapes.size());
-  REQUIRE(0 == shapes[0].mesh.indices.size());
+  TEST_CHECK(true == ret);
+  TEST_CHECK(1 == shapes.size());
+  TEST_CHECK(0 == shapes[0].mesh.indices.size());
 }
 
-TEST_CASE("Empty mtl basedir", "[Issue177]") {
+void test_Empty_mtl_basedir_issue177() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -934,10 +963,10 @@ TEST_CASE("Empty mtl basedir", "[Issue177]") {
     std::cerr << "ERR: " << err << std::endl;
   }
 
-  REQUIRE(true == ret);
+  TEST_CHECK(true == ret);
 }
 
-TEST_CASE("line-primitive", "[line]") {
+void test_line_primitive() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -955,13 +984,13 @@ TEST_CASE("line-primitive", "[line]") {
     std::cerr << "ERR: " << err << std::endl;
   }
 
-  REQUIRE(true == ret);
-  REQUIRE(1 == shapes.size());
-  REQUIRE(8 == shapes[0].lines.indices.size());
-  REQUIRE(2 == shapes[0].lines.num_line_vertices.size());
+  TEST_CHECK(true == ret);
+  TEST_CHECK(1 == shapes.size());
+  TEST_CHECK(8 == shapes[0].lines.indices.size());
+  TEST_CHECK(2 == shapes[0].lines.num_line_vertices.size());
 }
 
-TEST_CASE("points-primitive", "[points]") {
+void test_points_primitive() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -979,12 +1008,12 @@ TEST_CASE("points-primitive", "[points]") {
     std::cerr << "ERR: " << err << std::endl;
   }
 
-  REQUIRE(true == ret);
-  REQUIRE(1 == shapes.size());
-  REQUIRE(8 == shapes[0].points.indices.size());
+  TEST_CHECK(true == ret);
+  TEST_CHECK(1 == shapes.size());
+  TEST_CHECK(8 == shapes[0].points.indices.size());
 }
 
-TEST_CASE("multiple-group-names", "[group]") {
+void test_multiple_group_names() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -1002,15 +1031,15 @@ TEST_CASE("multiple-group-names", "[group]") {
     std::cerr << "ERR: " << err << std::endl;
   }
 
-  REQUIRE(true == ret);
-  REQUIRE(6 == shapes.size());
-  REQUIRE(0 == shapes[0].name.compare("front cube"));
-  REQUIRE(0 == shapes[1].name.compare("back cube"));  // multiple whitespaces
-                                                      // are aggregated as
-                                                      // single white space.
+  TEST_CHECK(true == ret);
+  TEST_CHECK(6 == shapes.size());
+  TEST_CHECK(0 == shapes[0].name.compare("front cube"));
+  TEST_CHECK(0 == shapes[1].name.compare("back cube"));  // multiple whitespaces
+                                                         // are aggregated as
+                                                         // single white space.
 }
 
-TEST_CASE("initialize_all_texopts", "[ensure unparsed texopts are initialized to defaults]") {
+void test_initialize_all_texopts() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -1020,40 +1049,40 @@ TEST_CASE("initialize_all_texopts", "[ensure unparsed texopts are initialized to
   bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
                               "../models/cornell_box.obj", gMtlBasePath, false);
 
-  REQUIRE(0 < materials.size());
+  TEST_CHECK(0 < materials.size());
 
-  #define REQUIRE_DEFAULT_TEXOPT(texopt)                \
-    REQUIRE(tinyobj::TEXTURE_TYPE_NONE == texopt.type); \
-    REQUIRE(0.0   == texopt.brightness);                \
-    REQUIRE(1.0   == texopt.contrast);                  \
-    REQUIRE(false == texopt.clamp);                     \
-    REQUIRE(true  == texopt.blendu);                    \
-    REQUIRE(true  == texopt.blendv);                    \
-    REQUIRE(1.0   == texopt.bump_multiplier);           \
-    for (int j = 0; j < 3; j++) {                       \
-      REQUIRE(0.0 == texopt.origin_offset[j]);          \
-      REQUIRE(1.0 == texopt.scale[j]);                  \
-      REQUIRE(0.0 == texopt.turbulence[j]);             \
-    }
-  for (size_t i = 0; i < materials.size(); i++) {
-    REQUIRE_DEFAULT_TEXOPT(materials[i].ambient_texopt);
-    REQUIRE_DEFAULT_TEXOPT(materials[i].diffuse_texopt);
-    REQUIRE_DEFAULT_TEXOPT(materials[i].specular_texopt);
-    REQUIRE_DEFAULT_TEXOPT(materials[i].specular_highlight_texopt);
-    REQUIRE_DEFAULT_TEXOPT(materials[i].bump_texopt);
-    REQUIRE_DEFAULT_TEXOPT(materials[i].displacement_texopt);
-    REQUIRE_DEFAULT_TEXOPT(materials[i].alpha_texopt);
-    REQUIRE_DEFAULT_TEXOPT(materials[i].reflection_texopt);
-    REQUIRE_DEFAULT_TEXOPT(materials[i].roughness_texopt);
-    REQUIRE_DEFAULT_TEXOPT(materials[i].metallic_texopt);
-    REQUIRE_DEFAULT_TEXOPT(materials[i].sheen_texopt);
-    REQUIRE_DEFAULT_TEXOPT(materials[i].emissive_texopt);
-    REQUIRE_DEFAULT_TEXOPT(materials[i].normal_texopt);
+#define TEST_CHECK_DEFAULT_TEXOPT(texopt)                \
+  TEST_CHECK(tinyobj::TEXTURE_TYPE_NONE == texopt.type); \
+  TEST_CHECK(0.0 == texopt.brightness);                  \
+  TEST_CHECK(1.0 == texopt.contrast);                    \
+  TEST_CHECK(false == texopt.clamp);                     \
+  TEST_CHECK(true == texopt.blendu);                     \
+  TEST_CHECK(true == texopt.blendv);                     \
+  TEST_CHECK(1.0 == texopt.bump_multiplier);             \
+  for (int j = 0; j < 3; j++) {                          \
+    TEST_CHECK(0.0 == texopt.origin_offset[j]);          \
+    TEST_CHECK(1.0 == texopt.scale[j]);                  \
+    TEST_CHECK(0.0 == texopt.turbulence[j]);             \
   }
-  #undef REQUIRE_DEFAULT_TEXOPT
+  for (size_t i = 0; i < materials.size(); i++) {
+    TEST_CHECK_DEFAULT_TEXOPT(materials[i].ambient_texopt);
+    TEST_CHECK_DEFAULT_TEXOPT(materials[i].diffuse_texopt);
+    TEST_CHECK_DEFAULT_TEXOPT(materials[i].specular_texopt);
+    TEST_CHECK_DEFAULT_TEXOPT(materials[i].specular_highlight_texopt);
+    TEST_CHECK_DEFAULT_TEXOPT(materials[i].bump_texopt);
+    TEST_CHECK_DEFAULT_TEXOPT(materials[i].displacement_texopt);
+    TEST_CHECK_DEFAULT_TEXOPT(materials[i].alpha_texopt);
+    TEST_CHECK_DEFAULT_TEXOPT(materials[i].reflection_texopt);
+    TEST_CHECK_DEFAULT_TEXOPT(materials[i].roughness_texopt);
+    TEST_CHECK_DEFAULT_TEXOPT(materials[i].metallic_texopt);
+    TEST_CHECK_DEFAULT_TEXOPT(materials[i].sheen_texopt);
+    TEST_CHECK_DEFAULT_TEXOPT(materials[i].emissive_texopt);
+    TEST_CHECK_DEFAULT_TEXOPT(materials[i].normal_texopt);
+  }
+#undef TEST_CHECK_DEFAULT_TEXOPT
 }
 
-TEST_CASE("colorspace", "[Issue184]") {
+void test_colorspace_issue184() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -1072,24 +1101,24 @@ TEST_CASE("colorspace", "[Issue184]") {
     std::cerr << "ERR: " << err << std::endl;
   }
 
-  REQUIRE(true == ret);
-  REQUIRE(1 == shapes.size());
-  REQUIRE(1 == materials.size());
-  REQUIRE(0 == materials[0].diffuse_texopt.colorspace.compare("sRGB"));
-  REQUIRE(0 == materials[0].specular_texopt.colorspace.size());
-  REQUIRE(0 == materials[0].bump_texopt.colorspace.compare("linear"));
+  TEST_CHECK(true == ret);
+  TEST_CHECK(1 == shapes.size());
+  TEST_CHECK(1 == materials.size());
+  TEST_CHECK(0 == materials[0].diffuse_texopt.colorspace.compare("sRGB"));
+  TEST_CHECK(0 == materials[0].specular_texopt.colorspace.size());
+  TEST_CHECK(0 == materials[0].bump_texopt.colorspace.compare("linear"));
 }
 
-TEST_CASE("leading-decimal-dots", "[Issue201]") {
+void test_leading_decimal_dots_issue201() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
 
   std::string warn;
   std::string err;
-  bool ret =
-      tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
-                       "../models/leading-decimal-dot-issue-201.obj", gMtlBasePath);
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              "../models/leading-decimal-dot-issue-201.obj",
+                              gMtlBasePath);
 
   if (!warn.empty()) {
     std::cout << "WARN: " << warn << std::endl;
@@ -1099,26 +1128,55 @@ TEST_CASE("leading-decimal-dots", "[Issue201]") {
     std::cerr << "ERR: " << err << std::endl;
   }
 
-  REQUIRE(true == ret);
-  REQUIRE(1 == shapes.size());
-  REQUIRE(1 == materials.size());
-  REQUIRE(0.8e-1 == Approx(attrib.vertices[0]));
-  REQUIRE(-.7e+2 == Approx(attrib.vertices[1]));
-  REQUIRE(.575869 == Approx(attrib.vertices[3]));
-  REQUIRE(-.666304 == Approx(attrib.vertices[4]));
-  REQUIRE(.940448 == Approx(attrib.vertices[6]));
+  TEST_CHECK(true == ret);
+  TEST_CHECK(1 == shapes.size());
+  TEST_CHECK(1 == materials.size());
+  TEST_CHECK(FloatEquals(0.8e-1f, attrib.vertices[0]));
+  TEST_CHECK(FloatEquals(-.7e+2f, attrib.vertices[1]));
+  TEST_CHECK(FloatEquals(.575869f, attrib.vertices[3]));
+  TEST_CHECK(FloatEquals(-.666304f, attrib.vertices[4]));
+  TEST_CHECK(FloatEquals(.940448f, attrib.vertices[6]));
 }
 
-TEST_CASE("mtl-default-search-path-v2-API", "[Issue208]") {
-
+void test_mtl_default_search_path_v2_API_issue208() {
   tinyobj::ObjReader reader;
 
   bool ret = reader.ParseFromFile("../models/cornell_box.obj");
 
   std::cout << "WARN: " << reader.Warning() << "\n";
 
-  REQUIRE(ret == true);
-  REQUIRE(reader.Warning().empty());
+  TEST_CHECK(ret == true);
+  TEST_CHECK(reader.Warning().empty());
+}
+
+void test_leading_zero_in_exponent_notation_issue210() {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string warn;
+  std::string err;
+  bool ret = tinyobj::LoadObj(
+      &attrib, &shapes, &materials, &warn, &err,
+      "../models/leading-zero-in-exponent-notation-issue-210.obj",
+      gMtlBasePath);
+
+  if (!warn.empty()) {
+    std::cout << "WARN: " << warn << std::endl;
+  }
+
+  if (!err.empty()) {
+    std::cerr << "ERR: " << err << std::endl;
+  }
+
+  TEST_CHECK(true == ret);
+  TEST_CHECK(1 == shapes.size());
+  TEST_CHECK(1 == materials.size());
+  TEST_CHECK(FloatEquals(0.8e-001f, attrib.vertices[0]));
+  TEST_CHECK(FloatEquals(-.7e+02f, attrib.vertices[1]));
+
+  std::cout << "exp " << 0.8e-01 << std::endl;
+  std::cout << "bora " << attrib.vertices[0] << std::endl;
 }
 
 // Fuzzer test.
@@ -1127,7 +1185,7 @@ TEST_CASE("mtl-default-search-path-v2-API", "[Issue208]") {
 // testdata
 #if 0
 
-TEST_CASE("afl000000", "[AFL]") {
+void test_afl000000", "[AFL]() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -1135,10 +1193,10 @@ TEST_CASE("afl000000", "[AFL]") {
   std::string err;
   bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "./afl/id:000000,sig:11,src:000000,op:havoc,rep:128", gMtlBasePath);
 
-  REQUIRE(true == ret);
+  TEST_CHECK(true == ret);
 }
 
-TEST_CASE("afl000001", "[AFL]") {
+void test_afl000001", "[AFL]() {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -1146,7 +1204,7 @@ TEST_CASE("afl000001", "[AFL]") {
   std::string err;
   bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, "./afl/id:000001,sig:11,src:000000,op:havoc,rep:64", gMtlBasePath);
 
-  REQUIRE(true == ret);
+  TEST_CHECK(true == ret);
 }
 #endif
 
@@ -1172,3 +1230,44 @@ main(
   return 0;
 }
 #endif
+
+TEST_LIST = {
+    {"cornell_box", test_cornell_box},
+    {"catmark_torus_creases0", test_catmark_torus_creases0},
+    {"pbr", test_pbr},
+    {"stream_load", test_stream_load},
+    {"stream_load_from_file_skipping_materials",
+     test_stream_load_from_file_skipping_materials},
+    {"stream_load_from_file_with_materials",
+     test_stream_load_from_file_with_materials},
+    {"trailing_whitespace_in_mtl_issue92",
+     test_trailing_whitespace_in_mtl_issue92},
+    {"transmittance_filter_issue95", test_transmittance_filter_issue95},
+    {"transmittance_filter_Tf_issue95", test_transmittance_filter_Tf_issue95},
+    {"transmittance_filter_Kt_issue95", test_transmittance_filter_Kt_issue95},
+    {"usemtl_at_last_line_issue104", test_usemtl_at_last_line_issue104},
+    {"texture_opts_issue85", test_texture_opts_issue85},
+    {"mtllib_multiple_filenames_issue112",
+     test_mtllib_multiple_filenames_issue112},
+    {"tr_and_d_issue43", test_tr_and_d_issue43},
+    {"refl", test_refl},
+    {"map_bump", test_map_Bump},
+    {"g_ignored_issue138", test_g_ignored_issue138},
+    {"vertex_col_ext_issue144", test_vertex_col_ext_issue144},
+    {"norm_texopts", test_norm_texopts},
+    {"zero_face_idx_value_issue140", test_zero_face_idx_value_issue140},
+    {"texture_name_whitespace_issue145", test_texture_name_whitespace_issue145},
+    {"smoothing_group_issue162", test_smoothing_group_issue162},
+    {"invalid_face_definition", test_invalid_face_definition},
+    {"Empty_mtl_basedir_issue177", test_Empty_mtl_basedir_issue177},
+    {"line_primitive", test_line_primitive},
+    {"points_primitive", test_points_primitive},
+    {"multiple_group_names", test_multiple_group_names},
+    {"initialize_all_texopts", test_initialize_all_texopts},
+    {"colorspace_issue184", test_colorspace_issue184},
+    {"leading_decimal_dots_issue201", test_leading_decimal_dots_issue201},
+    {"mtl_default_search_path_v2_API_issue208",
+     test_mtl_default_search_path_v2_API_issue208},
+    {"leading_zero_in_exponent_notation_issue210",
+     test_leading_zero_in_exponent_notation_issue210},
+    {NULL, NULL}};
