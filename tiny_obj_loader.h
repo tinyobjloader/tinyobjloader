@@ -2312,8 +2312,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       std::string namebuf = ss.str();
 
       int newMaterialId = -1;
-      if (material_map.find(namebuf) != material_map.end()) {
-        newMaterialId = material_map[namebuf];
+      auto found = material_map.find(namebuf);
+      if (found != material_map.end()) {
+        newMaterialId = found->second;
       } else {
         // { error!! material not found }
       }
@@ -2715,8 +2716,9 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
       std::string namebuf = ss.str();
 
       int newMaterialId = -1;
-      if (material_map.find(namebuf) != material_map.end()) {
-        newMaterialId = material_map[namebuf];
+      auto found = material_map.find(namebuf);
+      if (found != material_map.end()) {
+        newMaterialId = found->second;
       } else {
         // { error!! material not found }
       }
@@ -2889,8 +2891,9 @@ bool ObjReader::ParseFromFile(const std::string &filename,
     // split at last '/'(for unixish system) or '\\'(for windows) to get
     // the base directory of .obj file
     //
-    if (filename.find_last_of("/\\") != std::string::npos) {
-      mtl_search_path = filename.substr(0, filename.find_last_of("/\\"));
+    auto found = filename.find_last_of("/\\");
+    if (found != std::string::npos) {
+      mtl_search_path = filename.substr(0, found);
     }
   }
 
