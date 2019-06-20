@@ -12,7 +12,7 @@
 
 [https://github.com/syoyo/tinyobjloader](https://github.com/syoyo/tinyobjloader)
 
-Tiny but powerful single file wavefront obj loader written in C++. No dependency except for C++ STL. It can parse over 10M polygons with moderate memory and time.
+Tiny but powerful single file wavefront obj loader written in C++03. No dependency except for C++ STL. It can parse over 10M polygons with moderate memory and time.
 
 `tinyobjloader` is good for embedding .obj loader to your (global illumination) renderer ;-)
 
@@ -29,6 +29,10 @@ Old version is available as `v0.9.x` branch https://github.com/syoyo/tinyobjload
 * 18 May, 2019 : Python binding!(See `python` folder. Also see https://pypi.org/project/tinyobjloader/)
 * 14 Apr, 2019 : Bump version v2.0.0 rc0. New C++ API and python bindings!(1.x API still exists for backward compatibility)
 * 20 Aug, 2016 : Bump version v1.0.0. New data structure and API!
+
+## Requirents
+
+* C++03 compiler
 
 ### Old version
 
