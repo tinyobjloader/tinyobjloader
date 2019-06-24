@@ -329,10 +329,11 @@ typedef struct {
 
 typedef struct {
   std::vector<index_t> indices;
-  std::vector<unsigned char> num_face_vertices;  // The number of vertices per
-                                                 // face. 3 = polygon, 4 = quad,
-                                                 // ... Up to 255.
-  std::vector<int> material_ids;                 // per-face material ID
+  std::vector<unsigned char>
+      num_face_vertices;          // The number of vertices per
+                                  // face. 3 = triangle, 4 = quad,
+                                  // ... Up to 255 vertices per face.
+  std::vector<int> material_ids;  // per-face material ID
   std::vector<unsigned int> smoothing_group_ids;  // per-face smoothing group
                                                   // ID(0 = off. positive value
                                                   // = group id)
