@@ -1,6 +1,7 @@
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
 #include "pybind11/numpy.h"
+#include <cstring>
 
 // Use double precision for better python integration.
 #define TINYOBJLOADER_USE_DOUBLE
@@ -114,7 +115,13 @@ PYBIND11_MODULE(tinyobjloader, tobj_module)
 
   py::class_<mesh_t>(tobj_module, "mesh_t")
     .def(py::init<>())
-    .def_readonly("indices", &mesh_t::indices);
+    .def_readonly("indices", &mesh_t::indices)
+    .def("numpy_indices", [] (mesh_t &instance) {
+        auto ret = py::array_t<int>(instance.indices.size() * 3);
+        py::buffer_info buf = ret.request();
+        memcpy(buf.ptr, instance.indices.data(), instance.indices.size() * 3 * sizeof(int));
+        return ret;
+    });
 
   py::class_<lines_t>(tobj_module, "lines_t")
     .def(py::init<>());
