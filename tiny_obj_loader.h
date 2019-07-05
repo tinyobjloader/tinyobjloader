@@ -549,6 +549,7 @@ class ObjReader {
 // TODO move the inline implementation of this to the define below to speed up
 // build times
 class ObjWriter {
+ public:
   ObjWriter() {}
 
   /// Construct a writer from a reader
@@ -562,7 +563,7 @@ class ObjWriter {
 
   bool SaveToString(std::string &obj_text, std::string &mlt_text) {
     // Write the Obj text
-    std::stringstream obj_text_stream(obj_text);
+    std::stringstream obj_text_stream;
     obj_text_stream << "#File created by experimental tiny_obj serializer\n";
     const auto vertex_count = attrib_.vertices.size() / 3;
     for (size_t v = 0; v < vertex_count; v++) {
@@ -575,8 +576,8 @@ class ObjWriter {
     for (size_t v = 0; v < vertex_count; v++) {
       obj_text_stream << "vt ";
       obj_text_stream << attrib_.texcoords[2 * v + 0] << " ";
-      obj_text_stream << attrib_.texcoords[2 * v + 1] << " ";
-      obj_text_stream << attrib_.texcoord_ws[v] << "\n";
+      obj_text_stream << attrib_.texcoords[2 * v + 1] << "\n";
+      // obj_text_stream << attrib_.texcoord_ws[v] << "\n";
     }
 
     for (size_t v = 0; v < vertex_count; v++) {
@@ -589,23 +590,27 @@ class ObjWriter {
     // faces
     for (int s = 0; s < shapes_.size(); ++s) {
       const auto &shape = shapes_[s];
-      size_t index_offset = 0;
       const auto face_count = shape.mesh.num_face_vertices.size();
+
+      size_t index_offset = 0;
       for (size_t f = 0; f < face_count; f++) {
         obj_text_stream << "f ";
         const auto face_vertex_count = shape.mesh.num_face_vertices[f];
-
         for (size_t v = 0; v < face_vertex_count; ++v) {
           index_t index = shape.mesh.indices[index_offset + v];
           obj_text_stream << index.vertex_index << "/" << index.texcoord_index
                           << "/" << index.normal_index << " ";
         }
-        obj_text_stream << "\b\n";
+        obj_text_stream << "\n";
         index_offset += face_vertex_count;
       }
     }
 
+    obj_text = obj_text_stream.str();
+
     // TODO write material
+
+    return true;
   }
 
   bool SaveTofile(const std::string &file_path) {
@@ -627,6 +632,11 @@ class ObjWriter {
       error_ = "Could not open output files " + obj_path + " " + mlt_path;
       return false;
     }
+
+    obj_output << obj_text;
+    mlt_output << mlt_text;
+
+    return true;
   }
 
   ///
