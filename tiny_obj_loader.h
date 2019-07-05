@@ -546,6 +546,108 @@ class ObjReader {
   std::string error_;
 };
 
+// TODO move the inline implementation of this to the define below to speed up
+// build times
+class ObjWriter {
+  ObjWriter() {}
+
+  /// Construct a writer from a reader
+  ObjWriter(const ObjReader &other) {
+    attrib_ = other.GetAttrib();
+    shapes_ = other.GetShapes();
+    materials_ = other.GetMaterials();
+    warning_.clear();
+    error_.clear();
+  }
+
+  bool SaveToString(std::string &obj_text, std::string &mlt_text) {
+    // Write the Obj text
+    std::stringstream obj_text_stream(obj_text);
+    obj_text_stream << "#File created by experimental tiny_obj serializer\n";
+    const auto vertex_count = attrib_.vertices.size() / 3;
+    for (size_t v = 0; v < vertex_count; v++) {
+      obj_text_stream << "v ";
+      obj_text_stream << attrib_.vertices[3 * v + 0] << " ";
+      obj_text_stream << attrib_.vertices[3 * v + 1] << " ";
+      obj_text_stream << attrib_.vertices[3 * v + 2] << "\n";
+    }
+
+    for (size_t v = 0; v < vertex_count; v++) {
+      obj_text_stream << "vt ";
+      obj_text_stream << attrib_.texcoords[2 * v + 0] << " ";
+      obj_text_stream << attrib_.texcoords[2 * v + 1] << " ";
+      obj_text_stream << attrib_.texcoord_ws[v] << "\n";
+    }
+
+    for (size_t v = 0; v < vertex_count; v++) {
+      obj_text_stream << "vn ";
+      obj_text_stream << attrib_.normals[3 * v + 0] << " ";
+      obj_text_stream << attrib_.normals[3 * v + 1] << " ";
+      obj_text_stream << attrib_.normals[3 * v + 2] << "\n";
+    }
+
+    // faces
+    for (int s = 0; s < shapes_.size(); ++s) {
+      const auto &shape = shapes_[s];
+      size_t index_offset = 0;
+      const auto face_count = shape.mesh.num_face_vertices.size();
+      for (size_t f = 0; f < face_count; f++) {
+        obj_text_stream << "f ";
+        const auto face_vertex_count = shape.mesh.num_face_vertices[f];
+
+        for (size_t v = 0; v < face_vertex_count; ++v) {
+          index_t index = shape.mesh.indices[index_offset + v];
+          obj_text_stream << index.vertex_index << "/" << index.texcoord_index
+                          << "/" << index.normal_index << " ";
+        }
+        obj_text_stream << "\b\n";
+        index_offset += face_vertex_count;
+      }
+    }
+
+    // TODO write material
+  }
+
+  bool SaveTofile(const std::string &file_path) {
+    std::string obj_path, mlt_path;
+    obj_path = mlt_path = file_path;
+    obj_path += ".obj";
+    mlt_path += ".mlt";
+
+    std::string obj_text, mlt_text;
+
+    if (!SaveToString(obj_text, mlt_text)) {
+      return false;
+    }
+
+    std::ofstream obj_output = std::ofstream(obj_path);
+    std::ofstream mlt_output = std::ofstream(mlt_path);
+
+    if (!(obj_output && mlt_output)) {
+      error_ = "Could not open output files " + obj_path + " " + mlt_path;
+      return false;
+    }
+  }
+
+  ///
+  /// Warning message(may be filled after `save`)
+  ///
+  const std::string &Warning() const { return warning_; }
+
+  ///
+  /// Error message(filled when `save` failed)
+  ///
+  const std::string &Error() const { return error_; }
+
+  attrib_t attrib_;
+  std::vector<shape_t> shapes_;
+  std::vector<material_t> materials_;
+
+ private:
+  std::string warning_;
+  std::string error_;
+};
+
 /// ==>>========= Legacy v1 API =============================================
 
 /// Loads .obj from a file.
@@ -616,11 +718,10 @@ bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
-#include <limits>
-#include <utility>
-
 #include <fstream>
+#include <limits>
 #include <sstream>
+#include <utility>
 
 namespace tinyobj {
 
