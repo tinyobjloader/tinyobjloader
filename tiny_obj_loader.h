@@ -553,8 +553,12 @@ class ObjWriter {
   /// Construct a writer from a reader
   ObjWriter(const ObjReader &other);
 
+  ///\brief Save the content of this obj asset to a pair of strings representing
+  /// the OBJ and MLT file contents
   bool SaveToString(std::string &obj_text, std::string &mlt_text);
 
+  /// Save the content to the file path
+  /// \param file_path The path where to save the file WITHOUT EXTENSION
   bool SaveTofile(const std::string &file_path);
 
   ///
