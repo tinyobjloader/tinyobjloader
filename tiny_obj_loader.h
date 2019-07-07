@@ -2103,7 +2103,7 @@ bool ObjWriter::SaveToString(std::string &obj_text, std::string &mlt_text) {
   // Write the Obj text
   std::stringstream obj_text_stream;
   obj_text_stream << "#File created by experimental tiny_obj serializer\n";
-  const auto vertex_count = attrib_.vertices.size() / 3;
+  const size_t vertex_count = attrib_.vertices.size() / 3;
   for (size_t v = 0; v < vertex_count; v++) {
     obj_text_stream << "v ";
     obj_text_stream << attrib_.vertices[3 * v + 0] << " ";
@@ -2127,13 +2127,13 @@ bool ObjWriter::SaveToString(std::string &obj_text, std::string &mlt_text) {
 
   // faces
   for (int s = 0; s < shapes_.size(); ++s) {
-    const auto &shape = shapes_[s];
-    const auto face_count = shape.mesh.num_face_vertices.size();
+    const shape_t &shape = shapes_[s];
+    const unsigned char face_count = shape.mesh.num_face_vertices.size();
 
     size_t index_offset = 0;
     for (size_t f = 0; f < face_count; f++) {
       obj_text_stream << "f ";
-      const auto face_vertex_count = shape.mesh.num_face_vertices[f];
+      const unsigned char face_vertex_count = shape.mesh.num_face_vertices[f];
       for (size_t v = 0; v < face_vertex_count; ++v) {
         index_t index = shape.mesh.indices[index_offset + v];
         obj_text_stream << index.vertex_index << "/" << index.texcoord_index
@@ -2163,8 +2163,8 @@ bool ObjWriter::SaveTofile(const std::string &file_path) {
     return false;
   }
 
-  std::ofstream obj_output = std::ofstream(obj_path);
-  std::ofstream mlt_output = std::ofstream(mlt_path);
+  std::ofstream obj_output = std::ofstream(obj_path.c_str());
+  std::ofstream mlt_output = std::ofstream(mlt_path.c_str());
 
   if (!(obj_output && mlt_output)) {
     error_ = "Could not open output files " + obj_path + " " + mlt_path;
