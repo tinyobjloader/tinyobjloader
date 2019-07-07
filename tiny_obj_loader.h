@@ -546,108 +546,26 @@ class ObjReader {
   std::string error_;
 };
 
-// TODO move the inline implementation of this to the define below to speed up
-// build times
 class ObjWriter {
  public:
   ObjWriter() {}
 
   /// Construct a writer from a reader
-  ObjWriter(const ObjReader &other) {
-    attrib_ = other.GetAttrib();
-    shapes_ = other.GetShapes();
-    materials_ = other.GetMaterials();
-    warning_.clear();
-    error_.clear();
-  }
+  ObjWriter(const ObjReader &other);
 
-  bool SaveToString(std::string &obj_text, std::string &mlt_text) {
-    // Write the Obj text
-    std::stringstream obj_text_stream;
-    obj_text_stream << "#File created by experimental tiny_obj serializer\n";
-    const auto vertex_count = attrib_.vertices.size() / 3;
-    for (size_t v = 0; v < vertex_count; v++) {
-      obj_text_stream << "v ";
-      obj_text_stream << attrib_.vertices[3 * v + 0] << " ";
-      obj_text_stream << attrib_.vertices[3 * v + 1] << " ";
-      obj_text_stream << attrib_.vertices[3 * v + 2] << "\n";
-    }
+  bool SaveToString(std::string &obj_text, std::string &mlt_text);
 
-    for (size_t v = 0; v < vertex_count; v++) {
-      obj_text_stream << "vt ";
-      obj_text_stream << attrib_.texcoords[2 * v + 0] << " ";
-      obj_text_stream << attrib_.texcoords[2 * v + 1] << "\n";
-      // obj_text_stream << attrib_.texcoord_ws[v] << "\n";
-    }
-
-    for (size_t v = 0; v < vertex_count; v++) {
-      obj_text_stream << "vn ";
-      obj_text_stream << attrib_.normals[3 * v + 0] << " ";
-      obj_text_stream << attrib_.normals[3 * v + 1] << " ";
-      obj_text_stream << attrib_.normals[3 * v + 2] << "\n";
-    }
-
-    // faces
-    for (int s = 0; s < shapes_.size(); ++s) {
-      const auto &shape = shapes_[s];
-      const auto face_count = shape.mesh.num_face_vertices.size();
-
-      size_t index_offset = 0;
-      for (size_t f = 0; f < face_count; f++) {
-        obj_text_stream << "f ";
-        const auto face_vertex_count = shape.mesh.num_face_vertices[f];
-        for (size_t v = 0; v < face_vertex_count; ++v) {
-          index_t index = shape.mesh.indices[index_offset + v];
-          obj_text_stream << index.vertex_index << "/" << index.texcoord_index
-                          << "/" << index.normal_index << " ";
-        }
-        obj_text_stream << "\n";
-        index_offset += face_vertex_count;
-      }
-    }
-
-    obj_text = obj_text_stream.str();
-
-    // TODO write material
-
-    return true;
-  }
-
-  bool SaveTofile(const std::string &file_path) {
-    std::string obj_path, mlt_path;
-    obj_path = mlt_path = file_path;
-    obj_path += ".obj";
-    mlt_path += ".mlt";
-
-    std::string obj_text, mlt_text;
-
-    if (!SaveToString(obj_text, mlt_text)) {
-      return false;
-    }
-
-    std::ofstream obj_output = std::ofstream(obj_path);
-    std::ofstream mlt_output = std::ofstream(mlt_path);
-
-    if (!(obj_output && mlt_output)) {
-      error_ = "Could not open output files " + obj_path + " " + mlt_path;
-      return false;
-    }
-
-    obj_output << obj_text;
-    mlt_output << mlt_text;
-
-    return true;
-  }
+  bool SaveTofile(const std::string &file_path);
 
   ///
   /// Warning message(may be filled after `save`)
   ///
-  const std::string &Warning() const { return warning_; }
+  const std::string &Warning() const;
 
   ///
   /// Error message(filled when `save` failed)
   ///
-  const std::string &Error() const { return error_; }
+  const std::string &error() const;
 
   attrib_t attrib_;
   std::vector<shape_t> shapes_;
@@ -729,8 +647,10 @@ bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <iostream>
 #include <limits>
 #include <sstream>
+#include <string>
 #include <utility>
 
 namespace tinyobj {
@@ -2170,6 +2090,96 @@ bool MaterialStreamReader::operator()(const std::string &matId,
 
   return true;
 }
+
+ObjWriter::ObjWriter(const ObjReader &other) {
+  attrib_ = other.GetAttrib();
+  shapes_ = other.GetShapes();
+  materials_ = other.GetMaterials();
+  warning_.clear();
+  error_.clear();
+}
+
+bool ObjWriter::SaveToString(std::string &obj_text, std::string &mlt_text) {
+  // Write the Obj text
+  std::stringstream obj_text_stream;
+  obj_text_stream << "#File created by experimental tiny_obj serializer\n";
+  const auto vertex_count = attrib_.vertices.size() / 3;
+  for (size_t v = 0; v < vertex_count; v++) {
+    obj_text_stream << "v ";
+    obj_text_stream << attrib_.vertices[3 * v + 0] << " ";
+    obj_text_stream << attrib_.vertices[3 * v + 1] << " ";
+    obj_text_stream << attrib_.vertices[3 * v + 2] << "\n";
+  }
+
+  for (size_t v = 0; v < vertex_count; v++) {
+    obj_text_stream << "vt ";
+    obj_text_stream << attrib_.texcoords[2 * v + 0] << " ";
+    obj_text_stream << attrib_.texcoords[2 * v + 1] << "\n";
+    // obj_text_stream << attrib_.texcoord_ws[v] << "\n";
+  }
+
+  for (size_t v = 0; v < vertex_count; v++) {
+    obj_text_stream << "vn ";
+    obj_text_stream << attrib_.normals[3 * v + 0] << " ";
+    obj_text_stream << attrib_.normals[3 * v + 1] << " ";
+    obj_text_stream << attrib_.normals[3 * v + 2] << "\n";
+  }
+
+  // faces
+  for (int s = 0; s < shapes_.size(); ++s) {
+    const auto &shape = shapes_[s];
+    const auto face_count = shape.mesh.num_face_vertices.size();
+
+    size_t index_offset = 0;
+    for (size_t f = 0; f < face_count; f++) {
+      obj_text_stream << "f ";
+      const auto face_vertex_count = shape.mesh.num_face_vertices[f];
+      for (size_t v = 0; v < face_vertex_count; ++v) {
+        index_t index = shape.mesh.indices[index_offset + v];
+        obj_text_stream << index.vertex_index << "/" << index.texcoord_index
+                        << "/" << index.normal_index << " ";
+      }
+      obj_text_stream << "\n";
+      index_offset += face_vertex_count;
+    }
+  }
+
+  obj_text = obj_text_stream.str();
+
+  // TODO write material
+
+  return true;
+}
+
+bool ObjWriter::SaveTofile(const std::string &file_path) {
+  std::string obj_path, mlt_path;
+  obj_path = mlt_path = file_path;
+  obj_path += ".obj";
+  mlt_path += ".mlt";
+
+  std::string obj_text, mlt_text;
+
+  if (!SaveToString(obj_text, mlt_text)) {
+    return false;
+  }
+
+  std::ofstream obj_output = std::ofstream(obj_path);
+  std::ofstream mlt_output = std::ofstream(mlt_path);
+
+  if (!(obj_output && mlt_output)) {
+    error_ = "Could not open output files " + obj_path + " " + mlt_path;
+    return false;
+  }
+
+  obj_output << obj_text;
+  mlt_output << mlt_text;
+
+  return true;
+}
+
+const std::string &ObjWriter::Warning() const { return warning_; }
+
+const std::string &ObjWriter::error() const { return error_; }
 
 bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              std::vector<material_t> *materials, std::string *warn,
