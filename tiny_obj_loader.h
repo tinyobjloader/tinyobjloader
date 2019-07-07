@@ -2130,16 +2130,17 @@ bool ObjWriter::SaveToString(std::string &obj_text, std::string &mlt_text) {
   }
 
   // faces
-  for (int s = 0; s < shapes_.size(); ++s) {
+  for (size_t s = 0; s < shapes_.size(); ++s) {
     const shape_t &shape = shapes_[s];
-    const unsigned char face_count = shape.mesh.num_face_vertices.size();
+    const unsigned char face_count =
+        static_cast<unsigned char>(shape.mesh.num_face_vertices.size());
 
     size_t index_offset = 0;
     for (size_t f = 0; f < face_count; f++) {
       obj_text_stream << "f ";
       const unsigned char face_vertex_count = shape.mesh.num_face_vertices[f];
       for (size_t v = 0; v < face_vertex_count; ++v) {
-        index_t index = shape.mesh.indices[index_offset + v];
+        const index_t index = shape.mesh.indices[index_offset + v];
         obj_text_stream << index.vertex_index << "/" << index.texcoord_index
                         << "/" << index.normal_index << " ";
       }
@@ -2151,6 +2152,7 @@ bool ObjWriter::SaveToString(std::string &obj_text, std::string &mlt_text) {
   obj_text = obj_text_stream.str();
 
   // TODO write material
+  (void)mlt_text;
 
   return true;
 }
