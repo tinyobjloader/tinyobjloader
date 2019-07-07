@@ -2163,11 +2163,11 @@ bool ObjWriter::SaveTofile(const std::string &file_path) {
     return false;
   }
 
-  std::ofstream obj_output = std::ofstream(obj_path.c_str());
-  std::ofstream mlt_output = std::ofstream(mlt_path.c_str());
+  std::ofstream obj_output(obj_path.c_str());
+  std::ofstream mlt_output(mlt_path.c_str());
 
   if (!(obj_output && mlt_output)) {
-    error_ = "Could not open output files " + obj_path + " " + mlt_path;
+    error_ = "Could not open output files " + obj_path + " and/or " + mlt_path;
     return false;
   }
 
