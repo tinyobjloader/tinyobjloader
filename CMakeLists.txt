@@ -52,6 +52,7 @@ add_library(${LIBRARY_NAME} ${tinyobjloader-Source})
 if(BUILD_SHARED_LIBS)
   set_target_properties(${LIBRARY_NAME} PROPERTIES
     SOVERSION ${TINYOBJLOADER_SOVERSION}
+    WINDOWS_EXPORT_ALL_SYMBOLS ON
   )
 endif()
 
