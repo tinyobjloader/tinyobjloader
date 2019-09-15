@@ -66,6 +66,7 @@ TinyObjLoader is successfully used in ...
 * VFPR - a Vulkan Forward Plus Renderer : https://github.com/WindyDarian/Vulkan-Forward-Plus-Renderer
 * glslViewer: https://github.com/patriciogonzalezvivo/glslViewer
 * Lighthouse2: https://github.com/jbikker/lighthouse2
+* rayrender(an open source R package for raytracing scenes in created in R): https://github.com/tylermorganwall/rayrender
 * Your project here! (Letting us know via github issue is welcome!)
 
 ### Old version(v0.9.x)
