@@ -2891,6 +2891,8 @@ bool ObjReader::ParseFromFile(const std::string &filename,
     if (filename.find_last_of("/\\") != std::string::npos) {
       mtl_search_path = filename.substr(0, filename.find_last_of("/\\"));
     }
+  } else {
+    mtl_search_path = config.mtl_search_path;
   }
 
   valid_ = LoadObj(&attrib_, &shapes_, &materials_, &warning_, &error_,
