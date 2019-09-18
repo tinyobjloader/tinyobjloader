@@ -14,4 +14,4 @@ steps:
 - script: |
     cd tests
     make && ./tester
-      displayName: 'Run unit tests'
+  displayName: 'Run unit tests'
