@@ -30,13 +30,13 @@ Old version is available as `v0.9.x` branch https://github.com/syoyo/tinyobjload
 * 14 Apr, 2019 : Bump version v2.0.0 rc0. New C++ API and python bindings!(1.x API still exists for backward compatibility)
 * 20 Aug, 2016 : Bump version v1.0.0. New data structure and API!
 
-## Requirents
+## Requirements
 
 * C++03 compiler
 
 ### Old version
 
-Previous old version is avaiable in `v0.9.x` branch.
+Previous old version is available in `v0.9.x` branch.
 
 ## Example
 
@@ -132,7 +132,7 @@ TinyObjLoader is successfully used in ...
 
 TinyObjLoader is licensed under MIT license.
 
-### Third party licences.
+### Third party licenses.
 
 * pybind11 : BSD-style license.
 
