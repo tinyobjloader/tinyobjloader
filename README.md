@@ -10,6 +10,8 @@
 
 [![Coverage Status](https://coveralls.io/repos/github/syoyo/tinyobjloader/badge.svg?branch=master)](https://coveralls.io/github/syoyo/tinyobjloader?branch=master)
 
+[![Download](https://api.bintray.com/packages/conan/conan-center/tinyobjloader%3A_/images/download.svg)](https://bintray.com/conan/conan-center/tinyobjloader%3A_/_latestVersion)
+
 [https://github.com/syoyo/tinyobjloader](https://github.com/syoyo/tinyobjloader)
 
 Tiny but powerful single file wavefront obj loader written in C++03. No dependency except for C++ STL. It can parse over 10M polygons with moderate memory and time.
