@@ -140,6 +140,12 @@ TinyObjLoader is licensed under MIT license.
 
 ## Usage
 
+### Installation
+
+One option is to simply copy the header file into your project and to make sure that `TINYOBJLOADER_IMPLEMENTATION` is defined exactly once.
+
+Tinyobjlaoder is also available as a [conan package](https://bintray.com/conan/conan-center/tinyobjloader%3A_/_latestVersion). Conan integrates with many build systems and lets you avoid manual dependency installation. Their [documentation](https://docs.conan.io/en/latest/getting_started.html) is a great starting point.
+
 ### Data format
 
 `attrib_t` contains single and linear array of vertex data(position, normal and texcoord).
