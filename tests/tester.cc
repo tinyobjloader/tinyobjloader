@@ -1,24 +1,26 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "../tiny_obj_loader.h"
 
-#ifdef __GNUC__
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
+#elif defined(__GNUC__)
 #pragma GCC diagnostic ignored "-Wmissing-declarations"
+#pragma GCC diagnostic ignored "-Wignored-qualifiers"
+#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-qual"
 #pragma GCC diagnostic ignored "-Wsign-conversion"
 #pragma GCC diagnostic ignored "-Wformat"
 #pragma GCC diagnostic ignored "-Wswitch-default"
 #endif
 
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
-#endif
-
 
 #include "acutest.h"
 
-#ifdef __clang__
+#if defined(__clang__)
 #pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
 #endif
 
 #include <cassert>
@@ -1058,6 +1060,7 @@ void test_initialize_all_texopts() {
   bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
                               "../models/cornell_box.obj", gMtlBasePath, false);
 
+  TEST_CHECK(ret == true);
   TEST_CHECK(0 < materials.size());
 
 #define TEST_CHECK_DEFAULT_TEXOPT(texopt)                \
