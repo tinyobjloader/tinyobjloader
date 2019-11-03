@@ -2522,10 +2522,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
         continue;
       }
 
-      if (strlen(token) >= 3) {
-        if (token[0] == 'o' && token[1] == 'f' && token[2] == 'f') {
-          current_smoothing_id = 0;
-        }
+      if (strlen(token) >= 3 && token[0] == 'o' && token[1] == 'f' &&
+          token[2] == 'f') {
+        current_smoothing_id = 0;
       } else {
         // assume number
         int smGroupId = parseInt(&token);
