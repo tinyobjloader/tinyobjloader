@@ -166,7 +166,7 @@ typedef struct {
                            // value. Usually `sRGB` or `linear` (default empty).
 } texture_option_t;
 
-typedef struct {
+typedef struct _material_t {
   std::string name;
 
   real_t ambient[3];
