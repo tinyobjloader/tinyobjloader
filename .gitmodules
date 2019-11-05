@@ -1,3 +1,0 @@
-[submodule "pybind11/tools/clang"]
-	path = pybind11/tools/clang
-	url = ../../wjakob/clang-cindex-python3
