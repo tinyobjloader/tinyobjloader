@@ -135,8 +135,8 @@ install(FILES
   ${TINYOBJLOADER_DOC_DIR}
   )
 install(FILES
-  "${CMAKE_CURRENT_BINARY_DIR}/${LIBRARY_NAME}-config.cmake"
-  "${CMAKE_CURRENT_BINARY_DIR}/${LIBRARY_NAME}-config-version.cmake"
+  "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config.cmake"
+  "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config-version.cmake"
   DESTINATION
   ${TINYOBJLOADER_CMAKE_DIR}
   )
