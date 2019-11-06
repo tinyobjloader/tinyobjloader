@@ -1191,6 +1191,32 @@ void test_leading_zero_in_exponent_notation_issue210() {
   std::cout << "bora " << attrib.vertices[0] << std::endl;
 }
 
+void test_usemtl_then_o_issue235() {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string warn;
+  std::string err;
+  bool ret = tinyobj::LoadObj(
+      &attrib, &shapes, &materials, &warn, &err,
+      "../models/issue-235-usemtl-then-o.obj",
+      gMtlBasePath);
+
+  if (!warn.empty()) {
+    std::cout << "WARN: " << warn << std::endl;
+  }
+
+  if (!err.empty()) {
+    std::cerr << "ERR: " << err << std::endl;
+  }
+
+  TEST_CHECK(true == ret);
+  TEST_CHECK(2 == shapes.size());
+  TEST_CHECK(2 == materials.size());
+  TEST_CHECK(4 == shapes[1].mesh.indices[0].vertex_index);
+}
+
 // Fuzzer test.
 // Just check if it does not crash.
 // Disable by default since Windows filesystem can't create filename of afl
@@ -1282,4 +1308,6 @@ TEST_LIST = {
      test_mtl_default_search_path_v2_API_issue208},
     {"leading_zero_in_exponent_notation_issue210",
      test_leading_zero_in_exponent_notation_issue210},
+    {"usemtl_then_o_issue235",
+     test_usemtl_then_o_issue235},
     {NULL, NULL}};
