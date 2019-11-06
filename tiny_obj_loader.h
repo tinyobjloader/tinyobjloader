@@ -2438,7 +2438,10 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       // flush previous face group.
       bool ret = exportGroupsToShape(&shape, prim_group, tags, material, name,
                                      triangulate, v);
-      if (ret) {
+      (void)ret;  // return value not used.
+
+      if (shape.mesh.indices.size() > 0 || shape.lines.indices.size() > 0 ||
+          shape.points.indices.size() > 0) {
         shapes->push_back(shape);
       }
 
