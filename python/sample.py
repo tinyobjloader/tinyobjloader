@@ -1,7 +1,7 @@
 import sys
 import tinyobjloader
 
-filename = "../models/cornell_box.obj";
+filename = "../models/cornell_box.obj"
 
 
 reader = tinyobjloader.ObjReader()
@@ -59,8 +59,8 @@ for m in materials:
     m.diffuse = [1, 2, 3]
     print(m.diffuse)
 
-    #print(m.shininess)
-    #print(m.illum)
+    # print(m.shininess)
+    # print(m.illum)
 
 shapes = reader.GetShapes()
 print("Num shapes: ", len(shapes))
