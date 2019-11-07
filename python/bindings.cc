@@ -134,6 +134,13 @@ PYBIND11_MODULE(tinyobjloader, tobj_module)
         py::buffer_info buf = ret.request();
         memcpy(buf.ptr, instance.indices.data(), instance.indices.size() * 3 * sizeof(int));
         return ret;
+    })
+    .def_readonly("material_ids", &mesh_t::material_ids)
+    .def("numpy_material_ids", [] (mesh_t &instance) {
+        auto ret = py::array_t<int>(instance.material_ids.size());
+        py::buffer_info buf = ret.request();
+        memcpy(buf.ptr, instance.material_ids.data(), instance.material_ids.size() * sizeof(int));
+        return ret;
     });
 
   py::class_<lines_t>(tobj_module, "lines_t")
