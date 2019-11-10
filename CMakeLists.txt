@@ -90,7 +90,7 @@ include(CMakePackageConfigHelpers)
 
 configure_package_config_file(
   ${PROJECT_NAME}-config.cmake.in
-  ${LIBRARY_NAME}-config.cmake
+  ${PROJECT_NAME}-config.cmake
   INSTALL_DESTINATION
   ${TINYOBJLOADER_CMAKE_DIR}
   PATH_VARS
@@ -99,7 +99,7 @@ configure_package_config_file(
   NO_CHECK_REQUIRED_COMPONENTS_MACRO
   )
 
-write_basic_package_version_file(${LIBRARY_NAME}-config-version.cmake
+write_basic_package_version_file(${PROJECT_NAME}-config-version.cmake
   VERSION
   ${TINYOBJLOADER_VERSION}
   COMPATIBILITY
