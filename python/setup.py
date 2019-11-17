@@ -1,4 +1,5 @@
 import setuptools
+import platform
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
@@ -44,10 +45,24 @@ class get_pybind_include(object):
             return interpreter_include_path
 
 
+ext_compile_args = ["-std=c++11"]
+ext_link_args = []
+
+# Developer option
+#
+#if platform.system() == "Darwin":
+#    # XCode10 or later does not support libstdc++, so we need to use libc++.
+#    # macosx-version 10.6 does not support libc++, so we require min macosx version 10.9.
+#    ext_compile_args.append("-stdlib=libc++")
+#    ext_compile_args.append("-mmacosx-version-min=10.9")
+#    ext_link_args.append("-stdlib=libc++")
+#    ext_link_args.append("-mmacosx-version-min=10.9")
+
 # `tiny_obj_loader.cc` contains implementation of tiny_obj_loader.
 m = setuptools.Extension(
     "tinyobjloader",
-    extra_compile_args=["-std=c++11"],
+    extra_compile_args=ext_compile_args,
+    extra_link_args=ext_link_args,
     sources=["bindings.cc", "tiny_obj_loader.cc"],
     include_dirs=[
         # Support `build_ext` finding tinyobjloader (without first running
