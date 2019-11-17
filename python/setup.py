@@ -50,7 +50,7 @@ ext_link_args = []
 
 # Developer option
 #
-#if platform.system() == "Darwin":
+# if platform.system() == "Darwin":
 #    # XCode10 or later does not support libstdc++, so we need to use libc++.
 #    # macosx-version 10.6 does not support libc++, so we require min macosx version 10.9.
 #    ext_compile_args.append("-stdlib=libc++")
