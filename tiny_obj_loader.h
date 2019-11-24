@@ -2033,7 +2033,7 @@ bool MaterialFileReader::operator()(const std::string &matId,
                                     std::map<std::string, int> *matMap,
                                     std::string *warn, std::string *err) {
   if (!m_mtlBaseDir.empty()) {
-#if _WIN32
+#ifdef _WIN32
     char sep = ';';
 #else
     char sep = ':';
