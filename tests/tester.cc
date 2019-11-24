@@ -1217,6 +1217,41 @@ void test_usemtl_then_o_issue235() {
   TEST_CHECK(4 == shapes[1].mesh.indices[0].vertex_index);
 }
 
+void test_mtl_searchpaths_issue244() {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  // .mtl is located at ./assets/issue-244.mtl
+#if _WIN32
+  std::string search_paths("../;../models;./assets");
+#else
+  std::string search_paths("../:../models:./assets");
+#endif
+
+  std::string warn;
+  std::string err;
+  bool ret = tinyobj::LoadObj(
+      &attrib, &shapes, &materials, &warn, &err,
+      "../models/issue-244-mtl-searchpaths.obj",
+      search_paths.c_str());
+
+  TEST_CHECK(warn.empty());
+
+  if (!warn.empty()) {
+    std::cout << "WARN: " << warn << std::endl;
+  }
+
+  if (!err.empty()) {
+    std::cerr << "ERR: " << err << std::endl;
+  }
+
+  TEST_CHECK(true == ret);
+  TEST_CHECK(2 == shapes.size());
+  TEST_CHECK(2 == materials.size());
+  TEST_CHECK(4 == shapes[1].mesh.indices[0].vertex_index);
+}
+
 // Fuzzer test.
 // Just check if it does not crash.
 // Disable by default since Windows filesystem can't create filename of afl
@@ -1310,4 +1345,6 @@ TEST_LIST = {
      test_leading_zero_in_exponent_notation_issue210},
     {"usemtl_then_o_issue235",
      test_usemtl_then_o_issue235},
+    {"mtl_searchpaths_issue244",
+     test_mtl_searchpaths_issue244},
     {NULL, NULL}};

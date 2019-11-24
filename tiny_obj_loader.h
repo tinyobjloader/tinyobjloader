@@ -26,6 +26,7 @@ THE SOFTWARE.
 // version 2.0.0 : Add new object oriented API. 1.x API is still provided.
 //                 * Support line primitive.
 //                 * Support points primitive.
+//                 * Support multiple search path for .mtl(v1 API).
 // version 1.4.0 : Modifed ParseTextureNameAndOption API
 // version 1.3.1 : Make ParseTextureNameAndOption API public
 // version 1.3.0 : Separate warning and error message(breaking API of LoadObj)
@@ -436,6 +437,7 @@ class MaterialReader {
 ///
 class MaterialFileReader : public MaterialReader {
  public:
+  // Path could contain separator(';' in Windows, ':' in Posix)
   explicit MaterialFileReader(const std::string &mtl_basedir)
       : m_mtlBaseDir(mtl_basedir) {}
   virtual ~MaterialFileReader() {}
@@ -1634,6 +1636,21 @@ static void SplitString(const std::string &s, char delim,
   }
 }
 
+static std::string JoinPath(const std::string &dir,
+                            const std::string &filename) {
+  if (dir.empty()) {
+    return filename;
+  } else {
+    // check '/'
+    char lastChar = *dir.rbegin();
+    if (lastChar != '/') {
+      return dir + std::string("/") + filename;
+    } else {
+      return dir + filename;
+    }
+  }
+}
+
 void LoadMtl(std::map<std::string, int> *material_map,
              std::vector<material_t> *materials, std::istream *inStream,
              std::string *warning, std::string *err) {
@@ -2015,27 +2032,59 @@ bool MaterialFileReader::operator()(const std::string &matId,
                                     std::vector<material_t> *materials,
                                     std::map<std::string, int> *matMap,
                                     std::string *warn, std::string *err) {
-  std::string filepath;
-
   if (!m_mtlBaseDir.empty()) {
-    filepath = std::string(m_mtlBaseDir) + matId;
-  } else {
-    filepath = matId;
-  }
+#if _WIN32
+    char sep = ';';
+#else
+    char sep = ':';
+#endif
 
-  std::ifstream matIStream(filepath.c_str());
-  if (!matIStream) {
+    // https://stackoverflow.com/questions/5167625/splitting-a-c-stdstring-using-tokens-e-g
+    std::vector<std::string> paths;
+    std::istringstream f(m_mtlBaseDir);
+
+    std::string s;
+    while (getline(f, s, sep)) {
+      paths.push_back(s);
+    }
+
+    for (size_t i = 0; i < paths.size(); i++) {
+      std::string filepath = JoinPath(paths[i], matId);
+
+      std::ifstream matIStream(filepath.c_str());
+      if (matIStream) {
+        LoadMtl(matMap, materials, &matIStream, warn, err);
+
+        return true;
+      }
+    }
+
     std::stringstream ss;
-    ss << "Material file [ " << filepath << " ] not found." << std::endl;
+    ss << "Material file [ " << matId
+       << " ] not found in a path : " << m_mtlBaseDir << std::endl;
     if (warn) {
       (*warn) += ss.str();
     }
     return false;
+
+  } else {
+    std::string filepath = matId;
+    std::ifstream matIStream(filepath.c_str());
+    if (matIStream) {
+      LoadMtl(matMap, materials, &matIStream, warn, err);
+
+      return true;
+    }
+
+    std::stringstream ss;
+    ss << "Material file [ " << filepath
+       << " ] not found in a path : " << m_mtlBaseDir << std::endl;
+    if (warn) {
+      (*warn) += ss.str();
+    }
+
+    return false;
   }
-
-  LoadMtl(matMap, materials, &matIStream, warn, err);
-
-  return true;
 }
 
 bool MaterialStreamReader::operator()(const std::string &matId,
