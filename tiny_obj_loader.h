@@ -2364,6 +2364,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
         newMaterialId = material_map[namebuf];
       } else {
         // { error!! material not found }
+        if (warn) {
+          (*warn) += "material [ " + namebuf + " ] not found in .mtl\n";
+        }
       }
 
       if (newMaterialId != material) {
@@ -2768,7 +2771,10 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
       if (material_map.find(namebuf) != material_map.end()) {
         newMaterialId = material_map[namebuf];
       } else {
-        // { error!! material not found }
+        // { warn!! material not found }
+        if (warn && (!callback.usemtl_cb)) {
+          (*warn) += "material [ " + namebuf + " ] not found in .mtl\n";
+        }
       }
 
       if (newMaterialId != material_id) {
