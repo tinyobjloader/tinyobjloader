@@ -2353,11 +2353,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     }
 
     // use mtl
-    if ((0 == strncmp(token, "usemtl", 6)) && IS_SPACE((token[6]))) {
-      token += 7;
-      std::stringstream ss;
-      ss << token;
-      std::string namebuf = ss.str();
+    if ((0 == strncmp(token, "usemtl", 6))) {
+      token += 6;      
+      std::string namebuf = parseString(&token);
 
       int newMaterialId = -1;
       if (material_map.find(namebuf) != material_map.end()) {
@@ -2365,7 +2363,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       } else {
         // { error!! material not found }
         if (warn) {
-          (*warn) += "material [ " + namebuf + " ] not found in .mtl\n";
+          (*warn) += "material [ '" + namebuf + "' ] not found in .mtl\n";
         }
       }
 
