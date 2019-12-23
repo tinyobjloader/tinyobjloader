@@ -1280,6 +1280,34 @@ void test_usemtl_whitespace_issue246() {
   TEST_CHECK(0 == shapes[0].mesh.material_ids[0]);
 }
 
+void test_texres_texopt_issue248() {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string warn;
+  std::string err;
+  bool ret = tinyobj::LoadObj(
+      &attrib, &shapes, &materials, &warn, &err,
+      "../models/issue-248-texres-texopt.obj",
+      gMtlBasePath);
+
+  TEST_CHECK(warn.empty());
+
+  if (!warn.empty()) {
+    std::cout << "WARN: " << warn << std::endl;
+  }
+
+  if (!err.empty()) {
+    std::cerr << "ERR: " << err << std::endl;
+  }
+
+  TEST_CHECK(true == ret);
+  TEST_CHECK(1 < materials.size());
+  TEST_CHECK(512 == materials[0].diffuse_texopt.texture_resolution);
+  TEST_CHECK("input.jpg" == materials[0].diffuse_texname);
+}
+
 // Fuzzer test.
 // Just check if it does not crash.
 // Disable by default since Windows filesystem can't create filename of afl
@@ -1377,4 +1405,6 @@ TEST_LIST = {
      test_mtl_searchpaths_issue244},
     {"usemtl_whitespece_issue246",
      test_usemtl_whitespace_issue246},
+    {"texres_texopt_issue248",
+     test_texres_texopt_issue248},
     {NULL, NULL}};
