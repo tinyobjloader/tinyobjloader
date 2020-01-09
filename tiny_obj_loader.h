@@ -1669,6 +1669,10 @@ void LoadMtl(std::map<std::string, int> *material_map,
   bool has_d = false;
   bool has_tr = false;
 
+  // has_kd is used to set a default diffuse value when map_Kd is present
+  // and Kd is not.
+  bool has_kd = false;
+
   std::stringstream warn_ss;
 
   size_t line_no = 0;
@@ -1750,6 +1754,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
       material.diffuse[0] = r;
       material.diffuse[1] = g;
       material.diffuse[2] = b;
+      has_kd = true;
       continue;
     }
 
@@ -1902,6 +1907,16 @@ void LoadMtl(std::map<std::string, int> *material_map,
       token += 7;
       ParseTextureNameAndOption(&(material.diffuse_texname),
                                 &(material.diffuse_texopt), token);
+
+      // Set a decent diffuse default value if a diffuse texture is specified
+      // without a matching Kd value.
+      if (!has_kd)
+      {
+        material.diffuse[0] = 0.6;
+        material.diffuse[1] = 0.6;
+        material.diffuse[2] = 0.6;
+      }
+
       continue;
     }
 
