@@ -444,7 +444,7 @@ class MaterialFileReader : public MaterialReader {
   virtual bool operator()(const std::string &matId,
                           std::vector<material_t> *materials,
                           std::map<std::string, int> *matMap, std::string *warn,
-                          std::string *err);
+                          std::string *err) override;
 
  private:
   std::string m_mtlBaseDir;
@@ -461,7 +461,7 @@ class MaterialStreamReader : public MaterialReader {
   virtual bool operator()(const std::string &matId,
                           std::vector<material_t> *materials,
                           std::map<std::string, int> *matMap, std::string *warn,
-                          std::string *err);
+                          std::string *err) override;
 
  private:
   std::istream &m_inStream;
