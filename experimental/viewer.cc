@@ -677,7 +677,7 @@ int main(int argc, char **argv)
     return -1;
   }
 
-  std::cout << "GLFW OK." << std::endl;
+  std::cout << "GLFW Init OK." << std::endl;
 
 
   window = glfwCreateWindow(width, height, "Obj viewer", NULL, NULL);
