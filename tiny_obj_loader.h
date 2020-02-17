@@ -63,6 +63,13 @@ THE SOFTWARE.
 
 namespace tinyobj {
 
+// TODO(syoyo): Better C++11 detection for older compiler
+#if __cplusplus > 199711L
+#define TINYOBJ_OVERRIDE override
+#else
+#define TINYOBJ_OVERRIDE
+#endif
+
 #ifdef __clang__
 #pragma clang diagnostic push
 #if __has_warning("-Wzero-as-null-pointer-constant")
@@ -444,7 +451,7 @@ class MaterialFileReader : public MaterialReader {
   virtual bool operator()(const std::string &matId,
                           std::vector<material_t> *materials,
                           std::map<std::string, int> *matMap, std::string *warn,
-                          std::string *err) override;
+                          std::string *err) TINYOBJ_OVERRIDE;
 
  private:
   std::string m_mtlBaseDir;
@@ -461,7 +468,7 @@ class MaterialStreamReader : public MaterialReader {
   virtual bool operator()(const std::string &matId,
                           std::vector<material_t> *materials,
                           std::map<std::string, int> *matMap, std::string *warn,
-                          std::string *err) override;
+                          std::string *err) TINYOBJ_OVERRIDE;
 
  private:
   std::istream &m_inStream;
