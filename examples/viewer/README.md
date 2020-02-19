@@ -37,6 +37,7 @@ Then,
 
 ## TODO
 
+* [ ] Alpha texturing.
 * [ ] Support per-face material.
 * [ ] Use shader-based GL rendering.
 * [ ] PBR shader support.
