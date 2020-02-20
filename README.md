@@ -2,7 +2,7 @@
 
 [![Join the chat at https://gitter.im/syoyo/tinyobjloader](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/syoyo/tinyobjloader?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-[![Build Status](https://travis-ci.org/syoyo/tinyobjloader.svg)](https://travis-ci.org/syoyo/tinyobjloader)
+[![Build Status](https://travis-ci.org/tinyobjloader/tinyobjloader.svg?branch=master)](https://travis-ci.org/tinyobjloader/tinyobjloader)
 
 [![AZ Build Status](https://dev.azure.com/syoyo/lte%20oss/_apis/build/status/syoyo.tinyobjloader?branchName=master)](https://dev.azure.com/syoyo/lte%20oss/_build/latest?definitionId=2&branchName=master)
 
