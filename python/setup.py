@@ -82,14 +82,28 @@ m = setuptools.Extension(
 
 setuptools.setup(
     name="tinyobjloader",
-    version="0.1",
-    description="Python module for tinyobjloader",
+    version="2.0.0rc5",
+    description="Tiny but powerful Wavefront OBJ loader",
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="Syoyo Fujita",
     author_email="syoyo@lighttransport.com",
-    url="https://github.com/syoyo/tinyobjloader",
-    classifiers=["License :: OSI Approved :: MIT License"],
+    url="https://github.com/tinyobjloader/tinyobjloader",
+    project_urls={
+        "Issue Tracker": "https://github.com/tinyobjloader/tinyobjloader/issues",
+    },
+    classifiers=[
+        "Development Status :: 5 - Production/Stable",
+        "Intended Audience :: Developers",
+        "Intended Audience :: Science/Research",
+        "Intended Audience :: Manufacturing",
+        "Topic :: Artistic Software",
+        "Topic :: Multimedia :: Graphics :: 3D Modeling",
+        "Topic :: Scientific/Engineering :: Visualization",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: OS Independent",
+        "Programming Language :: Python :: 3",
+    ],
     packages=setuptools.find_packages(),
     ext_modules=[m],
 )
