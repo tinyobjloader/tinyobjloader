@@ -11,6 +11,14 @@ jobs:
           make && ./tester
         displayName: Run unit tests
 
+  - job: python_format
+    pool: { vmImage: "ubuntu-latest" }
+    steps:
+      - script: |
+          pip install black==19.10b0
+          black --check python/
+        displayName: Check Python code format
+
   - job: linux
     pool: {vmImage: "Ubuntu-16.04"}
     steps:
@@ -24,10 +32,6 @@ jobs:
           cibuildwheel --output-dir wheelhouse .
       - task: PublishBuildArtifacts@1
         inputs: {pathtoPublish: 'python/wheelhouse'}
-      - script: |
-          pip install black==19.10b0
-          black --check python/
-        displayName: Check Python code format
 
   - job: macos
     pool: {vmImage: 'macOS-10.13'}
