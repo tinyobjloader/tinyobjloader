@@ -15,6 +15,7 @@ jobs:
     pool: { vmImage: "ubuntu-latest" }
     steps:
       - script: |
+          python -m pip install --upgrade pip
           pip install black==19.10b0
           black --check python/
         displayName: Check Python code format
