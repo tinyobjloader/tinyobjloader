@@ -130,6 +130,16 @@ PYBIND11_MODULE(tinyobjloader, tobj_module)
     })
     .def_readonly("indices", &mesh_t::indices)
     .def("numpy_indices", [] (mesh_t &instance) {
+        // Flatten indexes. index_t is composed of 3 ints(vertex_index, normal_index, texcoord_index).
+        // numpy_indices = [0, -1, -1, 1, -1, -1, ...]
+        // C++11 or later should pack POD struct tightly and does not reorder variables, 
+        // so we can memcpy to copy data.
+        // Still, we check the size of struct and byte offsets of each variable just for sure.
+        static_assert(sizeof(index_t) == 12, "sizeof(index_t) must be 12");
+        static_assert(offsetof(index_t, vertex_index) == 0, "offsetof(index_t, vertex_index) must be 0");
+        static_assert(offsetof(index_t, normal_index) == 4, "offsetof(index_t, normal_index) must be 4");
+        static_assert(offsetof(index_t, texcoord_index) == 8, "offsetof(index_t, texcoord_index) must be 8");
+
         auto ret = py::array_t<int>(instance.indices.size() * 3);
         py::buffer_info buf = ret.request();
         memcpy(buf.ptr, instance.indices.data(), instance.indices.size() * 3 * sizeof(int));

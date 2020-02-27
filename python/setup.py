@@ -1,4 +1,5 @@
 import setuptools
+import platform
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
@@ -44,10 +45,24 @@ class get_pybind_include(object):
             return interpreter_include_path
 
 
+ext_compile_args = ["-std=c++11"]
+ext_link_args = []
+
+# Developer option
+#
+# if platform.system() == "Darwin":
+#    # XCode10 or later does not support libstdc++, so we need to use libc++.
+#    # macosx-version 10.6 does not support libc++, so we require min macosx version 10.9.
+#    ext_compile_args.append("-stdlib=libc++")
+#    ext_compile_args.append("-mmacosx-version-min=10.9")
+#    ext_link_args.append("-stdlib=libc++")
+#    ext_link_args.append("-mmacosx-version-min=10.9")
+
 # `tiny_obj_loader.cc` contains implementation of tiny_obj_loader.
 m = setuptools.Extension(
     "tinyobjloader",
-    extra_compile_args=["-std=c++11"],
+    extra_compile_args=ext_compile_args,
+    extra_link_args=ext_link_args,
     sources=["bindings.cc", "tiny_obj_loader.cc"],
     include_dirs=[
         # Support `build_ext` finding tinyobjloader (without first running
@@ -67,14 +82,28 @@ m = setuptools.Extension(
 
 setuptools.setup(
     name="tinyobjloader",
-    version="0.1",
-    description="Python module for tinyobjloader",
+    version="2.0.0rc5",
+    description="Tiny but powerful Wavefront OBJ loader",
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="Syoyo Fujita",
     author_email="syoyo@lighttransport.com",
-    url="https://github.com/syoyo/tinyobjloader",
-    classifiers=["License :: OSI Approved :: MIT License"],
+    url="https://github.com/tinyobjloader/tinyobjloader",
+    project_urls={
+        "Issue Tracker": "https://github.com/tinyobjloader/tinyobjloader/issues",
+    },
+    classifiers=[
+        "Development Status :: 5 - Production/Stable",
+        "Intended Audience :: Developers",
+        "Intended Audience :: Science/Research",
+        "Intended Audience :: Manufacturing",
+        "Topic :: Artistic Software",
+        "Topic :: Multimedia :: Graphics :: 3D Modeling",
+        "Topic :: Scientific/Engineering :: Visualization",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: OS Independent",
+        "Programming Language :: Python :: 3",
+    ],
     packages=setuptools.find_packages(),
     ext_modules=[m],
 )
