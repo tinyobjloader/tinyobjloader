@@ -46,6 +46,8 @@ for (i, v) in enumerate(attrib.normals):
 for (i, v) in enumerate(attrib.texcoords):
     print("vt[{}] = {}".format(i, t))
 
+print("numpy_vertices = {}".format(attrib.numpy_vertices()))
+
 materials = reader.GetMaterials()
 print("Num materials: ", len(materials))
 for m in materials:
@@ -66,8 +68,10 @@ shapes = reader.GetShapes()
 print("Num shapes: ", len(shapes))
 for shape in shapes:
     print(shape.name)
-    print("num_indices = {}".format(len(shape.mesh.indices)))
+    print("len(num_indices) = {}".format(len(shape.mesh.indices)))
     for (i, idx) in enumerate(shape.mesh.indices):
         print("[{}] v_idx {}".format(i, idx.vertex_index))
         print("[{}] vn_idx {}".format(i, idx.normal_index))
         print("[{}] vt_idx {}".format(i, idx.texcoord_index))
+    print("numpy_indices = {}".format(shape.mesh.numpy_indices()))
+    print("numpy_num_face_vertices = {}".format(shape.mesh.numpy_num_face_vertices()))
