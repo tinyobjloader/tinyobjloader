@@ -75,3 +75,4 @@ for shape in shapes:
         print("[{}] vt_idx {}".format(i, idx.texcoord_index))
     print("numpy_indices = {}".format(shape.mesh.numpy_indices()))
     print("numpy_num_face_vertices = {}".format(shape.mesh.numpy_num_face_vertices()))
+    print("numpy_material_ids = {}".format(shape.mesh.numpy_material_ids()))
