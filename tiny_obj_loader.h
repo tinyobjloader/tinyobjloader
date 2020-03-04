@@ -417,7 +417,7 @@ struct callback_t {
   void (*group_cb)(void *user_data, const char **names, int num_names);
   void (*object_cb)(void *user_data, const char *name);
 
-  callback_t_()
+  callback_t()
       : vertex_cb(NULL),
         normal_cb(NULL),
         texcoord_cb(NULL),
