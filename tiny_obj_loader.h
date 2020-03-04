@@ -154,7 +154,7 @@ typedef enum {
   TEXTURE_TYPE_CUBE_RIGHT
 } texture_type_t;
 
-typedef struct {
+struct texture_option_t {
   texture_type_t type;      // -type (default TEXTURE_TYPE_NONE)
   real_t sharpness;         // -boost (default 1.0?)
   real_t brightness;        // base_value in -mm option (default 0)
@@ -172,9 +172,9 @@ typedef struct {
   // extension
   std::string colorspace;  // Explicitly specify color space of stored texel
                            // value. Usually `sRGB` or `linear` (default empty).
-} texture_option_t;
+};
 
-typedef struct _material_t {
+struct material_t {
   std::string name;
 
   real_t ambient[3];
@@ -317,25 +317,25 @@ typedef struct _material_t {
 
 #endif
 
-} material_t;
+};
 
-typedef struct {
+struct tag_t {
   std::string name;
 
   std::vector<int> intValues;
   std::vector<real_t> floatValues;
   std::vector<std::string> stringValues;
-} tag_t;
+};
 
 // Index struct to support different indices for vtx/normal/texcoord.
 // -1 means not used.
-typedef struct {
+struct index_t {
   int vertex_index;
   int normal_index;
   int texcoord_index;
-} index_t;
+};
 
-typedef struct {
+struct mesh_t {
   std::vector<index_t> indices;
   std::vector<unsigned char>
       num_face_vertices;          // The number of vertices per
@@ -346,31 +346,31 @@ typedef struct {
                                                   // ID(0 = off. positive value
                                                   // = group id)
   std::vector<tag_t> tags;                        // SubD tag
-} mesh_t;
+};
 
-// typedef struct {
+// struct path_t {
 //  std::vector<int> indices;  // pairs of indices for lines
-//} path_t;
+//};
 
-typedef struct {
+struct lines_t {
   // Linear flattened indices.
   std::vector<index_t> indices;        // indices for vertices(poly lines)
   std::vector<int> num_line_vertices;  // The number of vertices per line.
-} lines_t;
+};
 
-typedef struct {
+struct points_t {
   std::vector<index_t> indices;  // indices for points
-} points_t;
+};
 
-typedef struct {
+struct shape_t {
   std::string name;
   mesh_t mesh;
   lines_t lines;
   points_t points;
-} shape_t;
+};
 
 // Vertex attributes
-struct attrib_t {
+struct {
   std::vector<real_t> vertices;  // 'v'(xyz)
 
   // For backward compatibility, we store vertex weight in separate array.
@@ -393,7 +393,7 @@ struct attrib_t {
   const std::vector<real_t> &GetVertexWeights() const { return vertex_weights; }
 };
 
-typedef struct callback_t_ {
+struct callback_t {
   // W is optional and set to 1 if there is no `w` item in `v` line
   void (*vertex_cb)(void *user_data, real_t x, real_t y, real_t z, real_t w);
   void (*normal_cb)(void *user_data, real_t x, real_t y, real_t z);
@@ -426,7 +426,7 @@ typedef struct callback_t_ {
         mtllib_cb(NULL),
         group_cb(NULL),
         object_cb(NULL) {}
-} callback_t;
+};
 
 class MaterialReader {
  public:
