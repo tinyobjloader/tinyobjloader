@@ -147,7 +147,7 @@ One option is to simply copy the header file into your project and to make sure 
 
 Tinyobjlaoder is also available as a [conan package](https://bintray.com/conan/conan-center/tinyobjloader%3A_/_latestVersion). Conan integrates with many build systems and lets you avoid manual dependency installation. Their [documentation](https://docs.conan.io/en/latest/getting_started.html) is a great starting point.
 
-## Building tinyobjloader - Using vcpkg
+### Building tinyobjloader - Using vcpkg
 
 You can download and install tinyobjloader using the [vcpkg](https://github.com/Microsoft/vcpkg) dependency manager:
 
