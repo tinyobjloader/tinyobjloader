@@ -147,6 +147,18 @@ One option is to simply copy the header file into your project and to make sure 
 
 Tinyobjlaoder is also available as a [conan package](https://bintray.com/conan/conan-center/tinyobjloader%3A_/_latestVersion). Conan integrates with many build systems and lets you avoid manual dependency installation. Their [documentation](https://docs.conan.io/en/latest/getting_started.html) is a great starting point.
 
+### Building tinyobjloader - Using vcpkg
+
+You can download and install tinyobjloader using the [vcpkg](https://github.com/Microsoft/vcpkg) dependency manager:
+
+    git clone https://github.com/Microsoft/vcpkg.git
+    cd vcpkg
+    ./bootstrap-vcpkg.sh
+    ./vcpkg integrate install
+    ./vcpkg install tinyobjloader
+
+The tinyobjloader port in vcpkg is kept up to date by Microsoft team members and community contributors. If the version is out of date, please [create an issue or pull request](https://github.com/Microsoft/vcpkg) on the vcpkg repository.
+
 ### Data format
 
 `attrib_t` contains single and linear array of vertex data(position, normal and texcoord).
