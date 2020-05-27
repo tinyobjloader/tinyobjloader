@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/tinyobjloader/tinyobjloader.svg?branch=master)](https://travis-ci.org/tinyobjloader/tinyobjloader)
 
-[![AZ Build Status](https://dev.azure.com/syoyo/lte%20oss/_apis/build/status/syoyo.tinyobjloader?branchName=master)](https://dev.azure.com/syoyo/lte%20oss/_build/latest?definitionId=2&branchName=master)
+[![AZ Build Status](https://dev.azure.com/tinyobjloader/tinyobjloader/_apis/build/status/tinyobjloader.tinyobjloader?branchName=master)](https://dev.azure.com/tinyobjloader/tinyobjloader/_build/latest?definitionId=1&branchName=master)
 
 [![AppVeyor Build status](https://ci.appveyor.com/api/projects/status/tlb421q3t2oyobcn/branch/master?svg=true)](https://ci.appveyor.com/project/syoyo/tinyobjloader/branch/master)
 
@@ -10,7 +10,7 @@
 
 [![Download](https://api.bintray.com/packages/conan/conan-center/tinyobjloader%3A_/images/download.svg)](https://bintray.com/conan/conan-center/tinyobjloader%3A_/_latestVersion)
 
-[![Join the chat at https://gitter.im/syoyo/tinyobjloader](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/syoyo/tinyobjloader?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) (inactive. gitter chat will be removed in the future. Please use github issue if you have questions and got issues) 
+[![Join the chat at https://gitter.im/syoyo/tinyobjloader](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/syoyo/tinyobjloader?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) (inactive. gitter chat will be removed in the future. Please use github issue if you have questions and got issues)
 
 
 Tiny but powerful single file wavefront obj loader written in C++03. No dependency except for C++ STL. It can parse over 10M polygons with moderate memory and time.
@@ -314,6 +314,11 @@ Here is some benchmark result. Time are measured on MacBook 12(Early 2016, Core 
   * baseline(v1.0.x): 6800 msecs(2.3x faster than old version)
   * optimised: 1500 msecs(10x faster than old version, 4.5x faster than baseline)
 
+## Python binding
+
+### CI + PyPI upload
+
+cibuildwheels + twine upload for each git tagging event is handled in Azure Pipeline.
 
 ## Tests
 
