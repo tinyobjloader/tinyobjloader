@@ -73,30 +73,29 @@ jobs:
         inputs: {pathtoPublish: 'python/wheelhouse'}
         artifact: tinyobjDeployWindows
 
-- job: deployPyPI
-  # Based on vispy: https://github.com/vispy/vispy/blob/master/azure-pipelines.yml
-  pool: {vmImage: 'Ubuntu-16.04'}
-  condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/tags/v'))
-  dependsOn:
-    - linux
-    - macos
-    - windows
-  steps:
-    - task: UsePythonVersion@0
-    - task: DownloadPipelineArtifact@2
-      inputs:
-        patterns: |
-          tinyobjDeployLinux/*
-          tinyobjDeployMacOS/*.whl
-          tinyobjDeployWindows/*.whl
-    - bash: |
-        cd $(Pipeline.Workspace)/python
-        python -m pip install --upgrade pip
-        pip install twine
-        twine upload -u "__token__" --skip-existing vispyDeployLinux/* vispyDeployMacOS/* vispyDeployWindows/*
-      env:
-        TWINE_PASSWORD: $(pypiToken2)
-
+ - job: deployPyPI
+   # Based on vispy: https://github.com/vispy/vispy/blob/master/azure-pipelines.yml
+   pool: {vmImage: 'Ubuntu-16.04'}
+   condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/tags/v'))
+   dependsOn:
+     - linux
+     - macos
+     - windows
+   steps:
+     - task: UsePythonVersion@0
+     - task: DownloadPipelineArtifact@2
+       inputs:
+         patterns: |
+           tinyobjDeployLinux/*
+           tinyobjDeployMacOS/*.whl
+           tinyobjDeployWindows/*.whl
+     - bash: |
+         cd $(Pipeline.Workspace)/python
+         python -m pip install --upgrade pip
+         pip install twine
+         twine upload -u "__token__" --skip-existing vispyDeployLinux/* vispyDeployMacOS/* vispyDeployWindows/*
+       env:
+         TWINE_PASSWORD: $(pypiToken2)
 
 trigger:
   - master
