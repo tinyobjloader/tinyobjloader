@@ -34,9 +34,10 @@ jobs:
           cp *.h python
           cd python
           cibuildwheel --output-dir wheelhouse .
-      - task: PublishBuildArtifacts@1
-        inputs: {pathtoPublish: 'python/wheelhouse'}
-        artifact: tinyobjDeployLinux
+      - task: PublishPipelineArtifact@1
+        inputs: 
+          path: $(Pipeline.Workspace)/python/wheelhouse
+          artifact: tinyobjDeployLinux
 
   - job: macos
     pool: {vmImage: 'macOS-10.15'}
@@ -52,9 +53,10 @@ jobs:
           cp *.h python
           cd python
           cibuildwheel --output-dir wheelhouse .
-      - task: PublishBuildArtifacts@1
-        inputs: {pathtoPublish: 'python/wheelhouse'}
-        artifact: tinyobjDeployMacOS
+      - task: PublishPipelineArtifact@1
+        inputs:
+          path: $(Pipeline.Workspace)/python/wheelhouse
+          artifact: tinyobjDeployMacOS
 
   - job: windows
     pool: {vmImage: 'vs2017-win2016'}
@@ -69,9 +71,10 @@ jobs:
           cp *.h python
           cd python
           cibuildwheel --output-dir wheelhouse .
-      - task: PublishBuildArtifacts@1
-        inputs: {pathtoPublish: 'python/wheelhouse'}
-        artifact: tinyobjDeployWindows
+      - task: PublishPipelineArtifact@1
+        inputs:
+          path: $(Pipeline.Workspace)/python/wheelhouse
+          artifact: tinyobjDeployWindows
 
   - job: deployPyPI
     # Based on vispy: https://github.com/vispy/vispy/blob/master/azure-pipelines.yml
@@ -85,10 +88,10 @@ jobs:
       - task: UsePythonVersion@0
       - task: DownloadPipelineArtifact@2
         inputs:
-        patterns: |
-          tinyobjDeployLinux/*
-          tinyobjDeployMacOS/*.whl
-          tinyobjDeployWindows/*.whl
+          patterns: |
+            tinyobjDeployLinux/*
+            tinyobjDeployMacOS/*.whl
+            tinyobjDeployWindows/*.whl
       - bash: |
           cd $(Pipeline.Workspace)/python
           python -m pip install --upgrade pip
