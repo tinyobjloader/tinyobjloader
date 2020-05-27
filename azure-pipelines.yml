@@ -2,13 +2,13 @@ variables:
   # https://cibuildwheel.readthedocs.io/en/stable/cpp_standards/
   # python2.7 + C++11(pybind11) is not available.
   CIBW_SKIP: "cp27-win*"
-  #CIBW_BEFORE_BUILD: "pip install -U numpy"
+  CIBW_BEFORE_BUILD: "pip install pybind11"
   #CIBW_BEFORE_BUILD_MACOS: "pip install -U pip setuptools"
   #CIBW_BEFORE_BUILD_LINUX: "pip install -U pip setuptools"
   #CIBW_TEST_COMMAND: TODO "python -c \"import tinyobjloader; tinyobjloader.test()\""
   CIBW_BUILD_VERBOSITY: "2"
-  CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
-  CIBW_MANYLINUX_I686_IMAGE: manylinux2014
+  #CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
+  #CIBW_MANYLINUX_I686_IMAGE: manylinux2014
 
 jobs:
   - job: unit_linux
