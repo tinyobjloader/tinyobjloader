@@ -1,7 +1,10 @@
 variables:
-  CIBW_BEFORE_BUILD: "pip install -U numpy"
-  CIBW_BEFORE_BUILD_MACOS: "pip install -U pip setuptools"
-  CIBW_BEFORE_BUILD_LINUX: "pip install -U pip setuptools"
+  # https://cibuildwheel.readthedocs.io/en/stable/cpp_standards/
+  # python2.7 + C++11(pybind11) is not available.
+  CIBW_SKIP: "cp27-win*"
+  #CIBW_BEFORE_BUILD: "pip install -U numpy"
+  #CIBW_BEFORE_BUILD_MACOS: "pip install -U pip setuptools"
+  #CIBW_BEFORE_BUILD_LINUX: "pip install -U pip setuptools"
   #CIBW_TEST_COMMAND: TODO "python -c \"import tinyobjloader; tinyobjloader.test()\""
   CIBW_BUILD_VERBOSITY: "2"
   CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
@@ -30,8 +33,8 @@ jobs:
     steps:
       - task: UsePythonVersion@0
       - bash: |
-          python -m pip install --upgrade pip
-          pip install cibuildwheel twine
+          python3 -m pip install --upgrade pip
+          pip3 install cibuildwheel twine
           # Make the header files available to the build.
           cp *.h python
           cd python
@@ -49,8 +52,8 @@ jobs:
     steps:
       - task: UsePythonVersion@0
       - bash: |
-          python -m pip install --upgrade pip
-          pip install cibuildwheel
+          python3 -m pip install --upgrade pip
+          pip3 install cibuildwheel
           # Make the header files available to the build.
           cp *.h python
           cd python
