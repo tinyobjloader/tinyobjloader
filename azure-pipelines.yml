@@ -1,5 +1,6 @@
 variables:
-  CIBW_BEFORE_BUILD: pip install pybind11==2.4.3
+  # It seems pybind11 is already installed in CIBW docker image
+  #CIBW_BEFORE_BUILD: pip install pybind11==2.4.3
   #CIBW_TEST_COMMAND: TODO "python -c \"import tinyobjloader; tinyobjloader.test()\""
   CIBW_BUILD_VERBOSITY: "2"
   CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
@@ -36,7 +37,7 @@ jobs:
           cibuildwheel --output-dir wheelhouse .
       - task: PublishPipelineArtifact@1
         inputs: 
-          path: $(Pipeline.Workspace)/python/wheelhouse
+          path: $(System.DefaultWorkingDirectory)/python/wheelhouse
           artifact: tinyobjDeployLinux
 
   - job: macos
@@ -55,7 +56,7 @@ jobs:
           cibuildwheel --output-dir wheelhouse .
       - task: PublishPipelineArtifact@1
         inputs:
-          path: $(Pipeline.Workspace)/python/wheelhouse
+          path: $(System.DefaultWorkingDirectory)/python/wheelhouse
           artifact: tinyobjDeployMacOS
 
   - job: windows
@@ -73,7 +74,7 @@ jobs:
           cibuildwheel --output-dir wheelhouse .
       - task: PublishPipelineArtifact@1
         inputs:
-          path: $(Pipeline.Workspace)/python/wheelhouse
+          path: $(System.DefaultWorkingDirectory)/python/wheelhouse
           artifact: tinyobjDeployWindows
 
   - job: deployPyPI
