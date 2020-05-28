@@ -320,6 +320,14 @@ Here is some benchmark result. Time are measured on MacBook 12(Early 2016, Core 
 
 cibuildwheels + twine upload for each git tagging event is handled in Azure Pipeline.
 
+#### How to bump version(For developer)
+
+* Bump version in CMakeLists.txt
+* Update version in `python/setup.py`
+* Commit with tag name starging with `v`(e.g. `v2.1.0`)
+* `git push --tags`
+  * cibuildwheels + pypi upload(through twine) will be automatically triggered in Azure Pipeline.
+
 ## Tests
 
 Unit tests are provided in `tests` directory. See `tests/README.md` for details.
