@@ -38,11 +38,23 @@ jobs:
           # Make the header files available to the build.
           cp *.h python
           cd python
+
+          # Source dist
+          python3 setup.py sdist
+
+          # build binary wheels
           cibuildwheel --output-dir wheelhouse .
+
       - task: CopyFiles@2
         inputs:
           contents: 'python/wheelhouse/**'
           targetFolder: $(Build.ArtifactStagingDirectory)
+
+      - task: CopyFiles@2
+        inputs:
+          contents: 'python/sdist/**'
+          targetFolder: $(Build.ArtifactStagingDirectory)
+
       - task: PublishBuildArtifacts@1
         inputs:
           path: $(Build.ArtifactStagingDirectory)
@@ -108,17 +120,17 @@ jobs:
       - task: DownloadBuildArtifacts@0
         inputs:
           artifactName: 'tinyobjDeployLinux'
-          downloadPath: $(Pipeline.Workspace)/tinyobjDeployLinux
+          downloadPath: $(Pipeline.Workspace)
 
       - task: DownloadBuildArtifacts@0
         inputs:
           artifactName: 'tinyobjDeployMacOS'
-          downloadPath: $(Pipeline.Workspace)/tinyobjDeployMacOS
+          downloadPath: $(Pipeline.Workspace)
 
       - task: DownloadBuildArtifacts@0
         inputs:
           artifactName: 'tinyobjDeployWindows'
-          downloadPath: $(Pipeline.Workspace)/tinyobjDeployWindows
+          downloadPath: $(Pipeline.Workspace)
 
       # Publish to PyPI through twine
       - bash: |
@@ -126,8 +138,9 @@ jobs:
           find .
           python -m pip install --upgrade pip
           pip install twine
+          echo tinyobjDeployLinux/python/sdist/*
           echo tinyobjDeployLinux/python/wheelhouse/* tinyobjDeployMacOS/python/wheelhouse/* tinyobjDeployWindows/python/wheelhouse/*
-          twine upload -u "__token__" --skip-existing tinyobjDeployLinux/python/wheelhouse/* tinyobjDeployMacOS/python/wheelhouse/* tinyobjDeployWindows/python/wheelhouse/*
+          twine upload -u "__token__" --skip-existing tinyobjDeployLinux/python/sdist/* tinyobjDeployLinux/python/wheelhouse/* tinyobjDeployMacOS/python/wheelhouse/* tinyobjDeployWindows/python/wheelhouse/*
         env:
           TWINE_PASSWORD: $(pypiToken2)
 
