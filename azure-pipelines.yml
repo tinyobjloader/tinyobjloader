@@ -104,29 +104,30 @@ jobs:
     steps:
       - task: UsePythonVersion@0
 
-      # It looks we need to run Download task for each job
-      - task: DownloadPipelineArtifact@2
+      # TODO(syoyo): Use buildType: specific to download multiple artifacts at once?
+      - task: DownloadBuildArtifact@0
         inputs:
-          artifact: 'tinyobjDeployLinux'
-          path: $(Pipeline.Workspace)/tinyobjDeployLinux
+          artifactName: 'tinyobjDeployLinux'
+          downloadPath: $(Pipeline.Workspace)/tinyobjDeployLinux
 
-      - task: DownloadPipelineArtifact@2
+      - task: DownloadBuildArtifact@0
         inputs:
-          artifact: 'tinyobjDeployMacOS'
-          path: $(Pipeline.Workspace)/tinyobjDeployMacOS
+          artifactName: 'tinyobjDeployMacOS'
+          downloadPath: $(Pipeline.Workspace)/tinyobjDeployMacOS
 
-      - task: DownloadPipelineArtifact@2
+      - task: DownloadBuildArtifact@0
         inputs:
-          artifact: 'tinyobjDeployWindows'
-          path: $(Pipeline.Workspace)/tinyobjDeployWindows
+          artifactName: 'tinyobjDeployWindows'
+          downloadPath: $(Pipeline.Workspace)/tinyobjDeployWindows
 
       # Publish to PyPI through twine
       - bash: |
           cd $(Pipeline.Workspace)
-          tree
+          find .
           python -m pip install --upgrade pip
           pip install twine
-          twine upload -u "__token__" --skip-existing tinyobjDeployLinux/* tinyobjDeployMacOS/* tinyobjDeployWindows/*
+          echo tinyobjDeployLinux/python/wheelhouse/* tinyobjDeployMacOS/python/wheelhouse/* tinyobjDeployWindows/python/wheelhouse/*
+          twine upload -u "__token__" --skip-existing tinyobjDeployLinux/python/wheelhouse/* tinyobjDeployMacOS/python/wheelhouse/* tinyobjDeployWindows/python/wheelhouse/*
         env:
           TWINE_PASSWORD: $(pypiToken2)
 
