@@ -103,9 +103,27 @@ jobs:
       - windows
     steps:
       - task: UsePythonVersion@0
+
+      # It looks we need to run Download task for each job
       - task: DownloadPipelineArtifact@2
+        inputs:
+          artifact: 'tinyobjDeployLinux'
+          path: $(Pipeline.Workspace)/tinyobjDeployLinux
+
+      - task: DownloadPipelineArtifact@2
+        inputs:
+          artifact: 'tinyobjDeployMacOS'
+          path: $(Pipeline.Workspace)/tinyobjDeployMacOS
+
+      - task: DownloadPipelineArtifact@2
+        inputs:
+          artifact: 'tinyobjDeployWindows'
+          path: $(Pipeline.Workspace)/tinyobjDeployWindows
+
+      # Publish to PyPI through twine
       - bash: |
           cd $(Pipeline.Workspace)
+          tree
           python -m pip install --upgrade pip
           pip install twine
           twine upload -u "__token__" --skip-existing tinyobjDeployLinux/* tinyobjDeployMacOS/* tinyobjDeployWindows/*
