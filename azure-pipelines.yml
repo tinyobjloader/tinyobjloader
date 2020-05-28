@@ -41,6 +41,7 @@ jobs:
 
           # Source dist
           python3 setup.py sdist
+          ls -la dist/*
 
           # build binary wheels
           cibuildwheel --output-dir wheelhouse .
@@ -52,7 +53,7 @@ jobs:
 
       - task: CopyFiles@2
         inputs:
-          contents: 'python/sdist/**'
+          contents: 'python/dist/**'
           targetFolder: $(Build.ArtifactStagingDirectory)
 
       - task: PublishBuildArtifacts@1
