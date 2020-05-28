@@ -105,17 +105,17 @@ jobs:
       - task: UsePythonVersion@0
 
       # TODO(syoyo): Use buildType: specific to download multiple artifacts at once?
-      - task: DownloadBuildArtifact@0
+      - task: DownloadBuildArtifacts@0
         inputs:
           artifactName: 'tinyobjDeployLinux'
           downloadPath: $(Pipeline.Workspace)/tinyobjDeployLinux
 
-      - task: DownloadBuildArtifact@0
+      - task: DownloadBuildArtifacts@0
         inputs:
           artifactName: 'tinyobjDeployMacOS'
           downloadPath: $(Pipeline.Workspace)/tinyobjDeployMacOS
 
-      - task: DownloadBuildArtifact@0
+      - task: DownloadBuildArtifacts@0
         inputs:
           artifactName: 'tinyobjDeployWindows'
           downloadPath: $(Pipeline.Workspace)/tinyobjDeployWindows
