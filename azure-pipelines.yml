@@ -98,10 +98,10 @@ jobs:
             tinyobjDeployMacOS/*.whl
             tinyobjDeployWindows/*.whl
       - bash: |
-          cd $(Pipeline.Workspace)/python
+          cd $(Pipeline.Workspace)
           python -m pip install --upgrade pip
           pip install twine
-          twine upload -u "__token__" --skip-existing vispyDeployLinux/* vispyDeployMacOS/* vispyDeployWindows/*
+          twine upload -u "__token__" --skip-existing tinyobjDeployLinux/* tinyobjDeployMacOS/* tinyobjDeployWindows/*
         env:
           TWINE_PASSWORD: $(pypiToken2)
 
