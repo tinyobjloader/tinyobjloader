@@ -139,9 +139,9 @@ jobs:
           find .
           python -m pip install --upgrade pip
           pip install twine
-          echo tinyobjDeployLinux/python/sdist/*
+          echo tinyobjDeployLinux/python/dist/*
           echo tinyobjDeployLinux/python/wheelhouse/* tinyobjDeployMacOS/python/wheelhouse/* tinyobjDeployWindows/python/wheelhouse/*
-          twine upload -u "__token__" --skip-existing tinyobjDeployLinux/python/sdist/* tinyobjDeployLinux/python/wheelhouse/* tinyobjDeployMacOS/python/wheelhouse/* tinyobjDeployWindows/python/wheelhouse/*
+          twine upload -u "__token__" --skip-existing tinyobjDeployLinux/python/dist/* tinyobjDeployLinux/python/wheelhouse/* tinyobjDeployMacOS/python/wheelhouse/* tinyobjDeployWindows/python/wheelhouse/*
         env:
           TWINE_PASSWORD: $(pypiToken2)
 
