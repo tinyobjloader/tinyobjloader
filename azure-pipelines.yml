@@ -39,9 +39,13 @@ jobs:
           cp *.h python
           cd python
           cibuildwheel --output-dir wheelhouse .
+      - task: CopyFiles@2
+        inputs:
+          contents: 'python/wheelhouse/**'
+          targetFolder: $(Build.ArtifactStagingDirectory)
       - task: PublishBuildArtifacts@1
         inputs:
-          path: $(System.DefaultWorkingDirectory)/python/wheelhouse
+          path: $(Build.ArtifactStagingDirectory)
           artifactName: tinyobjDeployLinux
 
   - job: macos
@@ -58,9 +62,13 @@ jobs:
           cp *.h python
           cd python
           cibuildwheel --output-dir wheelhouse .
+      - task: CopyFiles@2
+        inputs:
+          contents: 'python/wheelhouse/*.whl'
+          targetFolder: $(Build.ArtifactStagingDirectory)
       - task: PublishBuildArtifacts@1
         inputs:
-          path: $(System.DefaultWorkingDirectory)/python/wheelhouse
+          path: $(Build.ArtifactStagingDirectory)
           artifactName: tinyobjDeployMacOS
 
   - job: windows
@@ -76,9 +84,13 @@ jobs:
           cp *.h python
           cd python
           cibuildwheel --output-dir wheelhouse .
+      - task: CopyFiles@2
+        inputs:
+          contents: 'python/wheelhouse/*.whl'
+          targetFolder: $(Build.ArtifactStagingDirectory)
       - task: PublishBuildArtifacts@1
         inputs:
-          path: $(System.DefaultWorkingDirectory)/python/wheelhouse
+          path: $(Build.ArtifactStagingDirectory)
           artifactName: tinyobjDeployWindows
 
   - job: deployPyPI
@@ -92,11 +104,6 @@ jobs:
     steps:
       - task: UsePythonVersion@0
       - task: DownloadPipelineArtifact@2
-        inputs:
-          patterns: |
-            tinyobjDeployLinux/*
-            tinyobjDeployMacOS/*.whl
-            tinyobjDeployWindows/*.whl
       - bash: |
           cd $(Pipeline.Workspace)
           python -m pip install --upgrade pip
