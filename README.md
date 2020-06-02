@@ -70,6 +70,7 @@ TinyObjLoader is successfully used in ...
 * Lighthouse2: https://github.com/jbikker/lighthouse2
 * rayrender(an open source R package for raytracing scenes in created in R): https://github.com/tylermorganwall/rayrender
 * liblava - A modern C++ and easy-to-use framework for the Vulkan API. [MIT]: https://github.com/liblava/liblava
+* rtxON - Simple Vulkan raytracing tutorials  https://github.com/iOrange/rtxON
 * Your project here! (Letting us know via github issue is welcome!)
 
 ### Old version(v0.9.x)
