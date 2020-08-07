@@ -8,6 +8,8 @@
 
 [![Coverage Status](https://coveralls.io/repos/github/syoyo/tinyobjloader/badge.svg?branch=master)](https://coveralls.io/github/syoyo/tinyobjloader?branch=master)
 
+[![AUR version](https://img.shields.io/aur/version/tinyobjloader?logo=arch-linux)](https://aur.archlinux.org/packages/tinyobjloader)
+
 [![Download](https://api.bintray.com/packages/conan/conan-center/tinyobjloader%3A_/images/download.svg)](https://bintray.com/conan/conan-center/tinyobjloader%3A_/_latestVersion)
 
 [![Join the chat at https://gitter.im/syoyo/tinyobjloader](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/syoyo/tinyobjloader?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) (inactive. gitter chat will be removed in the future. Please use github issue if you have questions and got issues)
