@@ -4,7 +4,7 @@
 project(tinyobjloader)
 cmake_minimum_required(VERSION 2.8.11)
 set(TINYOBJLOADER_SOVERSION 2)
-set(TINYOBJLOADER_VERSION 2.0.0-rc.6)
+set(TINYOBJLOADER_VERSION 2.0.0-rc.7)
 
 #optional double precision support
 option(TINYOBJLOADER_USE_DOUBLE "Build library with double precision instead of single (float)" OFF)
