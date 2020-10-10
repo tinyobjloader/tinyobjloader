@@ -650,13 +650,11 @@ int main(int argc, char **argv)
     if (data == nullptr) {
       printf("failed to load file\n");
       exit(-1);
-      return false;
     }
 
     if (data_len < 4) {
       printf("Empty file\n");
       exit(-1);
-      return false;
     }
     printf("filesize: %d\n", (int)data_len);
     tinyobj_opt::LoadOption option;
@@ -665,7 +663,7 @@ int main(int argc, char **argv)
 
     bool ret = parseObj(&attrib, &shapes, &materials, data, data_len, option);
 
-    return ret;
+    return ret ? 0 : -1;
   }
 
   Init();

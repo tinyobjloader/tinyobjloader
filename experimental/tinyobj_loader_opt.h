@@ -6,7 +6,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2012-2017 Syoyo Fujita and many contributors.
+Copyright (c) 2012-2020 Syoyo Fujita and many contributors.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -53,8 +53,6 @@ THE SOFTWARE.
 #include <atomic>  // C++11
 #include <chrono>  // C++11
 #include <thread>  // C++11
-
-#include "lfpAlloc/Allocator.hpp"
 
 namespace tinyobj_opt {
 
@@ -330,19 +328,19 @@ struct index_t {
 };
 
 typedef struct {
-  std::vector<float, lfpAlloc::lfpAllocator<float> > vertices;
-  std::vector<float, lfpAlloc::lfpAllocator<float> > normals;
-  std::vector<float, lfpAlloc::lfpAllocator<float> > texcoords;
-  std::vector<index_t, lfpAlloc::lfpAllocator<index_t> > indices;
+  std::vector<float> vertices;
+  std::vector<float> normals;
+  std::vector<float> texcoords;
+  std::vector<index_t> indices;
 
   // # of vertices for each face.
   // 3 for triangle, 4 for qual, ...
   // If triangulation is enabled and the original face are quad,
   // face_num_verts will be 6(3 + 3)
-  std::vector<int, lfpAlloc::lfpAllocator<int> > face_num_verts;
+  std::vector<int> face_num_verts;
 
   // Per-face material IDs.
-  std::vector<int, lfpAlloc::lfpAllocator<int> > material_ids;
+  std::vector<int> material_ids;
 } attrib_t;
 
 typedef StackVector<char, 256> ShortString;
@@ -980,6 +978,33 @@ static void LoadMtl(std::map<std::string, int> *material_map,
   materials->push_back(material);
 }
 
+
+class LoadOption {
+ public:
+  LoadOption() : req_num_threads(-1), triangulate(true), verbose(false) {}
+
+  int req_num_threads;
+  bool triangulate;
+  bool verbose;
+};
+
+/// Parse wavefront .obj(.obj string data is expanded to linear char array
+/// `buf')
+/// -1 to req_num_threads use the number of HW threads in the running system.
+bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
+              std::vector<material_t> *materials, const char *buf, size_t len,
+              const LoadOption &option);
+
+}  // namespace tinyobj_opt
+
+#endif  // TINOBJ_LOADER_OPT_H_
+
+#ifdef TINYOBJ_LOADER_OPT_IMPLEMENTATION
+
+#include "lfpAlloc/Allocator.hpp"
+
+namespace tinyobj_opt {
+
 typedef enum {
   COMMAND_EMPTY,
   COMMAND_V,
@@ -1000,7 +1025,6 @@ typedef struct {
 
   // for f
   std::vector<index_t, lfpAlloc::lfpAllocator<index_t> > f;
-  // std::vector<index_t> f;
   std::vector<int, lfpAlloc::lfpAllocator<int> > f_num_verts;
 
   const char *group_name;
@@ -1030,30 +1054,6 @@ struct CommandCount {
     num_indices = 0;
   }
 };
-
-class LoadOption {
- public:
-  LoadOption() : req_num_threads(-1), triangulate(true), verbose(false) {}
-
-  int req_num_threads;
-  bool triangulate;
-  bool verbose;
-};
-
-/// Parse wavefront .obj(.obj string data is expanded to linear char array
-/// `buf')
-/// -1 to req_num_threads use the number of HW threads in the running system.
-bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
-              std::vector<material_t> *materials, const char *buf, size_t len,
-              const LoadOption &option);
-
-}  // namespace tinyobj_opt
-
-#endif  // TINOBJ_LOADER_OPT_H_
-
-#ifdef TINYOBJ_LOADER_OPT_IMPLEMENTATION
-
-namespace tinyobj_opt {
 
 static bool parseLine(Command *command, const char *p, size_t p_len,
                       bool triangulate = true) {
