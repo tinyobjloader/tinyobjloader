@@ -1308,6 +1308,30 @@ void test_texres_texopt_issue248() {
   TEST_CHECK("input.jpg" == materials[0].diffuse_texname);
 }
 
+void test_mtl_filename_with_whitespace_issue46() {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string warn;
+  std::string err;
+  bool ret =
+      tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                       "../models/mtl filename with whitespace issue46.obj",
+                       gMtlBasePath);
+
+  if (!warn.empty()) {
+    std::cout << "WARN: " << warn << std::endl;
+  }
+
+  if (!err.empty()) {
+    std::cerr << "ERR: " << err << std::endl;
+  }
+  TEST_CHECK(true == ret);
+  TEST_CHECK(1 == materials.size());
+  TEST_CHECK("green" == materials[0].name);
+}
+
 // Fuzzer test.
 // Just check if it does not crash.
 // Disable by default since Windows filesystem can't create filename of afl
@@ -1407,4 +1431,6 @@ TEST_LIST = {
      test_usemtl_whitespace_issue246},
     {"texres_texopt_issue248",
      test_texres_texopt_issue248},
+    {"test_mtl_filename_with_whitespace_issue46",
+     test_mtl_filename_with_whitespace_issue46},
     {NULL, NULL}};

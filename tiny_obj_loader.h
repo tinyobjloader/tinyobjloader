@@ -1658,16 +1658,30 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
   return true;
 }
 
-// Split a string with specified delimiter character.
-// http://stackoverflow.com/questions/236129/split-a-string-in-c
-static void SplitString(const std::string &s, char delim,
+// Split a string with specified delimiter character and escape character.
+// https://rosettacode.org/wiki/Tokenize_a_string_with_escaping#C.2B.2B
+static void SplitString(const std::string &s, char delim, char escape,
                         std::vector<std::string> &elems) {
-  std::stringstream ss;
-  ss.str(s);
-  std::string item;
-  while (std::getline(ss, item, delim)) {
-    elems.push_back(item);
+  std::string token;
+
+  bool escaping = false;
+  for (char ch : s) {
+    if (escaping) {
+      escaping = false;
+    } else if (ch == escape) {
+      escaping = true;
+      continue;
+    } else if (ch == delim) {
+      if (!token.empty()) {
+        elems.push_back(token);
+      }
+      token.clear();
+      continue;
+    }
+    token += ch;
   }
+
+  elems.push_back(token);
 }
 
 static std::string JoinPath(const std::string &dir,
@@ -2483,7 +2497,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
         token += 7;
 
         std::vector<std::string> filenames;
-        SplitString(std::string(token), ' ', filenames);
+        SplitString(std::string(token), ' ', '\\', filenames);
 
         if (filenames.empty()) {
           if (warn) {
@@ -2891,7 +2905,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
         token += 7;
 
         std::vector<std::string> filenames;
-        SplitString(std::string(token), ' ', filenames);
+        SplitString(std::string(token), ' ', '\\', filenames);
 
         if (filenames.empty()) {
           if (warn) {

@@ -1,0 +1,31 @@
+mtllib invalid-file-without-spaces.mtl invalid\ file\ with\ spaces.mtl  mtl\ filename\ with\ whitespace\ issue46.mtl
+
+v 0.000000 2.000000 2.000000
+v 0.000000 0.000000 2.000000
+v 2.000000 0.000000 2.000000
+v 2.000000 2.000000 2.000000
+v 0.000000 2.000000 0.000000
+v 0.000000 0.000000 0.000000
+v 2.000000 0.000000 0.000000
+v 2.000000 2.000000 0.000000
+# 8 vertices
+
+g front cube
+usemtl green
+f 1 2 3 4
+g back cube
+usemtl green
+f 8 7 6 5
+g right cube
+usemtl green
+f 4 3 7 8
+g left cube
+usemtl green
+f 5 6 2 1
+g top cube
+usemtl green
+f 5 1 4 8
+g bottom cube
+usemtl green
+f 2 6 7 3
+# 6 elements
