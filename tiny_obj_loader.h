@@ -28,6 +28,7 @@ THE SOFTWARE.
 //                 * Support points primitive.
 //                 * Support multiple search path for .mtl(v1 API).
 //                 * Support vertex weight `vw`(as an tinyobj extension)
+//                 * Support escaped whitespece in mtllib
 // version 1.4.0 : Modifed ParseTextureNameAndOption API
 // version 1.3.1 : Make ParseTextureNameAndOption API public
 // version 1.3.0 : Separate warning and error message(breaking API of LoadObj)
