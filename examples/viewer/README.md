@@ -5,6 +5,8 @@
 * premake5
 * glfw3
 * glew
+* xcursor
+* xinerama
 
 ## Build on MaCOSX
 
