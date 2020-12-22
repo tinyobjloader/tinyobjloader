@@ -1666,7 +1666,7 @@ static void SplitString(const std::string &s, char delim, char escape,
   std::string token;
 
   bool escaping = false;
-  for (int i = 0; i < s.size(); ++i) {
+  for (size_t i = 0; i < s.size(); ++i) {
     char ch = s[i];
     if (escaping) {
       escaping = false;
