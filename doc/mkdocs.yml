@@ -1,0 +1,5 @@
+site_name: TinyObjLoader documentation
+theme:
+  name: material
+  palette:
+    scheme: slate

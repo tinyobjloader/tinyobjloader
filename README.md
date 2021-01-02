@@ -392,6 +392,25 @@ cibuildwheels + twine upload for each git tagging event is handled in Azure Pipe
 * `git push --tags`
   * cibuildwheels + pypi upload(through twine) will be automatically triggered in Azure Pipeline.
 
+## Documentation(For developer)
+
+Documentation uses mkdocs and Material theme.
+
+You can setup mkdocs using pip.
+
+```
+$ python -m pip install mkdocs
+$ python -m pip install mkdocs-material
+```
+
+### Publish document
+
+Published document is hosted at GitHub pages.
+
+```
+$ mkdocs gh-deploy
+```
+
 ## Tests
 
 Unit tests are provided in `tests` directory. See `tests/README.md` for details.
