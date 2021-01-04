@@ -1001,7 +1001,18 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
 #ifdef TINYOBJ_LOADER_OPT_IMPLEMENTATION
 
+// uncoment to use STL default allocator
+#define TINYOBJ_LOADER_OPT_USE_LFPALLOC
+
+#ifdef TINYOBJ_LOADER_OPT_USE_LFPALLOC
 #include "lfpAlloc/Allocator.hpp"
+template<typename T>
+using allocator = lfpAlloc::lfpAllocator<T>;
+#else
+template<typename T>
+using allocator = std::allocator<T>;
+#endif
+
 
 namespace tinyobj_opt {
 
@@ -1024,8 +1035,8 @@ typedef struct {
   float tx, ty;
 
   // for f
-  std::vector<index_t, lfpAlloc::lfpAllocator<index_t> > f;
-  std::vector<int, lfpAlloc::lfpAllocator<int> > f_num_verts;
+  std::vector<index_t, allocator<index_t> > f;
+  std::vector<int, allocator<int> > f_num_verts;
 
   const char *group_name;
   unsigned int group_name_len;
@@ -1279,7 +1290,7 @@ bool parseObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
   auto t1 = std::chrono::high_resolution_clock::now();
 
-  std::vector<LineInfo, lfpAlloc::lfpAllocator<LineInfo> >
+  std::vector<LineInfo, allocator<LineInfo> >
       line_infos[kMaxThreads];
   for (size_t t = 0; t < static_cast<size_t>(num_threads); t++) {
     // Pre allocate enough memory. len / 128 / num_threads is just a heuristic
