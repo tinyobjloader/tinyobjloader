@@ -2749,6 +2749,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
                  .size()) {  // FIXME(syoyo): Support other prims(e.g. lines)
     shapes->push_back(shape);
   }
+  // `shape` will be deallocated, so make sure it's not one of the ones we've
+  // added to `shapes`.
+  shape = shape_t();
   prim_group.clear();  // for safety
 
   if (err) {
