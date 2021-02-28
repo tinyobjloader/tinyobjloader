@@ -139,6 +139,7 @@ TinyObjLoader is licensed under MIT license.
 ### Third party licenses.
 
 * pybind11 : BSD-style license.
+* mapbox earcut.hpp: ISC License.
 
 ## Usage
 
@@ -240,6 +241,16 @@ Note that when `triangulate` flag is true in `tinyobj::LoadObj()` argument, `num
 TinyObjLoader now use `real_t` for floating point data type.
 Default is `float(32bit)`.
 You can enable `double(64bit)` precision by using `TINYOBJLOADER_USE_DOUBLE` define.
+
+### Robust triangulation
+
+When you enable `triangulation`(default is enabled),
+TinyObjLoader triangulate polygons(faces with 4 or more vertices).
+
+Built-in trinagulation code may not work well in some polygon shape.
+
+You can define `TINYOBJLOADER_USE_MAPBOX_EARCUT` for robust triangulation using `mapbox/earcut.hpp`.
+This requires C++11 compiler though.
 
 #### Example code (Deprecated API)
 
