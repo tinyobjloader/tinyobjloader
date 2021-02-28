@@ -23,12 +23,23 @@
 #include <GLFW/glfw3.h>
 
 #define TINYOBJLOADER_IMPLEMENTATION
+// TINYOBJLOADER_USE_MAPBOX_EARCUT: Enable better triangulation. Requires C++11
+//#define TINYOBJLOADER_USE_MAPBOX_EARCUT
 #include "../../tiny_obj_loader.h"
 
 #include "trackball.h"
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
+#endif
+
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
 #ifdef _WIN32
 #ifdef __cplusplus
