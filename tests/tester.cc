@@ -1332,6 +1332,38 @@ void test_mtl_filename_with_whitespace_issue46() {
   TEST_CHECK("green" == materials[0].name);
 }
 
+void test_face_missing_issue295() {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string warn;
+  std::string err;
+  bool ret = tinyobj::LoadObj(
+      &attrib, &shapes, &materials, &warn, &err,
+      "../models/issue-295-trianguation-failure.obj",
+      gMtlBasePath, /* triangualte */true);
+
+  TEST_CHECK(warn.empty());
+
+  if (!warn.empty()) {
+    std::cout << "WARN: " << warn << std::endl;
+  }
+
+  if (!err.empty()) {
+    std::cerr << "ERR: " << err << std::endl;
+  }
+
+  TEST_CHECK(true == ret);
+  TEST_CHECK(1 == shapes.size());
+
+  // 14 quad faces are triangulated into 28 triangles.
+  TEST_CHECK(28 == shapes[0].mesh.num_face_vertices.size());
+  TEST_CHECK(28 == shapes[0].mesh.smoothing_group_ids.size());
+  TEST_CHECK(28 == shapes[0].mesh.material_ids.size());
+  TEST_CHECK((3 * 28) == shapes[0].mesh.indices.size()); // 28 triangle faces x 3
+}
+
 // Fuzzer test.
 // Just check if it does not crash.
 // Disable by default since Windows filesystem can't create filename of afl
@@ -1433,4 +1465,6 @@ TEST_LIST = {
      test_texres_texopt_issue248},
     {"test_mtl_filename_with_whitespace_issue46",
      test_mtl_filename_with_whitespace_issue46},
+    {"test_face_missing_issue295",
+     test_face_missing_issue295},
     {NULL, NULL}};
