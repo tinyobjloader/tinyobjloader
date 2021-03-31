@@ -109,6 +109,11 @@ write_basic_package_version_file(${PROJECT_NAME}-config-version.cmake
 #pkg-config file
 configure_file(${PROJECT_NAME}.pc.in ${LIBRARY_NAME}.pc @ONLY)
 
+if(DEFINED ENV{LIB_FUZZING_ENGINE})
+  add_executable(fuzz_ParseFromString fuzzer/fuzz_ParseFromString.cc)
+  target_link_libraries(fuzz_ParseFromString ${LIBRARY_NAME} $ENV{LIB_FUZZING_ENGINE})
+endif()
+
 #Installation
 install(TARGETS
   ${LIBRARY_NAME}
