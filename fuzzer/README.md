@@ -45,3 +45,7 @@ cf libfuzzer.info for all options
 ```
 $ ./fuzz_ParseFromString -rss_limit_mb=2000
 ```
+
+## Regression tests
+
+See `regression_runner/`
