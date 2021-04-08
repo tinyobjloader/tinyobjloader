@@ -941,6 +941,10 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result) {
     read = 0;
     end_not_reached = (curr != s_end);
     while (end_not_reached && IS_DIGIT(*curr)) {
+      if (exponent > std::numeric_limits<int>::max()/10) {
+        // Integer overflow
+        goto fail;
+      }
       exponent *= 10;
       exponent += static_cast<int>(*curr - 0x30);
       curr++;
