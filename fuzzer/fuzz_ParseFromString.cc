@@ -10,7 +10,7 @@
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
     tinyobj::ObjReaderConfig reader_config;
     tinyobj::ObjReader reader;
-    if (Size < 2) {
+    if (Size < 2 || Size > 0x10000) {
         return 0;
     }
     for (size_t i = 0; i < Size-1; i++) {
