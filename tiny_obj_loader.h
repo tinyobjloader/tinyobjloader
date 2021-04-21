@@ -359,7 +359,7 @@ struct mesh_t {
   std::vector<unsigned int> smoothing_group_ids;  // per-face smoothing group
                                                   // ID(0 = off. positive value
                                                   // = group id)
-  std::vector<tag_t> tags;                        // SubD tag
+  std::vector<tag_t*> tags;                       // SubD tag
 };
 
 // struct path_t {
@@ -1368,7 +1368,7 @@ static int pnpoly(int nvert, T *vertx, T *verty, T testx, T testy) {
 
 // TODO(syoyo): refactor function.
 static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
-                                const std::vector<tag_t> &tags,
+                                const std::vector<tag_t*> &tags,
                                 const int material_id, const std::string &name,
                                 bool triangulate, const std::vector<real_t> &v,
                                 std::string *warn) {
@@ -2338,7 +2338,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   std::vector<real_t> vt;
   std::vector<real_t> vc;
   std::vector<skin_weight_t> vw;
-  std::vector<tag_t> tags;
+  std::vector<tag_t*> tags;
   PrimGroup prim_group;
   std::string name;
 
@@ -2788,7 +2788,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
         tag.stringValues[i] = parseString(&token);
       }
 
-      tags.push_back(tag);
+      tags.push_back(&tag);
 
       continue;
     }
@@ -3156,7 +3156,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
         token += tag.stringValues[i].size() + 1;
       }
 
-      tags.push_back(tag);
+      tags.push_back(&tag);
     }
 #endif
 
