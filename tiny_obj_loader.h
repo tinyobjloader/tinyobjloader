@@ -2453,7 +2453,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
         // TODO(syoyo): # of elements check
         parseReal2(&j, &w, &token, -1.0);
 
-        if (j < 0.0) {
+        if (j < static_cast<real_t>(0)) {
           if (err) {
             std::stringstream ss;
             ss << "Failed parse `vw' line. joint_id is negative. "
