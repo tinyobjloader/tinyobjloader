@@ -1986,7 +1986,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
         warn_ss << "Both `d` and `Tr` parameters defined for \""
                 << material.name
                 << "\". Use the value of `d` for dissolve (line " << line_no
-                << " in .mtl.)" << std::endl;
+                << " in .mtl.)\n";
       }
       has_d = true;
       continue;
@@ -1998,7 +1998,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
         warn_ss << "Both `d` and `Tr` parameters defined for \""
                 << material.name
                 << "\". Use the value of `d` for dissolve (line " << line_no
-                << " in .mtl.)" << std::endl;
+                << " in .mtl.)\n";
       } else {
         // We invert value of Tr(assume Tr is in range [0, 1])
         // NOTE: Interpretation of Tr is application(exporter) dependent. For
@@ -2244,7 +2244,7 @@ bool MaterialFileReader::operator()(const std::string &matId,
 
     std::stringstream ss;
     ss << "Material file [ " << matId
-       << " ] not found in a path : " << m_mtlBaseDir << std::endl;
+       << " ] not found in a path : " << m_mtlBaseDir << "\n";
     if (warn) {
       (*warn) += ss.str();
     }
@@ -2261,7 +2261,7 @@ bool MaterialFileReader::operator()(const std::string &matId,
 
     std::stringstream ss;
     ss << "Material file [ " << filepath
-       << " ] not found in a path : " << m_mtlBaseDir << std::endl;
+       << " ] not found in a path : " << m_mtlBaseDir << "\n";
     if (warn) {
       (*warn) += ss.str();
     }
@@ -2278,7 +2278,7 @@ bool MaterialStreamReader::operator()(const std::string &matId,
   (void)matId;
   if (!m_inStream) {
     std::stringstream ss;
-    ss << "Material stream in error state. " << std::endl;
+    ss << "Material stream in error state. \n";
     if (warn) {
       (*warn) += ss.str();
     }
@@ -2304,7 +2304,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
   std::ifstream ifs(filename);
   if (!ifs) {
-    errss << "Cannot open file [" << filename << "]" << std::endl;
+    errss << "Cannot open file [" << filename << "]\n";
     if (err) {
       (*err) = errss.str();
     }
@@ -2837,24 +2837,21 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   if (greatest_v_idx >= static_cast<int>(v.size() / 3)) {
     if (warn) {
       std::stringstream ss;
-      ss << "Vertex indices out of bounds (line " << line_num << ".)\n"
-         << std::endl;
+      ss << "Vertex indices out of bounds (line " << line_num << ".)\n\n";
       (*warn) += ss.str();
     }
   }
   if (greatest_vn_idx >= static_cast<int>(vn.size() / 3)) {
     if (warn) {
       std::stringstream ss;
-      ss << "Vertex normal indices out of bounds (line " << line_num << ".)\n"
-         << std::endl;
+      ss << "Vertex normal indices out of bounds (line " << line_num << ".)\n\n";
       (*warn) += ss.str();
     }
   }
   if (greatest_vt_idx >= static_cast<int>(vt.size() / 2)) {
     if (warn) {
       std::stringstream ss;
-      ss << "Vertex texcoord indices out of bounds (line " << line_num << ".)\n"
-         << std::endl;
+      ss << "Vertex texcoord indices out of bounds (line " << line_num << ".)\n\n";
       (*warn) += ss.str();
     }
   }
