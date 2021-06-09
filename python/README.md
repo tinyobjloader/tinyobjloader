@@ -3,6 +3,11 @@
 `tinyobjloader` is a python wrapper for C++ wavefront .obj loader.
 `tinyobjloader` is rather fast and feature rich than other pure python version of .obj loader.
 
+## Requirements
+
+* python 3.x(3.6+ recommended)
+  * python 2.7 may work, but not officially supported.
+
 ## Install
 
 You can install `tinyobjloader` with pip.

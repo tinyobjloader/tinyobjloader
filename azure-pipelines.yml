@@ -85,11 +85,9 @@ jobs:
           artifactName: tinyobjDeployMacOS
 
   - job: windows
-    pool: {vmImage: 'vs2017-win2016'}
+    pool: {vmImage: 'windows-2019'}
     steps:
       - task: UsePythonVersion@0
-      - script: choco install vcpython27 -f -y
-        displayName: Install Visual C++ for Python 2.7
       - bash: |
           python -m pip install --upgrade pip
           pip install cibuildwheel
