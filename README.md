@@ -1,18 +1,18 @@
 # tinyobjloader
 
-[![Join the chat at https://gitter.im/syoyo/tinyobjloader](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/syoyo/tinyobjloader?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Build Status](https://travis-ci.org/tinyobjloader/tinyobjloader.svg?branch=master)](https://travis-ci.org/tinyobjloader/tinyobjloader)
 
-[![Build Status](https://travis-ci.org/syoyo/tinyobjloader.svg)](https://travis-ci.org/syoyo/tinyobjloader)
+[![AZ Build Status](https://dev.azure.com/tinyobjloader/tinyobjloader/_apis/build/status/tinyobjloader.tinyobjloader?branchName=master)](https://dev.azure.com/tinyobjloader/tinyobjloader/_build/latest?definitionId=1&branchName=master)
 
-[![wercker status](https://app.wercker.com/status/495a3bac400212cdacdeb4dd9397bf4f/m "wercker status")](https://app.wercker.com/project/bykey/495a3bac400212cdacdeb4dd9397bf4f)
-
-[![Build status](https://ci.appveyor.com/api/projects/status/tlb421q3t2oyobcn/branch/master?svg=true)](https://ci.appveyor.com/project/syoyo/tinyobjloader/branch/master)
+[![AppVeyor Build status](https://ci.appveyor.com/api/projects/status/m6wfkvket7gth8wn/branch/master?svg=true)](https://ci.appveyor.com/project/syoyo/tinyobjloader-6e4qf/branch/master)
 
 [![Coverage Status](https://coveralls.io/repos/github/syoyo/tinyobjloader/badge.svg?branch=master)](https://coveralls.io/github/syoyo/tinyobjloader?branch=master)
 
-[https://github.com/syoyo/tinyobjloader](https://github.com/syoyo/tinyobjloader)
+[![AUR version](https://img.shields.io/aur/version/tinyobjloader?logo=arch-linux)](https://aur.archlinux.org/packages/tinyobjloader)
 
-Tiny but powerful single file wavefront obj loader written in C++. No dependency except for C++ STL. It can parse over 10M polygons with moderate memory and time.
+[![Download](https://api.bintray.com/packages/conan/conan-center/tinyobjloader%3A_/images/download.svg)](https://bintray.com/conan/conan-center/tinyobjloader%3A_/_latestVersion) (not recommended)
+
+Tiny but powerful single file wavefront obj loader written in C++03. No dependency except for C++ STL. It can parse over 10M polygons with moderate memory and time.
 
 `tinyobjloader` is good for embedding .obj loader to your (global illumination) renderer ;-)
 
@@ -22,15 +22,22 @@ Notice!
 -------
 
 We have released new version v1.0.0 on 20 Aug, 2016.
-Old version is available `v0.9.x` branch https://github.com/syoyo/tinyobjloader/tree/v0.9.x
+Old version is available as `v0.9.x` branch https://github.com/syoyo/tinyobjloader/tree/v0.9.x
 
 ## What's new
 
+* 19 Feb, 2020 : The repository has been moved to https://github.com/tinyobjloader/tinyobjloader !
+* 18 May, 2019 : Python binding!(See `python` folder. Also see https://pypi.org/project/tinyobjloader/)
+* 14 Apr, 2019 : Bump version v2.0.0 rc0. New C++ API and python bindings!(1.x API still exists for backward compatibility)
 * 20 Aug, 2016 : Bump version v1.0.0. New data structure and API!
+
+## Requirements
+
+* C++03 compiler
 
 ### Old version
 
-Previous old version is avaiable in `v0.9.x` branch.
+Previous old version is available in `v0.9.x` branch.
 
 ## Example
 
@@ -39,11 +46,11 @@ Previous old version is avaiable in `v0.9.x` branch.
 tinyobjloader can successfully load 6M triangles Rungholt scene.
 http://casual-effects.com/data/index.html
 
-![](images/sanmugel.png) 
+![](images/sanmugel.png)
 
-* [examples/viewer/](examples/viewer) OpenGL .obj viewer 
-* [examples/callback_api/](examples/callback_api/) Callback API example 
-* [examples/voxelize/](examples/voxelize/) Voxelizer example 
+* [examples/viewer/](examples/viewer) OpenGL .obj viewer
+* [examples/callback_api/](examples/callback_api/) Callback API example
+* [examples/voxelize/](examples/voxelize/) Voxelizer example
 
 ## Use case
 
@@ -58,6 +65,12 @@ TinyObjLoader is successfully used in ...
 * cudabox: CUDA Solid Voxelizer Engine https://github.com/gaspardzoss/cudavox
 * Drake: A planning, control, and analysis toolbox for nonlinear dynamical systems https://github.com/RobotLocomotion/drake
 * VFPR - a Vulkan Forward Plus Renderer : https://github.com/WindyDarian/Vulkan-Forward-Plus-Renderer
+* glslViewer: https://github.com/patriciogonzalezvivo/glslViewer
+* Lighthouse2: https://github.com/jbikker/lighthouse2
+* rayrender(an open source R package for raytracing scenes in created in R): https://github.com/tylermorganwall/rayrender
+* liblava - A modern C++ and easy-to-use framework for the Vulkan API. [MIT]: https://github.com/liblava/liblava
+* rtxON - Simple Vulkan raytracing tutorials  https://github.com/iOrange/rtxON
+* metal-ray-tracer - Writing ray-tracer using Metal Performance Shaders https://github.com/sergeyreznik/metal-ray-tracer https://sergeyreznik.github.io/metal-ray-tracer/index.html
 * Your project here! (Letting us know via github issue is welcome!)
 
 ### Old version(v0.9.x)
@@ -99,6 +112,18 @@ TinyObjLoader is successfully used in ...
 * Callback API for custom loading.
 * Double precision support(for HPC application).
 * Smoothing group
+* Python binding : See `python` folder.
+  * Precompiled binary(manylinux1-x86_64 only) is hosted at pypi https://pypi.org/project/tinyobjloader/)
+
+### Primitives
+
+* [x] face(`f`)
+* [x] lines(`l`)
+* [ ] points(`p`)
+* [ ] curve
+* [ ] 2D curve
+* [ ] surface.
+* [ ] Free form curve/surfaces
 
 
 ## TODO
@@ -109,9 +134,31 @@ TinyObjLoader is successfully used in ...
 
 ## License
 
-Licensed under MIT license.
+TinyObjLoader is licensed under MIT license.
+
+### Third party licenses.
+
+* pybind11 : BSD-style license.
 
 ## Usage
+
+### Installation
+
+One option is to simply copy the header file into your project and to make sure that `TINYOBJLOADER_IMPLEMENTATION` is defined exactly once.
+
+Tinyobjlaoder is also available as a [conan package](https://bintray.com/conan/conan-center/tinyobjloader%3A_/_latestVersion). Conan integrates with many build systems and lets you avoid manual dependency installation. Their [documentation](https://docs.conan.io/en/latest/getting_started.html) is a great starting point.
+
+### Building tinyobjloader - Using vcpkg
+
+You can download and install tinyobjloader using the [vcpkg](https://github.com/Microsoft/vcpkg) dependency manager:
+
+    git clone https://github.com/Microsoft/vcpkg.git
+    cd vcpkg
+    ./bootstrap-vcpkg.sh
+    ./vcpkg integrate install
+    ./vcpkg install tinyobjloader
+
+The tinyobjloader port in vcpkg is kept up to date by Microsoft team members and community contributors. If the version is out of date, please [create an issue or pull request](https://github.com/Microsoft/vcpkg) on the vcpkg repository.
 
 ### Data format
 
@@ -181,20 +228,20 @@ mesh_t::num_face_vertices => array of the number of vertices per face(e.g. 3 = t
 
   |    face[0]   |       face[1]     |    face[2]   |     |      face[n-1]           |
   +----+----+----+----+----+----+----+----+----+----+     +--------+--------+--------+
-  | i0 | i1 | i2 | i3 | i4 | i5 | i6 | i7 | i8 | i9 | ... | i(n-3) | i(n-2) | i(n-1) | 
+  | i0 | i1 | i2 | i3 | i4 | i5 | i6 | i7 | i8 | i9 | ... | i(n-3) | i(n-2) | i(n-1) |
   +----+----+----+----+----+----+----+----+----+----+     +--------+--------+--------+
 
 ```
 
-Note that when `triangulate` flas is true in `tinyobj::LoadObj()` argument, `num_face_vertices` are all filled with 3(triangle).
+Note that when `triangulate` flag is true in `tinyobj::LoadObj()` argument, `num_face_vertices` are all filled with 3(triangle).
 
 ### float data type
 
 TinyObjLoader now use `real_t` for floating point data type.
-Default is `float(32bit)`. 
+Default is `float(32bit)`.
 You can enable `double(64bit)` precision by using `TINYOBJLOADER_USE_DOUBLE` define.
 
-#### Example code
+#### Example code (Deprecated API)
 
 ```c++
 #define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
@@ -204,11 +251,17 @@ std::string inputfile = "cornell_box.obj";
 tinyobj::attrib_t attrib;
 std::vector<tinyobj::shape_t> shapes;
 std::vector<tinyobj::material_t> materials;
-  
+
+std::string warn;
 std::string err;
-bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, inputfile.c_str());
-  
-if (!err.empty()) { // `err` may contain warning message.
+
+bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, inputfile.c_str());
+
+if (!warn.empty()) {
+  std::cout << warn << std::endl;
+}
+
+if (!err.empty()) {
   std::cerr << err << std::endl;
 }
 
@@ -221,24 +274,33 @@ for (size_t s = 0; s < shapes.size(); s++) {
   // Loop over faces(polygon)
   size_t index_offset = 0;
   for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
-    int fv = shapes[s].mesh.num_face_vertices[f];
+    size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
 
     // Loop over vertices in the face.
     for (size_t v = 0; v < fv; v++) {
       // access to vertex
       tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
-      tinyobj::real_t vx = attrib.vertices[3*idx.vertex_index+0];
-      tinyobj::real_t vy = attrib.vertices[3*idx.vertex_index+1];
-      tinyobj::real_t vz = attrib.vertices[3*idx.vertex_index+2];
-      tinyobj::real_t nx = attrib.normals[3*idx.normal_index+0];
-      tinyobj::real_t ny = attrib.normals[3*idx.normal_index+1];
-      tinyobj::real_t nz = attrib.normals[3*idx.normal_index+2];
-      tinyobj::real_t tx = attrib.texcoords[2*idx.texcoord_index+0];
-      tinyobj::real_t ty = attrib.texcoords[2*idx.texcoord_index+1];
+
+      tinyobj::real_t vx = attrib.vertices[3*size_t(idx.vertex_index)+0];
+      tinyobj::real_t vy = attrib.vertices[3*size_t(idx.vertex_index)+1];
+      tinyobj::real_t vz = attrib.vertices[3*size_t(idx.vertex_index)+2];
+
+      // Check if `normal_index` is zero or positive. negative = no normal data
+      if (idx.normal_index >= 0) {
+        tinyobj::real_t nx = attrib.normals[3*size_t(idx.normal_index)+0];
+        tinyobj::real_t ny = attrib.normals[3*size_t(idx.normal_index)+1];
+        tinyobj::real_t nz = attrib.normals[3*size_t(idx.normal_index)+2];
+      }
+
+      // Check if `texcoord_index` is zero or positive. negative = no texcoord data
+      if (idx.texcoord_index >= 0) {
+        tinyobj::real_t tx = attrib.texcoords[2*size_t(idx.texcoord_index)+0];
+        tinyobj::real_t ty = attrib.texcoords[2*size_t(idx.texcoord_index)+1];
+      }
       // Optional: vertex colors
-      // tinyobj::real_t red = attrib.colors[3*idx.vertex_index+0];
-      // tinyobj::real_t green = attrib.colors[3*idx.vertex_index+1];
-      // tinyobj::real_t blue = attrib.colors[3*idx.vertex_index+2];
+      // tinyobj::real_t red   = attrib.colors[3*size_t(idx.vertex_index)+0];
+      // tinyobj::real_t green = attrib.colors[3*size_t(idx.vertex_index)+1];
+      // tinyobj::real_t blue  = attrib.colors[3*size_t(idx.vertex_index)+2];
     }
     index_offset += fv;
 
@@ -248,6 +310,78 @@ for (size_t s = 0; s < shapes.size(); s++) {
 }
 
 ```
+
+#### Example code (New Object Oriented API)
+
+```c++
+#define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
+#include "tiny_obj_loader.h"
+
+
+std::string inputfile = "cornell_box.obj";
+tinyobj::ObjReaderConfig reader_config;
+reader_config.mtl_search_path = "./"; // Path to material files
+
+tinyobj::ObjReader reader;
+
+if (!reader.ParseFromFile(inputfile, reader_config)) {
+  if (!reader.Error().empty()) {
+      std::cerr << "TinyObjReader: " << reader.Error();
+  }
+  exit(1);
+}
+
+if (!reader.Warning().empty()) {
+  std::cout << "TinyObjReader: " << reader.Warning();
+}
+
+auto& attrib = reader.GetAttrib();
+auto& shapes = reader.GetShapes();
+auto& materials = reader.GetMaterials();
+
+// Loop over shapes
+for (size_t s = 0; s < shapes.size(); s++) {
+  // Loop over faces(polygon)
+  size_t index_offset = 0;
+  for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
+    size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
+
+    // Loop over vertices in the face.
+    for (size_t v = 0; v < fv; v++) {
+      // access to vertex
+      tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
+      tinyobj::real_t vx = attrib.vertices[3*size_t(idx.vertex_index)+0];
+      tinyobj::real_t vy = attrib.vertices[3*size_t(idx.vertex_index)+1];
+      tinyobj::real_t vz = attrib.vertices[3*size_t(idx.vertex_index)+2];
+ 
+      // Check if `normal_index` is zero or positive. negative = no normal data
+      if (idx.normal_index >= 0) {
+        tinyobj::real_t nx = attrib.normals[3*size_t(idx.normal_index)+0];
+        tinyobj::real_t ny = attrib.normals[3*size_t(idx.normal_index)+1];
+        tinyobj::real_t nz = attrib.normals[3*size_t(idx.normal_index)+2];
+      }
+
+      // Check if `texcoord_index` is zero or positive. negative = no texcoord data
+      if (idx.texcoord_index >= 0) {
+        tinyobj::real_t tx = attrib.texcoords[2*size_t(idx.texcoord_index)+0];
+        tinyobj::real_t ty = attrib.texcoords[2*size_t(idx.texcoord_index)+1];
+      }
+
+      // Optional: vertex colors
+      // tinyobj::real_t red   = attrib.colors[3*size_t(idx.vertex_index)+0];
+      // tinyobj::real_t green = attrib.colors[3*size_t(idx.vertex_index)+1];
+      // tinyobj::real_t blue  = attrib.colors[3*size_t(idx.vertex_index)+2];
+    }
+    index_offset += fv;
+
+    // per-face material
+    shapes[s].mesh.material_ids[f];
+  }
+}
+
+```
+
+
 
 ## Optimized loader
 
@@ -262,6 +396,19 @@ Here is some benchmark result. Time are measured on MacBook 12(Early 2016, Core 
   * baseline(v1.0.x): 6800 msecs(2.3x faster than old version)
   * optimised: 1500 msecs(10x faster than old version, 4.5x faster than baseline)
 
+## Python binding
+
+### CI + PyPI upload
+
+cibuildwheels + twine upload for each git tagging event is handled in Azure Pipeline.
+
+#### How to bump version(For developer)
+
+* Bump version in CMakeLists.txt
+* Update version in `python/setup.py`
+* Commit with tag name starging with `v`(e.g. `v2.1.0`)
+* `git push --tags`
+  * cibuildwheels + pypi upload(through twine) will be automatically triggered in Azure Pipeline.
 
 ## Tests
 

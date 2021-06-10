@@ -9,8 +9,9 @@ bool Voxelize(const char* filename, float voxelsizex, float voxelsizey, float vo
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
     std::vector<tinyobj::material_t> materials;
+    std::string warn;
     std::string err;
-    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, filename);
+    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename);
 
     if (!err.empty()) {
       printf("err: %s\n", err.c_str());

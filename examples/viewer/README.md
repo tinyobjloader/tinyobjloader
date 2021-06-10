@@ -5,6 +5,8 @@
 * premake5
 * glfw3
 * glew
+* xcursor
+* xinerama
 
 ## Build on MaCOSX
 
@@ -37,6 +39,7 @@ Then,
 
 ## TODO
 
+* [ ] Alpha texturing.
 * [ ] Support per-face material.
 * [ ] Use shader-based GL rendering.
 * [ ] PBR shader support.

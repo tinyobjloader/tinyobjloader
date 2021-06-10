@@ -181,9 +181,9 @@ static void CalcNormal(float N[3], float v0[3], float v1[3], float v2[3]) {
   v20[1] = v2[1] - v0[1];
   v20[2] = v2[2] - v0[2];
 
-  N[0] = v20[1] * v10[2] - v20[2] * v10[1];
-  N[1] = v20[2] * v10[0] - v20[0] * v10[2];
-  N[2] = v20[0] * v10[1] - v20[1] * v10[0];
+  N[0] = v10[1] * v20[2] - v10[2] * v20[1];
+  N[1] = v10[2] * v20[0] - v10[0] * v20[2];
+  N[2] = v10[0] * v20[1] - v10[1] * v20[0];
 
   float len2 = N[0] * N[0] + N[1] * N[1] + N[2] * N[2];
   if (len2 > 0.0f) {
@@ -308,9 +308,13 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
   base_dir += "/";
 #endif
 
+  std::string warn;
   std::string err;
-  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, filename,
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename,
                               base_dir.c_str());
+  if (!warn.empty()) {
+    std::cout << "WARN: " << warn << std::endl;
+  }
   if (!err.empty()) {
     std::cerr << err << std::endl;
   }

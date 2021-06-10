@@ -9,8 +9,8 @@
 #include <limits>
 #include <cmath>
 #include <cassert>
-#include <cstring>	
-#include <algorithm>	
+#include <cstring>
+#include <algorithm>
 
 #if defined(ENABLE_ZLIB)
 #include <zlib.h>
@@ -81,7 +81,7 @@ void CalcNormal(float N[3], float v0[3], float v1[3], float v2[3]) {
   float len2 = N[0] * N[0] + N[1] * N[1] + N[2] * N[2];
   if (len2 > 0.0f) {
     float len = sqrtf(len2);
-    
+
     N[0] /= len;
     N[1] /= len;
   }
@@ -96,7 +96,7 @@ const char *mmap_file(size_t *len, const char* filename)
 
   HANDLE fileMapping = CreateFileMapping(file, NULL, PAGE_READONLY, 0, 0, NULL);
   assert(fileMapping != INVALID_HANDLE_VALUE);
- 
+
   LPVOID fileMapView = MapViewOfFile(fileMapping, FILE_MAP_READ, 0, 0, 0);
   auto fileMapViewChar = (const char*)fileMapView;
   assert(fileMapView != NULL);
@@ -140,7 +140,7 @@ const char *mmap_file(size_t *len, const char* filename)
   }
 
   if (!S_ISREG (sb.st_mode)) {
-    fprintf (stderr, "%s is not a file\n", "lineitem.tbl");
+    fprintf (stderr, "%s is not a file\n", filename);
     return nullptr;
   }
 
@@ -159,7 +159,7 @@ const char *mmap_file(size_t *len, const char* filename)
   (*len) = fileSize;
 
   return p;
-  
+
 #endif
 }
 
@@ -175,11 +175,11 @@ bool gz_load(std::vector<char>* buf, const char* filename)
         return false;
     }
     while (1) {
-        int err;                    
+        int err;
         int bytes_read;
         unsigned char buffer[1024];
         bytes_read = gzread (file, buffer, 1024);
-        buf->insert(buf->end(), buffer, buffer + 1024); 
+        buf->insert(buf->end(), buffer, buffer + 1024);
         //printf ("%s", buffer);
         if (bytes_read < 1024) {
             if (gzeof (file)) {
@@ -305,7 +305,7 @@ const char* get_file_data(size_t *len, const char* filename)
       data_len = buf.size();
     }
   } else {
-    
+
     data = mmap_file(&data_len, filename);
 
   }
@@ -357,7 +357,7 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int n
         std::vector<float> vb; // pos(3float), normal(3float), color(3float)
         size_t face_offset = 0;
         for (size_t v = 0; v < attrib.face_num_verts.size(); v++) {
-          assert(attrib.face_num_verts[v] % 3 == 0); // assume all triangle face.
+          assert(attrib.face_num_verts[v] % 3 == 0); // assume all triangle face(multiple of 3).
           for (size_t f = 0; f < attrib.face_num_verts[v] / 3; f++) {
             tinyobj_opt::index_t idx0 = attrib.indices[face_offset+3*f+0];
             tinyobj_opt::index_t idx1 = attrib.indices[face_offset+3*f+1];
@@ -385,7 +385,7 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int n
 
             float n[3][3];
 
-            if (attrib.normals.size() > 0) { 
+            if (attrib.normals.size() > 0) {
               int nf0 = idx0.normal_index;
               int nf1 = idx1.normal_index;
               int nf2 = idx2.normal_index;
@@ -424,7 +424,7 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int n
               float len2 = c[0] * c[0] + c[1] * c[1] + c[2] * c[2];
               if (len2 > 1.0e-6f) {
                 float len = sqrtf(len2);
-                
+
                 c[0] /= len;
                 c[1] /= len;
                 c[2] /= len;
@@ -433,7 +433,7 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int n
               vb.push_back(c[1] * 0.5 + 0.5);
               vb.push_back(c[2] * 0.5 + 0.5);
             }
-          } 
+          }
           face_offset += attrib.face_num_verts[v];
         }
 
@@ -448,7 +448,7 @@ bool LoadObjAndConvert(float bmin[3], float bmax[3], const char* filename, int n
 
         gDrawObjects.push_back(o);
   }
-  
+
   printf("bmin = %f, %f, %f\n", bmin[0], bmin[1], bmin[2]);
   printf("bmax = %f, %f, %f\n", bmax[0], bmax[1], bmax[2]);
 
@@ -562,7 +562,7 @@ void Draw(const std::vector<DrawObject>& drawObjects)
     if (o.vb < 1) {
       continue;
     }
- 
+
     glBindBuffer(GL_ARRAY_BUFFER, o.vb);
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);
@@ -586,7 +586,7 @@ void Draw(const std::vector<DrawObject>& drawObjects)
     if (o.vb < 1) {
       continue;
     }
- 
+
     glBindBuffer(GL_ARRAY_BUFFER, o.vb);
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);
@@ -677,7 +677,7 @@ int main(int argc, char **argv)
     return -1;
   }
 
-  std::cout << "GLFW OK." << std::endl;
+  std::cout << "GLFW Init OK." << std::endl;
 
 
   window = glfwCreateWindow(width, height, "Obj viewer", NULL, NULL);
@@ -738,7 +738,7 @@ int main(int argc, char **argv)
 
     // Centerize object.
     glTranslatef(-0.5*(bmax[0] + bmin[0]), -0.5*(bmax[1] + bmin[1]), -0.5*(bmax[2] + bmin[2]));
-  
+
     Draw(gDrawObjects);
 
     glfwSwapBuffers(window);
