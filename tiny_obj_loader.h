@@ -664,6 +664,7 @@ bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
 #ifdef TINYOBJLOADER_USE_MAPBOX_EARCUT
 
 #include <algorithm>
+#include <array>
 
 /*
 ISC License
