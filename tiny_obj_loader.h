@@ -29,6 +29,7 @@ THE SOFTWARE.
 //                 * Support multiple search path for .mtl(v1 API).
 //                 * Support vertex weight `vw`(as an tinyobj extension)
 //                 * Support escaped whitespece in mtllib
+//                 * Add robust triangulation using Mapbox earcut(TINYOBJLOADER_USE_MAPBOX_EARCUT).
 // version 1.4.0 : Modifed ParseTextureNameAndOption API
 // version 1.3.1 : Make ParseTextureNameAndOption API public
 // version 1.3.0 : Separate warning and error message(breaking API of LoadObj)
