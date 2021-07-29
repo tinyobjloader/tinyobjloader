@@ -1811,6 +1811,10 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result) {
     read = 0;
     end_not_reached = (curr != s_end);
     while (end_not_reached && IS_DIGIT(*curr)) {
+      if (exponent > std::numeric_limits<int>::max()/10) {
+        // Integer overflow
+        goto fail;
+      }
       exponent *= 10;
       exponent += static_cast<int>(*curr - 0x30);
       curr++;
@@ -2488,29 +2492,6 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
 
 #else  // Built-in ear clipping triangulation
 
-#if 0
-          real_t area = 0;
-          for (size_t k = 0; k < npolys; ++k) {
-            i0 = face.vertex_indices[(k + 0) % npolys];
-            i1 = face.vertex_indices[(k + 1) % npolys];
-            size_t vi0 = size_t(i0.v_idx);
-            size_t vi1 = size_t(i1.v_idx);
-            if (((vi0 * 3 + axes[0]) >= v.size()) ||
-                ((vi0 * 3 + axes[1]) >= v.size()) ||
-                ((vi1 * 3 + axes[0]) >= v.size()) ||
-                ((vi1 * 3 + axes[1]) >= v.size())) {
-              // Invalid index.
-              continue;
-            }
-            real_t v0x = v[vi0 * 3 + axes[0]];
-            real_t v0y = v[vi0 * 3 + axes[1]];
-            real_t v1x = v[vi1 * 3 + axes[0]];
-            real_t v1y = v[vi1 * 3 + axes[1]];
-            //std::cout << "area = " << (v0x * v1y - v0y * v1x) * static_cast<real_t>(0.5) << "\n";
-            area += (v0x * v1y - v0y * v1x) * static_cast<real_t>(0.5);
-            //std::cout << "sum(area) = " << area << "\n";
-          }
-#endif
 
           face_t remainingFace = face;  // copy
           size_t guess_vert = 0;
@@ -2558,10 +2539,9 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
               }
             }
 
-            // std::cout << "vx = " << vx[0] << ", " << vx[1] << ", " << vx[2]
-            // << "\n"; std::cout << "vy = " << vy[0] << ", " << vy[1] << ", " <<
-            // vy[2] << "\n";
-
+            //
+            // area is calculated per face
+            //
             real_t e0x = vx[1] - vx[0];
             real_t e0y = vy[1] - vy[0];
             real_t e1x = vx[2] - vx[1];
@@ -2948,7 +2928,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
         warn_ss << "Both `d` and `Tr` parameters defined for \""
                 << material.name
                 << "\". Use the value of `d` for dissolve (line " << line_no
-                << " in .mtl.)" << std::endl;
+                << " in .mtl.)\n";
       }
       has_d = true;
       continue;
@@ -2960,7 +2940,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
         warn_ss << "Both `d` and `Tr` parameters defined for \""
                 << material.name
                 << "\". Use the value of `d` for dissolve (line " << line_no
-                << " in .mtl.)" << std::endl;
+                << " in .mtl.)\n";
       } else {
         // We invert value of Tr(assume Tr is in range [0, 1])
         // NOTE: Interpretation of Tr is application(exporter) dependent. For
@@ -3206,7 +3186,7 @@ bool MaterialFileReader::operator()(const std::string &matId,
 
     std::stringstream ss;
     ss << "Material file [ " << matId
-       << " ] not found in a path : " << m_mtlBaseDir << std::endl;
+       << " ] not found in a path : " << m_mtlBaseDir << "\n";
     if (warn) {
       (*warn) += ss.str();
     }
@@ -3223,7 +3203,7 @@ bool MaterialFileReader::operator()(const std::string &matId,
 
     std::stringstream ss;
     ss << "Material file [ " << filepath
-       << " ] not found in a path : " << m_mtlBaseDir << std::endl;
+       << " ] not found in a path : " << m_mtlBaseDir << "\n";
     if (warn) {
       (*warn) += ss.str();
     }
@@ -3240,7 +3220,7 @@ bool MaterialStreamReader::operator()(const std::string &matId,
   (void)matId;
   if (!m_inStream) {
     std::stringstream ss;
-    ss << "Material stream in error state. " << std::endl;
+    ss << "Material stream in error state. \n";
     if (warn) {
       (*warn) += ss.str();
     }
@@ -3266,7 +3246,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
   std::ifstream ifs(filename);
   if (!ifs) {
-    errss << "Cannot open file [" << filename << "]" << std::endl;
+    errss << "Cannot open file [" << filename << "]\n";
     if (err) {
       (*err) = errss.str();
     }
@@ -3415,7 +3395,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
         // TODO(syoyo): # of elements check
         parseReal2(&j, &w, &token, -1.0);
 
-        if (j < 0.0) {
+        if (j < static_cast<real_t>(0)) {
           if (err) {
             std::stringstream ss;
             ss << "Failed parse `vw' line. joint_id is negative. "
@@ -3799,24 +3779,21 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   if (greatest_v_idx >= static_cast<int>(v.size() / 3)) {
     if (warn) {
       std::stringstream ss;
-      ss << "Vertex indices out of bounds (line " << line_num << ".)\n"
-         << std::endl;
+      ss << "Vertex indices out of bounds (line " << line_num << ".)\n\n";
       (*warn) += ss.str();
     }
   }
   if (greatest_vn_idx >= static_cast<int>(vn.size() / 3)) {
     if (warn) {
       std::stringstream ss;
-      ss << "Vertex normal indices out of bounds (line " << line_num << ".)\n"
-         << std::endl;
+      ss << "Vertex normal indices out of bounds (line " << line_num << ".)\n\n";
       (*warn) += ss.str();
     }
   }
   if (greatest_vt_idx >= static_cast<int>(vt.size() / 2)) {
     if (warn) {
       std::stringstream ss;
-      ss << "Vertex texcoord indices out of bounds (line " << line_num << ".)\n"
-         << std::endl;
+      ss << "Vertex texcoord indices out of bounds (line " << line_num << ".)\n\n";
       (*warn) += ss.str();
     }
   }

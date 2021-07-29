@@ -2,7 +2,7 @@
 #This configures the Cmake system with multiple properties, depending
 #on the platform and configuration it is set to build in.
 project(tinyobjloader)
-cmake_minimum_required(VERSION 2.8.11)
+cmake_minimum_required(VERSION 3.2)
 set(TINYOBJLOADER_SOVERSION 2)
 set(TINYOBJLOADER_VERSION 2.0.0-rc.8)
 
@@ -108,6 +108,11 @@ write_basic_package_version_file(${PROJECT_NAME}-config-version.cmake
 
 #pkg-config file
 configure_file(${PROJECT_NAME}.pc.in ${LIBRARY_NAME}.pc @ONLY)
+
+if(DEFINED ENV{LIB_FUZZING_ENGINE})
+  add_executable(fuzz_ParseFromString fuzzer/fuzz_ParseFromString.cc)
+  target_link_libraries(fuzz_ParseFromString ${LIBRARY_NAME} $ENV{LIB_FUZZING_ENGINE})
+endif()
 
 #Installation
 install(TARGETS
