@@ -26,6 +26,7 @@ Old version is available as `v0.9.x` branch https://github.com/syoyo/tinyobjload
 
 ## What's new
 
+* 29 Jul, 2021 : Added Mapbox's earcut for robust triangulation. Also fixes triangulation bug.
 * 19 Feb, 2020 : The repository has been moved to https://github.com/tinyobjloader/tinyobjloader !
 * 18 May, 2019 : Python binding!(See `python` folder. Also see https://pypi.org/project/tinyobjloader/)
 * 14 Apr, 2019 : Bump version v2.0.0 rc0. New C++ API and python bindings!(1.x API still exists for backward compatibility)
@@ -139,6 +140,7 @@ TinyObjLoader is licensed under MIT license.
 ### Third party licenses.
 
 * pybind11 : BSD-style license.
+* mapbox earcut.hpp: ISC License.
 
 ## Usage
 
@@ -241,10 +243,22 @@ TinyObjLoader now use `real_t` for floating point data type.
 Default is `float(32bit)`.
 You can enable `double(64bit)` precision by using `TINYOBJLOADER_USE_DOUBLE` define.
 
+### Robust triangulation
+
+When you enable `triangulation`(default is enabled),
+TinyObjLoader triangulate polygons(faces with 4 or more vertices).
+
+Built-in trinagulation code may not work well in some polygon shape.
+
+You can define `TINYOBJLOADER_USE_MAPBOX_EARCUT` for robust triangulation using `mapbox/earcut.hpp`.
+This requires C++11 compiler though.
+
 #### Example code (Deprecated API)
 
 ```c++
 #define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
+// Optional. define TINYOBJLOADER_USE_MAPBOX_EARCUT gives robust trinagulation. Requires C++11
+//#define TINYOBJLOADER_USE_MAPBOX_EARCUT
 #include "tiny_obj_loader.h"
 
 std::string inputfile = "cornell_box.obj";
@@ -315,6 +329,8 @@ for (size_t s = 0; s < shapes.size(); s++) {
 
 ```c++
 #define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
+// Optional. define TINYOBJLOADER_USE_MAPBOX_EARCUT gives robust trinagulation. Requires C++11
+//#define TINYOBJLOADER_USE_MAPBOX_EARCUT
 #include "tiny_obj_loader.h"
 
 
@@ -353,7 +369,7 @@ for (size_t s = 0; s < shapes.size(); s++) {
       tinyobj::real_t vx = attrib.vertices[3*size_t(idx.vertex_index)+0];
       tinyobj::real_t vy = attrib.vertices[3*size_t(idx.vertex_index)+1];
       tinyobj::real_t vz = attrib.vertices[3*size_t(idx.vertex_index)+2];
- 
+
       // Check if `normal_index` is zero or positive. negative = no normal data
       if (idx.normal_index >= 0) {
         tinyobj::real_t nx = attrib.normals[3*size_t(idx.normal_index)+0];
