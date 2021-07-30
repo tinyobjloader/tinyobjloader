@@ -1,0 +1,59 @@
+<!doctype html>
+<html>
+  <script>
+    var Module = {
+      onRuntimeInitialized: function() {
+        var obj_input = document.getElementById("obj").textContent;
+        var mtl_input = "";
+
+        console.log(obj_input);
+        var reader = new Module.ObjReader();
+	var config = new Module.ObjReaderConfig();
+        reader.ParseFromString(obj_input, mtl_input, config);
+
+        var attrib = reader.GetAttrib();
+
+        verts = attrib.GetVertices();
+        for (var i = 0; i < verts.size() / 3; i++) {
+	  console.log("v[" + i + "] =" + verts.get(3 * i + 0) + ", " + verts.get(3 * i + 1) + ", " + verts.get(3 * i + 2));
+        }
+
+      }
+    };
+  </script>
+  <script src="tinyobjloader.js"></script>
+  <script type="text/plain" id="obj">
+v 0.000000 2.000000 2.000000
+v 0.000000 0.000000 2.000000
+v 2.000000 0.000000 2.000000
+v 2.000000 2.000000 2.000000
+v 0.000000 2.000000 0.000000
+v 0.000000 0.000000 0.000000
+v 2.000000 0.000000 0.000000
+v 2.000000 2.000000 0.000000
+# 8 vertices
+
+g front cube
+usemtl white
+f 1 2 3 4
+# two white spaces between 'back' and 'cube'
+g back  cube
+# expects white material
+f 8 7 6 5
+g right cube
+usemtl red
+f 4 3 7 8
+g top cube
+usemtl white
+f 5 1 4 8
+g left cube
+usemtl green
+f 5 6 2 1
+g bottom cube
+usemtl white
+f 2 6 7 3
+# 6 elements
+
+  </script>
+</html>
+
