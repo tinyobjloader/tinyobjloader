@@ -100,7 +100,7 @@ setuptools.setup(
         "Topic :: Artistic Software",
         "Topic :: Multimedia :: Graphics :: 3D Modeling",
         "Topic :: Scientific/Engineering :: Visualization",
-        "License :: OSI Approved :: MIT License",
+        "License :: OSI Approved :: MIT License(ISC License for mapbox earcut.hpp)",
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
     ],

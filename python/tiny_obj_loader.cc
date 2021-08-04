@@ -4,6 +4,9 @@
 
 // Use robust triangulation by using Mapbox earcut.
 #define TINYOBJLOADER_USE_MAPBOX_EARCUT
+#define TINYOBJLOADER_DONOT_INCLUDE_MAPBOX_EARCUT
+// include mapbox/earcut.hpp outside of tiny_obj_loader.h to avoid include path issue.
+#include "../mapbox/earcut.hpp"
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
