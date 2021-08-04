@@ -379,12 +379,12 @@ static bool TestStreamLoadObj() {
    public:
     MaterialStringStreamReader(const std::string& matSStream)
         : m_matSStream(matSStream) {}
-    virtual ~MaterialStringStreamReader() {}
+    virtual ~MaterialStringStreamReader() TINYOBJ_OVERRIDE {}
     virtual bool operator()(const std::string& matId,
                             std::vector<material_t>* materials,
                             std::map<std::string, int>* matMap,
                             std::string* warn,
-                            std::string* err) {
+                            std::string* err) TINYOBJ_OVERRIDE {
       (void)err;
       (void)matId;
       LoadMtl(matMap, materials, &m_matSStream, warn, err);
