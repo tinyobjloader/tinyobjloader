@@ -1,6 +1,8 @@
 import setuptools
 import platform
 
+from distutils.command.build_ext import build_ext
+
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
@@ -45,8 +47,25 @@ class get_pybind_include(object):
             return interpreter_include_path
 
 
-ext_compile_args = ["-std=c++11"]
-ext_link_args = []
+# unix = default compiler name?
+copt = {'unix': ['-std=c++11'], 'gcc': ['-std=c++11'], 'clang': ['std=c++11']}
+# TODO: set C++ version for msvc? {'msvc': ["/std:c++14"] }
+
+#ext_compile_args = ["-std=c++11"]
+#ext_link_args = []
+
+# https://stackoverflow.com/questions/724664/python-distutils-how-to-get-a-compiler-that-is-going-to-be-used
+class build_ext_subclass( build_ext ):
+    def build_extensions(self):
+        c = self.compiler.compiler_type
+        if c in copt:
+           for e in self.extensions:
+               e.extra_compile_args = copt[ c ]
+
+        #if lopt.has_key(c):
+        #    for e in self.extensions:
+        #        e.extra_link_args = lopt[ c ]
+        build_ext.build_extensions(self)
 
 # Developer option
 #
@@ -61,8 +80,8 @@ ext_link_args = []
 # `tiny_obj_loader.cc` contains implementation of tiny_obj_loader.
 m = setuptools.Extension(
     "tinyobjloader",
-    extra_compile_args=ext_compile_args,
-    extra_link_args=ext_link_args,
+    #extra_compile_args=ext_compile_args,
+    #extra_link_args=ext_link_args,
     sources=["bindings.cc", "tiny_obj_loader.cc"],
     include_dirs=[
         # Support `build_ext` finding tinyobjloader (without first running
@@ -106,4 +125,5 @@ setuptools.setup(
     ],
     packages=setuptools.find_packages(),
     ext_modules=[m],
+    cmdclass = {'build_ext': build_ext_subclass}
 )
