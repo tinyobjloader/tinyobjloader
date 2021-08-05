@@ -251,7 +251,8 @@ TinyObjLoader triangulate polygons(faces with 4 or more vertices).
 Built-in trinagulation code may not work well in some polygon shape.
 
 You can define `TINYOBJLOADER_USE_MAPBOX_EARCUT` for robust triangulation using `mapbox/earcut.hpp`.
-This requires C++11 compiler though.
+This requires C++11 compiler though. And you need to copy `mapbox/earcut.hpp` to your project.
+If you have your own `mapbox/earcut.hpp` file incuded in your project, you can define `TINYOBJLOADER_DONOT_INCLUDE_MAPBOX_EARCUT` so that `mapbox/earcut.hpp` is not included inside of `tiny_obj_loader.h`.
 
 #### Example code (Deprecated API)
 
