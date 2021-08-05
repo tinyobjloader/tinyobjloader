@@ -83,7 +83,7 @@ $ python setup.py build
 
 ## License
 
-MIT license.
+MIT(tinyobjloader) and ISC(mapbox earcut) license.
 
 ## TODO
  * [ ] Writer saver

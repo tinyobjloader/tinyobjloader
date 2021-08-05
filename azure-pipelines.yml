@@ -37,6 +37,8 @@ jobs:
           pip3 install cibuildwheel twine
           # Make the header files available to the build.
           cp *.h python
+          mkdir python/mapbox
+          cp mapbox/earcut.hpp python/mapbox/
           cd python
 
           # Source dist
@@ -73,6 +75,8 @@ jobs:
           pip3 install cibuildwheel
           # Make the header files available to the build.
           cp *.h python
+          mkdir python/mapbox
+          cp mapbox/earcut.hpp python/mapbox/earcut.hpp
           cd python
           cibuildwheel --output-dir wheelhouse .
       - task: CopyFiles@2
@@ -93,6 +97,8 @@ jobs:
           pip install cibuildwheel
           # Make the header files available to the build.
           cp *.h python
+          mkdir python/mapbox
+          cp mapbox/earcut.hpp python/mapbox/
           cd python
           cibuildwheel --output-dir wheelhouse .
       - task: CopyFiles@2
