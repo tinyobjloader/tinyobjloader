@@ -970,7 +970,9 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result) {
     read = 0;
     end_not_reached = (curr != s_end);
     while (end_not_reached && IS_DIGIT(*curr)) {
-      if (exponent > std::numeric_limits<int>::max()/10) {
+      // To avoid annoying MSVC's min/max macro definiton,
+      // Use hardcoded int max value
+      if (exponent > (2147483647/10)) { // 2147483647 = std::numeric_limits<int>::max()
         // Integer overflow
         goto fail;
       }
