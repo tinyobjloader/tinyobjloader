@@ -10,8 +10,6 @@
 
 [![AUR version](https://img.shields.io/aur/version/tinyobjloader?logo=arch-linux)](https://aur.archlinux.org/packages/tinyobjloader)
 
-[![Download](https://api.bintray.com/packages/conan/conan-center/tinyobjloader%3A_/images/download.svg)](https://bintray.com/conan/conan-center/tinyobjloader%3A_/_latestVersion) (not recommended)
-
 Tiny but powerful single file wavefront obj loader written in C++03. No dependency except for C++ STL. It can parse over 10M polygons with moderate memory and time.
 
 `tinyobjloader` is good for embedding .obj loader to your (global illumination) renderer ;-)
@@ -148,11 +146,9 @@ TinyObjLoader is licensed under MIT license.
 
 One option is to simply copy the header file into your project and to make sure that `TINYOBJLOADER_IMPLEMENTATION` is defined exactly once.
 
-Tinyobjlaoder is also available as a [conan package](https://bintray.com/conan/conan-center/tinyobjloader%3A_/_latestVersion). Conan integrates with many build systems and lets you avoid manual dependency installation. Their [documentation](https://docs.conan.io/en/latest/getting_started.html) is a great starting point.
+### Building tinyobjloader - Using vcpkg(not recommended though)
 
-### Building tinyobjloader - Using vcpkg
-
-You can download and install tinyobjloader using the [vcpkg](https://github.com/Microsoft/vcpkg) dependency manager:
+Alghouth it is not a recommended way, you can download and install tinyobjloader using the [vcpkg](https://github.com/Microsoft/vcpkg) dependency manager:
 
     git clone https://github.com/Microsoft/vcpkg.git
     cd vcpkg
