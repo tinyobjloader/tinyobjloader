@@ -16,8 +16,10 @@ Tiny but powerful single file wavefront obj loader written in C++03. No dependen
 
 If you are looking for C89 version, please see https://github.com/syoyo/tinyobjloader-c .
 
-Notice!
--------
+Version notice
+--------------
+
+We recommend to use `master`(`main`) branch. Its v2.0 release candidate. Most features are now nearly robust and stable(Remaining task for release v2.0 is polishing C++ and Python API).
 
 We have released new version v1.0.0 on 20 Aug, 2016.
 Old version is available as `v0.9.x` branch https://github.com/syoyo/tinyobjloader/tree/v0.9.x
