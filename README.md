@@ -421,7 +421,8 @@ cibuildwheels + twine upload for each git tagging event is handled in Azure Pipe
 
 * Bump version in CMakeLists.txt
 * Update version in `python/setup.py`
-* Commit with tag name starting with `v`(e.g. `v2.1.0`)
+* Commit and push `master`. Confirm C.I. build is OK.
+* Create tag starting with `v`(e.g. `v2.1.0`)
 * `git push --tags`
   * cibuildwheels + pypi upload(through twine) will be automatically triggered in Azure Pipeline.
 
