@@ -102,7 +102,7 @@ m = setuptools.Extension(
 
 setuptools.setup(
     name="tinyobjloader",
-    version="2.0.0rc8",
+    version="2.0.0rc9",
     description="Tiny but powerful Wavefront OBJ loader",
     long_description=long_description,
     long_description_content_type="text/markdown",
