@@ -1621,24 +1621,26 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
           assert(indices.size() % 3 == 0);
 
           // Reconstruct vertex_index_t
+          // Since mapbox earcut procudes triangles in clockwise-order, we need to reverse it
+          // (We process input wavefront .obj as CCW order)
           for (size_t k = 0; k < indices.size() / 3; k++) {
             {
               index_t idx0, idx1, idx2;
-              idx0.vertex_index = face.vertex_indices[indices[3 * k + 0]].v_idx;
+              idx0.vertex_index = face.vertex_indices[indices[3 * k + 2]].v_idx;
               idx0.normal_index =
-                  face.vertex_indices[indices[3 * k + 0]].vn_idx;
+                  face.vertex_indices[indices[3 * k + 2]].vn_idx;
               idx0.texcoord_index =
-                  face.vertex_indices[indices[3 * k + 0]].vt_idx;
+                  face.vertex_indices[indices[3 * k + 2]].vt_idx;
               idx1.vertex_index = face.vertex_indices[indices[3 * k + 1]].v_idx;
               idx1.normal_index =
                   face.vertex_indices[indices[3 * k + 1]].vn_idx;
               idx1.texcoord_index =
                   face.vertex_indices[indices[3 * k + 1]].vt_idx;
-              idx2.vertex_index = face.vertex_indices[indices[3 * k + 2]].v_idx;
+              idx2.vertex_index = face.vertex_indices[indices[3 * k + 0]].v_idx;
               idx2.normal_index =
-                  face.vertex_indices[indices[3 * k + 2]].vn_idx;
+                  face.vertex_indices[indices[3 * k + 0]].vn_idx;
               idx2.texcoord_index =
-                  face.vertex_indices[indices[3 * k + 2]].vt_idx;
+                  face.vertex_indices[indices[3 * k + 0]].vt_idx;
 
               shape->mesh.indices.push_back(idx0);
               shape->mesh.indices.push_back(idx1);
