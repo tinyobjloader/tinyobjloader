@@ -1593,6 +1593,8 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
           }
 
 #ifdef TINYOBJLOADER_USE_MAPBOX_EARCUT
+
+          std::cout << "axes = " << axes[0] << ", " << axes[1] << "\n";
           using Point = std::array<real_t, 2>;
 
           // first polyline define the main polygon.
@@ -1614,6 +1616,20 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
             polyline.push_back({v0x, v0y});
           }
 
+          // Compute signed area(orientation of the polygon face)
+          // https://math.stackexchange.com/questions/2860567/correct-way-to-find-the-area-of-a-concave-quadrilateral-in-co-ordinate-geometry
+          // This works both concave and convex polygon thanks to Shoelace formula. 
+          double signed_area_sum = 0.0;
+          for (size_t k = 0; k < npolys; k++) {
+
+            size_t k0 = k;
+            size_t k1 = (k + 1) % npolys;
+
+            signed_area_sum += polyline[k0][0] * (polyline[k1][1] - polyline[k0][1]);
+
+          }
+          std::cout << "signed_area_sum = " << signed_area_sum << "\n";
+
           polygon.push_back(polyline);
           std::vector<uint32_t> indices = mapbox::earcut<uint32_t>(polygon);
           // => result = 3 * faces, clockwise
@@ -1621,26 +1637,69 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
           assert(indices.size() % 3 == 0);
 
           // Reconstruct vertex_index_t
-          // Since mapbox earcut procudes triangles in clockwise-order, we need to reverse it
-          // (We process input wavefront .obj as CCW order)
+          // Since mapbox earcut produce triangles in clockwise-order(ignores face orientation), we need to reverse it
+          // depending on the face orientation of input triangle.
+          //
+          // NOTE: wavefront .obj uses right-handed coordinate and face is defined in counter-clockwise order.
+
+
+          // default: CW -> CCW
+          size_t voffset0 = 2;
+          size_t voffset1 = 1;
+          size_t voffset2 = 0;
+          {
+            // face orientation of the first triangle(all other triangles should have same orientation)
+            size_t v_idx0 = face.vertex_indices[indices[voffset0]].v_idx;
+            size_t v_idx1 = face.vertex_indices[indices[voffset1]].v_idx;
+            size_t v_idx2 = face.vertex_indices[indices[voffset2]].v_idx;
+
+            real_t v0x = v[v_idx0 * 3 + axes[0]];
+            real_t v0y = v[v_idx0 * 3 + axes[1]];
+
+            real_t v1x = v[v_idx1 * 3 + axes[0]];
+            real_t v1y = v[v_idx1 * 3 + axes[1]];
+
+            real_t v2x = v[v_idx2 * 3 + axes[0]];
+            real_t v2y = v[v_idx2 * 3 + axes[1]];
+
+            real_t e0x = v1x - v0x;
+            real_t e0y = v1y - v0y;
+            real_t e1x = v2x - v1x;
+            real_t e1y = v2y - v1y;
+
+            real_t cross_tri = e0x * e1y - e0y * e1x;
+
+            std::cout << "vx = " << v_idx0 << ", " << v_idx1 << ", " << v_idx2 << "\n";
+            std::cout << "idx = " << v_idx0 << ", " << v_idx1 << ", " << v_idx2 << "\n";
+            std::cout << "cross_tri = " << cross_tri << "\n";
+            std::cout << "cross_signbit = " << cross_tri << "\n";
+            if (std::signbit(cross_tri) != std::signbit(signed_area_sum)) {
+              // reverse the oredering of earcut produced face indices 
+              std::cout << "swap orientation\n";
+              voffset0 = 0;
+              voffset1 = 1;
+              voffset2 = 2;
+            }
+          }
+
           for (size_t k = 0; k < indices.size() / 3; k++) {
             {
               index_t idx0, idx1, idx2;
-              idx0.vertex_index = face.vertex_indices[indices[3 * k + 2]].v_idx;
+              idx0.vertex_index = face.vertex_indices[indices[3 * k + voffset0]].v_idx;
               idx0.normal_index =
-                  face.vertex_indices[indices[3 * k + 2]].vn_idx;
+                  face.vertex_indices[indices[3 * k + voffset0]].vn_idx;
               idx0.texcoord_index =
-                  face.vertex_indices[indices[3 * k + 2]].vt_idx;
-              idx1.vertex_index = face.vertex_indices[indices[3 * k + 1]].v_idx;
+                  face.vertex_indices[indices[3 * k + voffset0]].vt_idx;
+              idx1.vertex_index = face.vertex_indices[indices[3 * k + voffset1]].v_idx;
               idx1.normal_index =
-                  face.vertex_indices[indices[3 * k + 1]].vn_idx;
+                  face.vertex_indices[indices[3 * k + voffset1]].vn_idx;
               idx1.texcoord_index =
-                  face.vertex_indices[indices[3 * k + 1]].vt_idx;
-              idx2.vertex_index = face.vertex_indices[indices[3 * k + 0]].v_idx;
+                  face.vertex_indices[indices[3 * k + voffset1]].vt_idx;
+              idx2.vertex_index = face.vertex_indices[indices[3 * k + voffset2]].v_idx;
               idx2.normal_index =
-                  face.vertex_indices[indices[3 * k + 0]].vn_idx;
+                  face.vertex_indices[indices[3 * k + voffset2]].vn_idx;
               idx2.texcoord_index =
-                  face.vertex_indices[indices[3 * k + 0]].vt_idx;
+                  face.vertex_indices[indices[3 * k + voffset2]].vt_idx;
 
               shape->mesh.indices.push_back(idx0);
               shape->mesh.indices.push_back(idx1);
