@@ -1643,7 +1643,7 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
           // NOTE: wavefront .obj uses right-handed coordinate and face is defined in counter-clockwise order.
 
 
-          // default: CW -> CCW
+          // default: CW(mapbox earcut) -> CCW(wavefront .obj)
           size_t voffset0 = 2;
           size_t voffset1 = 1;
           size_t voffset2 = 0;
