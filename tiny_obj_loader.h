@@ -1624,9 +1624,21 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
 
             size_t k0 = k;
             size_t k1 = (k + 1) % npolys;
+            //size_t k2 = (k + 2) % npolys;
 
-            signed_area_sum += polyline[k0][0] * (polyline[k1][1] - polyline[k0][1]);
+            //double e01[2];
+            //double e21[2];
 
+            //e01[0] = polyline[k0][0] - polyline[k1][0];
+            //e01[1] = polyline[k0][1] - polyline[k1][1];
+            //e21[0] = polyline[k2][0] - polyline[k1][0];
+            //e21[1] = polyline[k2][1] - polyline[k1][1];
+            //double cross = e01[0] * e21[1] - e01[1] * e21[0];
+            //std::cout << "cross[" << k << "] = " << cross << "\n";
+
+            double d = (polyline[k0][0] * polyline[k1][1]) - (polyline[k1][0] * polyline[k0][1]);
+            std::cout << "d[" << k << "] = " << d << "\n";
+            signed_area_sum += d;
           }
           std::cout << "signed_area_sum = " << signed_area_sum << "\n";
 
