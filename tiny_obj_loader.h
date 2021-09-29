@@ -1659,11 +1659,14 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
           size_t voffset0 = 2;
           size_t voffset1 = 1;
           size_t voffset2 = 0;
+
+          // Check the face orientation of a triangle(all other triangles should have same orientation)
+          // triangle may be degenerated. find a triangle with finite area and use it.
+          for (size_t k = 0; k < indices.size() / 3; k++) 
           {
-            // face orientation of the first triangle(all other triangles should have same orientation)
-            size_t v_idx0 = face.vertex_indices[indices[voffset0]].v_idx;
-            size_t v_idx1 = face.vertex_indices[indices[voffset1]].v_idx;
-            size_t v_idx2 = face.vertex_indices[indices[voffset2]].v_idx;
+            size_t v_idx0 = face.vertex_indices[indices[3 * k + voffset0]].v_idx;
+            size_t v_idx1 = face.vertex_indices[indices[3 * k + voffset1]].v_idx;
+            size_t v_idx2 = face.vertex_indices[indices[3 * k + voffset2]].v_idx;
 
             real_t v0x = v[v_idx0 * 3 + axes[0]];
             real_t v0y = v[v_idx0 * 3 + axes[1]];
@@ -1681,16 +1684,20 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
 
             real_t cross_tri = e0x * e1y - e0y * e1x;
 
-            std::cout << "vx = " << v_idx0 << ", " << v_idx1 << ", " << v_idx2 << "\n";
-            std::cout << "idx = " << v_idx0 << ", " << v_idx1 << ", " << v_idx2 << "\n";
-            std::cout << "cross_tri = " << cross_tri << "\n";
-            std::cout << "cross_signbit = " << cross_tri << "\n";
-            if (std::signbit(cross_tri) != std::signbit(signed_area_sum)) {
-              // reverse the oredering of earcut produced face indices 
-              std::cout << "swap orientation\n";
-              voffset0 = 0;
-              voffset1 = 1;
-              voffset2 = 2;
+            if (std::fabsf(cross_tri) > static_cast<real_t>(0.0)) {
+
+              std::cout << "vx = " << v_idx0 << ", " << v_idx1 << ", " << v_idx2 << "\n";
+              std::cout << "idx = " << v_idx0 << ", " << v_idx1 << ", " << v_idx2 << "\n";
+              std::cout << "cross_tri = " << cross_tri << "\n";
+              std::cout << "cross_signbit = " << cross_tri << "\n";
+              if (std::signbit(cross_tri) != std::signbit(signed_area_sum)) {
+                // reverse the oredering of earcut produced face indices 
+                std::cout << "swap orientation\n";
+                voffset0 = 0;
+                voffset1 = 1;
+                voffset2 = 2;
+                break;
+              }
             }
           }
 
