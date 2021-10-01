@@ -531,7 +531,6 @@ struct ObjReaderConfig {
 class ObjReader {
  public:
   ObjReader() : valid_(false) {}
-  ~ObjReader() {}
 
   ///
   /// Load .obj and .mtl from a file.
