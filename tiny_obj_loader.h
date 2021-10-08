@@ -1618,7 +1618,7 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
 
           // Compute signed area(orientation of the polygon face)
           // https://math.stackexchange.com/questions/2860567/correct-way-to-find-the-area-of-a-concave-quadrilateral-in-co-ordinate-geometry
-          // This works both concave and convex polygon thanks to Shoelace formula. 
+          // This works both concave and convex polygon thanks to Shoelace formula.
           double signed_area_sum = 0.0;
           for (size_t k = 0; k < npolys; k++) {
 
@@ -1662,7 +1662,7 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
 
           // Check the face orientation of a triangle(all other triangles should have same orientation)
           // triangle may be degenerated. find a triangle with finite area and use it.
-          for (size_t k = 0; k < indices.size() / 3; k++) 
+          for (size_t k = 0; k < indices.size() / 3; k++)
           {
             size_t v_idx0 = face.vertex_indices[indices[3 * k + voffset0]].v_idx;
             size_t v_idx1 = face.vertex_indices[indices[3 * k + voffset1]].v_idx;
@@ -1684,14 +1684,14 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
 
             real_t cross_tri = e0x * e1y - e0y * e1x;
 
-            if (std::fabsf(cross_tri) > static_cast<real_t>(0.0)) {
+            if (std::fabs(cross_tri) > static_cast<real_t>(0.0)) {
 
               std::cout << "vx = " << v_idx0 << ", " << v_idx1 << ", " << v_idx2 << "\n";
               std::cout << "idx = " << v_idx0 << ", " << v_idx1 << ", " << v_idx2 << "\n";
               std::cout << "cross_tri = " << cross_tri << "\n";
               std::cout << "cross_signbit = " << cross_tri << "\n";
               if (std::signbit(cross_tri) != std::signbit(signed_area_sum)) {
-                // reverse the oredering of earcut produced face indices 
+                // reverse the oredering of earcut produced face indices
                 std::cout << "swap orientation\n";
                 voffset0 = 0;
                 voffset1 = 1;
