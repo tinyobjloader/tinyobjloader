@@ -1534,16 +1534,17 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
           shape->mesh.smoothing_group_ids.push_back(face.smoothing_group_id);
 
         } else {
-          vertex_index_t i0 = face.vertex_indices[0];
-          vertex_index_t i1(-1);
-          vertex_index_t i2 = face.vertex_indices[1];
+          //vertex_index_t i0 = face.vertex_indices[0];
+          //vertex_index_t i1(-1);
+          //vertex_index_t i2 = face.vertex_indices[1];
 
+#if 0
           // find the two axes to work in
           size_t axes[2] = {1, 2};
           for (size_t k = 0; k < npolys; ++k) {
-            i0 = face.vertex_indices[(k + 0) % npolys];
-            i1 = face.vertex_indices[(k + 1) % npolys];
-            i2 = face.vertex_indices[(k + 2) % npolys];
+            vetex_index_t i0 = face.vertex_indices[(k + 0) % npolys];
+            vetex_index_t i1 = face.vertex_indices[(k + 1) % npolys];
+            vetex_index_t i2 = face.vertex_indices[(k + 2) % npolys];
             size_t vi0 = size_t(i0.v_idx);
             size_t vi1 = size_t(i1.v_idx);
             size_t vi2 = size_t(i2.v_idx);
@@ -1591,6 +1592,66 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
               break;
             }
           }
+#else
+          // Compute 3D signed area vector to determine 2D projection axis
+          // TODO: Find best plane to project(the direction of signed area?)
+
+          size_t axes[2] = {1, 2};
+          {
+            double sx = 0.0;
+            double sy = 0.0;
+            double sz = 0.0;
+
+            for (size_t k = 0; k < npolys; k++) {
+
+              size_t k0 = k;
+              size_t k1 = (k + 1) % npolys;
+
+              vertex_index_t i0 = face.vertex_indices[k0];
+              vertex_index_t i1 = face.vertex_indices[k1];
+
+              size_t vi0 = size_t(i0.v_idx);
+              size_t vi1 = size_t(i1.v_idx);
+
+              if (((3 * vi0 + 2) >= v.size()) || ((3 * vi1 + 2) >= v.size())) {
+                // Invalid index.
+                continue;
+              }
+
+              real_t v0x = v[vi0 * 3 + 0];
+              real_t v0y = v[vi0 * 3 + 1];
+              real_t v0z = v[vi0 * 3 + 2];
+              real_t v1x = v[vi1 * 3 + 0];
+              real_t v1y = v[vi1 * 3 + 1];
+              real_t v1z = v[vi1 * 3 + 2];
+
+              real_t cx = v0y * v1z - v0z * v1y;
+              real_t cy = v0z * v1x - v0x * v1z;
+              real_t cz = v0x * v1y - v0y * v1x;
+
+              sx += cx;
+              sy += cy;
+              sz += cz;
+            }
+
+            // Use the largest magnitude to determine 2D plane to project
+            sx = std::fabs(sx);
+            sy = std::fabs(sy);
+            sz = std::fabs(sz);
+
+            const real_t epsilon = std::numeric_limits<real_t>::epsilon();
+            if (sx > epsilon || sy > epsilon || sz > epsilon) {
+              if (sx > sy && sx > sz) {
+              } else {
+                axes[0] = 0;
+                if (sz > sx && sz > sy) {
+                  axes[1] = 1;
+                }
+              }
+            }
+          }
+
+#endif
 
 #ifdef TINYOBJLOADER_USE_MAPBOX_EARCUT
 
@@ -1605,7 +1666,7 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
 
           // Fill polygon data(facevarying vertices).
           for (size_t k = 0; k < npolys; k++) {
-            i0 = face.vertex_indices[k];
+            vertex_index_t i0 = face.vertex_indices[k];
             size_t vi0 = size_t(i0.v_idx);
 
             assert(((3 * vi0 + 2) < v.size()));
@@ -1647,6 +1708,9 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
           // => result = 3 * faces, clockwise
 
           assert(indices.size() % 3 == 0);
+
+          std::cout << "npolys = " << npolys << "\n";
+          std::cout << "# of indices = " << indices.size() << "\n";
 
           // Reconstruct vertex_index_t
           // Since mapbox earcut produce triangles in clockwise-order(ignores face orientation), we need to reverse it
