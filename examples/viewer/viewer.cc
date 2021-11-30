@@ -402,7 +402,7 @@ static void computeSmoothingShape(tinyobj::attrib_t& inattrib, tinyobj::shape_t&
       }
       else {
         assert(outattrib.vertices.size() % 3 == 0);
-        unsigned int offset = unsigned int(outattrib.vertices.size() / 3);
+        unsigned int offset = static_cast<unsigned int>(outattrib.vertices.size() / 3);
         outidx.vertex_index = outidx.normal_index = offset;
         outidx.texcoord_index = (inidx.texcoord_index == -1) ? -1 : offset;
         outattrib.vertices.push_back(inattrib.vertices[3*inidx.vertex_index  ]);
@@ -429,7 +429,7 @@ static void computeSmoothingShapes(tinyobj::attrib_t &inattrib,
   for (size_t s = 0, slen = inshapes.size() ; s < slen; ++s) {
     tinyobj::shape_t& inshape = inshapes[s];
 
-    unsigned int numfaces = unsigned int(inshape.mesh.smoothing_group_ids.size());
+    unsigned int numfaces = static_cast<unsigned int>(inshape.mesh.smoothing_group_ids.size());
     assert(numfaces);
     std::vector<std::pair<unsigned int,unsigned int>> sortedids(numfaces);
     for (unsigned int i = 0; i < numfaces; ++i)
