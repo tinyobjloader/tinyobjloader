@@ -249,6 +249,9 @@ void normalizeVector(vec3 &v) {
   thing to keep in mind is that the statistics printed apply to the model
   *prior* to shape regeneration, so you'd need to print them again if you want
   to see the new statistics.
+
+  TODO(syoyo): import computeSmoothingShapes and computeAllSmoothingNormals to
+  tinyobjloader as utility functions.
 */
 
 // Check if `mesh_t` contains smoothing group id.
