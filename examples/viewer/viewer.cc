@@ -11,6 +11,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 #include <GL/glew.h>
 
@@ -228,6 +229,31 @@ void normalizeVector(vec3 &v) {
   }
 }
 
+/*
+  There are 2 approaches here to automatically generating vertex normals. The
+  old approach (computeSmoothingNormals) doesn't handle multiple smoothing
+  groups properly, as it effectively merges all smoothing groups present in the
+  OBJ file into a single group. However, it can be useful when the OBJ file
+  contains vertex normals which you want to use, but is missing some, as it
+  will attempt to fill in the missing normals without generating new shapes.
+
+  The new approach (computeSmoothingShapes, computeAllSmoothingNormals) handles
+  multiple smoothing groups but is a bit more complicated, as handling this
+  correctly requires potentially generating new vertices (and hence shapes).
+  In general, the new approach is most useful if your OBJ file is missing
+  vertex normals entirely, and instead relies on smoothing groups to correctly
+  generate them as a pre-process. That said, it can be used to reliably
+  generate vertex normals in the general case. If you want to always generate
+  normals in this way, simply force set regen_all_normals to true below. By
+  default, it's only true when there are no vertex normals present. One other
+  thing to keep in mind is that the statistics printed apply to the model
+  *prior* to shape regeneration, so you'd need to print them again if you want
+  to see the new statistics.
+
+  TODO(syoyo): import computeSmoothingShapes and computeAllSmoothingNormals to
+  tinyobjloader as utility functions.
+*/
+
 // Check if `mesh_t` contains smoothing group id.
 bool hasSmoothingGroup(const tinyobj::shape_t& shape)
 {
@@ -295,6 +321,138 @@ void computeSmoothingNormals(const tinyobj::attrib_t& attrib, const tinyobj::sha
   }
 
 }  // computeSmoothingNormals
+
+static void computeAllSmoothingNormals(tinyobj::attrib_t& attrib,
+                                       std::vector<tinyobj::shape_t>& shapes) {
+  vec3 p[3];
+  for (size_t s = 0, slen = shapes.size(); s < slen; ++s) {
+    const tinyobj::shape_t& shape(shapes[s]);
+    size_t facecount = shape.mesh.num_face_vertices.size();
+    assert(shape.mesh.smoothing_group_ids.size());
+
+    for (size_t f = 0, flen = facecount; f < flen; ++f) {
+      for (unsigned int v = 0; v < 3; ++v) {
+        tinyobj::index_t idx = shape.mesh.indices[3*f + v];
+        assert(idx.vertex_index != -1);
+        p[v].v[0] = attrib.vertices[3*idx.vertex_index  ];
+        p[v].v[1] = attrib.vertices[3*idx.vertex_index+1];
+        p[v].v[2] = attrib.vertices[3*idx.vertex_index+2];
+      }
+
+      // cross(p[1] - p[0], p[2] - p[0])
+      float nx = (p[1].v[1] - p[0].v[1]) * (p[2].v[2] - p[0].v[2]) -
+                 (p[1].v[2] - p[0].v[2]) * (p[2].v[1] - p[0].v[1]);
+      float ny = (p[1].v[2] - p[0].v[2]) * (p[2].v[0] - p[0].v[0]) -
+                 (p[1].v[0] - p[0].v[0]) * (p[2].v[2] - p[0].v[2]);
+      float nz = (p[1].v[0] - p[0].v[0]) * (p[2].v[1] - p[0].v[1]) -
+                 (p[1].v[1] - p[0].v[1]) * (p[2].v[0] - p[0].v[0]);
+
+      // Don't normalize here.
+      for (unsigned int v = 0; v < 3; ++v) {
+        tinyobj::index_t idx = shape.mesh.indices[3*f + v];
+        attrib.normals[3*idx.normal_index  ] += nx;
+        attrib.normals[3*idx.normal_index+1] += ny;
+        attrib.normals[3*idx.normal_index+2] += nz;
+      }
+    }
+  }
+
+  assert(attrib.normals.size() % 3 == 0);
+  for (size_t i = 0, nlen = attrib.normals.size() / 3; i < nlen; ++i) {
+    tinyobj::real_t& nx = attrib.normals[3*i  ];
+    tinyobj::real_t& ny = attrib.normals[3*i+1];
+    tinyobj::real_t& nz = attrib.normals[3*i+2];
+    tinyobj::real_t len = sqrtf(nx*nx + ny*ny + nz*nz);
+    tinyobj::real_t scale = len == 0 ? 0 : 1 / len;
+    nx *= scale;
+    ny *= scale;
+    nz *= scale;
+  }
+}
+
+static void computeSmoothingShape(tinyobj::attrib_t& inattrib, tinyobj::shape_t& inshape,
+                                  std::vector<std::pair<unsigned int, unsigned int>>& sortedids,
+                                  unsigned int idbegin, unsigned int idend,
+                                  std::vector<tinyobj::shape_t>& outshapes,
+                                  tinyobj::attrib_t& outattrib) {
+  unsigned int sgroupid = sortedids[idbegin].first;
+  bool hasmaterials = inshape.mesh.material_ids.size();
+  // Make a new shape from the set of faces in the range [idbegin, idend).
+  outshapes.emplace_back();
+  tinyobj::shape_t& outshape = outshapes.back();
+  outshape.name = inshape.name;
+  // Skip lines and points.
+
+  std::unordered_map<unsigned int, unsigned int> remap;
+  for (unsigned int id = idbegin; id < idend; ++id) {
+    unsigned int face = sortedids[id].second;
+
+    outshape.mesh.num_face_vertices.push_back(3); // always triangles
+    if (hasmaterials)
+      outshape.mesh.material_ids.push_back(inshape.mesh.material_ids[face]);
+    outshape.mesh.smoothing_group_ids.push_back(sgroupid);
+    // Skip tags.
+
+    for (unsigned int v = 0; v < 3; ++v) {
+      tinyobj::index_t inidx = inshape.mesh.indices[3*face + v], outidx;
+      assert(inidx.vertex_index != -1);
+      auto iter = remap.find(inidx.vertex_index);
+      // Smooth group 0 disables smoothing so no shared vertices in that case.
+      if (sgroupid && iter != remap.end()) {
+        outidx.vertex_index = (*iter).second;
+        outidx.normal_index = outidx.vertex_index;
+        outidx.texcoord_index = (inidx.texcoord_index == -1) ? -1 : outidx.vertex_index;
+      }
+      else {
+        assert(outattrib.vertices.size() % 3 == 0);
+        unsigned int offset = static_cast<unsigned int>(outattrib.vertices.size() / 3);
+        outidx.vertex_index = outidx.normal_index = offset;
+        outidx.texcoord_index = (inidx.texcoord_index == -1) ? -1 : offset;
+        outattrib.vertices.push_back(inattrib.vertices[3*inidx.vertex_index  ]);
+        outattrib.vertices.push_back(inattrib.vertices[3*inidx.vertex_index+1]);
+        outattrib.vertices.push_back(inattrib.vertices[3*inidx.vertex_index+2]);
+        outattrib.normals.push_back(0.0f);
+        outattrib.normals.push_back(0.0f);
+        outattrib.normals.push_back(0.0f);
+        if (inidx.texcoord_index != -1) {
+          outattrib.texcoords.push_back(inattrib.texcoords[2*inidx.texcoord_index  ]);
+          outattrib.texcoords.push_back(inattrib.texcoords[2*inidx.texcoord_index+1]);
+        }
+        remap[inidx.vertex_index] = offset;
+      }
+      outshape.mesh.indices.push_back(outidx);
+    }
+  }
+}
+
+static void computeSmoothingShapes(tinyobj::attrib_t &inattrib,
+                                   std::vector<tinyobj::shape_t>& inshapes,
+                                   std::vector<tinyobj::shape_t>& outshapes,
+                                   tinyobj::attrib_t& outattrib) {
+  for (size_t s = 0, slen = inshapes.size() ; s < slen; ++s) {
+    tinyobj::shape_t& inshape = inshapes[s];
+
+    unsigned int numfaces = static_cast<unsigned int>(inshape.mesh.smoothing_group_ids.size());
+    assert(numfaces);
+    std::vector<std::pair<unsigned int,unsigned int>> sortedids(numfaces);
+    for (unsigned int i = 0; i < numfaces; ++i)
+      sortedids[i] = std::make_pair(inshape.mesh.smoothing_group_ids[i], i);
+    sort(sortedids.begin(), sortedids.end());
+
+    unsigned int activeid = sortedids[0].first;
+    unsigned int id = activeid, idbegin = 0, idend = 0;
+    // Faces are now bundled by smoothing group id, create shapes from these.
+    while (idbegin < numfaces) {
+      while (activeid == id && ++idend < numfaces)
+        id = sortedids[idend].first;
+      computeSmoothingShape(inattrib, inshape, sortedids, idbegin, idend,
+                            outshapes, outattrib);
+      activeid = id;
+      idbegin = idend;
+    }
+  }
+}
+
 }  // namespace
 
 static bool LoadObjAndConvert(float bmin[3], float bmax[3],
@@ -302,8 +460,8 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
                               std::vector<tinyobj::material_t>& materials,
                               std::map<std::string, GLuint>& textures,
                               const char* filename) {
-  tinyobj::attrib_t attrib;
-  std::vector<tinyobj::shape_t> shapes;
+  tinyobj::attrib_t inattrib;
+  std::vector<tinyobj::shape_t> inshapes;
 
   timerutil tm;
 
@@ -321,7 +479,7 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
 
   std::string warn;
   std::string err;
-  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename,
+  bool ret = tinyobj::LoadObj(&inattrib, &inshapes, &materials, &warn, &err, filename,
                               base_dir.c_str());
   if (!warn.empty()) {
     std::cout << "WARN: " << warn << std::endl;
@@ -339,11 +497,11 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
 
   printf("Parsing time: %d [ms]\n", (int)tm.msec());
 
-  printf("# of vertices  = %d\n", (int)(attrib.vertices.size()) / 3);
-  printf("# of normals   = %d\n", (int)(attrib.normals.size()) / 3);
-  printf("# of texcoords = %d\n", (int)(attrib.texcoords.size()) / 2);
+  printf("# of vertices  = %d\n", (int)(inattrib.vertices.size()) / 3);
+  printf("# of normals   = %d\n", (int)(inattrib.normals.size()) / 3);
+  printf("# of texcoords = %d\n", (int)(inattrib.texcoords.size()) / 2);
   printf("# of materials = %d\n", (int)materials.size());
-  printf("# of shapes    = %d\n", (int)shapes.size());
+  printf("# of shapes    = %d\n", (int)inshapes.size());
 
   // Append `default` material
   materials.push_back(tinyobj::material_t());
@@ -410,6 +568,17 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
   bmin[0] = bmin[1] = bmin[2] = std::numeric_limits<float>::max();
   bmax[0] = bmax[1] = bmax[2] = -std::numeric_limits<float>::max();
 
+  bool regen_all_normals = inattrib.normals.size() == 0;
+  tinyobj::attrib_t outattrib;
+  std::vector<tinyobj::shape_t> outshapes;
+  if (regen_all_normals) {
+    computeSmoothingShapes(inattrib, inshapes, outshapes, outattrib);
+    computeAllSmoothingNormals(outattrib, outshapes);
+  }
+
+  std::vector<tinyobj::shape_t>& shapes = regen_all_normals ? outshapes : inshapes;
+  tinyobj::attrib_t& attrib = regen_all_normals ? outattrib : inattrib;
+
   {
     for (size_t s = 0; s < shapes.size(); s++) {
       DrawObject o;
@@ -417,7 +586,7 @@ static bool LoadObjAndConvert(float bmin[3], float bmax[3],
 
       // Check for smoothing group and compute smoothing normals
       std::map<int, vec3> smoothVertexNormals;
-      if (hasSmoothingGroup(shapes[s]) > 0) {
+      if (!regen_all_normals && (hasSmoothingGroup(shapes[s]) > 0)) {
         std::cout << "Compute smoothingNormal for shape [" << s << "]" << std::endl;
         computeSmoothingNormals(attrib, shapes[s], smoothVertexNormals);
       }

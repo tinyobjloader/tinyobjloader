@@ -28,8 +28,10 @@ jobs:
           black --check python/
         displayName: Check Python code format
 
+  # Ubuntu16.04 seems now deprecated(as of 2021/12/01),
+  # so use `ubuntu-latest`
   - job: linux
-    pool: {vmImage: "Ubuntu-16.04"}
+    pool: {vmImage: "ubuntu-latest"}
     steps:
       - task: UsePythonVersion@0
       - bash: |
