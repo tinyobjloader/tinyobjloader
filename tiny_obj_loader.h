@@ -657,6 +657,7 @@ bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
 #include <cstring>
 #include <fstream>
 #include <limits>
+#include <set>
 #include <sstream>
 #include <utility>
 
@@ -2445,6 +2446,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   std::string name;
 
   // material
+  std::set<std::string> material_filenames;
   std::map<std::string, int> material_map;
   int material = -1;
 
@@ -2735,6 +2737,11 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
         } else {
           bool found = false;
           for (size_t s = 0; s < filenames.size(); s++) {
+            if (material_filenames.count(filenames[s]) > 0) {
+              found = true;
+              continue;
+            }
+
             std::string warn_mtl;
             std::string err_mtl;
             bool ok = (*readMatFn)(filenames[s].c_str(), materials,
@@ -2749,6 +2756,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
             if (ok) {
               found = true;
+              material_filenames.insert(filenames[s]);
               break;
             }
           }
@@ -2993,6 +3001,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
   std::stringstream errss;
 
   // material
+  std::set<std::string> material_filenames;
   std::map<std::string, int> material_map;
   int material_id = -1;  // -1 = invalid
 
@@ -3138,6 +3147,11 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
         } else {
           bool found = false;
           for (size_t s = 0; s < filenames.size(); s++) {
+            if (material_filenames.count(filenames[s]) > 0) {
+              found = true;
+              continue;
+            }
+
             std::string warn_mtl;
             std::string err_mtl;
             bool ok = (*readMatFn)(filenames[s].c_str(), &materials,
@@ -3153,6 +3167,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
 
             if (ok) {
               found = true;
+              material_filenames.insert(filenames[s]);
               break;
             }
           }
