@@ -150,7 +150,7 @@ One option is to simply copy the header file into your project and to make sure 
 
 ### Building tinyobjloader - Using vcpkg(not recommended though)
 
-Alghouth it is not a recommended way, you can download and install tinyobjloader using the [vcpkg](https://github.com/Microsoft/vcpkg) dependency manager:
+Although it is not a recommended way, you can download and install tinyobjloader using the [vcpkg](https://github.com/Microsoft/vcpkg) dependency manager:
 
     git clone https://github.com/Microsoft/vcpkg.git
     cd vcpkg
