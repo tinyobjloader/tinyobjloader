@@ -19,14 +19,14 @@ If you are looking for C89 version, please see https://github.com/syoyo/tinyobjl
 Version notice
 --------------
 
-We recommend to use `master`(`main`) branch. Its v2.0 release candidate. Most features are now nearly robust and stable(Remaining task for release v2.0 is polishing C++ and Python API).
+We recommend to use `master`(`main`) branch. Its v2.0 release candidate. Most features are now nearly robust and stable(Remaining task for release v2.0 is polishing C++ and Python API, and fix built-in triangulation code).
 
 We have released new version v1.0.0 on 20 Aug, 2016.
 Old version is available as `v0.9.x` branch https://github.com/syoyo/tinyobjloader/tree/v0.9.x
 
 ## What's new
 
-* 29 Jul, 2021 : Added Mapbox's earcut for robust triangulation. Also fixes triangulation bug.
+* 29 Jul, 2021 : Added Mapbox's earcut for robust triangulation. Also fixes triangulation bug(still there is some issue in built-in triangulation algorithm: https://github.com/tinyobjloader/tinyobjloader/issues/319).
 * 19 Feb, 2020 : The repository has been moved to https://github.com/tinyobjloader/tinyobjloader !
 * 18 May, 2019 : Python binding!(See `python` folder. Also see https://pypi.org/project/tinyobjloader/)
 * 14 Apr, 2019 : Bump version v2.0.0 rc0. New C++ API and python bindings!(1.x API still exists for backward compatibility)
@@ -106,10 +106,7 @@ TinyObjLoader is successfully used in ...
   * Vertex color(as an extension: https://blender.stackexchange.com/questions/31997/how-can-i-get-vertex-painted-obj-files-to-import-into-blender)
 * Texcoord
 * Normal
-* Material
-  * Unknown material attributes are returned as key-value(value is string) map.
 * Crease tag('t'). This is OpenSubdiv specific(not in wavefront .obj specification)
-* PBR material extension for .MTL. Its proposed here: http://exocortex.com/blog/extending_wavefront_mtl_to_support_pbr
 * Callback API for custom loading.
 * Double precision support(for HPC application).
 * Smoothing group
@@ -126,12 +123,16 @@ TinyObjLoader is successfully used in ...
 * [ ] surface.
 * [ ] Free form curve/surfaces
 
+### Material
+
+* PBR material extension for .MTL. Its proposed here: http://exocortex.com/blog/extending_wavefront_mtl_to_support_pbr
+* Texture options
+* Unknown material attributes are returned as key-value(value is string) map.
 
 ## TODO
 
 * [ ] Fix obj_sticker example.
 * [ ] More unit test codes.
-* [x] Texture options
 
 ## License
 
