@@ -77,8 +77,8 @@ Edit `setup.py` and uncomment `Developer option` lines
 Assume pip is installed.
 
 ```
-$ pip install pybind11
-$ python setup.py build
+$ python -m pip install pybind11
+$ python -m pip install .
 ```
 
 ## License
