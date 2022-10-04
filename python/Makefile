@@ -1,5 +1,5 @@
 all:
-	python setup.py build
+	python -m pip install .
 
 t:
 	python sample.py

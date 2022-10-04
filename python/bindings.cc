@@ -8,7 +8,7 @@
 
 // define some helper functions for pybind11
 #define TINY_OBJ_LOADER_PYTHON_BINDING
-#include "tiny_obj_loader.h"
+#include "../tiny_obj_loader.h"
 
 namespace py = pybind11;
 
@@ -132,7 +132,7 @@ PYBIND11_MODULE(tinyobjloader, tobj_module)
     .def("numpy_indices", [] (mesh_t &instance) {
         // Flatten indexes. index_t is composed of 3 ints(vertex_index, normal_index, texcoord_index).
         // numpy_indices = [0, -1, -1, 1, -1, -1, ...]
-        // C++11 or later should pack POD struct tightly and does not reorder variables, 
+        // C++11 or later should pack POD struct tightly and does not reorder variables,
         // so we can memcpy to copy data.
         // Still, we check the size of struct and byte offsets of each variable just for sure.
         static_assert(sizeof(index_t) == 12, "sizeof(index_t) must be 12");

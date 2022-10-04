@@ -1,117 +1,45 @@
-import setuptools
-import platform
+# Adapted from https://github.com/pybind/python_example/blob/master/setup.py
+import sys
 
-from distutils.command.build_ext import build_ext
+#from pybind11 import get_cmake_dir
+# Available at setup time due to pyproject.toml
+from pybind11.setup_helpers import Pybind11Extension#, build_ext
+from setuptools import setup
 
-with open("README.md", "r") as fh:
+__version__ = "2.0.0rc9"
+
+with open("README.md", "r", encoding="utf8") as fh:
     long_description = fh.read()
 
-# Adapted from https://github.com/pybind/python_example/blob/master/setup.py
-class get_pybind_include(object):
-    """Helper class to determine the pybind11 include path
-    The purpose of this class is to postpone importing pybind11
-    until it is actually installed, so that the ``get_include()``
-    method can be invoked. """
-
-    def __init__(self, user=False, pep517=False):
-        self.user = user
-        self.pep517 = pep517
-
-    def __str__(self):
-        import os
-        import pybind11
-
-        interpreter_include_path = pybind11.get_include(self.user)
-
-        if self.pep517:
-            # When pybind11 is installed permanently in site packages, the headers
-            # will be in the interpreter include path above. PEP 517 provides an
-            # experimental feature for build system dependencies. When installing
-            # a package from a source distribvution, first its build dependencies
-            # are installed in a temporary location. pybind11 does not return the
-            # correct path for this condition, so we glom together a second path,
-            # and ultimately specify them _both_ in the include search path.
-            # https://github.com/pybind/pybind11/issues/1067
-            return os.path.abspath(
-                os.path.join(
-                    os.path.dirname(pybind11.__file__),
-                    "..",
-                    "..",
-                    "..",
-                    "..",
-                    "include",
-                    os.path.basename(interpreter_include_path),
-                )
-            )
-        else:
-            return interpreter_include_path
-
-
-# unix = default compiler name?
-copt = {"unix": ["-std=c++11"], "gcc": ["-std=c++11"], "clang": ["std=c++11"]}
-# TODO: set C++ version for msvc? {'msvc': ["/std:c++14"] }
-
-# ext_compile_args = ["-std=c++11"]
-# ext_link_args = []
-
-# https://stackoverflow.com/questions/724664/python-distutils-how-to-get-a-compiler-that-is-going-to-be-used
-class build_ext_subclass(build_ext):
-    def build_extensions(self):
-        c = self.compiler.compiler_type
-        if c in copt:
-            for e in self.extensions:
-                e.extra_compile_args = copt[c]
-
-        # if lopt.has_key(c):
-        #    for e in self.extensions:
-        #        e.extra_link_args = lopt[ c ]
-        build_ext.build_extensions(self)
-
-
-# Developer option
+# The main interface is through Pybind11Extension.
+# * You can add cxx_std=11/14/17, and then build_ext can be removed.
+# * You can set include_pybind11=false to add the include directory yourself,
+#   say from a submodule.
 #
-# if platform.system() == "Darwin":
-#    # XCode10 or later does not support libstdc++, so we need to use libc++.
-#    # macosx-version 10.6 does not support libc++, so we require min macosx version 10.9.
-#    ext_compile_args.append("-stdlib=libc++")
-#    ext_compile_args.append("-mmacosx-version-min=10.9")
-#    ext_link_args.append("-stdlib=libc++")
-#    ext_link_args.append("-mmacosx-version-min=10.9")
+# Note:
+#   Sort input source files if you glob sources to ensure bit-for-bit
+#   reproducible builds (https://github.com/pybind/python_example/pull/53)
 
-# `tiny_obj_loader.cc` contains implementation of tiny_obj_loader.
-m = setuptools.Extension(
-    "tinyobjloader",
-    # extra_compile_args=ext_compile_args,
-    # extra_link_args=ext_link_args,
-    sources=["bindings.cc", "tiny_obj_loader.cc"],
-    include_dirs=[
-        # Support `build_ext` finding tinyobjloader (without first running
-        # `sdist`).
-        "..",
-        # Support `build_ext` finding pybind 11 (provided it's permanently
-        # installed).
-        get_pybind_include(),
-        get_pybind_include(user=True),
-        # Support building from a source distribution finding pybind11 from
-        # a PEP 517 temporary install.
-        get_pybind_include(pep517=True),
-    ],
-    language="c++",
-)
+ext_modules = [
+    Pybind11Extension("tinyobjloader",
+        sorted(["bindings.cc", "tiny_obj_loader.cc"]),
+        # Example: passing in the version to the compiled code
+        define_macros = [('VERSION_INFO', __version__)],
+        cxx_std=11,
+        ),
+]
 
-
-setuptools.setup(
+setup(
     name="tinyobjloader",
-    version="2.0.0rc9",
-    description="Tiny but powerful Wavefront OBJ loader",
-    long_description=long_description,
-    long_description_content_type="text/markdown",
+    version=__version__,
     author="Syoyo Fujita",
     author_email="syoyo@lighttransport.com",
     url="https://github.com/tinyobjloader/tinyobjloader",
     project_urls={
         "Issue Tracker": "https://github.com/tinyobjloader/tinyobjloader/issues",
     },
+    description="Tiny but powerful Wavefront OBJ loader",
+    long_description=long_description,
     classifiers=[
         "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Developers",
@@ -125,7 +53,12 @@ setuptools.setup(
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
     ],
-    packages=setuptools.find_packages(),
-    ext_modules=[m],
-    cmdclass={"build_ext": build_ext_subclass},
+    ext_modules=ext_modules,
+    extras_require={"test": "pytest"},
+    # Currently, build_ext only provides an optional "highest supported C++
+    # level" feature, but in the future it may provide more features.
+    # cmdclass={"build_ext": build_ext},
+    zip_safe=False,
+    python_requires=">=3.6",
 )
+
