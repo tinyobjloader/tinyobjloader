@@ -2294,15 +2294,9 @@ void LoadMtl(std::map<std::string, int> *material_map,
     }
 
     // bump texture
-    if ((0 == strncmp(token, "map_bump", 8)) && IS_SPACE(token[8])) {
-      token += 9;
-      ParseTextureNameAndOption(&(material.bump_texname),
-                                &(material.bump_texopt), token);
-      continue;
-    }
-
-    // bump texture
-    if ((0 == strncmp(token, "map_Bump", 8)) && IS_SPACE(token[8])) {
+    if (((0 == strncmp(token, "map_bump", 8)) ||
+         (0 == strncmp(token, "map_Bump", 8))) &&
+        IS_SPACE(token[8])) {
       token += 9;
       ParseTextureNameAndOption(&(material.bump_texname),
                                 &(material.bump_texopt), token);
@@ -2323,6 +2317,16 @@ void LoadMtl(std::map<std::string, int> *material_map,
       material.alpha_texname = token;
       ParseTextureNameAndOption(&(material.alpha_texname),
                                 &(material.alpha_texopt), token);
+      continue;
+    }
+
+    // displacement texture
+    if (((0 == strncmp(token, "map_disp", 8)) ||
+         (0 == strncmp(token, "map_Disp", 8))) &&
+        IS_SPACE(token[8])) {
+      token += 9;
+      ParseTextureNameAndOption(&(material.displacement_texname),
+                                &(material.displacement_texopt), token);
       continue;
     }
 
