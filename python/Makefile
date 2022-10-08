@@ -1,5 +1,5 @@
 all:
-	python -m pip install .
+	cd .. && python -m pip install .
 
 t:
 	python sample.py

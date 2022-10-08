@@ -22,7 +22,7 @@ with open("README.md", "r", encoding="utf8") as fh:
 
 ext_modules = [
     Pybind11Extension("tinyobjloader",
-        sorted(["bindings.cc", "tiny_obj_loader.cc"]),
+        sorted(["python/bindings.cc", "python/tiny_obj_loader.cc"]),
         # Example: passing in the version to the compiled code
         define_macros = [('VERSION_INFO', __version__)],
         cxx_std=11,
@@ -61,4 +61,3 @@ setup(
     zip_safe=False,
     python_requires=">=3.6",
 )
-
