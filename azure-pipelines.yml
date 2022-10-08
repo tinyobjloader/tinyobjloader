@@ -27,7 +27,11 @@ jobs:
     steps:
       - task: UsePythonVersion@0
       - script: |
-          pip install black==19.10b0
+          # 19.10b0 triggers 'cannot import name '_unicodefun' from 'click'' error.
+          # https://stackoverflow.com/questions/71673404/importerror-cannot-import-name-unicodefun-from-click
+          #pip install black==19.10b0
+          pip install black==22.3.0
+
           black --check python/
         displayName: Check Python code format
 
