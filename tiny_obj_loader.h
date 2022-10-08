@@ -1399,6 +1399,7 @@ static int pnpoly(int nvert, T *vertx, T *verty, T testx, T testy) {
 
 struct TinyObjPoint {
   real_t x, y, z;
+  TinyObjPoint() : x(0), y(0), z(0);
   TinyObjPoint(real_t x_, real_t y_, real_t z_) :
     x(x_), y(y_), z(z_) {}
 };
@@ -1573,7 +1574,7 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
           vertex_index_t i0_2 = i0;
 
           // TMW change: Find the normal axis of the polygon using Newell's method
-          TinyObjPoint n(0, 0, 0);
+          TinyObjPoint n;
           for (size_t k = 0; k < npolys; ++k) {
             i0 = face.vertex_indices[k % npolys];
             size_t vi0 = size_t(i0.v_idx);
@@ -1607,9 +1608,9 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
           }
           //Negative is to flip the normal to the correct direction
           real_t inv_length = -1.0f / length_n;
-          n[0] *= inv_length;
-          n[1] *= inv_length;
-          n[2] *= inv_length;
+          n.x *= inv_length;
+          n.y *= inv_length;
+          n.z *= inv_length;
 
           TinyObjPoint axis_w, axis_v, axis_u;
           axis_w = n;
