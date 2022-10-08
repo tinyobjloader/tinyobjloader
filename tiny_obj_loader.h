@@ -1399,7 +1399,7 @@ static int pnpoly(int nvert, T *vertx, T *verty, T testx, T testy) {
 
 struct TinyObjPoint {
   real_t x, y, z;
-  TinyObjPoint() : x(0), y(0), z(0);
+  TinyObjPoint() : x(0), y(0), z(0) {}
   TinyObjPoint(real_t x_, real_t y_, real_t z_) :
     x(x_), y(y_), z(z_) {}
 };
