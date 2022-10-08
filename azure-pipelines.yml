@@ -4,7 +4,9 @@ variables:
   #CIBW_SKIP: "pp*"
   CIBW_BEFORE_BUILD: "pip install pybind11"
   CIBW_ARCHS_LINUXBEFORE_BUILD: "pip install pybind11"
-  CIBW_ARCHS_LINUX: auto aarch64
+  # disable aarch64 build for a while since it(pulling docker aarch64 image)  exceeds Azure's 60 min limit
+  # NOTE: aarch64 linux support in Azure pipeline is not yet officially supported(as of 2022 Oct) https://github.com/microsoft/azure-pipelines-agent/issues/3935
+  #CIBW_ARCHS_LINUX: auto aarch64
   CIBW_ARCHS_MACOS: x86_64 universal2 arm64
   #CIBW_BEFORE_BUILD_MACOS: "pip install -U pip setuptools"
   #CIBW_BEFORE_BUILD_LINUX: "pip install -U pip setuptools"
