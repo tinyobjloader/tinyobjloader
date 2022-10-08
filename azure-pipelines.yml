@@ -1,8 +1,11 @@
 variables:
   # https://cibuildwheel.readthedocs.io/en/stable/cpp_standards/
-  # python2.7 + C++11(pybind11) is not available.
-  CIBW_SKIP: "cp27-win* pp27-win32 pp36-win32"
+  # cibuildwheel now supports python 3.6+(as of 2022 Oct)
+  #CIBW_SKIP: "pp*"
   CIBW_BEFORE_BUILD: "pip install pybind11"
+  CIBW_ARCHS_LINUXBEFORE_BUILD: "pip install pybind11"
+  CIBW_ARCHS_LINUX: auto aarch64
+  CIBW_ARCHS_MACOS: x86_64 universal2 arm64
   #CIBW_BEFORE_BUILD_MACOS: "pip install -U pip setuptools"
   #CIBW_BEFORE_BUILD_LINUX: "pip install -U pip setuptools"
   #CIBW_TEST_COMMAND: TODO "python -c \"import tinyobjloader; tinyobjloader.test()\""
@@ -37,27 +40,25 @@ jobs:
       - bash: |
           python3 -m pip install --upgrade pip
           pip3 install cibuildwheel twine
-          # Make the header files available to the build.
-          cp *.h python
-          mkdir python/mapbox
-          cp mapbox/earcut.hpp python/mapbox/
-          cd python
+
+          # Use pipx to build source dist
+          pip3 install pipx
 
           # Source dist
-          python3 setup.py sdist
+          pipx run build --sdist
           ls -la dist/*
 
           # build binary wheels
-          cibuildwheel --output-dir wheelhouse .
+          cibuildwheel --platform linux --output-dir wheelhouse .
 
       - task: CopyFiles@2
         inputs:
-          contents: 'python/wheelhouse/**'
+          contents: 'wheelhouse/**'
           targetFolder: $(Build.ArtifactStagingDirectory)
 
       - task: CopyFiles@2
         inputs:
-          contents: 'python/dist/**'
+          contents: 'dist/**'
           targetFolder: $(Build.ArtifactStagingDirectory)
 
       - task: PublishBuildArtifacts@1
@@ -75,15 +76,10 @@ jobs:
       - bash: |
           python3 -m pip install --upgrade pip
           pip3 install cibuildwheel
-          # Make the header files available to the build.
-          cp *.h python
-          mkdir python/mapbox
-          cp mapbox/earcut.hpp python/mapbox/earcut.hpp
-          cd python
-          cibuildwheel --output-dir wheelhouse .
+          cibuildwheel --platform macos --output-dir wheelhouse .
       - task: CopyFiles@2
         inputs:
-          contents: 'python/wheelhouse/*.whl'
+          contents: 'wheelhouse/*.whl'
           targetFolder: $(Build.ArtifactStagingDirectory)
       - task: PublishBuildArtifacts@1
         inputs:
@@ -97,15 +93,10 @@ jobs:
       - bash: |
           python -m pip install --upgrade pip
           pip install cibuildwheel
-          # Make the header files available to the build.
-          cp *.h python
-          mkdir python/mapbox
-          cp mapbox/earcut.hpp python/mapbox/
-          cd python
-          cibuildwheel --output-dir wheelhouse .
+          cibuildwheel --platform windows --output-dir wheelhouse .
       - task: CopyFiles@2
         inputs:
-          contents: 'python/wheelhouse/*.whl'
+          contents: 'wheelhouse/*.whl'
           targetFolder: $(Build.ArtifactStagingDirectory)
       - task: PublishBuildArtifacts@1
         inputs:
@@ -145,9 +136,9 @@ jobs:
           find .
           python -m pip install --upgrade pip
           pip install twine
-          echo tinyobjDeployLinux/python/dist/*
-          echo tinyobjDeployLinux/python/wheelhouse/* tinyobjDeployMacOS/python/wheelhouse/* tinyobjDeployWindows/python/wheelhouse/*
-          twine upload -u "__token__" --skip-existing tinyobjDeployLinux/python/dist/* tinyobjDeployLinux/python/wheelhouse/* tinyobjDeployMacOS/python/wheelhouse/* tinyobjDeployWindows/python/wheelhouse/*
+          echo tinyobjDeployLinux/dist/*
+          echo tinyobjDeployLinux/wheelhouse/* tinyobjDeployMacOS/wheelhouse/* tinyobjDeployWindows/wheelhouse/*
+          twine upload -u "__token__" --skip-existing tinyobjDeployLinux/dist/* tinyobjDeployLinux/wheelhouse/* tinyobjDeployMacOS/wheelhouse/* tinyobjDeployWindows/wheelhouse/*
         env:
           TWINE_PASSWORD: $(pypiToken2)
 
