@@ -71,7 +71,7 @@ jobs:
           artifactName: tinyobjDeployLinux
 
   - job: macos
-    pool: {vmImage: 'macOS-10.15'}
+    pool: {vmImage: 'macOS-latest'}
     variables:
       # Support C++11: https://github.com/joerick/cibuildwheel/pull/156
       MACOSX_DEPLOYMENT_TARGET: 10.9
@@ -91,7 +91,7 @@ jobs:
           artifactName: tinyobjDeployMacOS
 
   - job: windows
-    pool: {vmImage: 'windows-2019'}
+    pool: {vmImage: 'windows-latest'}
     steps:
       - task: UsePythonVersion@0
       - bash: |
@@ -109,7 +109,7 @@ jobs:
 
   - job: deployPyPI
     # Based on vispy: https://github.com/vispy/vispy/blob/master/azure-pipelines.yml
-    pool: {vmImage: 'Ubuntu-16.04'}
+    pool: {vmImage: 'ubuntu-latest'}
     condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/tags/v'))
     dependsOn:
       - linux
