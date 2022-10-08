@@ -1397,33 +1397,37 @@ static int pnpoly(int nvert, T *vertx, T *verty, T testx, T testy) {
   return c;
 }
 
+struct TinyObjPoint {
+  real_t x, y, z;
+  TinyObjPoint(real_t x_, real_t y_, real_t z_) :
+    x(x_), y(y_), z(z_) {}
+};
 
-inline std::array<real_t, 3> cross(const std::array<real_t, 3> &v1, const std::array<real_t, 3> &v2) {
-  return { v1[1] * v2[2] - v1[2] * v2[1],
-          v1[2] * v2[0] - v1[0] * v2[2],
-          v1[0] * v2[1] - v1[1] * v2[0]};
+inline TinyObjPoint cross(const TinyObjPoint &v1, const TinyObjPoint &v2) {
+  return TinyObjPoint(v1.y * v2.z - v1.z * v2.y,
+                      v1.z * v2.x - v1.x * v2.z,
+                      v1.x * v2.y - v1.y * v2.x);
 }
 
-inline real_t dot(const std::array<real_t, 3> &v1, const std::array<real_t, 3> &v2) {
-  return (v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2]);
+inline real_t dot(const TinyObjPoint &v1, const TinyObjPoint &v2) {
+  return (v1.x * v2.x + v1.y * v2.y + v1.z * v2.z);
 }
 
-inline real_t GetLength(std::array<real_t, 3> &e) {
-	return std::sqrt(e[0]*e[0] + e[1]*e[1] + e[2]*e[2]);
+inline real_t GetLength(TinyObjPoint &e) {
+	return std::sqrt(e.x*e.x + e.y*e.y + e.z*e.z);
 }
 
-inline std::array<real_t, 3> Normalize(std::array<real_t, 3> e) {
+inline TinyObjPoint Normalize(TinyObjPoint e) {
 	real_t inv_length = 1.0 / GetLength(e);
-	return {e[0] * inv_length, e[1] * inv_length, e[2] * inv_length };
+	return TinyObjPoint(e.x * inv_length, e.y * inv_length, e.z * inv_length );
 }
 
 
-inline std::array<real_t, 3> WorldToLocal(const std::array<real_t, 3>& a,
-										  const std::array<real_t, 3>& u,
-										  const std::array<real_t, 3>& v,
-										  const std::array<real_t, 3>& w) {
-	std::array<real_t, 3> projected = {dot(a,u),dot(a,v),dot(a,w)};
-    return(projected);
+inline TinyObjPoint WorldToLocal(const TinyObjPoint& a,
+										  const TinyObjPoint& u,
+										  const TinyObjPoint& v,
+										  const TinyObjPoint& w) {
+  return TinyObjPoint(dot(a,u),dot(a,v),dot(a,w));
 }
 
 
@@ -1569,8 +1573,7 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
           vertex_index_t i0_2 = i0;
 
           // TMW change: Find the normal axis of the polygon using Newell's method
-          using Point3 = std::array<real_t, 3>;
-          Point3 n = {0, 0, 0};
+          TinyObjPoint n(0, 0, 0);
           for (size_t k = 0; k < npolys; ++k) {
             i0 = face.vertex_indices[k % npolys];
             size_t vi0 = size_t(i0.v_idx);
@@ -1587,15 +1590,15 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
             real_t v0y_2 = v[vi0_2 * 3 + 1];
             real_t v0z_2 = v[vi0_2 * 3 + 2];
 
-            const Point3 point1 = {v0x,v0y,v0z};
-            const Point3 point2 = {v0x_2,v0y_2,v0z_2};
+            const TinyObjPoint point1(v0x,v0y,v0z);
+            const TinyObjPoint point2(v0x_2,v0y_2,v0z_2);
 
-            Point3 a = {point1[0] - point2[0], point1[1] - point2[1], point1[2] - point2[2]};
-            Point3 b = {point1[0] + point2[0], point1[1] + point2[1], point1[2] + point2[2]};
+            TinyObjPoint a(point1.x - point2.x, point1.y - point2.y, point1.z - point2.z);
+            TinyObjPoint b(point1.x + point2.x, point1.y + point2.y, point1.z + point2.z);
 
-            n[0] += (a[1] * b[2]);
-            n[1] += (a[2] * b[0]);
-            n[2] += (a[0] * b[1]);
+            n.x += (a.x * b.z);
+            n.y += (a.z * b.x);
+            n.z += (a.x * b.y);
           }
           real_t length_n = GetLength(n);
           //Check if zero length normal
@@ -1608,13 +1611,13 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
           n[1] *= inv_length;
           n[2] *= inv_length;
 
-          Point3 axis_w, axis_v, axis_u;
+          TinyObjPoint axis_w, axis_v, axis_u;
           axis_w = n;
-          Point3 a;
+          TinyObjPoint a;
           if(abs(axis_w[0]) > 0.9999999) {
-            a = {0,1,0};
+            a = TinyObjPoint(0,1,0);
           } else {
-            a = {1,0,0};
+            a = TinyObjPoint(1,0,0);
           }
           axis_v = Normalize(cross(axis_w, a));
           axis_u = cross(axis_w, axis_v);
@@ -1640,10 +1643,10 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
             real_t v0y = v[vi0 * 3 + 1];
             real_t v0z = v[vi0 * 3 + 2];
 
-            Point3 polypoint = {v0x,v0y,v0z};
-            Point3 loc = WorldToLocal(polypoint, axis_u, axis_v, axis_w);
+            TinyObjPoint polypoint(v0x,v0y,v0z);
+            TinyObjPoint loc = WorldToLocal(polypoint, axis_u, axis_v, axis_w);
 
-            polyline.push_back({loc[0], loc[1]});
+            polyline.push_back({loc.x, loc.y});
           }
 
           polygon.push_back(polyline);
