@@ -1397,6 +1397,41 @@ static int pnpoly(int nvert, T *vertx, T *verty, T testx, T testy) {
   return c;
 }
 
+struct TinyObjPoint {
+  real_t x, y, z;
+  TinyObjPoint() : x(0), y(0), z(0) {}
+  TinyObjPoint(real_t x_, real_t y_, real_t z_) :
+    x(x_), y(y_), z(z_) {}
+};
+
+inline TinyObjPoint cross(const TinyObjPoint &v1, const TinyObjPoint &v2) {
+  return TinyObjPoint(v1.y * v2.z - v1.z * v2.y,
+                      v1.z * v2.x - v1.x * v2.z,
+                      v1.x * v2.y - v1.y * v2.x);
+}
+
+inline real_t dot(const TinyObjPoint &v1, const TinyObjPoint &v2) {
+  return (v1.x * v2.x + v1.y * v2.y + v1.z * v2.z);
+}
+
+inline real_t GetLength(TinyObjPoint &e) {
+	return std::sqrt(e.x*e.x + e.y*e.y + e.z*e.z);
+}
+
+inline TinyObjPoint Normalize(TinyObjPoint e) {
+	real_t inv_length = 1.0 / GetLength(e);
+	return TinyObjPoint(e.x * inv_length, e.y * inv_length, e.z * inv_length );
+}
+
+
+inline TinyObjPoint WorldToLocal(const TinyObjPoint& a,
+										  const TinyObjPoint& u,
+										  const TinyObjPoint& v,
+										  const TinyObjPoint& w) {
+  return TinyObjPoint(dot(a,u),dot(a,v),dot(a,w));
+}
+
+
 // TODO(syoyo): refactor function.
 static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
                                 const std::vector<tag_t> &tags,
@@ -1425,7 +1460,7 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
         continue;
       }
 
-      if (triangulate) {
+      if (triangulate && npolys != 3) {
         if (npolys == 4) {
           vertex_index_t i0 = face.vertex_indices[0];
           vertex_index_t i1 = face.vertex_indices[1];
@@ -1534,6 +1569,125 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
           shape->mesh.smoothing_group_ids.push_back(face.smoothing_group_id);
 
         } else {
+#ifdef TINYOBJLOADER_USE_MAPBOX_EARCUT
+          vertex_index_t i0 = face.vertex_indices[0];
+          vertex_index_t i0_2 = i0;
+
+          // TMW change: Find the normal axis of the polygon using Newell's method
+          TinyObjPoint n;
+          for (size_t k = 0; k < npolys; ++k) {
+            i0 = face.vertex_indices[k % npolys];
+            size_t vi0 = size_t(i0.v_idx);
+
+            size_t j = (k + 1) % npolys;
+            i0_2 = face.vertex_indices[j];
+            size_t vi0_2 = size_t(i0_2.v_idx);
+
+            real_t v0x = v[vi0 * 3 + 0];
+            real_t v0y = v[vi0 * 3 + 1];
+            real_t v0z = v[vi0 * 3 + 2];
+
+            real_t v0x_2 = v[vi0_2 * 3 + 0];
+            real_t v0y_2 = v[vi0_2 * 3 + 1];
+            real_t v0z_2 = v[vi0_2 * 3 + 2];
+
+            const TinyObjPoint point1(v0x,v0y,v0z);
+            const TinyObjPoint point2(v0x_2,v0y_2,v0z_2);
+
+            TinyObjPoint a(point1.x - point2.x, point1.y - point2.y, point1.z - point2.z);
+            TinyObjPoint b(point1.x + point2.x, point1.y + point2.y, point1.z + point2.z);
+
+            n.x += (a.x * b.z);
+            n.y += (a.z * b.x);
+            n.z += (a.x * b.y);
+          }
+          real_t length_n = GetLength(n);
+          //Check if zero length normal
+          if(length_n <= 0) {
+            continue;
+          }
+          //Negative is to flip the normal to the correct direction
+          real_t inv_length = -1.0f / length_n;
+          n.x *= inv_length;
+          n.y *= inv_length;
+          n.z *= inv_length;
+
+          TinyObjPoint axis_w, axis_v, axis_u;
+          axis_w = n;
+          TinyObjPoint a;
+          if(abs(axis_w.x) > 0.9999999) {
+            a = TinyObjPoint(0,1,0);
+          } else {
+            a = TinyObjPoint(1,0,0);
+          }
+          axis_v = Normalize(cross(axis_w, a));
+          axis_u = cross(axis_w, axis_v);
+          using Point = std::array<real_t, 2>;
+
+          // first polyline define the main polygon.
+          // following polylines define holes(not used in tinyobj).
+          std::vector<std::vector<Point> > polygon;
+
+          std::vector<Point> polyline;
+
+          //TMW change: Find best normal and project v0x and v0y to those coordinates, instead of
+          //picking a plane aligned with an axis (which can flip polygons).
+
+          // Fill polygon data(facevarying vertices).
+          for (size_t k = 0; k < npolys; k++) {
+            i0 = face.vertex_indices[k];
+            size_t vi0 = size_t(i0.v_idx);
+
+            assert(((3 * vi0 + 2) < v.size()));
+
+            real_t v0x = v[vi0 * 3 + 0];
+            real_t v0y = v[vi0 * 3 + 1];
+            real_t v0z = v[vi0 * 3 + 2];
+
+            TinyObjPoint polypoint(v0x,v0y,v0z);
+            TinyObjPoint loc = WorldToLocal(polypoint, axis_u, axis_v, axis_w);
+
+            polyline.push_back({loc.x, loc.y});
+          }
+
+          polygon.push_back(polyline);
+          std::vector<uint32_t> indices = mapbox::earcut<uint32_t>(polygon);
+          // => result = 3 * faces, clockwise
+
+          assert(indices.size() % 3 == 0);
+
+          // Reconstruct vertex_index_t
+          for (size_t k = 0; k < indices.size() / 3; k++) {
+            {
+              index_t idx0, idx1, idx2;
+              idx0.vertex_index = face.vertex_indices[indices[3 * k + 0]].v_idx;
+              idx0.normal_index =
+                face.vertex_indices[indices[3 * k + 0]].vn_idx;
+              idx0.texcoord_index =
+                face.vertex_indices[indices[3 * k + 0]].vt_idx;
+              idx1.vertex_index = face.vertex_indices[indices[3 * k + 1]].v_idx;
+              idx1.normal_index =
+                face.vertex_indices[indices[3 * k + 1]].vn_idx;
+              idx1.texcoord_index =
+                face.vertex_indices[indices[3 * k + 1]].vt_idx;
+              idx2.vertex_index = face.vertex_indices[indices[3 * k + 2]].v_idx;
+              idx2.normal_index =
+                face.vertex_indices[indices[3 * k + 2]].vn_idx;
+              idx2.texcoord_index =
+                face.vertex_indices[indices[3 * k + 2]].vt_idx;
+
+              shape->mesh.indices.push_back(idx0);
+              shape->mesh.indices.push_back(idx1);
+              shape->mesh.indices.push_back(idx2);
+
+              shape->mesh.num_face_vertices.push_back(3);
+              shape->mesh.material_ids.push_back(material_id);
+              shape->mesh.smoothing_group_ids.push_back(
+                  face.smoothing_group_id);
+            }
+          }
+
+#else  // Built-in ear clipping triangulation
           vertex_index_t i0 = face.vertex_indices[0];
           vertex_index_t i1(-1);
           vertex_index_t i2 = face.vertex_indices[1];
@@ -1591,68 +1745,6 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
               break;
             }
           }
-
-#ifdef TINYOBJLOADER_USE_MAPBOX_EARCUT
-          using Point = std::array<real_t, 2>;
-
-          // first polyline define the main polygon.
-          // following polylines define holes(not used in tinyobj).
-          std::vector<std::vector<Point> > polygon;
-
-          std::vector<Point> polyline;
-
-          // Fill polygon data(facevarying vertices).
-          for (size_t k = 0; k < npolys; k++) {
-            i0 = face.vertex_indices[k];
-            size_t vi0 = size_t(i0.v_idx);
-
-            assert(((3 * vi0 + 2) < v.size()));
-
-            real_t v0x = v[vi0 * 3 + axes[0]];
-            real_t v0y = v[vi0 * 3 + axes[1]];
-
-            polyline.push_back({v0x, v0y});
-          }
-
-          polygon.push_back(polyline);
-          std::vector<uint32_t> indices = mapbox::earcut<uint32_t>(polygon);
-          // => result = 3 * faces, clockwise
-
-          assert(indices.size() % 3 == 0);
-
-          // Reconstruct vertex_index_t
-          for (size_t k = 0; k < indices.size() / 3; k++) {
-            {
-              index_t idx0, idx1, idx2;
-              idx0.vertex_index = face.vertex_indices[indices[3 * k + 0]].v_idx;
-              idx0.normal_index =
-                  face.vertex_indices[indices[3 * k + 0]].vn_idx;
-              idx0.texcoord_index =
-                  face.vertex_indices[indices[3 * k + 0]].vt_idx;
-              idx1.vertex_index = face.vertex_indices[indices[3 * k + 1]].v_idx;
-              idx1.normal_index =
-                  face.vertex_indices[indices[3 * k + 1]].vn_idx;
-              idx1.texcoord_index =
-                  face.vertex_indices[indices[3 * k + 1]].vt_idx;
-              idx2.vertex_index = face.vertex_indices[indices[3 * k + 2]].v_idx;
-              idx2.normal_index =
-                  face.vertex_indices[indices[3 * k + 2]].vn_idx;
-              idx2.texcoord_index =
-                  face.vertex_indices[indices[3 * k + 2]].vt_idx;
-
-              shape->mesh.indices.push_back(idx0);
-              shape->mesh.indices.push_back(idx1);
-              shape->mesh.indices.push_back(idx2);
-
-              shape->mesh.num_face_vertices.push_back(3);
-              shape->mesh.material_ids.push_back(material_id);
-              shape->mesh.smoothing_group_ids.push_back(
-                  face.smoothing_group_id);
-            }
-          }
-
-#else  // Built-in ear clipping triangulation
-
 
           face_t remainingFace = face;  // copy
           size_t guess_vert = 0;
