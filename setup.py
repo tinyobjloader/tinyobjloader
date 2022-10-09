@@ -40,6 +40,7 @@ setup(
     },
     description="Tiny but powerful Wavefront OBJ loader",
     long_description=long_description,
+    long_description_content_type='text/markdown',
     classifiers=[
         "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Developers",
