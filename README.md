@@ -421,7 +421,7 @@ cibuildwheels + twine upload for each git tagging event is handled in Azure Pipe
 #### How to bump version(For developer)
 
 * Bump version in CMakeLists.txt
-* Update version in `python/setup.py`
+* Update version in `setup.py`
 * Commit and push `master`. Confirm C.I. build is OK.
 * Create tag starting with `v`(e.g. `v2.1.0`)
 * `git push --tags`
