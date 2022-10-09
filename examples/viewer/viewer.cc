@@ -152,6 +152,8 @@ bool mouseRightPressed;
 float curr_quat[4];
 float prev_quat[4];
 float eye[3], lookat[3], up[3];
+bool g_show_wire = true;
+bool g_cull_face = false;
 
 GLFWwindow* window;
 
@@ -833,8 +835,19 @@ static void keyboardFunc(GLFWwindow* window, int key, int scancode, int action,
       mv_z += -1;
     // camera.move(mv_x * 0.05, mv_y * 0.05, mv_z * 0.05);
     // Close window
-    if (key == GLFW_KEY_Q || key == GLFW_KEY_ESCAPE)
+    if (key == GLFW_KEY_Q || key == GLFW_KEY_ESCAPE) {
       glfwSetWindowShouldClose(window, GL_TRUE);
+    }
+
+    if (key == GLFW_KEY_W) {
+      // toggle wireframe
+      g_show_wire = !g_show_wire;
+    }
+
+    if (key == GLFW_KEY_C) {
+      // cull option
+      g_cull_face = !g_cull_face;
+    }
 
     // init_frame = true;
   }
@@ -898,7 +911,11 @@ static void Draw(const std::vector<DrawObject>& drawObjects,
                  std::vector<tinyobj::material_t>& materials,
                  std::map<std::string, GLuint>& textures) {
   glPolygonMode(GL_FRONT, GL_FILL);
-  glPolygonMode(GL_BACK, GL_FILL);
+  if (g_cull_face) {
+    glPolygonMode(GL_BACK, GL_LINE);
+  } else {
+    glPolygonMode(GL_BACK, GL_FILL);
+  }
 
   glEnable(GL_POLYGON_OFFSET_FILL);
   glPolygonOffset(1.0, 1.0);
@@ -933,29 +950,31 @@ static void Draw(const std::vector<DrawObject>& drawObjects,
   }
 
   // draw wireframe
-  glDisable(GL_POLYGON_OFFSET_FILL);
-  glPolygonMode(GL_FRONT, GL_LINE);
-  glPolygonMode(GL_BACK, GL_LINE);
+  if (g_show_wire) {
+    glDisable(GL_POLYGON_OFFSET_FILL);
+    glPolygonMode(GL_FRONT, GL_LINE);
+    glPolygonMode(GL_BACK, GL_LINE);
 
-  glColor3f(0.0f, 0.0f, 0.4f);
-  for (size_t i = 0; i < drawObjects.size(); i++) {
-    DrawObject o = drawObjects[i];
-    if (o.vb_id < 1) {
-      continue;
+    glColor3f(0.0f, 0.0f, 0.4f);
+    for (size_t i = 0; i < drawObjects.size(); i++) {
+      DrawObject o = drawObjects[i];
+      if (o.vb_id < 1) {
+        continue;
+      }
+
+      glBindBuffer(GL_ARRAY_BUFFER, o.vb_id);
+      glEnableClientState(GL_VERTEX_ARRAY);
+      glEnableClientState(GL_NORMAL_ARRAY);
+      glDisableClientState(GL_COLOR_ARRAY);
+      glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+      glVertexPointer(3, GL_FLOAT, stride, (const void*)0);
+      glNormalPointer(GL_FLOAT, stride, (const void*)(sizeof(float) * 3));
+      glColorPointer(3, GL_FLOAT, stride, (const void*)(sizeof(float) * 6));
+      glTexCoordPointer(2, GL_FLOAT, stride, (const void*)(sizeof(float) * 9));
+
+      glDrawArrays(GL_TRIANGLES, 0, 3 * o.numTriangles);
+      CheckErrors("drawarrays");
     }
-
-    glBindBuffer(GL_ARRAY_BUFFER, o.vb_id);
-    glEnableClientState(GL_VERTEX_ARRAY);
-    glEnableClientState(GL_NORMAL_ARRAY);
-    glDisableClientState(GL_COLOR_ARRAY);
-    glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-    glVertexPointer(3, GL_FLOAT, stride, (const void*)0);
-    glNormalPointer(GL_FLOAT, stride, (const void*)(sizeof(float) * 3));
-    glColorPointer(3, GL_FLOAT, stride, (const void*)(sizeof(float) * 6));
-    glTexCoordPointer(2, GL_FLOAT, stride, (const void*)(sizeof(float) * 9));
-
-    glDrawArrays(GL_TRIANGLES, 0, 3 * o.numTriangles);
-    CheckErrors("drawarrays");
   }
 }
 
@@ -994,6 +1013,11 @@ int main(int argc, char** argv) {
     glfwTerminate();
     return 1;
   }
+
+  std::cout << "W : Toggle wireframe\n";
+  std::cout << "C : Toggle face culling\n";
+  //std::cout << "K, J, H, L, P, N : Move camera\n";
+  std::cout << "Q, Esc : quit\n";
 
   glfwMakeContextCurrent(window);
   glfwSwapInterval(1);
