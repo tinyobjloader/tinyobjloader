@@ -6,7 +6,7 @@ import sys
 from pybind11.setup_helpers import Pybind11Extension#, build_ext
 from setuptools import setup
 
-__version__ = "2.0.0rc9"
+__version__ = "2.0.0rc10"
 
 with open("README.md", "r", encoding="utf8") as fh:
     long_description = fh.read()
