@@ -1597,7 +1597,7 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
             TinyObjPoint a(point1.x - point2.x, point1.y - point2.y, point1.z - point2.z);
             TinyObjPoint b(point1.x + point2.x, point1.y + point2.y, point1.z + point2.z);
 
-            n.x += (a.x * b.z);
+            n.x += (a.y * b.z);
             n.y += (a.z * b.x);
             n.z += (a.x * b.y);
           }
