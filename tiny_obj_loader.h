@@ -796,6 +796,11 @@ static std::istream &safeGetline(std::istream &is, std::string &t) {
   (static_cast<unsigned int>((x) - '0') < static_cast<unsigned int>(10))
 #define IS_NEW_LINE(x) (((x) == '\r') || ((x) == '\n') || ((x) == '\0'))
 
+template <typename T>
+static inline std::string toString(const T &t) {
+  return (std::stringstream() << t).str();
+}
+
 struct warning_context
 {
 	std::string *warn;
@@ -817,7 +822,7 @@ static inline bool fixIndex(int idx, int n, int *ret, bool allow_zero, const war
     // zero is not allowed according to the spec.
     if (context.warn) {
       (*context.warn) += "A zero value index found (will have a value of -1 for normal and tex indices. Line "
-          + std::to_string(context.line_number) + ").\n";
+          + toString(context.line_number) + ").\n";
     }
 
     (*ret) = idx - 1;
@@ -2705,7 +2710,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
                          static_cast<int>(vt.size() / 2), &vi, context)) {
           if (err) {
             (*err) += "Failed to parse `l' line (e.g. a zero value for vertex index. Line " +
-                std::to_string(line_num) + ").\n";
+                toString(line_num) + ").\n";
           }
           return false;
         }
@@ -2734,7 +2739,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
                          static_cast<int>(vt.size() / 2), &vi, context)) {
           if (err) {
             (*err) += "Failed to parse `p' line (e.g. a zero value for vertex index. Line " +
-                std::to_string(line_num) + ").\n";
+                toString(line_num) + ").\n";
           }
           return false;
         }
@@ -2767,7 +2772,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
                          static_cast<int>(vt.size() / 2), &vi, context)) {
           if (err) {
             (*err) += "Failed to parse `f' line (e.g. a zero value for vertex index. Line " +
-                std::to_string(line_num) + ").\n";
+                toString(line_num) + ").\n";
           }
           return false;
         }
