@@ -796,8 +796,14 @@ static std::istream &safeGetline(std::istream &is, std::string &t) {
   (static_cast<unsigned int>((x) - '0') < static_cast<unsigned int>(10))
 #define IS_NEW_LINE(x) (((x) == '\r') || ((x) == '\n') || ((x) == '\0'))
 
+struct warning_context
+{
+	std::string *warn;
+	int line_number;
+};
+
 // Make index zero-base, and also support relative index.
-static inline bool fixIndex(int idx, int n, int *ret) {
+static inline bool fixIndex(int idx, int n, int *ret, bool allow_zero, warning_context &context) {
   if (!ret) {
     return false;
   }
@@ -809,7 +815,13 @@ static inline bool fixIndex(int idx, int n, int *ret) {
 
   if (idx == 0) {
     // zero is not allowed according to the spec.
-    return false;
+    if (context.warn) {
+      (*context.warn) += "A zero value index found (will have a value of -1 for normal and tex indices. Line "
+          + std::to_string(context.line_number) + ").\n";
+    }
+
+    (*ret) = idx - 1;
+    return allow_zero;
   }
 
   if (idx < 0) {
@@ -1134,14 +1146,14 @@ static tag_sizes parseTagTriple(const char **token) {
 
 // Parse triples with index offsets: i, i/j/k, i//k, i/j
 static bool parseTriple(const char **token, int vsize, int vnsize, int vtsize,
-                        vertex_index_t *ret) {
+                        vertex_index_t *ret, warning_context &context) {
   if (!ret) {
     return false;
   }
 
   vertex_index_t vi(-1);
 
-  if (!fixIndex(atoi((*token)), vsize, &(vi.v_idx))) {
+  if (!fixIndex(atoi((*token)), vsize, &vi.v_idx, false, context)) {
     return false;
   }
 
@@ -1155,7 +1167,7 @@ static bool parseTriple(const char **token, int vsize, int vnsize, int vtsize,
   // i//k
   if ((*token)[0] == '/') {
     (*token)++;
-    if (!fixIndex(atoi((*token)), vnsize, &(vi.vn_idx))) {
+    if (!fixIndex(atoi((*token)), vnsize, &vi.vn_idx, true, context)) {
       return false;
     }
     (*token) += strcspn((*token), "/ \t\r");
@@ -1164,7 +1176,7 @@ static bool parseTriple(const char **token, int vsize, int vnsize, int vtsize,
   }
 
   // i/j/k or i/j
-  if (!fixIndex(atoi((*token)), vtsize, &(vi.vt_idx))) {
+  if (!fixIndex(atoi((*token)), vtsize, &vi.vt_idx, true, context)) {
     return false;
   }
 
@@ -1176,7 +1188,7 @@ static bool parseTriple(const char **token, int vsize, int vnsize, int vtsize,
 
   // i/j/k
   (*token)++;  // skip '/'
-  if (!fixIndex(atoi((*token)), vnsize, &(vi.vn_idx))) {
+  if (!fixIndex(atoi((*token)), vnsize, &vi.vn_idx, true, context)) {
     return false;
   }
   (*token) += strcspn((*token), "/ \t\r");
@@ -2678,6 +2690,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       vw.push_back(sw);
     }
 
+    warning_context context {warn, line_num};
+
     // line
     if (token[0] == 'l' && IS_SPACE((token[1]))) {
       token += 2;
@@ -2688,13 +2702,10 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
         vertex_index_t vi;
         if (!parseTriple(&token, static_cast<int>(v.size() / 3),
                          static_cast<int>(vn.size() / 3),
-                         static_cast<int>(vt.size() / 2), &vi)) {
+                         static_cast<int>(vt.size() / 2), &vi, context)) {
           if (err) {
-            std::stringstream ss;
-            ss << "Failed parse `l' line(e.g. zero value for vertex index. "
-                  "line "
-               << line_num << ".)\n";
-            (*err) += ss.str();
+            (*err) += "Failed to parse `l' line (e.g. a zero value for vertex index. Line " +
+                std::to_string(line_num) + ").\n";
           }
           return false;
         }
@@ -2720,13 +2731,10 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
         vertex_index_t vi;
         if (!parseTriple(&token, static_cast<int>(v.size() / 3),
                          static_cast<int>(vn.size() / 3),
-                         static_cast<int>(vt.size() / 2), &vi)) {
+                         static_cast<int>(vt.size() / 2), &vi, context)) {
           if (err) {
-            std::stringstream ss;
-            ss << "Failed parse `p' line(e.g. zero value for vertex index. "
-                  "line "
-               << line_num << ".)\n";
-            (*err) += ss.str();
+            (*err) += "Failed to parse `p' line (e.g. a zero value for vertex index. Line " +
+                std::to_string(line_num) + ").\n";
           }
           return false;
         }
@@ -2756,12 +2764,10 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
         vertex_index_t vi;
         if (!parseTriple(&token, static_cast<int>(v.size() / 3),
                          static_cast<int>(vn.size() / 3),
-                         static_cast<int>(vt.size() / 2), &vi)) {
+                         static_cast<int>(vt.size() / 2), &vi, context)) {
           if (err) {
-            std::stringstream ss;
-            ss << "Failed parse `f' line(e.g. zero value for face index. line "
-               << line_num << ".)\n";
-            (*err) += ss.str();
+            (*err) += "Failed to parse `f' line (e.g. a zero value for vertex index. Line " +
+                std::to_string(line_num) + ").\n";
           }
           return false;
         }
