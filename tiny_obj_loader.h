@@ -798,7 +798,9 @@ static std::istream &safeGetline(std::istream &is, std::string &t) {
 
 template <typename T>
 static inline std::string toString(const T &t) {
-  return (std::stringstream() << t).str();
+  std::stringstream ss;
+  ss << t;
+  return ss.str();
 }
 
 struct warning_context
