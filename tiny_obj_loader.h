@@ -799,7 +799,7 @@ static std::istream &safeGetline(std::istream &is, std::string &t) {
 struct warning_context
 {
 	std::string *warn;
-	int line_number;
+	size_t line_number;
 };
 
 // Make index zero-base, and also support relative index.
