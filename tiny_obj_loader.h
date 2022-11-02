@@ -803,7 +803,7 @@ struct warning_context
 };
 
 // Make index zero-base, and also support relative index.
-static inline bool fixIndex(int idx, int n, int *ret, bool allow_zero, warning_context &context) {
+static inline bool fixIndex(int idx, int n, int *ret, bool allow_zero, const warning_context &context) {
   if (!ret) {
     return false;
   }
@@ -1146,7 +1146,7 @@ static tag_sizes parseTagTriple(const char **token) {
 
 // Parse triples with index offsets: i, i/j/k, i//k, i/j
 static bool parseTriple(const char **token, int vsize, int vnsize, int vtsize,
-                        vertex_index_t *ret, warning_context &context) {
+                        vertex_index_t *ret, const warning_context &context) {
   if (!ret) {
     return false;
   }
