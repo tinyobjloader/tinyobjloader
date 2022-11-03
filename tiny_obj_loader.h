@@ -2697,7 +2697,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       vw.push_back(sw);
     }
 
-    warning_context context {warn, line_num};
+    warning_context context;
+    context.warn = warn;
+    context.line_number = line_num;
 
     // line
     if (token[0] == 'l' && IS_SPACE((token[1]))) {
