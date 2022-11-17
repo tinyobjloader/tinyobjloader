@@ -421,6 +421,8 @@ struct attrib_t {
 struct callback_t {
   // W is optional and set to 1 if there is no `w` item in `v` line
   void (*vertex_cb)(void *user_data, real_t x, real_t y, real_t z, real_t w);
+  void (*vertex_color_cb)(void *user_data, real_t x, real_t y, real_t z,
+                          real_t r, real_t g, real_t b, bool has_color);
   void (*normal_cb)(void *user_data, real_t x, real_t y, real_t z);
 
   // y and z are optional and set to 0 if there is no `y` and/or `z` item(s) in
@@ -3153,11 +3155,15 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
     // vertex
     if (token[0] == 'v' && IS_SPACE((token[1]))) {
       token += 2;
-      // TODO(syoyo): Support parsing vertex color extension.
-      real_t x, y, z, w;  // w is optional. default = 1.0
-      parseV(&x, &y, &z, &w, &token);
+      real_t x, y, z;
+      real_t r, g, b;
+
+      bool found_color = parseVertexWithColor(&x, &y, &z, &r, &g, &b, &token);
       if (callback.vertex_cb) {
-        callback.vertex_cb(user_data, x, y, z, w);
+        callback.vertex_cb(user_data, x, y, z, r);  // r=w is optional
+      }
+      if (callback.vertex_color_cb) {
+        callback.vertex_color_cb(user_data, x, y, z, r, g, b, found_color);
       }
       continue;
     }
