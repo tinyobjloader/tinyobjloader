@@ -3,10 +3,13 @@ import tinyobjloader
 
 is_numpy_available = False
 try:
-  import numpy
-  is_numpy_available = True
+    import numpy
+
+    is_numpy_available = True
 except:
-  print("NumPy not installed. Do not use numpy_*** API. If you encounter slow performance, see a performance tips for non-numpy API https://github.com/tinyobjloader/tinyobjloader/issues/275")
+    print(
+        "NumPy not installed. Do not use numpy_*** API. If you encounter slow performance, see a performance tips for non-numpy API https://github.com/tinyobjloader/tinyobjloader/issues/275"
+    )
 
 filename = "../models/cornell_box.obj"
 
@@ -47,7 +50,7 @@ assert len(attrib.texcoords) % 2 == 0
 # Performance note
 # (direct?) array access through member variable is quite slow.
 # https://github.com/tinyobjloader/tinyobjloader/issues/275#issuecomment-753465833
-# 
+#
 # We encourage first copy(?) varible to Python world:
 #
 # vertices = attrib.vertices
@@ -100,5 +103,7 @@ for shape in shapes:
 
     if is_numpy_available:
         print("numpy_indices = {}".format(shape.mesh.numpy_indices()))
-        print("numpy_num_face_vertices = {}".format(shape.mesh.numpy_num_face_vertices()))
+        print(
+            "numpy_num_face_vertices = {}".format(shape.mesh.numpy_num_face_vertices())
+        )
         print("numpy_material_ids = {}".format(shape.mesh.numpy_material_ids()))
