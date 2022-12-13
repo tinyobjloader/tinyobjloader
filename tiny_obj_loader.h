@@ -2108,9 +2108,14 @@ void LoadMtl(std::map<std::string, int> *material_map,
       // set new mtl name
       token += 7;
       {
-        std::stringstream sstr;
-        sstr << token;
-        material.name = sstr.str();
+        std::string namebuf = parseString(&token);
+        // TODO: empty name check?
+        if (namebuf.empty()) {
+          if (warning) {
+            (*warning) += "empty material name in `newmtl`\n";
+          }
+        }
+        material.name = namebuf;
       }
       continue;
     }
