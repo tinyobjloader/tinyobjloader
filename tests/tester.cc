@@ -867,7 +867,7 @@ void test_loading_obj_with_invalid_index() {
   std::string err;
   bool ret =
       tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
-                       "../models/invalid-index.obj", gMtlBasePath);
+                       "../models/invalid-relative-face-index.obj", gMtlBasePath);
 
   if (!warn.empty()) {
     std::cout << "WARN: " << warn << std::endl;
