@@ -2785,7 +2785,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
                          static_cast<int>(vn.size() / 3),
                          static_cast<int>(vt.size() / 2), &vi, context)) {
           if (err) {
-            (*err) += "Failed to parse `f' line (e.g. a zero value for vertex index. Line " +
+            (*err) += "Failed to parse `f' line (e.g. a zero value for vertex index or invalid relative vertex index). Line " +
                 toString(line_num) + ").\n";
           }
           return false;
