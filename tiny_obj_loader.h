@@ -835,6 +835,9 @@ static inline bool fixIndex(int idx, int n, int *ret, bool allow_zero, const war
 
   if (idx < 0) {
     (*ret) = n + idx;  // negative value = relative
+    if((*ret) < 0){
+      return false;  // invalid relative index
+    }
     return true;
   }
 
