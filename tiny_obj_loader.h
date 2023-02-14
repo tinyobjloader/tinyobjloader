@@ -446,6 +446,7 @@ struct callback_t {
 
   callback_t()
       : vertex_cb(NULL),
+        vertex_color_cb(NULL),
         normal_cb(NULL),
         texcoord_cb(NULL),
         index_cb(NULL),
