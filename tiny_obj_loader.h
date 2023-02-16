@@ -202,6 +202,7 @@ struct material_t {
   std::string displacement_texname;        // disp
   std::string alpha_texname;               // map_d
   std::string reflection_texname;          // refl
+  std::string ao_texname;                  // map_Po, mapao
 
   texture_option_t ambient_texopt;
   texture_option_t diffuse_texopt;
@@ -211,6 +212,7 @@ struct material_t {
   texture_option_t displacement_texopt;
   texture_option_t alpha_texopt;
   texture_option_t reflection_texopt;
+  texture_option_t ao_texopt;
 
   // PBR extension
   // http://exocortex.com/blog/extending_wavefront_mtl_to_support_pbr
@@ -1364,6 +1366,7 @@ static void InitMaterial(material_t *material) {
   InitTexOpt(&material->displacement_texopt, /* is_bump */ false);
   InitTexOpt(&material->alpha_texopt, /* is_bump */ false);
   InitTexOpt(&material->reflection_texopt, /* is_bump */ false);
+  InitTexOpt(&material->ao_texopt, /* is_bump */ false);
   InitTexOpt(&material->roughness_texopt, /* is_bump */ false);
   InitTexOpt(&material->metallic_texopt, /* is_bump */ false);
   InitTexOpt(&material->sheen_texopt, /* is_bump */ false);
@@ -1379,6 +1382,7 @@ static void InitMaterial(material_t *material) {
   material->displacement_texname = "";
   material->reflection_texname = "";
   material->alpha_texname = "";
+  material->ao_texname = "";
   for (int i = 0; i < 3; i++) {
     material->ambient[i] = static_cast<real_t>(0.0);
     material->diffuse[i] = static_cast<real_t>(0.0);
@@ -2373,6 +2377,16 @@ void LoadMtl(std::map<std::string, int> *material_map,
       token += 5;
       ParseTextureNameAndOption(&(material.reflection_texname),
                                 &(material.reflection_texopt), token);
+      continue;
+    }
+
+    // ambient occlusion texture
+    if (((0 == strncmp(token, "map_Po", 6))||
+         (0 == strncmp(token, "map_ao", 6))) &&
+        IS_SPACE(token[6])) {
+      token += 7;
+      ParseTextureNameAndOption(&(material.ao_texname),
+                                &(material.ao_texopt), token);
       continue;
     }
 
