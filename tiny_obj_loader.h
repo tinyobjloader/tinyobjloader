@@ -194,7 +194,7 @@ struct material_t {
 
   int dummy;  // Suppress padding warning.
 
-  std::string ambient_texname;             // map_Ka
+  std::string ambient_texname;             // map_Ka. For ambient or ambient occlusion.
   std::string diffuse_texname;             // map_Kd
   std::string specular_texname;            // map_Ks
   std::string specular_highlight_texname;  // map_Ns
@@ -2283,7 +2283,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
       continue;
     }
 
-    // ambient texture
+    // ambient or ambient occlusion texture
     if ((0 == strncmp(token, "map_Ka", 6)) && IS_SPACE(token[6])) {
       token += 7;
       ParseTextureNameAndOption(&(material.ambient_texname),
