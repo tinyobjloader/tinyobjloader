@@ -545,6 +545,21 @@ class ObjReader {
                      const ObjReaderConfig &config = ObjReaderConfig());
 
   ///
+  /// Parse .obj from a memory buffer.
+  /// Need to supply .mtl data by `mtl_data`.
+  /// This function ignores `mtllib` line in .obj text.
+  ///
+  /// @param[in] obj_data wavefront .obj data buffer address
+  /// @param[in] obj_size wavefront .obj data buffer size
+  /// @param[in] mtl_data wavefront .mtl data buffer address
+  /// @param[in] mtl_size wavefront .mtl data buffer size
+  /// @param[in] config Reader configuration
+  ///
+  bool ParseFromMemory(const uint8_t *obj_data, size_t obj_size,
+                       const uint8_t *mtl_data, size_t mtl_size,
+                       const ObjReaderConfig &config = ObjReaderConfig());
+
+  ///
   /// Parse .obj from a text string.
   /// Need to supply .mtl text string by `mtl_text`.
   /// This function ignores `mtllib` line in .obj text.
@@ -3430,6 +3445,30 @@ bool ObjReader::ParseFromFile(const std::string &filename,
   valid_ = LoadObj(&attrib_, &shapes_, &materials_, &warning_, &error_,
                    filename.c_str(), mtl_search_path.c_str(),
                    config.triangulate, config.vertex_color);
+
+  return valid_;
+}
+
+bool ObjReader::ParseFromMemory(const uint8_t *obj_data, size_t obj_size,
+                                const uint8_t *mtl_data, size_t mtl_size,
+                                const ObjReaderConfig &config) {
+  class membuf : public std::basic_streambuf<char> {
+   public:
+    membuf(const uint8_t *p, size_t l) {
+      setg((char *)p, (char *)p, (char *)p + l);
+    }
+  };
+
+  membuf obj_buf(obj_data, obj_size);
+  membuf mtl_buf(mtl_data, mtl_size);
+
+  std::istream obj_ifs(&obj_buf);
+  std::istream mtl_ifs(&mtl_buf);
+
+  MaterialStreamReader mtl_ss(mtl_ifs);
+
+  valid_ = LoadObj(&attrib_, &shapes_, &materials_, &warning_, &error_,
+                   &obj_ifs, &mtl_ss, config.triangulate, config.vertex_color);
 
   return valid_;
 }
