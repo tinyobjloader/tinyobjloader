@@ -194,7 +194,7 @@ struct material_t {
 
   int dummy;  // Suppress padding warning.
 
-  std::string ambient_texname;             // map_Ka
+  std::string ambient_texname;             // map_Ka. For ambient or ambient occlusion.
   std::string diffuse_texname;             // map_Kd
   std::string specular_texname;            // map_Ks
   std::string specular_highlight_texname;  // map_Ns
@@ -446,6 +446,7 @@ struct callback_t {
 
   callback_t()
       : vertex_cb(NULL),
+        vertex_color_cb(NULL),
         normal_cb(NULL),
         texcoord_cb(NULL),
         index_cb(NULL),
@@ -835,6 +836,9 @@ static inline bool fixIndex(int idx, int n, int *ret, bool allow_zero, const war
 
   if (idx < 0) {
     (*ret) = n + idx;  // negative value = relative
+    if((*ret) < 0){
+      return false;  // invalid relative index
+    }
     return true;
   }
 
@@ -2279,7 +2283,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
       continue;
     }
 
-    // ambient texture
+    // ambient or ambient occlusion texture
     if ((0 == strncmp(token, "map_Ka", 6)) && IS_SPACE(token[6])) {
       token += 7;
       ParseTextureNameAndOption(&(material.ambient_texname),
@@ -2782,7 +2786,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
                          static_cast<int>(vn.size() / 3),
                          static_cast<int>(vt.size() / 2), &vi, context)) {
           if (err) {
-            (*err) += "Failed to parse `f' line (e.g. a zero value for vertex index. Line " +
+            (*err) += "Failed to parse `f' line (e.g. a zero value for vertex index or invalid relative vertex index). Line " +
                 toString(line_num) + ").\n";
           }
           return false;
