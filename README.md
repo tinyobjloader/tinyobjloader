@@ -127,7 +127,7 @@ TinyObjLoader is successfully used in ...
 
 ### Material
 
-* PBR material extension for .MTL. Its proposed here: http://exocortex.com/blog/extending_wavefront_mtl_to_support_pbr
+* PBR material extension for .MTL. Please see [pbr-mtl.md](pbr-mtl.md) for details.
 * Texture options
 * Unknown material attributes are returned as key-value(value is string) map.
 
