@@ -1640,7 +1640,7 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
           TinyObjPoint axis_w, axis_v, axis_u;
           axis_w = n;
           TinyObjPoint a;
-          if(std::abs(axis_w.x) > real_t(0.9999999)) {
+          if(std::fabs(axis_w.x) > real_t(0.9999999)) {
             a = TinyObjPoint(0,1,0);
           } else {
             a = TinyObjPoint(1,0,0);
