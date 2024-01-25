@@ -419,16 +419,16 @@ Here is some benchmark result. Time are measured on MacBook 12(Early 2016, Core 
 
 ### CI + PyPI upload
 
-cibuildwheels + twine upload for each git tagging event is handled in Azure Pipeline.
+cibuildwheels + twine upload for each git tagging event is handled in Github Actions and Cirrus CI.
 
 #### How to bump version(For developer)
 
 * Bump version in CMakeLists.txt
-* Update version in `setup.py`
-* Commit and push `master`. Confirm C.I. build is OK.
+* Commit and push `release`. Confirm C.I. build is OK.
 * Create tag starting with `v`(e.g. `v2.1.0`)
 * `git push --tags`
-  * cibuildwheels + pypi upload(through twine) will be automatically triggered in Azure Pipeline.
+  * version settings is automatically handled in python binding through setuptools_scm.
+  * cibuildwheels + pypi upload(through twine) will be automatically triggered in Github Actions + Cirrus CI.
 
 ## Tests
 
