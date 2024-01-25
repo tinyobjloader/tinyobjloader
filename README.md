@@ -417,9 +417,15 @@ Here is some benchmark result. Time are measured on MacBook 12(Early 2016, Core 
 
 ## Python binding
 
+```
+$ python -m pip install tinyobjloader
+```
+
+See [python/sample.py](python/sample.py) for example use of Python binding of tinyobjloader.
+
 ### CI + PyPI upload
 
-cibuildwheels + twine upload for each git tagging event is handled in Github Actions and Cirrus CI.
+cibuildwheels + twine upload for each git tagging event is handled in Github Actions and Cirrus CI(arm builds).
 
 #### How to bump version(For developer)
 
