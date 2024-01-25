@@ -6,7 +6,11 @@ import sys
 from pybind11.setup_helpers import Pybind11Extension#, build_ext
 from setuptools import setup
 
-__version__ = "2.0.0rc10"
+try:
+    # try to read setuptools_scm generated _version.py
+    from .python import _version
+except:
+    __version__ = "2.0.0rc10"
 
 with open("README.md", "r", encoding="utf8") as fh:
     long_description = fh.read()
@@ -31,13 +35,14 @@ ext_modules = [
 
 setup(
     name="tinyobjloader",
-    version=__version__,
+    packages=['python'],
+    #version=__version__,
     author="Syoyo Fujita",
     author_email="syoyo@lighttransport.com",
     url="https://github.com/tinyobjloader/tinyobjloader",
-    project_urls={
-        "Issue Tracker": "https://github.com/tinyobjloader/tinyobjloader/issues",
-    },
+    #project_urls={
+    #    "Issue Tracker": "https://github.com/tinyobjloader/tinyobjloader/issues",
+    #},
     description="Tiny but powerful Wavefront OBJ loader",
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -55,10 +60,10 @@ setup(
         "Programming Language :: Python :: 3",
     ],
     ext_modules=ext_modules,
-    extras_require={"test": "pytest"},
+    #extras_require={"test": "pytest"},
     # Currently, build_ext only provides an optional "highest supported C++
     # level" feature, but in the future it may provide more features.
     # cmdclass={"build_ext": build_ext},
-    zip_safe=False,
-    python_requires=">=3.6",
+    #zip_safe=False,
+    #python_requires=">=3.6",
 )
