@@ -60,13 +60,13 @@ assert len(attrib.texcoords) % 2 == 0
 #
 # Or please consider using numpy_*** interface(e.g. numpy_vertices())
 
-for (i, v) in enumerate(attrib.vertices):
+for i, v in enumerate(attrib.vertices):
     print("v[{}] = {}".format(i, v))
 
-for (i, v) in enumerate(attrib.normals):
+for i, v in enumerate(attrib.normals):
     print("vn[{}] = {}".format(i, v))
 
-for (i, v) in enumerate(attrib.texcoords):
+for i, v in enumerate(attrib.texcoords):
     print("vt[{}] = {}".format(i, t))
 
 if is_numpy_available:
@@ -95,7 +95,7 @@ print("Num shapes: ", len(shapes))
 for shape in shapes:
     print(shape.name)
     print("len(num_indices) = {}".format(len(shape.mesh.indices)))
-    for (i, idx) in enumerate(shape.mesh.indices):
+    for i, idx in enumerate(shape.mesh.indices):
         print("[{}] v_idx {}".format(i, idx.vertex_index))
         print("[{}] vn_idx {}".format(i, idx.normal_index))
         print("[{}] vt_idx {}".format(i, idx.texcoord_index))
@@ -103,7 +103,5 @@ for shape in shapes:
 
     if is_numpy_available:
         print("numpy_indices = {}".format(shape.mesh.numpy_indices()))
-        print(
-            "numpy_num_face_vertices = {}".format(shape.mesh.numpy_num_face_vertices())
-        )
+        print("numpy_num_face_vertices = {}".format(shape.mesh.numpy_num_face_vertices()))
         print("numpy_material_ids = {}".format(shape.mesh.numpy_material_ids()))
