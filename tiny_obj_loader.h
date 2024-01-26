@@ -24,12 +24,16 @@ THE SOFTWARE.
 
 //
 // version 2.0.0 : Add new object oriented API. 1.x API is still provided.
+//                 * Add python binding.
 //                 * Support line primitive.
 //                 * Support points primitive.
 //                 * Support multiple search path for .mtl(v1 API).
-//                 * Support vertex weight `vw`(as an tinyobj extension)
+//                 * Support vertex skinning weight `vw`(as an tinyobj
+//                 extension). Note that this differs vertex weight([w]
+//                 component in `v` line)
 //                 * Support escaped whitespece in mtllib
-//                 * Add robust triangulation using Mapbox earcut(TINYOBJLOADER_USE_MAPBOX_EARCUT).
+//                 * Add robust triangulation using Mapbox
+//                 earcut(TINYOBJLOADER_USE_MAPBOX_EARCUT).
 // version 1.4.0 : Modifed ParseTextureNameAndOption API
 // version 1.3.1 : Make ParseTextureNameAndOption API public
 // version 1.3.0 : Separate warning and error message(breaking API of LoadObj)
@@ -194,9 +198,9 @@ struct material_t {
 
   int dummy;  // Suppress padding warning.
 
-  std::string ambient_texname;             // map_Ka. For ambient or ambient occlusion.
-  std::string diffuse_texname;             // map_Kd
-  std::string specular_texname;            // map_Ks
+  std::string ambient_texname;   // map_Ka. For ambient or ambient occlusion.
+  std::string diffuse_texname;   // map_Kd
+  std::string specular_texname;  // map_Ks
   std::string specular_highlight_texname;  // map_Ns
   std::string bump_texname;                // map_bump, map_Bump, bump
   std::string displacement_texname;        // disp
@@ -675,6 +679,7 @@ bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
 #endif
 
 #include <array>
+
 #include "mapbox/earcut.hpp"
 
 #ifdef __clang__
@@ -805,14 +810,14 @@ static inline std::string toString(const T &t) {
   return ss.str();
 }
 
-struct warning_context
-{
-	std::string *warn;
-	size_t line_number;
+struct warning_context {
+  std::string *warn;
+  size_t line_number;
 };
 
 // Make index zero-base, and also support relative index.
-static inline bool fixIndex(int idx, int n, int *ret, bool allow_zero, const warning_context &context) {
+static inline bool fixIndex(int idx, int n, int *ret, bool allow_zero,
+                            const warning_context &context) {
   if (!ret) {
     return false;
   }
@@ -825,8 +830,10 @@ static inline bool fixIndex(int idx, int n, int *ret, bool allow_zero, const war
   if (idx == 0) {
     // zero is not allowed according to the spec.
     if (context.warn) {
-      (*context.warn) += "A zero value index found (will have a value of -1 for normal and tex indices. Line "
-          + toString(context.line_number) + ").\n";
+      (*context.warn) +=
+          "A zero value index found (will have a value of -1 for normal and "
+          "tex indices. Line " +
+          toString(context.line_number) + ").\n";
     }
 
     (*ret) = idx - 1;
@@ -835,7 +842,7 @@ static inline bool fixIndex(int idx, int n, int *ret, bool allow_zero, const war
 
   if (idx < 0) {
     (*ret) = n + idx;  // negative value = relative
-    if((*ret) < 0){
+    if ((*ret) < 0) {
       return false;  // invalid relative index
     }
     return true;
@@ -996,7 +1003,8 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result) {
     while (end_not_reached && IS_DIGIT(*curr)) {
       // To avoid annoying MSVC's min/max macro definiton,
       // Use hardcoded int max value
-      if (exponent > (2147483647/10)) { // 2147483647 = std::numeric_limits<int>::max()
+      if (exponent >
+          (2147483647 / 10)) {  // 2147483647 = std::numeric_limits<int>::max()
         // Integer overflow
         goto fail;
       }
@@ -1058,6 +1066,7 @@ static inline void parseReal3(real_t *x, real_t *y, real_t *z,
   (*z) = parseReal(token, default_z);
 }
 
+#if 0  // not used
 static inline void parseV(real_t *x, real_t *y, real_t *z, real_t *w,
                           const char **token, const double default_x = 0.0,
                           const double default_y = 0.0,
@@ -1068,26 +1077,45 @@ static inline void parseV(real_t *x, real_t *y, real_t *z, real_t *w,
   (*z) = parseReal(token, default_z);
   (*w) = parseReal(token, default_w);
 }
+#endif
 
 // Extension: parse vertex with colors(6 items)
-static inline bool parseVertexWithColor(real_t *x, real_t *y, real_t *z,
-                                        real_t *r, real_t *g, real_t *b,
-                                        const char **token,
-                                        const double default_x = 0.0,
-                                        const double default_y = 0.0,
-                                        const double default_z = 0.0) {
+// Return 3: xyz, 4: xyzw, 6: xyzrgb
+// `r`: red(case 6) or [w](case 4)
+static inline int parseVertexWithColor(real_t *x, real_t *y, real_t *z,
+                                       real_t *r, real_t *g, real_t *b,
+                                       const char **token,
+                                       const double default_x = 0.0,
+                                       const double default_y = 0.0,
+                                       const double default_z = 0.0) {
+  // TODO: Check error
   (*x) = parseReal(token, default_x);
   (*y) = parseReal(token, default_y);
   (*z) = parseReal(token, default_z);
 
-  const bool found_color =
-      parseReal(token, r) && parseReal(token, g) && parseReal(token, b);
+  // - 4 components(x, y, z, w) ot 6 components
+  bool has_r = parseReal(token, r);
 
-  if (!found_color) {
+  if (!has_r) {
     (*r) = (*g) = (*b) = 1.0;
+    return 3;
   }
 
-  return found_color;
+  bool has_g = parseReal(token, g);
+
+  if (!has_g) {
+    (*g) = (*b) = 1.0;
+    return 4;
+  }
+
+  bool has_b = parseReal(token, b);
+
+  if (!has_b) {
+    (*r) = (*g) = (*b) = 1.0;
+    return 3;  // treated as xyz
+  }
+
+  return 6;
 }
 
 static inline bool parseOnOff(const char **token, bool default_value = true) {
@@ -1424,13 +1452,11 @@ static int pnpoly(int nvert, T *vertx, T *verty, T testx, T testy) {
 struct TinyObjPoint {
   real_t x, y, z;
   TinyObjPoint() : x(0), y(0), z(0) {}
-  TinyObjPoint(real_t x_, real_t y_, real_t z_) :
-    x(x_), y(y_), z(z_) {}
+  TinyObjPoint(real_t x_, real_t y_, real_t z_) : x(x_), y(y_), z(z_) {}
 };
 
 inline TinyObjPoint cross(const TinyObjPoint &v1, const TinyObjPoint &v2) {
-  return TinyObjPoint(v1.y * v2.z - v1.z * v2.y,
-                      v1.z * v2.x - v1.x * v2.z,
+  return TinyObjPoint(v1.y * v2.z - v1.z * v2.y, v1.z * v2.x - v1.x * v2.z,
                       v1.x * v2.y - v1.y * v2.x);
 }
 
@@ -1439,22 +1465,18 @@ inline real_t dot(const TinyObjPoint &v1, const TinyObjPoint &v2) {
 }
 
 inline real_t GetLength(TinyObjPoint &e) {
-	return std::sqrt(e.x*e.x + e.y*e.y + e.z*e.z);
+  return std::sqrt(e.x * e.x + e.y * e.y + e.z * e.z);
 }
 
 inline TinyObjPoint Normalize(TinyObjPoint e) {
-	real_t inv_length = real_t(1) / GetLength(e);
-	return TinyObjPoint(e.x * inv_length, e.y * inv_length, e.z * inv_length );
+  real_t inv_length = real_t(1) / GetLength(e);
+  return TinyObjPoint(e.x * inv_length, e.y * inv_length, e.z * inv_length);
 }
 
-
-inline TinyObjPoint WorldToLocal(const TinyObjPoint& a,
-										  const TinyObjPoint& u,
-										  const TinyObjPoint& v,
-										  const TinyObjPoint& w) {
-  return TinyObjPoint(dot(a,u),dot(a,v),dot(a,w));
+inline TinyObjPoint WorldToLocal(const TinyObjPoint &a, const TinyObjPoint &u,
+                                 const TinyObjPoint &v, const TinyObjPoint &w) {
+  return TinyObjPoint(dot(a, u), dot(a, v), dot(a, w));
 }
-
 
 // TODO(syoyo): refactor function.
 static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
@@ -1597,7 +1619,8 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
           vertex_index_t i0 = face.vertex_indices[0];
           vertex_index_t i0_2 = i0;
 
-          // TMW change: Find the normal axis of the polygon using Newell's method
+          // TMW change: Find the normal axis of the polygon using Newell's
+          // method
           TinyObjPoint n;
           for (size_t k = 0; k < npolys; ++k) {
             i0 = face.vertex_indices[k % npolys];
@@ -1615,22 +1638,24 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
             real_t v0y_2 = v[vi0_2 * 3 + 1];
             real_t v0z_2 = v[vi0_2 * 3 + 2];
 
-            const TinyObjPoint point1(v0x,v0y,v0z);
-            const TinyObjPoint point2(v0x_2,v0y_2,v0z_2);
+            const TinyObjPoint point1(v0x, v0y, v0z);
+            const TinyObjPoint point2(v0x_2, v0y_2, v0z_2);
 
-            TinyObjPoint a(point1.x - point2.x, point1.y - point2.y, point1.z - point2.z);
-            TinyObjPoint b(point1.x + point2.x, point1.y + point2.y, point1.z + point2.z);
+            TinyObjPoint a(point1.x - point2.x, point1.y - point2.y,
+                           point1.z - point2.z);
+            TinyObjPoint b(point1.x + point2.x, point1.y + point2.y,
+                           point1.z + point2.z);
 
             n.x += (a.y * b.z);
             n.y += (a.z * b.x);
             n.z += (a.x * b.y);
           }
           real_t length_n = GetLength(n);
-          //Check if zero length normal
-          if(length_n <= 0) {
+          // Check if zero length normal
+          if (length_n <= 0) {
             continue;
           }
-          //Negative is to flip the normal to the correct direction
+          // Negative is to flip the normal to the correct direction
           real_t inv_length = -real_t(1.0) / length_n;
           n.x *= inv_length;
           n.y *= inv_length;
@@ -1639,10 +1664,10 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
           TinyObjPoint axis_w, axis_v, axis_u;
           axis_w = n;
           TinyObjPoint a;
-          if(std::fabs(axis_w.x) > real_t(0.9999999)) {
-            a = TinyObjPoint(0,1,0);
+          if (std::fabs(axis_w.x) > real_t(0.9999999)) {
+            a = TinyObjPoint(0, 1, 0);
           } else {
-            a = TinyObjPoint(1,0,0);
+            a = TinyObjPoint(1, 0, 0);
           }
           axis_v = Normalize(cross(axis_w, a));
           axis_u = cross(axis_w, axis_v);
@@ -1654,8 +1679,9 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
 
           std::vector<Point> polyline;
 
-          //TMW change: Find best normal and project v0x and v0y to those coordinates, instead of
-          //picking a plane aligned with an axis (which can flip polygons).
+          // TMW change: Find best normal and project v0x and v0y to those
+          // coordinates, instead of picking a plane aligned with an axis (which
+          // can flip polygons).
 
           // Fill polygon data(facevarying vertices).
           for (size_t k = 0; k < npolys; k++) {
@@ -1668,7 +1694,7 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
             real_t v0y = v[vi0 * 3 + 1];
             real_t v0z = v[vi0 * 3 + 2];
 
-            TinyObjPoint polypoint(v0x,v0y,v0z);
+            TinyObjPoint polypoint(v0x, v0y, v0z);
             TinyObjPoint loc = WorldToLocal(polypoint, axis_u, axis_v, axis_w);
 
             polyline.push_back({loc.x, loc.y});
@@ -1686,19 +1712,19 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
               index_t idx0, idx1, idx2;
               idx0.vertex_index = face.vertex_indices[indices[3 * k + 0]].v_idx;
               idx0.normal_index =
-                face.vertex_indices[indices[3 * k + 0]].vn_idx;
+                  face.vertex_indices[indices[3 * k + 0]].vn_idx;
               idx0.texcoord_index =
-                face.vertex_indices[indices[3 * k + 0]].vt_idx;
+                  face.vertex_indices[indices[3 * k + 0]].vt_idx;
               idx1.vertex_index = face.vertex_indices[indices[3 * k + 1]].v_idx;
               idx1.normal_index =
-                face.vertex_indices[indices[3 * k + 1]].vn_idx;
+                  face.vertex_indices[indices[3 * k + 1]].vn_idx;
               idx1.texcoord_index =
-                face.vertex_indices[indices[3 * k + 1]].vt_idx;
+                  face.vertex_indices[indices[3 * k + 1]].vt_idx;
               idx2.vertex_index = face.vertex_indices[indices[3 * k + 2]].v_idx;
               idx2.normal_index =
-                face.vertex_indices[indices[3 * k + 2]].vn_idx;
+                  face.vertex_indices[indices[3 * k + 2]].vn_idx;
               idx2.texcoord_index =
-                face.vertex_indices[indices[3 * k + 2]].vt_idx;
+                  face.vertex_indices[indices[3 * k + 2]].vt_idx;
 
               shape->mesh.indices.push_back(idx0);
               shape->mesh.indices.push_back(idx1);
@@ -1828,7 +1854,8 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
             // std::cout << "e0x, e0y, e1x, e1y " << e0x << ", " << e0y << ", "
             // << e1x << ", " << e1y << "\n";
 
-            real_t area = (vx[0] * vy[1] - vy[0] * vx[1]) * static_cast<real_t>(0.5);
+            real_t area =
+                (vx[0] * vy[1] - vy[0] * vx[1]) * static_cast<real_t>(0.5);
             // std::cout << "cross " << cross << ", area " << area << "\n";
             // if an internal angle
             if (cross * area < static_cast<real_t>(0.0)) {
@@ -2562,10 +2589,11 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   std::stringstream errss;
 
   std::vector<real_t> v;
+  std::vector<real_t> vertex_weights;  // optional [w] component in `v`
   std::vector<real_t> vn;
   std::vector<real_t> vt;
   std::vector<real_t> vc;
-  std::vector<skin_weight_t> vw;
+  std::vector<skin_weight_t> vw;  // tinyobj extension: vertex skin weights
   std::vector<tag_t> tags;
   PrimGroup prim_group;
   std::string name;
@@ -2585,7 +2613,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
   shape_t shape;
 
-  bool found_all_colors = true;
+  bool found_all_colors = true;  // check if all 'v' line has color info
 
   size_t line_num = 0;
   std::string linebuf;
@@ -2624,13 +2652,17 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       real_t x, y, z;
       real_t r, g, b;
 
-      found_all_colors &= parseVertexWithColor(&x, &y, &z, &r, &g, &b, &token);
+      int num_components = parseVertexWithColor(&x, &y, &z, &r, &g, &b, &token);
+      found_all_colors &= (num_components == 6);
 
       v.push_back(x);
       v.push_back(y);
       v.push_back(z);
 
-      if (found_all_colors || default_vcols_fallback) {
+      vertex_weights.push_back(
+          r);  // r = w, and initialized to 1.0 when `w` component is not found.
+
+      if ((num_components == 6) || default_vcols_fallback) {
         vc.push_back(r);
         vc.push_back(g);
         vc.push_back(b);
@@ -2723,7 +2755,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
                          static_cast<int>(vn.size() / 3),
                          static_cast<int>(vt.size() / 2), &vi, context)) {
           if (err) {
-            (*err) += "Failed to parse `l' line (e.g. a zero value for vertex index. Line " +
+            (*err) +=
+                "Failed to parse `l' line (e.g. a zero value for vertex index. "
+                "Line " +
                 toString(line_num) + ").\n";
           }
           return false;
@@ -2752,7 +2786,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
                          static_cast<int>(vn.size() / 3),
                          static_cast<int>(vt.size() / 2), &vi, context)) {
           if (err) {
-            (*err) += "Failed to parse `p' line (e.g. a zero value for vertex index. Line " +
+            (*err) +=
+                "Failed to parse `p' line (e.g. a zero value for vertex index. "
+                "Line " +
                 toString(line_num) + ").\n";
           }
           return false;
@@ -2785,7 +2821,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
                          static_cast<int>(vn.size() / 3),
                          static_cast<int>(vt.size() / 2), &vi, context)) {
           if (err) {
-            (*err) += "Failed to parse `f' line (e.g. a zero value for vertex index or invalid relative vertex index). Line " +
+            (*err) +=
+                "Failed to parse `f' line (e.g. a zero value for vertex index "
+                "or invalid relative vertex index). Line " +
                 toString(line_num) + ").\n";
           }
           return false;
@@ -3075,14 +3113,16 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   if (greatest_vn_idx >= static_cast<int>(vn.size() / 3)) {
     if (warn) {
       std::stringstream ss;
-      ss << "Vertex normal indices out of bounds (line " << line_num << ".)\n\n";
+      ss << "Vertex normal indices out of bounds (line " << line_num
+         << ".)\n\n";
       (*warn) += ss.str();
     }
   }
   if (greatest_vt_idx >= static_cast<int>(vt.size() / 2)) {
     if (warn) {
       std::stringstream ss;
-      ss << "Vertex texcoord indices out of bounds (line " << line_num << ".)\n\n";
+      ss << "Vertex texcoord indices out of bounds (line " << line_num
+         << ".)\n\n";
       (*warn) += ss.str();
     }
   }
@@ -3104,7 +3144,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   }
 
   attrib->vertices.swap(v);
-  attrib->vertex_weights.swap(v);
+  attrib->vertex_weights.swap(vertex_weights);
   attrib->normals.swap(vn);
   attrib->texcoords.swap(vt);
   attrib->texcoord_ws.swap(vt);
@@ -3166,11 +3206,12 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
       real_t x, y, z;
       real_t r, g, b;
 
-      bool found_color = parseVertexWithColor(&x, &y, &z, &r, &g, &b, &token);
+      int num_components = parseVertexWithColor(&x, &y, &z, &r, &g, &b, &token);
       if (callback.vertex_cb) {
         callback.vertex_cb(user_data, x, y, z, r);  // r=w is optional
       }
       if (callback.vertex_color_cb) {
+        bool found_color = (num_components == 6);
         callback.vertex_color_cb(user_data, x, y, z, r, g, b, found_color);
       }
       continue;

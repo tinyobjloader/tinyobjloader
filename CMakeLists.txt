@@ -125,7 +125,7 @@ endif()
 
 if (TINYOBJLOADER_WITH_PYTHON)
   # pybind11 method:
-  pybind11_add_module(${PY_TARGET} ${CMAKE_SOURCE_DIR}/python/bindings.cc )
+  pybind11_add_module(${PY_TARGET} ${CMAKE_SOURCE_DIR}/python/bindings.cc ${CMAKE_SOURCE_DIR}/python/tiny_obj_loader.cc)
 
   add_sanitizers(${PY_TARGET})
   set_target_properties(${PY_TARGET} PROPERTIES OUTPUT_NAME "tinyobjloader")
