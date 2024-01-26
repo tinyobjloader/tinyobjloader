@@ -179,7 +179,7 @@ PYBIND11_MODULE(tinyobjloader, tobj_module)
 
       return indices;
     })
-    .def("texcoord_indices", [](mesh_t &self) -> py::buffer_info {
+    .def("texcoord_indices", [](mesh_t &self) {
       
       std::vector<int> indices;
       indices.resize(self.indices.size());
