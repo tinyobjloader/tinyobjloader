@@ -429,6 +429,7 @@ cibuildwheels + twine upload for each git tagging event is handled in Github Act
 
 #### How to bump version(For developer)
 
+* Apply `black` to python files(`python/sample.py`)
 * Bump version in CMakeLists.txt
 * Commit and push `release`. Confirm C.I. build is OK.
 * Create tag starting with `v`(e.g. `v2.1.0`)

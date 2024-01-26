@@ -93,7 +93,7 @@ if len(attrib.skin_weights):
         print("  vertex_id = ", skin.vertex_id)
         print("  len(weights) = ", len(skin.weightValues))
         for k, w in enumerate(skin.weightValues):
-            print("    [{}] joint_id: {}, weight: {}".format(k, w.joint_id, w.weight)) 
+            print("    [{}] joint_id: {}, weight: {}".format(k, w.joint_id, w.weight))
 
 if is_numpy_available:
     print("numpy_v = {}".format(attrib.numpy_vertices()))
