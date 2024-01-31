@@ -19,7 +19,7 @@ jobs:
           fetch-tags: true  # Optional, use if you use setuptools_scm
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.16.2
+        uses: pypa/cibuildwheel@v2.16.5
         # to supply options, put them in 'env', like:
         # env:
         #   CIBW_SOME_OPTION: value
@@ -50,7 +50,7 @@ jobs:
           fetch-tags: true  # Optional, use if you use setuptools_scm
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.16.2
+        uses: pypa/cibuildwheel@v2.16.5
         # to supply options, put them in 'env', like:
         # env:
         #   CIBW_SOME_OPTION: value
