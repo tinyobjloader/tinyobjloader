@@ -220,6 +220,33 @@ struct vec3 {
   }
 };
 
+struct mat3 {
+  float m[3][3];
+  mat3() {
+    m[0][0] = 1.0f;
+    m[0][1] = 0.0f;
+    m[0][2] = 0.0f;
+    m[1][0] = 0.0f;
+    m[1][1] = 1.0f;
+    m[1][2] = 0.0f;
+    m[2][0] = 0.0f;
+    m[2][1] = 0.0f;
+    m[2][2] = 1.0f;
+  }
+};
+
+void matmul3x3(const mat3 &a, const mat3 &b, mat3 &dst) {
+  for (size_t i = 0; i < 3; i++) {
+    for (size_t j = 0; j < 3; j++) {
+      float v = 0.0f;
+      for (size_t k = 0; k < 3; k++) {
+        v += a.m[i][k] * b.m[k][j];
+      }
+      dst.m[i][j] = v;
+    }
+  }
+}
+
 void normalizeVector(vec3 &v) {
   float len2 = v.v[0] * v.v[0] + v.v[1] * v.v[1] + v.v[2] * v.v[2];
   if (len2 > 0.0f) {
@@ -229,6 +256,51 @@ void normalizeVector(vec3 &v) {
     v.v[1] /= len;
     v.v[2] /= len;
   }
+}
+
+// Maya-like turntable 
+// Reference:
+// https://gamedev.stackexchange.com/questions/204367/implementing-a-maya-like-orbit-camera-in-vulkan-opengl
+//
+// angleX, angleY = angle in degree.
+static void turntable(float angleX, float angleY, float center[3]) {
+  float pivot[3];
+  pivot[0] = center[0];
+  pivot[1] = center[1];
+  pivot[2] = center[2];
+
+  // rotate Y
+  const float kPI = 3.141592f;
+  float cosY = std::cos(kPI * angleY / 180.0f);
+  float sinY = std::sin(kPI * angleY / 180.0f);
+
+  mat3 rotY;
+  rotY.m[0][0] = cosY;
+  rotY.m[0][1] = 0.0f;
+  rotY.m[0][2] = -sinY;
+  rotY.m[1][0] = 0.0f;
+  rotY.m[1][1] = 1.0f;
+  rotY.m[1][2] = 0.0f;
+  rotY.m[2][0] = sinY;
+  rotY.m[2][1] = 0.0f;
+  rotY.m[2][2] = cosY;
+
+  float cosX = std::cos(kPI * angleX / 180.0f);
+  float sinX = std::sin(kPI * angleX / 180.0f);
+
+  mat3 rotX;
+  rotX.m[0][0] = 1.0f;
+  rotX.m[0][1] = 0.0f;
+  rotX.m[0][2] = 0.0f;
+  rotX.m[1][0] = 0.0f;
+  rotX.m[1][1] = cosX;
+  rotX.m[1][2] = sinX;
+  rotX.m[2][0] = 0.0f;
+  rotX.m[2][1] = -sinX;
+  rotX.m[2][2] = cosX;
+
+  
+
 }
 
 /*
