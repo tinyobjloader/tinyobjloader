@@ -2848,6 +2848,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
     // use mtl
     if ((0 == strncmp(token, "usemtl", 6))) {
+      // Skip materials if we don't have a material reader.
+      if (!readMatFn) continue;
       token += 6;
       std::string namebuf = parseString(&token);
 
