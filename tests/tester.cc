@@ -244,7 +244,8 @@ static bool TestLoadObj(const char* filename, const char* basepath = NULL,
 static bool TestLoadObjFromPreopenedFile(const char* filename,
                                          const char* basepath = NULL,
                                          bool readMaterials = true,
-                                         bool triangulate = true) {
+                                         bool triangulate = true,
+                                         bool allow_warnings = true) {
   std::string fullFilename = std::string(basepath) + filename;
   std::cout << "Loading " << fullFilename << std::endl;
 
@@ -270,6 +271,7 @@ static bool TestLoadObjFromPreopenedFile(const char* filename,
 
   if (!warn.empty()) {
     std::cout << "WARN: " << warn << std::endl;
+    if (!allow_warnings) return false;
   }
 
   if (!err.empty()) {
@@ -467,7 +469,8 @@ void test_stream_load() { TEST_CHECK(true == TestStreamLoadObj()); }
 void test_stream_load_from_file_skipping_materials() {
   TEST_CHECK(true == TestLoadObjFromPreopenedFile(
                          "../models/pbr-mat-ext.obj", gMtlBasePath,
-                         /*readMaterials*/ false, /*triangulate*/ false));
+                         /*readMaterials*/ false, /*triangulate*/ false,
+                         /* allow_warnings */ false));
 }
 
 void test_stream_load_from_file_with_materials() {
@@ -1267,7 +1270,7 @@ void test_mtl_searchpaths_issue244() {
   std::vector<tinyobj::material_t> materials;
 
   // .mtl is located at ./assets/issue-244.mtl
-#if _WIN32
+#ifdef _WIN32
   std::string search_paths("../;../models;./assets");
 #else
   std::string search_paths("../:../models:./assets");
