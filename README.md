@@ -14,7 +14,7 @@ Tiny but powerful single file wavefront obj loader written in C++03. No dependen
 
 `tinyobjloader` is good for embedding .obj loader to your (global illumination) renderer ;-)
 
-If you are looking for C89 version, please see https://github.com/syoyo/tinyobjloader-c .
+If you are looking for C99 version, please see https://github.com/syoyo/tinyobjloader-c .
 
 Version notice
 --------------
