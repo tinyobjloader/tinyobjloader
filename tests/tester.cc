@@ -1433,6 +1433,41 @@ void test_comment_issue389() {
   TEST_CHECK(true == ret);
 }
 
+void test_default_kd_for_multiple_materials_issue391() {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string warn;
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              "../models/issue-391.obj", gMtlBasePath);
+  if (!warn.empty()) {
+    std::cout << "WARN: " << warn << std::endl;
+  }
+
+  if (!err.empty()) {
+    std::cerr << "ERR: " << err << std::endl;
+  }
+
+  const tinyobj::real_t kGrey[] = {0.6, 0.6, 0.6};
+  const tinyobj::real_t kRed[] = {1.0, 0.0, 0.0};
+
+  TEST_CHECK(true == ret);
+  TEST_CHECK(2 == materials.size());
+  for (size_t i = 0; i < materials.size(); ++i) {
+    const tinyobj::material_t& material = materials[i];
+    if (material.name == "has_map") {
+      for (int i = 0; i < 3; ++i) TEST_CHECK(material.diffuse[i] == kGrey[i]);
+    } else if (material.name == "has_kd") {
+      for (int i = 0; i < 3; ++i) TEST_CHECK(material.diffuse[i] == kRed[i]);
+    } else {
+      std::cerr << "Unexpected material found!" << std::endl;
+      TEST_CHECK(false);
+    }
+  }
+}
+
 // Fuzzer test.
 // Just check if it does not crash.
 // Disable by default since Windows filesystem can't create filename of afl
@@ -1542,4 +1577,6 @@ TEST_LIST = {
      test_invalid_relative_vertex_index},
     {"test_invalid_texture_vertex_index",
      test_invalid_texture_vertex_index},
+    {"default_kd_for_multiple_materials_issue391",
+     test_default_kd_for_multiple_materials_issue391},
     {NULL, NULL}};

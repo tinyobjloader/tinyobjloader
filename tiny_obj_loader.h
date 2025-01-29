@@ -2134,6 +2134,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
 
       has_d = false;
       has_tr = false;
+      has_kd = false;
 
       // set new mtl name
       token += 7;
