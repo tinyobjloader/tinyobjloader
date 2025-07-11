@@ -810,6 +810,17 @@ static inline std::string toString(const T &t) {
   return ss.str();
 }
 
+std::string removeUtf8Bom(const std::string& input) {
+    // UTF-8 BOM = 0xEF,0xBB,0xBF
+    if (input.size() >= 3 &&
+        static_cast<unsigned char>(input[0]) == 0xEF &&
+        static_cast<unsigned char>(input[1]) == 0xBB &&
+        static_cast<unsigned char>(input[2]) == 0xBF) {
+        return input.substr(3); // Skip BOM
+    }
+    return input;
+}
+
 struct warning_context {
   std::string *warn;
   size_t line_number;
@@ -2110,6 +2121,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
     if (linebuf.empty()) {
       continue;
     }
+    linebuf = removeUtf8Bom(linebuf);
 
     // Skip leading space.
     const char *token = linebuf.c_str();
@@ -2637,6 +2649,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     if (linebuf.empty()) {
       continue;
     }
+    linebuf = removeUtf8Bom(linebuf);
 
     // Skip leading space.
     const char *token = linebuf.c_str();
