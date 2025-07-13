@@ -2651,7 +2651,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     if (linebuf.empty()) {
       continue;
     }
-    if (line_no == 1) {
+    if (line_num == 1) {
       linebuf = removeUtf8Bom(linebuf);
     }
 
