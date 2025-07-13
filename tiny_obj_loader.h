@@ -2121,7 +2121,9 @@ void LoadMtl(std::map<std::string, int> *material_map,
     if (linebuf.empty()) {
       continue;
     }
-    linebuf = removeUtf8Bom(linebuf);
+    if (line_no == 1) {
+      linebuf = removeUtf8Bom(linebuf);
+    }
 
     // Skip leading space.
     const char *token = linebuf.c_str();
