@@ -1465,8 +1465,34 @@ void test_default_kd_for_multiple_materials_issue391() {
       std::cerr << "Unexpected material found!" << std::endl;
       TEST_CHECK(false);
     }
-  }
+  }  
 }
+
+void test_removeUtf8Bom() {
+  // Basic input with BOM
+  std::string withBOM = "\xEF\xBB\xBFhello world";
+  TEST_CHECK(tinyobj::removeUtf8Bom(withBOM) == "hello world");
+
+  // Input without BOM
+  std::string noBOM = "hello world";
+  TEST_CHECK(tinyobj::removeUtf8Bom(noBOM) == "hello world");
+
+  // Leaves short string unchanged
+  std::string shortStr = "\xEF";
+  TEST_CHECK(tinyobj::removeUtf8Bom(shortStr) == shortStr);
+
+  std::string shortStr2 = "\xEF\xBB";
+  TEST_CHECK(tinyobj::removeUtf8Bom(shortStr2) == shortStr2);
+
+  // BOM only returns empty string
+  std::string justBom = "\xEF\xBB\xBF";
+  TEST_CHECK(tinyobj::removeUtf8Bom(justBom) == "");
+
+  // Empty string
+  std::string emptyStr = "";
+  TEST_CHECK(tinyobj::removeUtf8Bom(emptyStr) == "");
+}
+
 
 // Fuzzer test.
 // Just check if it does not crash.
@@ -1579,4 +1605,5 @@ TEST_LIST = {
      test_invalid_texture_vertex_index},
     {"default_kd_for_multiple_materials_issue391",
      test_default_kd_for_multiple_materials_issue391},
+    {"test_removeUtf8Bom", test_removeUtf8Bom},
     {NULL, NULL}};
