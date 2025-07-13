@@ -1493,6 +1493,32 @@ void test_removeUtf8Bom() {
   TEST_CHECK(tinyobj::removeUtf8Bom(emptyStr) == "");
 }
 
+void test_loadObj_with_BOM() {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string warn;
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              "../models/cube_w_BOM.obj", gMtlBasePath);
+
+  if (!warn.empty()) {
+    std::cout << "WARN: " << warn << std::endl;
+  }
+
+  if (!err.empty()) {
+    std::cerr << "ERR: " << err << std::endl;
+  }
+
+  TEST_CHECK(true == ret);
+  TEST_CHECK(6 == shapes.size());
+  TEST_CHECK(0 == shapes[0].name.compare("front cube"));
+  TEST_CHECK(0 == shapes[1].name.compare("back cube"));  // multiple whitespaces
+                                                         // are aggregated as
+                                                         // single white space.
+}
+
 
 // Fuzzer test.
 // Just check if it does not crash.
