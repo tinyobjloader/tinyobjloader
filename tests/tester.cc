@@ -1632,4 +1632,5 @@ TEST_LIST = {
     {"default_kd_for_multiple_materials_issue391",
      test_default_kd_for_multiple_materials_issue391},
     {"test_removeUtf8Bom", test_removeUtf8Bom},
+    {"test_loadObj_with_BOM", test_loadObj_with_BOM},
     {NULL, NULL}};
