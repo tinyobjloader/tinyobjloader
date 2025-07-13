@@ -810,7 +810,7 @@ static inline std::string toString(const T &t) {
   return ss.str();
 }
 
-std::string removeUtf8Bom(const std::string& input) {
+static inline std::string removeUtf8Bom(const std::string& input) {
     // UTF-8 BOM = 0xEF,0xBB,0xBF
     if (input.size() >= 3 &&
         static_cast<unsigned char>(input[0]) == 0xEF &&
