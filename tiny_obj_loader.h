@@ -2651,7 +2651,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     if (linebuf.empty()) {
       continue;
     }
-    linebuf = removeUtf8Bom(linebuf);
+    if (line_no == 1) {
+      linebuf = removeUtf8Bom(linebuf);
+    }
 
     // Skip leading space.
     const char *token = linebuf.c_str();
