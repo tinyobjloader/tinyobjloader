@@ -770,6 +770,7 @@ private:
         std::vector<std::string> current_groups;
         int current_material_id = -1;
         int current_shape_index = -1;
+        unsigned int current_smoothing_group_id = 0;
         size_t line_number = 0;
 
         // Index counts for relative indexing
@@ -1440,6 +1441,7 @@ inline bool ObjParser::parseFace(StreamReader& reader, ParseState& state, ParseR
             current_shape.mesh.indices.push_back(face_indices[i]);
             current_shape.mesh.num_face_vertices.push_back(3);
             current_shape.mesh.material_ids.push_back(state.current_material_id);
+            current_shape.mesh.smoothing_group_ids.push_back(state.current_smoothing_group_id);
             result.stats().triangles_generated++;
         }
     } else {
@@ -1449,6 +1451,7 @@ inline bool ObjParser::parseFace(StreamReader& reader, ParseState& state, ParseR
         }
         current_shape.mesh.num_face_vertices.push_back(static_cast<unsigned int>(face_indices.size()));
         current_shape.mesh.material_ids.push_back(state.current_material_id);
+        current_shape.mesh.smoothing_group_ids.push_back(state.current_smoothing_group_id);
     }
 
     result.stats().faces_parsed++;
@@ -1513,9 +1516,12 @@ inline bool ObjParser::parseGroup(StreamReader& reader, ParseState& state, Parse
     }
 
     // Create new shape for this group
-    // Use first group name as the shape name (if multiple groups given)
+    // Join all group names with spaces (e.g., "g front cube" becomes "front cube")
     shape_t shape;
-    shape.name = state.current_groups[0];
+    for (size_t i = 0; i < state.current_groups.size(); ++i) {
+        if (i > 0) shape.name += " ";
+        shape.name += state.current_groups[i];
+    }
     result.shapes().push_back(shape);
     state.current_shape_index = static_cast<int>(result.shapes().size()) - 1;
 
@@ -1592,7 +1598,23 @@ inline bool ObjParser::parseLine(StreamReader& reader, ParseState& state, ParseR
     } else if (cmd == "o") {
         return parseObject(line_reader, state, result);
     } else if (cmd == "s") {
-        // Smoothing group - skip for now
+        // Smoothing group
+        std::string sg_str;
+        detail::skipSpaces(line_reader);
+        if (detail::readWord(line_reader, sg_str)) {
+            if (sg_str == "off") {
+                state.current_smoothing_group_id = 0;  // off
+            } else {
+                // Parse as integer using strtol since readWord already consumed it
+                char* endptr;
+                long val = strtol(sg_str.c_str(), &endptr, 10);
+                if (*endptr == '\0' && val >= 0) {
+                    state.current_smoothing_group_id = static_cast<unsigned int>(val);
+                } else {
+                    state.current_smoothing_group_id = 0;
+                }
+            }
+        }
         return true;
     } else {
         // Unknown command - just skip
