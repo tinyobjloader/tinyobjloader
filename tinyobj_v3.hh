@@ -1807,6 +1807,7 @@ inline bool ObjParser::parseMaterialLine(const std::string& cmd, StreamReader& r
         parseFloat(reader, current_mat.diffuse[0], state, result.errors());
         parseFloat(reader, current_mat.diffuse[1], state, result.errors());
         parseFloat(reader, current_mat.diffuse[2], state, result.errors());
+        current_mat.pad2 = 1;  // Mark that Kd was explicitly set
     } else if (cmd == "Ks") {
         // Specular
         parseFloat(reader, current_mat.specular[0], state, result.errors());
@@ -1828,15 +1829,26 @@ inline bool ObjParser::parseMaterialLine(const std::string& cmd, StreamReader& r
     } else if (cmd == "Ni") {
         // Index of refraction
         parseFloat(reader, current_mat.ior, state, result.errors());
-    } else if (cmd == "d" || cmd == "Tr") {
-        // Dissolve / transparency
+    } else if (cmd == "d") {
+        // Dissolve (opacity)
+        // Note: 'd' always wins over 'Tr' - once set, mark it so Tr is ignored
         real_t d;
         if (parseFloat(reader, d, state, result.errors())) {
-            if (cmd == "Tr") {
-                current_mat.dissolve = 1.0 - d;  // Tr is inverse of d
-            } else {
-                current_mat.dissolve = d;
+            current_mat.dissolve = d;
+            current_mat.pad0 = 1;  // Use pad0 as flag to indicate 'd' was seen
+        }
+    } else if (cmd == "Tr") {
+        // Transparency (inverse of dissolve)
+        // Ignore if 'd' was already specified (pad0 != 0)
+        if (current_mat.pad0 == 0) {
+            real_t tr;
+            if (parseFloat(reader, tr, state, result.errors())) {
+                current_mat.dissolve = 1.0 - tr;  // Tr is inverse of d
             }
+        } else {
+            // Skip the value but don't use it
+            real_t dummy;
+            parseFloat(reader, dummy, state, result.errors());
         }
     } else if (cmd == "illum") {
         // Illumination model
@@ -1849,6 +1861,12 @@ inline bool ObjParser::parseMaterialLine(const std::string& cmd, StreamReader& r
         // Diffuse texture
         parseTextureOption(reader, current_mat.diffuse_texopt, state, result.errors());
         detail::readWord(reader, current_mat.diffuse_texname);
+        // Set decent diffuse default if Kd wasn't explicitly set
+        if (current_mat.pad2 == 0) {
+            current_mat.diffuse[0] = 0.6f;
+            current_mat.diffuse[1] = 0.6f;
+            current_mat.diffuse[2] = 0.6f;
+        }
     } else if (cmd == "map_Ks") {
         // Specular texture
         parseTextureOption(reader, current_mat.specular_texopt, state, result.errors());
