@@ -763,6 +763,7 @@ private:
         std::string current_object;
         std::vector<std::string> current_groups;
         int current_material_id = -1;
+        int current_shape_index = -1;
         size_t line_number = 0;
 
         // Index counts for relative indexing
@@ -777,6 +778,8 @@ private:
     bool parseNormal(StreamReader& reader, ParseState& state, ParseResult& result);
     bool parseTexCoord(StreamReader& reader, ParseState& state, ParseResult& result);
     bool parseFace(StreamReader& reader, ParseState& state, ParseResult& result);
+    bool parseLinePrimitive(StreamReader& reader, ParseState& state, ParseResult& result);
+    bool parsePointPrimitive(StreamReader& reader, ParseState& state, ParseResult& result);
     bool parseUsemtl(StreamReader& reader, ParseState& state, ParseResult& result);
     bool parseMtllib(StreamReader& reader, ParseState& state, ParseResult& result);
     bool parseGroup(StreamReader& reader, ParseState& state, ParseResult& result);
@@ -1145,7 +1148,7 @@ inline bool ObjParser::parseInt(StreamReader& reader, int& value, ParseState& st
 
 inline int ObjParser::fixIndex(int idx, size_t count, ParseState& state, ErrorStack& errors) {
     if (idx == 0) {
-        errors.pushError("Index cannot be zero", state.current_context);
+        errors.pushFatal("Index cannot be zero", state.current_context);
         return -1;
     }
 
@@ -1159,7 +1162,7 @@ inline int ObjParser::fixIndex(int idx, size_t count, ParseState& state, ErrorSt
 
     if (config_.validate_indices) {
         if (idx < 0 || idx >= static_cast<int>(count)) {
-            errors.pushError("Index out of range", state.current_context);
+            errors.pushFatal("Index out of range", state.current_context);
             return -1;
         }
     }
@@ -1208,16 +1211,39 @@ inline bool ObjParser::parseIndex(StreamReader& reader, index_t& idx, ParseState
 
 inline bool ObjParser::parseVertex(StreamReader& reader, ParseState& state, ParseResult& result) {
     real_t x, y, z, w = 1.0;
+    real_t r = -1.0, g = -1.0, b = -1.0;  // Default: no color
 
     if (!parseFloat(reader, x, state, result.errors())) return false;
     if (!parseFloat(reader, y, state, result.errors())) return false;
     if (!parseFloat(reader, z, state, result.errors())) return false;
 
-    // Optional w component
+    // Optional w component or vertex colors (r g b)
     detail::skipSpaces(reader);
     char ch;
     if (reader.peekChar(ch) && ch != '\n' && ch != '\r' && ch != '#') {
-        parseFloat(reader, w, state, result.errors());
+        // Try to parse w or first color component
+        real_t val;
+        if (parseFloat(reader, val, state, result.errors())) {
+            // Check if there are more values (colors)
+            detail::skipSpaces(reader);
+            if (reader.peekChar(ch) && ch != '\n' && ch != '\r' && ch != '#') {
+                // We have more values, so first value is w, next are colors
+                w = val;
+                if (parseFloat(reader, r, state, result.errors())) {
+                    detail::skipSpaces(reader);
+                    if (reader.peekChar(ch) && ch != '\n' && ch != '\r' && ch != '#') {
+                        parseFloat(reader, g, state, result.errors());
+                        detail::skipSpaces(reader);
+                        if (reader.peekChar(ch) && ch != '\n' && ch != '\r' && ch != '#') {
+                            parseFloat(reader, b, state, result.errors());
+                        }
+                    }
+                }
+            } else {
+                // Only one extra value - it's w
+                w = val;
+            }
+        }
     }
 
     result.attributes().vertices.push_back(x);
@@ -1226,6 +1252,18 @@ inline bool ObjParser::parseVertex(StreamReader& reader, ParseState& state, Pars
 
     if (w != 1.0) {
         result.attributes().vertex_weights.push_back(w);
+    }
+
+    // Store vertex colors if present
+    if (r >= 0.0 && g >= 0.0 && b >= 0.0) {
+        result.attributes().colors.push_back(r);
+        result.attributes().colors.push_back(g);
+        result.attributes().colors.push_back(b);
+    } else if (r >= 0.0) {
+        // Partial color data - fill with defaults
+        result.attributes().colors.push_back(r);
+        result.attributes().colors.push_back(g >= 0.0 ? g : 0.0);
+        result.attributes().colors.push_back(b >= 0.0 ? b : 0.0);
     }
 
     state.vertex_count++;
@@ -1278,6 +1316,78 @@ inline bool ObjParser::parseTexCoord(StreamReader& reader, ParseState& state, Pa
 
     state.texcoord_count++;
     result.stats().texcoords_parsed++;
+
+    return true;
+}
+
+inline bool ObjParser::parseLinePrimitive(StreamReader& reader, ParseState& state, ParseResult& result) {
+    // Ensure we have a current shape
+    if (state.current_shape_index < 0) {
+        // Create default shape
+        state.current_shape_index = static_cast<int>(result.shapes().size());
+        result.shapes().push_back(shape_t());
+        result.shapes().back().name = "default";
+    }
+
+    shape_t& shape = result.shapes()[state.current_shape_index];
+    std::vector<index_t> line_indices;
+
+    detail::skipSpaces(reader);
+    char ch;
+
+    // Parse all vertex indices on this line
+    while (reader.peekChar(ch) && ch != '\n' && ch != '\r' && ch != '#') {
+        index_t idx;
+        if (!parseIndex(reader, idx, state, result.errors())) {
+            result.errors().pushWarning("Failed to parse line index", state.current_context);
+            reader.skipLine();
+            return false;
+        }
+
+        line_indices.push_back(idx);
+        detail::skipSpaces(reader);
+    }
+
+    if (line_indices.size() < 2) {
+        result.errors().pushWarning("Line primitive requires at least 2 vertices", state.current_context);
+        return false;
+    }
+
+    // Add line indices to shape
+    for (const auto& idx : line_indices) {
+        shape.lines.indices.push_back(idx);
+    }
+    shape.lines.num_line_vertices.push_back(static_cast<unsigned char>(line_indices.size()));
+
+    return true;
+}
+
+inline bool ObjParser::parsePointPrimitive(StreamReader& reader, ParseState& state, ParseResult& result) {
+    // Ensure we have a current shape
+    if (state.current_shape_index < 0) {
+        // Create default shape
+        state.current_shape_index = static_cast<int>(result.shapes().size());
+        result.shapes().push_back(shape_t());
+        result.shapes().back().name = "default";
+    }
+
+    shape_t& shape = result.shapes()[state.current_shape_index];
+
+    detail::skipSpaces(reader);
+    char ch;
+
+    // Parse all vertex indices on this line
+    while (reader.peekChar(ch) && ch != '\n' && ch != '\r' && ch != '#') {
+        index_t idx;
+        if (!parseIndex(reader, idx, state, result.errors())) {
+            result.errors().pushWarning("Failed to parse point index", state.current_context);
+            reader.skipLine();
+            return false;
+        }
+
+        shape.points.indices.push_back(idx);
+        detail::skipSpaces(reader);
+    }
 
     return true;
 }
@@ -1454,6 +1564,10 @@ inline bool ObjParser::parseLine(StreamReader& reader, ParseState& state, ParseR
         return parseTexCoord(line_reader, state, result);
     } else if (cmd == "f") {
         return parseFace(line_reader, state, result);
+    } else if (cmd == "l") {
+        return parseLinePrimitive(line_reader, state, result);
+    } else if (cmd == "p") {
+        return parsePointPrimitive(line_reader, state, result);
     } else if (cmd == "usemtl") {
         return parseUsemtl(line_reader, state, result);
     } else if (cmd == "mtllib") {
@@ -1625,6 +1739,11 @@ inline bool ObjParser::parseTextureOption(StreamReader& reader, texture_option_t
             }
         } else if (option == "colorspace") {
             detail::readWord(reader, texopt.colorspace);
+        } else if (option == "texres") {
+            int texres;
+            if (parseInt(reader, texres, state, errors)) {
+                texopt.texture_resolution = texres;
+            }
         } else {
             // Unknown option, skip
             std::string dummy;
@@ -1661,8 +1780,8 @@ inline bool ObjParser::parseMaterialLine(StreamReader& reader, material_t& curre
         parseFloat(reader, current_mat.specular[0], state, result.errors());
         parseFloat(reader, current_mat.specular[1], state, result.errors());
         parseFloat(reader, current_mat.specular[2], state, result.errors());
-    } else if (cmd == "Kt") {
-        // Transmittance
+    } else if (cmd == "Kt" || cmd == "Tf") {
+        // Transmittance (Kt or Tf)
         parseFloat(reader, current_mat.transmittance[0], state, result.errors());
         parseFloat(reader, current_mat.transmittance[1], state, result.errors());
         parseFloat(reader, current_mat.transmittance[2], state, result.errors());
