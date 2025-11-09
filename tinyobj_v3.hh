@@ -528,6 +528,12 @@ public:
 
     bool readLine(std::string& line, size_t maxLength = 1'024 * 1'024) {
         line.clear();
+
+        // Check if we're at EOF before reading
+        if (position_ >= size_) {
+            return false;
+        }
+
         size_t count = 0;
         while (position_ < size_ && count < maxLength) {
             uint8_t ch;
@@ -793,7 +799,7 @@ private:
 
     // Material parsing
     bool parseMaterialFile(const std::string& filepath, ParseState& state, ParseResult& result);
-    bool parseMaterialLine(StreamReader& reader, material_t& current_mat, ParseState& state, ParseResult& result);
+    bool parseMaterialLine(const std::string& cmd, StreamReader& reader, material_t& current_mat, ParseState& state, ParseResult& result);
     bool parseTextureOption(StreamReader& reader, texture_option_t& texopt, ParseState& state, ErrorStack& errors);
 };
 
@@ -1417,13 +1423,14 @@ inline bool ObjParser::parseFace(StreamReader& reader, ParseState& state, ParseR
     }
 
     // Ensure we have a current shape
-    if (result.shapes().empty()) {
+    if (state.current_shape_index < 0 || state.current_shape_index >= static_cast<int>(result.shapes().size())) {
         shape_t shape;
         shape.name = state.current_object.empty() ? "default" : state.current_object;
         result.shapes().push_back(shape);
+        state.current_shape_index = static_cast<int>(result.shapes().size()) - 1;
     }
 
-    shape_t& current_shape = result.shapes().back();
+    shape_t& current_shape = result.shapes()[state.current_shape_index];
 
     if (config_.triangulate && face_indices.size() > 3) {
         // Simple fan triangulation
@@ -1505,6 +1512,13 @@ inline bool ObjParser::parseGroup(StreamReader& reader, ParseState& state, Parse
         state.current_groups.push_back("default");
     }
 
+    // Create new shape for this group
+    // Use first group name as the shape name (if multiple groups given)
+    shape_t shape;
+    shape.name = state.current_groups[0];
+    result.shapes().push_back(shape);
+    state.current_shape_index = static_cast<int>(result.shapes().size()) - 1;
+
     return true;
 }
 
@@ -1520,6 +1534,7 @@ inline bool ObjParser::parseObject(StreamReader& reader, ParseState& state, Pars
     shape_t shape;
     shape.name = object_name;
     result.shapes().push_back(shape);
+    state.current_shape_index = static_cast<int>(result.shapes().size()) - 1;
 
     return true;
 }
@@ -1756,12 +1771,7 @@ inline bool ObjParser::parseTextureOption(StreamReader& reader, texture_option_t
     return true;
 }
 
-inline bool ObjParser::parseMaterialLine(StreamReader& reader, material_t& current_mat, ParseState& state, ParseResult& result) {
-    std::string cmd;
-    if (!detail::readWord(reader, cmd)) {
-        return true;  // Empty line
-    }
-
+inline bool ObjParser::parseMaterialLine(const std::string& cmd, StreamReader& reader, material_t& current_mat, ParseState& state, ParseResult& result) {
     if (cmd == "newmtl") {
         // This shouldn't happen in parseMaterialLine, handled by caller
         return true;
@@ -1970,7 +1980,8 @@ inline bool ObjParser::parseMaterialFile(const std::string& filepath, ParseState
             has_current_mat = true;
         } else if (has_current_mat) {
             // Parse material property
-            parseMaterialLine(line_reader, current_mat, state, result);
+            detail::skipSpaces(line_reader);
+            parseMaterialLine(cmd, line_reader, current_mat, state, result);
         }
     }
 
