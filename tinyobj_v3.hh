@@ -1169,8 +1169,8 @@ inline int ObjParser::fixIndex(int idx, size_t count, ParseState& state, ErrorSt
 
     if (config_.validate_indices) {
         if (idx < 0 || idx >= static_cast<int>(count)) {
-            errors.pushFatal("Index out of range", state.current_context);
-            return -1;
+            errors.pushWarning("Index out of range", state.current_context);
+            return -1;  // Still return -1 to mark as invalid, but don't fail fatally
         }
     }
 
@@ -1224,33 +1224,44 @@ inline bool ObjParser::parseVertex(StreamReader& reader, ParseState& state, Pars
     if (!parseFloat(reader, y, state, result.errors())) return false;
     if (!parseFloat(reader, z, state, result.errors())) return false;
 
-    // Optional w component or vertex colors (r g b)
+    // Optional w component and/or vertex colors (r g b)
+    // Count how many extra floats we have to determine format:
+    // 1 float: w
+    // 3 floats: r g b
+    // 4 floats: w r g b
     detail::skipSpaces(reader);
+    size_t saved_pos = reader.tell();
+    int extra_count = 0;
     char ch;
-    if (reader.peekChar(ch) && ch != '\n' && ch != '\r' && ch != '#') {
-        // Try to parse w or first color component
-        real_t val;
-        if (parseFloat(reader, val, state, result.errors())) {
-            // Check if there are more values (colors)
+
+    // Count extra floats
+    while (reader.peekChar(ch) && ch != '\n' && ch != '\r' && ch != '#' && extra_count < 4) {
+        real_t dummy;
+        if (parseFloat(reader, dummy, state, result.errors())) {
+            extra_count++;
             detail::skipSpaces(reader);
-            if (reader.peekChar(ch) && ch != '\n' && ch != '\r' && ch != '#') {
-                // We have more values, so first value is w, next are colors
-                w = val;
-                if (parseFloat(reader, r, state, result.errors())) {
-                    detail::skipSpaces(reader);
-                    if (reader.peekChar(ch) && ch != '\n' && ch != '\r' && ch != '#') {
-                        parseFloat(reader, g, state, result.errors());
-                        detail::skipSpaces(reader);
-                        if (reader.peekChar(ch) && ch != '\n' && ch != '\r' && ch != '#') {
-                            parseFloat(reader, b, state, result.errors());
-                        }
-                    }
-                }
-            } else {
-                // Only one extra value - it's w
-                w = val;
-            }
+        } else {
+            break;
         }
+    }
+
+    // Rewind and parse based on count
+    reader.seek(saved_pos);
+
+    if (extra_count == 1) {
+        // Just w
+        parseFloat(reader, w, state, result.errors());
+    } else if (extra_count == 3) {
+        // Just r g b
+        parseFloat(reader, r, state, result.errors());
+        parseFloat(reader, g, state, result.errors());
+        parseFloat(reader, b, state, result.errors());
+    } else if (extra_count == 4) {
+        // w r g b
+        parseFloat(reader, w, state, result.errors());
+        parseFloat(reader, r, state, result.errors());
+        parseFloat(reader, g, state, result.errors());
+        parseFloat(reader, b, state, result.errors());
     }
 
     result.attributes().vertices.push_back(x);
@@ -1261,17 +1272,11 @@ inline bool ObjParser::parseVertex(StreamReader& reader, ParseState& state, Pars
         result.attributes().vertex_weights.push_back(w);
     }
 
-    // Store vertex colors if present
-    if (r >= 0.0 && g >= 0.0 && b >= 0.0) {
-        result.attributes().colors.push_back(r);
-        result.attributes().colors.push_back(g);
-        result.attributes().colors.push_back(b);
-    } else if (r >= 0.0) {
-        // Partial color data - fill with defaults
-        result.attributes().colors.push_back(r);
-        result.attributes().colors.push_back(g >= 0.0 ? g : 0.0);
-        result.attributes().colors.push_back(b >= 0.0 ? b : 0.0);
-    }
+    // Always store vertex colors to maintain alignment (3 per vertex)
+    // Use 0.0 as default if not provided
+    result.attributes().colors.push_back(r >= 0.0 ? r : 0.0);
+    result.attributes().colors.push_back(g >= 0.0 ? g : 0.0);
+    result.attributes().colors.push_back(b >= 0.0 ? b : 0.0);
 
     state.vertex_count++;
     result.stats().vertices_parsed++;
