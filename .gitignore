@@ -6,3 +6,7 @@ build/
 /python/tiny_obj_loader.h
 /tests/tester
 /tests/tester.dSYM
+/tests/tester_v3
+/tests/tester_v3.dSYM
+/tests/debug_*
+!tests/debug_*.cc
