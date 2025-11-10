@@ -1,0 +1,132 @@
+# CMakeLists for TinyObjLoader v3 Python bindings
+# Builds extension using stable ABI (abi3) without requiring Python headers
+
+cmake_minimum_required(VERSION 3.12)
+project(tinyobjloader_v3_python CXX)
+
+# C++14 required
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Python version requirement
+set(PYTHON_MIN_VERSION "3.10")
+
+# Find Python (optional - only needed for installation path detection)
+find_package(Python3 ${PYTHON_MIN_VERSION} COMPONENTS Interpreter)
+
+# Extension module
+add_library(tinyobjloader_v3 MODULE
+    tinyobj_v3_bindings.cc
+    tinyobj_v3_loader.cc
+)
+
+# Include directories
+target_include_directories(tinyobjloader_v3 PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+# Compiler definitions for stable ABI
+target_compile_definitions(tinyobjloader_v3 PRIVATE
+    Py_LIMITED_API=0x030A0000
+    TINYOBJLOADER_IMPLEMENTATION
+)
+
+# Compiler flags
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(tinyobjloader_v3 PRIVATE
+        -fno-exceptions
+        -fno-rtti
+        -fvisibility=hidden
+        -Wall
+        -Wextra
+    )
+
+    if(APPLE)
+        target_compile_options(tinyobjloader_v3 PRIVATE
+            -mmacosx-version-min=10.13
+        )
+    endif()
+elseif(MSVC)
+    target_compile_options(tinyobjloader_v3 PRIVATE
+        /GR-  # Disable RTTI
+        /EHs-c-  # Disable exceptions
+        /W4
+    )
+    target_compile_definitions(tinyobjloader_v3 PRIVATE
+        _CRT_SECURE_NO_WARNINGS
+    )
+endif()
+
+# Platform-specific settings
+if(APPLE)
+    set_target_properties(tinyobjloader_v3 PROPERTIES
+        SUFFIX ".so"
+        PREFIX ""
+        MACOSX_RPATH ON
+    )
+elseif(WIN32)
+    set_target_properties(tinyobjloader_v3 PROPERTIES
+        SUFFIX ".pyd"
+        PREFIX ""
+    )
+else()
+    set_target_properties(tinyobjloader_v3 PROPERTIES
+        SUFFIX ".so"
+        PREFIX ""
+    )
+endif()
+
+# Link to Python stable ABI library
+if(Python3_FOUND)
+    target_link_libraries(tinyobjloader_v3 PRIVATE Python3::Module)
+else()
+    # Manual linking if Python not found
+    if(UNIX)
+        if(APPLE)
+            target_link_libraries(tinyobjloader_v3 PRIVATE "-undefined dynamic_lookup")
+        else()
+            # Linux - link against python3
+            target_link_libraries(tinyobjloader_v3 PRIVATE python3)
+        endif()
+    elseif(WIN32)
+        # Windows - link against python3.lib
+        target_link_libraries(tinyobjloader_v3 PRIVATE python3.lib)
+    endif()
+endif()
+
+# Installation
+if(Python3_FOUND)
+    # Install to Python site-packages
+    execute_process(
+        COMMAND ${Python3_EXECUTABLE} -c "import sysconfig; print(sysconfig.get_path('platlib'))"
+        OUTPUT_VARIABLE PYTHON_SITE_PACKAGES
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+
+    install(TARGETS tinyobjloader_v3
+        LIBRARY DESTINATION ${PYTHON_SITE_PACKAGES}
+        RUNTIME DESTINATION ${PYTHON_SITE_PACKAGES}
+    )
+else()
+    # Default installation path
+    install(TARGETS tinyobjloader_v3
+        LIBRARY DESTINATION lib/python
+        RUNTIME DESTINATION lib/python
+    )
+endif()
+
+# Show configuration
+message(STATUS "TinyObjLoader v3 Python Bindings")
+message(STATUS "  C++ Standard: ${CMAKE_CXX_STANDARD}")
+message(STATUS "  Python Min Version: ${PYTHON_MIN_VERSION}")
+if(Python3_FOUND)
+    message(STATUS "  Python Interpreter: ${Python3_EXECUTABLE} (${Python3_VERSION})")
+    message(STATUS "  Install Path: ${PYTHON_SITE_PACKAGES}")
+else()
+    message(STATUS "  Python Interpreter: Not found (extension will be built anyway)")
+endif()
+message(STATUS "  Stable ABI: Yes (abi3, Python 3.10+)")
+message(STATUS "  Exceptions: Disabled")
+message(STATUS "  RTTI: Disabled")

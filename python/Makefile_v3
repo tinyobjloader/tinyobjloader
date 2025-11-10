@@ -1,0 +1,96 @@
+# Makefile for TinyObjLoader v3 Python bindings
+# Quick build without needing setuptools or Python headers
+
+CXX ?= g++
+PYTHON ?= python3
+
+# Detect Python version
+PYTHON_VERSION := $(shell $(PYTHON) -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+PYTHON_MIN_VERSION := 3.10
+
+# Compiler flags
+CXXFLAGS := -std=c++14 -fPIC -Wall -Wextra -fno-exceptions -fno-rtti -fvisibility=hidden
+CXXFLAGS += -DPy_LIMITED_API=0x030A0000
+CXXFLAGS += -I.. -I.
+
+# Platform detection
+UNAME_S := $(shell uname -s)
+
+ifeq ($(UNAME_S),Darwin)
+    # macOS
+    LDFLAGS := -bundle -undefined dynamic_lookup
+    SUFFIX := .so
+    CXXFLAGS += -mmacosx-version-min=10.13
+else ifeq ($(UNAME_S),Linux)
+    # Linux
+    LDFLAGS := -shared -Wl,--exclude-libs,ALL
+    SUFFIX := .so
+else
+    # Windows (MinGW or similar)
+    LDFLAGS := -shared
+    SUFFIX := .pyd
+endif
+
+# Output
+TARGET := tinyobjloader_v3$(SUFFIX)
+
+# Sources
+SRCS := tinyobj_v3_bindings.cc tinyobj_v3_loader.cc
+OBJS := $(SRCS:.cc=.o)
+
+.PHONY: all clean test install check_python
+
+all: check_python $(TARGET)
+
+check_python:
+	@echo "Checking Python version..."
+	@if [ "$$(printf '%s\n' "$(PYTHON_VERSION)" "$(PYTHON_MIN_VERSION)" | sort -V | head -n1)" != "$(PYTHON_MIN_VERSION)" ]; then \
+		echo "ERROR: Python $(PYTHON_MIN_VERSION)+ required, found $(PYTHON_VERSION)"; \
+		exit 1; \
+	fi
+	@echo "✓ Python $(PYTHON_VERSION) >= $(PYTHON_MIN_VERSION)"
+
+$(TARGET): $(OBJS)
+	@echo "Linking $@..."
+	$(CXX) $(LDFLAGS) -o $@ $(OBJS)
+	@echo "✓ Built $@"
+
+%.o: %.cc
+	@echo "Compiling $<..."
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+clean:
+	@echo "Cleaning..."
+	rm -f $(OBJS) $(TARGET)
+	rm -rf __pycache__ *.pyc
+	@echo "✓ Clean"
+
+test: $(TARGET)
+	@echo "Running tests..."
+	PYTHONPATH=. $(PYTHON) sample_v3.py
+
+install: $(TARGET)
+	@echo "Installing to Python site-packages..."
+	@SITE_PACKAGES=$$($(PYTHON) -c "import sysconfig; print(sysconfig.get_path('platlib'))"); \
+	echo "Install path: $$SITE_PACKAGES"; \
+	cp $(TARGET) $$SITE_PACKAGES/
+	@echo "✓ Installed"
+
+help:
+	@echo "TinyObjLoader v3 Python Bindings Makefile"
+	@echo ""
+	@echo "Targets:"
+	@echo "  all      - Build the extension module (default)"
+	@echo "  clean    - Remove built files"
+	@echo "  test     - Build and run tests"
+	@echo "  install  - Install to Python site-packages"
+	@echo "  help     - Show this help"
+	@echo ""
+	@echo "Variables:"
+	@echo "  CXX      - C++ compiler (default: g++)"
+	@echo "  PYTHON   - Python interpreter (default: python3)"
+	@echo ""
+	@echo "Example:"
+	@echo "  make CXX=clang++ PYTHON=python3.11"
+	@echo "  make test"
+	@echo "  make install"
