@@ -143,26 +143,33 @@ make tester_v3        # Build v3 tests
 - **Texture options** - Parser implemented but needs verification
 - **Vertex colors** - Parser implemented but index alignment needs work
 
-### ❌ Remaining Known Issues (4 tests)
+### ✅ All Issues Resolved!
 
-1. **Vertex color indexing** - Color array alignment issue (test expects colors for all vertices)
-2. **Index validation too strict** - catmark test fails with out-of-range errors (needs investigation)
-3. **Dissolve (d) value parsing** - Tr vs d edge case (expects 0.75)
-4. **Default Kd material values** - Material defaults not initializing correctly
+All 4 remaining issues have been fixed:
+
+1. **Vertex color indexing** - ✅ Fixed format detection logic (count-ahead to determine w vs rgb format)
+2. **Index validation** - ✅ Changed out-of-range from Fatal to Warning (matches v2 behavior)
+3. **Dissolve (d) value parsing** - ✅ Fixed Tr vs d precedence (d always wins, using pad0 flag)
+4. **Default Kd material values** - ✅ Applied grey default (0.6) for materials with textures but no Kd
+5. **Subdivision surface tags** - ✅ Implemented parseTag() for "t" command (crease tags)
 
 ## Conclusion
 
-The v3 test suite is successfully ported and running with **16 out of 19 tests passing** (84% pass rate). Major progress made:
+The v3 test suite is **100% complete** with **19 out of 19 tests passing** (100% pass rate)!
+
+### ✅ All Features Implemented:
 
 - ✅ Core v3 architecture working (StreamReader, Result<T>, ErrorStack, ObjParser)
 - ✅ MTL material loading fully functional (PBR properties, textures, options)
 - ✅ Group/object handling with multiple names
 - ✅ Smoothing group parsing
 - ✅ Primitive types implemented (lines, points)
-- ✅ Vertex color parsing (with minor indexing issue)
-- ✅ Index validation working (rejects zero indices)
+- ✅ Vertex color parsing with correct format detection
+- ✅ Index validation (Fatal for zero, Warning for out-of-range)
 - ✅ Texture options (clamp, colorspace, texres, bump_multiplier, etc.)
-- ✅ readLine EOF detection fixed
-- ❌ 4 edge cases remaining
+- ✅ readLine EOF detection
+- ✅ Tr vs d precedence handling
+- ✅ Default material values
+- ✅ Subdivision surface tag parsing
 
-The v3 implementation is **production-ready** for most use cases. The remaining 4 test failures are edge cases.
+The v3 implementation is **production-ready** and fully tested!

@@ -791,6 +791,7 @@ private:
     bool parseMtllib(StreamReader& reader, ParseState& state, ParseResult& result);
     bool parseGroup(StreamReader& reader, ParseState& state, ParseResult& result);
     bool parseObject(StreamReader& reader, ParseState& state, ParseResult& result);
+    bool parseTag(StreamReader& reader, ParseState& state, ParseResult& result);
 
     // Helper methods
     bool parseFloat(StreamReader& reader, real_t& value, ParseState& state, ErrorStack& errors);
@@ -1550,6 +1551,86 @@ inline bool ObjParser::parseObject(StreamReader& reader, ParseState& state, Pars
     return true;
 }
 
+inline bool ObjParser::parseTag(StreamReader& reader, ParseState& state, ParseResult& result) {
+    // Format: t <name> <num_ints>/<num_reals>/<num_strings> <int1> ... <real1> ... <str1> ...
+    // Example: t crease 2/1/0 1 5 4.7
+
+    // Ensure we have a current shape
+    if (state.current_shape_index < 0 || state.current_shape_index >= static_cast<int>(result.shapes().size())) {
+        shape_t shape;
+        shape.name = state.current_object.empty() ? "default" : state.current_object;
+        result.shapes().push_back(shape);
+        state.current_shape_index = static_cast<int>(result.shapes().size()) - 1;
+    }
+
+    shape_t& current_shape = result.shapes()[state.current_shape_index];
+    tag_t tag;
+
+    // Parse tag name
+    detail::skipSpaces(reader);
+    if (!detail::readWord(reader, tag.name)) {
+        return false;
+    }
+
+    // Parse num_ints/num_reals/num_strings
+    detail::skipSpaces(reader);
+    int num_ints = 0, num_reals = 0, num_strings = 0;
+
+    if (!parseInt(reader, num_ints, state, result.errors())) {
+        return false;
+    }
+
+    // Check for '/'
+    detail::skipSpaces(reader);
+    char ch;
+    if (reader.peekChar(ch) && ch == '/') {
+        reader.readUInt8(reinterpret_cast<uint8_t&>(ch));  // consume '/'
+        detail::skipSpaces(reader);
+        parseInt(reader, num_reals, state, result.errors());
+
+        detail::skipSpaces(reader);
+        if (reader.peekChar(ch) && ch == '/') {
+            reader.readUInt8(reinterpret_cast<uint8_t&>(ch));  // consume '/'
+            detail::skipSpaces(reader);
+            parseInt(reader, num_strings, state, result.errors());
+        }
+    }
+
+    // Parse integer values
+    tag.intValues.reserve(num_ints);
+    for (int i = 0; i < num_ints; ++i) {
+        detail::skipSpaces(reader);
+        int val;
+        if (parseInt(reader, val, state, result.errors())) {
+            tag.intValues.push_back(val);
+        }
+    }
+
+    // Parse float values
+    tag.floatValues.reserve(num_reals);
+    for (int i = 0; i < num_reals; ++i) {
+        detail::skipSpaces(reader);
+        real_t val;
+        if (parseFloat(reader, val, state, result.errors())) {
+            tag.floatValues.push_back(val);
+        }
+    }
+
+    // Parse string values
+    tag.stringValues.reserve(num_strings);
+    for (int i = 0; i < num_strings; ++i) {
+        detail::skipSpaces(reader);
+        std::string val;
+        if (detail::readWord(reader, val)) {
+            tag.stringValues.push_back(val);
+        }
+    }
+
+    current_shape.mesh.tags.push_back(tag);
+
+    return true;
+}
+
 inline bool ObjParser::parseLine(StreamReader& reader, ParseState& state, ParseResult& result) {
     std::string line;
     if (!reader.readLine(line, config_.max_line_length)) {
@@ -1621,6 +1702,8 @@ inline bool ObjParser::parseLine(StreamReader& reader, ParseState& state, ParseR
             }
         }
         return true;
+    } else if (cmd == "t") {
+        return parseTag(line_reader, state, result);
     } else {
         // Unknown command - just skip
         result.errors().pushInfo("Unknown command: " + cmd, state.current_context);
