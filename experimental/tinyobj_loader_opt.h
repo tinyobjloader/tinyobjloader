@@ -724,7 +724,7 @@ static void LoadMtl(std::map<std::string, int> *material_map,
 #ifdef _MSC_VER
       sscanf_s(token, "%s", namebuf, (unsigned)_countof(namebuf));
 #else
-      sscanf(token, "%s", namebuf);
+      sscanf(token, "%4095s", namebuf);
 #endif
       material.name = namebuf;
       continue;
