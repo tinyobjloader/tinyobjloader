@@ -1,12 +1,103 @@
-name: Build and upload to PyPI
+name: Python
 
 # Build on every branch push, tag push, and pull request change:
 on: [push, pull_request]
 
 jobs:
+  check_format:
+    name: Check Python code format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-  build_wheels:
-    name: Build wheels on ${{ matrix.os }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python and install dependencies
+        working-directory: python/tests
+        run: uv sync --project . --python 3.13
+
+      - name: Check code format
+        working-directory: python/tests
+        run: uv run --project . black --check ..
+
+  build_wheels_quick:
+    name: Build wheels for quick testing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true  # Optional, use if you use setuptools_scm
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.16.5
+        env:
+            CIBW_ARCHS_LINUX: "x86_64"
+            CIBW_SKIP: pp* cp36-* cp37-* cp38-* *-musllinux_*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cibw-wheels-quick
+          path: ./wheelhouse/*.whl
+
+  test_wheels:
+    name: Test wheels with Python ${{ matrix.python-version }} and NumPy ${{ matrix.numpy-version }}
+    needs: [build_wheels_quick]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python-version: "3.9"
+            numpy-version: "1.25.2"
+          - python-version: "3.10"
+            numpy-version: "1.26.4"
+          - python-version: "3.11"
+            numpy-version: "1.26.4"
+          - python-version: "3.12"
+            numpy-version: "1.26.4"
+          - python-version: "3.11"
+            numpy-version: "2.4.2"
+          - python-version: "3.12"
+            numpy-version: "2.4.2"
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Download wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: cibw-wheels-quick
+          path: dist
+          merge-multiple: true
+      
+      - name: Set up Python ${{ matrix.python-version }} and install dependencies
+        working-directory: python/tests
+        run: uv sync --project . --python ${{ matrix.python-version }}
+
+      - name: Install NumPy ${{ matrix.numpy-version }}
+        working-directory: python/tests
+        run: |
+          uv pip install --project . --only-binary :all: numpy==${{ matrix.numpy-version }}
+
+      - name: Install manylinux wheel built for Python ${{ matrix.python-version }}
+        working-directory: python/tests
+        run: uv pip install --project . ../../dist/*cp$(echo ${{ matrix.python-version }} | tr -d .)*.whl
+      
+      - name: Run tests
+        working-directory: python/tests
+        run: uv run --project . pytest
+
+  build_wheels_main:
+    name: Build remaining wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -20,28 +111,23 @@ jobs:
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.16.5
-        # to supply options, put them in 'env', like:
-        # env:
-        #   CIBW_SOME_OPTION: value
-        # Disable building PyPy wheels on all platforms
         env:
             CIBW_ARCHS_MACOS: "x86_64 universal2 arm64"
             CIBW_ARCHS_WINDOWS: "AMD64 x86"
             # disable aarm64 build since its too slow to build(docker + qemu)
             CIBW_ARCHS_LINUX: "x86_64 i686"
-            # it looks cibuildwheel fails to add version string to wheel file for python 3.6, so skip it
-            CIBW_SKIP: pp*
+            CIBW_SKIP: pp* cp36-* cp37-* cp38-* *-manylinux_x86_64
 
       - uses: actions/upload-artifact@v4
         with:
-          name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
+          name: cibw-wheels-main-${{ matrix.os }}-${{ strategy.job-index }}
           path: ./wheelhouse/*.whl
 
   # It looks cibuildwheels did not clean build folder(CMake), and it results to Windows arm64 build failure(trying to reuse x86 build of .obj)
   # So supply separated build job for Windows ARM64 build
   # TODO: clean build folder using CIBW_BEFORE_ALL?
-  build_win_arm64_wheels:
-    name: Build ARM64 wheels on Windows.
+  build_wheels_win_arm64:
+    name: Build ARM64 wheels on Windows
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -51,10 +137,6 @@ jobs:
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.16.5
-        # to supply options, put them in 'env', like:
-        # env:
-        #   CIBW_SOME_OPTION: value
-        # Disable building PyPy wheels on all platforms
         env:
             CIBW_ARCHS_WINDOWS: "ARM64"
             CIBW_SKIP: pp*
@@ -82,7 +164,7 @@ jobs:
         path: dist/*.tar.gz
 
   upload_all:
-    needs: [build_wheels, build_wheels, make_sdist]
+    needs: [build_wheels_quick, build_wheels_main, build_wheels_win_arm64, make_sdist]
     runs-on: ubuntu-latest
     environment: release
     permissions:

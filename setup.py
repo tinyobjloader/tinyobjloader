@@ -12,9 +12,6 @@ try:
 except:
     __version__ = "2.0.0rc10"
 
-with open("README.md", "r", encoding="utf8") as fh:
-    long_description = fh.read()
-
 # The main interface is through Pybind11Extension.
 # * You can add cxx_std=11/14/17, and then build_ext can be removed.
 # * You can set include_pybind11=false to add the include directory yourself,
@@ -44,7 +41,6 @@ setup(
     #    "Issue Tracker": "https://github.com/tinyobjloader/tinyobjloader/issues",
     #},
     description="Tiny but powerful Wavefront OBJ loader",
-    long_description=long_description,
     long_description_content_type='text/markdown',
     classifiers=[
         "Development Status :: 5 - Production/Stable",
