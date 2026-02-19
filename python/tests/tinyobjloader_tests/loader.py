@@ -10,7 +10,7 @@ class Loader:
     A light wrapper around ObjReader to provide a convenient interface for testing.
     """
 
-    def __init__(self, triangulate=True):
+    def __init__(self, triangulate):
         self.reader = ObjReader()
         config = ObjReaderConfig()
         config.triangulate = triangulate
