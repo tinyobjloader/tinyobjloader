@@ -36,6 +36,9 @@ jobs:
         uses: pypa/cibuildwheel@v2.16.5
         env:
             CIBW_ARCHS_LINUX: "x86_64"
+            # We do not need to support Python 3.6–3.8, and we only need
+            # manylinux for testing. PyPy isn't useful as this is a binary
+            # extension.
             CIBW_SKIP: pp* cp36-* cp37-* cp38-* *-musllinux_*
 
       - uses: actions/upload-artifact@v4
@@ -116,6 +119,9 @@ jobs:
             CIBW_ARCHS_WINDOWS: "AMD64 x86"
             # disable aarm64 build since its too slow to build(docker + qemu)
             CIBW_ARCHS_LINUX: "x86_64 i686"
+            # We do not need to support Python 3.6–3.8, and the quick build
+            # has already taken care of manylinux. PyPy isn't useful as this is
+            # a binary extension.
             CIBW_SKIP: pp* cp36-* cp37-* cp38-* *-manylinux_x86_64
 
       - uses: actions/upload-artifact@v4
