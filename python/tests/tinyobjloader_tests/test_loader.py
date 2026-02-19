@@ -108,3 +108,67 @@ def test_numpy_face_vertices_mixed_arity_with_triangulate():
 
     # Test.
     np.testing.assert_array_equal(shape.mesh.numpy_num_face_vertices(), expected_num_face_vertices)
+
+
+def test_numpy_index_array_two_quads():
+    """
+    Test for https://github.com/tinyobjloader/tinyobjloader/issues/401
+    """
+
+    # Set up.
+    loader = Loader(triangulate=False)
+    loader.loads(TWO_QUADS)
+
+    shapes = loader.shapes
+    assert len(shapes) == 1
+
+    # Confidence check.
+    (shape,) = shapes
+    expected_vertex_index = [0, 1, 2, 3, 4, 5, 6, 7]
+    assert [x.vertex_index for x in shape.mesh.indices] == expected_vertex_index
+
+    # Test.
+    expected_numpy_indices = [0, -1, -1, 1, -1, -1, 2, -1, -1, 3, -1, -1, 4, -1, -1, 5, -1, -1, 6, -1, -1, 7, -1, -1]
+    np.testing.assert_array_equal(shape.mesh.numpy_indices(), expected_numpy_indices)
+
+
+def test_numpy_vertex_array_two_quads():
+    """
+    Test for https://github.com/tinyobjloader/tinyobjloader/issues/401
+    """
+
+    # Set up.
+    loader = Loader(triangulate=False)
+    loader.loads(TWO_QUADS)
+
+    # Confidence check.
+    expected_vertices = [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        46.367584,
+        82.676086,
+        8.867414,
+        46.524185,
+        82.81955,
+        8.825487,
+        46.59864,
+        83.086678,
+        8.88121,
+        46.461926,
+        82.834091,
+        8.953863,
+    ]
+    assert loader.attrib.vertices == expected_vertices
+
+    # Test.
+    np.testing.assert_array_equal(loader.attrib.numpy_vertices(), expected_vertices)
