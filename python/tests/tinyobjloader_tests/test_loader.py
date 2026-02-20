@@ -70,7 +70,9 @@ def test_numpy_face_vertices_two_quads_with_triangulate():
 
 def test_numpy_face_vertices_mixed_arity():
     """
-    Test for https://github.com/tinyobjloader/tinyobjloader/issues/400
+    Test for:
+      - https://github.com/tinyobjloader/tinyobjloader/issues/400
+      - https://github.com/tinyobjloader/tinyobjloader/issues/402
     """
 
     # Set up.
