@@ -1,9 +1,9 @@
 # Adapted from https://github.com/pybind/python_example/blob/master/setup.py
 import sys
 
-#from pybind11 import get_cmake_dir
+# from pybind11 import get_cmake_dir
 # Available at setup time due to pyproject.toml
-from pybind11.setup_helpers import Pybind11Extension#, build_ext
+from pybind11.setup_helpers import Pybind11Extension  # , build_ext
 from setuptools import setup
 
 try:
@@ -22,26 +22,27 @@ except:
 #   reproducible builds (https://github.com/pybind/python_example/pull/53)
 
 ext_modules = [
-    Pybind11Extension("tinyobjloader",
+    Pybind11Extension(
+        "tinyobjloader",
         sorted(["python/bindings.cc", "python/tiny_obj_loader.cc"]),
         # Example: passing in the version to the compiled code
-        define_macros = [('VERSION_INFO', __version__)],
+        define_macros=[("VERSION_INFO", __version__)],
         cxx_std=11,
-        ),
+    ),
 ]
 
 setup(
     name="tinyobjloader",
-    packages=['python'],
-    #version=__version__,
+    packages=["python"],
+    # version=__version__,
     author="Syoyo Fujita",
     author_email="syoyo@lighttransport.com",
     url="https://github.com/tinyobjloader/tinyobjloader",
-    #project_urls={
+    # project_urls={
     #    "Issue Tracker": "https://github.com/tinyobjloader/tinyobjloader/issues",
-    #},
+    # },
     description="Tiny but powerful Wavefront OBJ loader",
-    long_description_content_type='text/markdown',
+    long_description_content_type="text/markdown",
     classifiers=[
         "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Developers",
@@ -54,10 +55,10 @@ setup(
         "Programming Language :: Python :: 3",
     ],
     ext_modules=ext_modules,
-    #extras_require={"test": "pytest"},
+    # extras_require={"test": "pytest"},
     # Currently, build_ext only provides an optional "highest supported C++
     # level" feature, but in the future it may provide more features.
     # cmdclass={"build_ext": build_ext},
-    #zip_safe=False,
-    #python_requires=">=3.6",
+    # zip_safe=False,
+    # python_requires=">=3.6",
 )
