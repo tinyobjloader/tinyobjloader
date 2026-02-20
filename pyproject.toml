@@ -17,6 +17,7 @@ line-length = 140
 
 [project]
 name = "tinyobjloader"
+license = "MIT AND ISC"
 
 # version: Use setuptools_scm
 dynamic = ["version", "classifiers", "authors", "description"]
