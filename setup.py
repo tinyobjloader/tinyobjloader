@@ -32,12 +32,12 @@ ext_modules = [
 ]
 
 setup(
-    name="tinyobjloader",
+    name="tinymetabobjloader",
     packages=["python"],
     # version=__version__,
-    author="Syoyo Fujita",
-    author_email="syoyo@lighttransport.com",
-    url="https://github.com/tinyobjloader/tinyobjloader",
+    author="Syoyo Fujita, Paul Melnikow",
+    author_email="syoyo@lighttransport.com, github@paulmelnikow.com",
+    url="https://github.com/curvewise-forks/tinyobjloader",
     # project_urls={
     #    "Issue Tracker": "https://github.com/tinyobjloader/tinyobjloader/issues",
     # },

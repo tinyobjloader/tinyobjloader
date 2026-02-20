@@ -27,7 +27,7 @@ force-exclude = '''
 '''
 
 [project]
-name = "tinyobjloader"
+name = "tinymetabobjloader"
 license = { text = "MIT AND ISC" }
 
 # version: Use setuptools_scm
