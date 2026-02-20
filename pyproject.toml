@@ -16,8 +16,10 @@ build-backend = "setuptools.build_meta"
 line-length = 140
 force-exclude = '''
 (
-    ^deps/.*$
-    | ^tests/kuroga.py$
+    /deps/.*$
+    | /kuroga.py$
+    | /config-msvc.py$
+    | /config-posix.py$
     | ^python/build/.*$
     | ^python/dist/.*$
     | ^python/tinyobjloader.egg-info/.*$
