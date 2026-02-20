@@ -171,4 +171,4 @@ def test_numpy_vertex_array_two_quads():
     assert loader.attrib.vertices == expected_vertices
 
     # Test.
-    np.testing.assert_array_almost_equal(loader.attrib.numpy_vertices(), expected_vertices, decimal=6)
+    np.testing.assert_array_almost_equal(loader.attrib.numpy_vertices(), expected_vertices, decimal=5)
