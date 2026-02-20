@@ -40,4 +40,4 @@ write_to = "python/_version.py"
 
 [tool.cibuildwheel]
 # Disable aarch64 build since its too slow to build(docker + qemu).
-skip = ["cp38-*", "*_aarch64*]
+skip = ["cp38-*", "*_aarch64*"]
