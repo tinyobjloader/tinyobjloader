@@ -16,12 +16,12 @@ jobs:
           version: "latest"
 
       - name: Set up Python and install dependencies
-        working-directory: python/tests
+        working-directory: tests/python
         run: uv sync --project . --python 3.13
 
       - name: Check code format
-        working-directory: python/tests
-        run: uv run --project . black --check ..
+        working-directory: tests/python
+        run: uv run --project . black --check ../..
 
   build_wheels_quick:
     name: Build wheels for quick testing
@@ -83,20 +83,20 @@ jobs:
           merge-multiple: true
       
       - name: Set up Python ${{ matrix.python-version }} and install dependencies
-        working-directory: python/tests
+        working-directory: tests/python
         run: uv sync --project . --python ${{ matrix.python-version }}
 
       - name: Install NumPy ${{ matrix.numpy-version }}
-        working-directory: python/tests
+        working-directory: tests/python
         run: |
           uv pip install --project . --only-binary :all: numpy==${{ matrix.numpy-version }}
 
       - name: Install manylinux wheel built for Python ${{ matrix.python-version }}
-        working-directory: python/tests
+        working-directory: tests/python
         run: uv pip install --project . ../../dist/*cp$(echo ${{ matrix.python-version }} | tr -d .)*.whl
       
       - name: Run tests
-        working-directory: python/tests
+        working-directory: tests/python
         run: uv run --project . pytest
 
   build_wheels_main:
