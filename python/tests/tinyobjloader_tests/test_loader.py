@@ -168,7 +168,7 @@ def test_numpy_vertex_array_two_quads():
         82.834091,
         8.953863,
     ]
-    assert loader.attrib.vertices == expected_vertices
+    np.testing.assert_array_almost_equal(loader.attrib.vertices, expected_vertices, decimal=6)
 
     # Test.
-    np.testing.assert_array_almost_equal(loader.attrib.numpy_vertices(), expected_vertices, decimal=5)
+    np.testing.assert_array_almost_equal(loader.attrib.numpy_vertices(), expected_vertices, decimal=6)
