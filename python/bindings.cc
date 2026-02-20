@@ -47,35 +47,30 @@ PYBIND11_MODULE(tinyobjloader, tobj_module)
         auto ret = py::array_t<real_t>(instance.vertices.size());
         py::buffer_info buf = ret.request();
         memcpy(buf.ptr, instance.vertices.data(), instance.vertices.size() * sizeof(real_t));
-        buf.release();
         return ret;
     })
     .def("numpy_vertex_weights", [] (attrib_t &instance) {
         auto ret = py::array_t<real_t>(instance.vertex_weights.size());
         py::buffer_info buf = ret.request();
         memcpy(buf.ptr, instance.vertex_weights.data(), instance.vertex_weights.size() * sizeof(real_t));
-        buf.release();
         return ret;
     })
     .def("numpy_normals", [] (attrib_t &instance) {
         auto ret = py::array_t<real_t>(instance.normals.size());
         py::buffer_info buf = ret.request();
         memcpy(buf.ptr, instance.normals.data(), instance.normals.size() * sizeof(real_t));
-        buf.release();
         return ret;
     })
     .def("numpy_texcoords", [] (attrib_t &instance) {
         auto ret = py::array_t<real_t>(instance.texcoords.size());
         py::buffer_info buf = ret.request();
         memcpy(buf.ptr, instance.texcoords.data(), instance.texcoords.size() * sizeof(real_t));
-        buf.release();
         return ret;
     })
     .def("numpy_colors", [] (attrib_t &instance) {
         auto ret = py::array_t<real_t>(instance.colors.size());
         py::buffer_info buf = ret.request();
         memcpy(buf.ptr, instance.colors.data(), instance.colors.size() * sizeof(real_t));
-        buf.release();
         return ret;
     })
     ;
@@ -157,7 +152,6 @@ PYBIND11_MODULE(tinyobjloader, tobj_module)
         auto ret = py::array_t<unsigned int>(instance.num_face_vertices.size());
         py::buffer_info buf = ret.request();
         memcpy(buf.ptr, instance.num_face_vertices.data(), instance.num_face_vertices.size() * sizeof(unsigned int));
-        buf.release();
         return ret;
     })
     .def("vertex_indices", [](mesh_t &self) {
@@ -210,7 +204,6 @@ PYBIND11_MODULE(tinyobjloader, tobj_module)
         auto ret = py::array_t<int>(instance.indices.size() * 3);
         py::buffer_info buf = ret.request();
         memcpy(buf.ptr, instance.indices.data(), instance.indices.size() * 3 * sizeof(int));
-        buf.release();
         return ret;
     })
     .def_readonly("material_ids", &mesh_t::material_ids)
@@ -218,7 +211,6 @@ PYBIND11_MODULE(tinyobjloader, tobj_module)
         auto ret = py::array_t<int>(instance.material_ids.size());
         py::buffer_info buf = ret.request();
         memcpy(buf.ptr, instance.material_ids.data(), instance.material_ids.size() * sizeof(int));
-        buf.release();
         return ret;
     });
 
