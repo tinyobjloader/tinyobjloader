@@ -51,6 +51,8 @@ setup(
         "Topic :: Artistic Software",
         "Topic :: Multimedia :: Graphics :: 3D Modeling",
         "Topic :: Scientific/Engineering :: Visualization",
+        "License :: OSI Approved :: MIT License",
+        "License :: OSI Approved :: ISC License (ISCL)",
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
     ],
