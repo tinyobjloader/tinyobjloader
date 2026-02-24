@@ -1,0 +1,8 @@
+/home/runner/work/tinyobjloader/tinyobjloader/_codeql_build_dir/CMakeFiles/tinyobjloader.dir
+/home/runner/work/tinyobjloader/tinyobjloader/_codeql_build_dir/CMakeFiles/uninstall.dir
+/home/runner/work/tinyobjloader/tinyobjloader/_codeql_build_dir/CMakeFiles/edit_cache.dir
+/home/runner/work/tinyobjloader/tinyobjloader/_codeql_build_dir/CMakeFiles/rebuild_cache.dir
+/home/runner/work/tinyobjloader/tinyobjloader/_codeql_build_dir/CMakeFiles/list_install_components.dir
+/home/runner/work/tinyobjloader/tinyobjloader/_codeql_build_dir/CMakeFiles/install.dir
+/home/runner/work/tinyobjloader/tinyobjloader/_codeql_build_dir/CMakeFiles/install/local.dir
+/home/runner/work/tinyobjloader/tinyobjloader/_codeql_build_dir/CMakeFiles/install/strip.dir

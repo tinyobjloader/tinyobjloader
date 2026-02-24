@@ -149,9 +149,10 @@ PYBIND11_MODULE(tinyobjloader, tobj_module)
     .def(py::init<>())
     .def_readonly("num_face_vertices", &mesh_t::num_face_vertices)
     .def("numpy_num_face_vertices", [] (mesh_t &instance) {
-        auto ret = py::array_t<unsigned int>(instance.num_face_vertices.size());
+        using T = typename std::remove_reference<decltype(instance.num_face_vertices)>::type::value_type;
+        auto ret = py::array_t<T>(instance.num_face_vertices.size());
         py::buffer_info buf = ret.request();
-        memcpy(buf.ptr, instance.num_face_vertices.data(), instance.num_face_vertices.size() * sizeof(unsigned int));
+        memcpy(buf.ptr, instance.num_face_vertices.data(), instance.num_face_vertices.size() * sizeof(T));
         return ret;
     })
     .def("vertex_indices", [](mesh_t &self) {

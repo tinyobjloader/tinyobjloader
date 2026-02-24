@@ -1,0 +1,2 @@
+/usr/bin/ar qc libtinyobjloader.a CMakeFiles/tinyobjloader.dir/tiny_obj_loader.cc.o
+/usr/bin/ranlib libtinyobjloader.a
