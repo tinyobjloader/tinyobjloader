@@ -48,9 +48,7 @@ def test_numpy_face_vertices_two_quads():
     assert shape.mesh.num_face_vertices == expected_num_face_vertices
 
     # Test.
-    np.testing.assert_array_equal(
-        shape.mesh.numpy_num_face_vertices(), expected_num_face_vertices
-    )
+    np.testing.assert_array_equal(shape.mesh.numpy_num_face_vertices(), expected_num_face_vertices)
 
 
 def test_numpy_face_vertices_two_quads_with_triangulate():
@@ -71,9 +69,7 @@ def test_numpy_face_vertices_two_quads_with_triangulate():
     assert shape.mesh.num_face_vertices == expected_num_face_vertices
 
     # Test.
-    np.testing.assert_array_equal(
-        shape.mesh.numpy_num_face_vertices(), expected_num_face_vertices
-    )
+    np.testing.assert_array_equal(shape.mesh.numpy_num_face_vertices(), expected_num_face_vertices)
 
 
 def test_numpy_face_vertices_mixed_arity():
@@ -96,9 +92,7 @@ def test_numpy_face_vertices_mixed_arity():
     assert shape.mesh.num_face_vertices == expected_num_face_vertices
 
     # Test.
-    np.testing.assert_array_equal(
-        shape.mesh.numpy_num_face_vertices(), expected_num_face_vertices
-    )
+    np.testing.assert_array_equal(shape.mesh.numpy_num_face_vertices(), expected_num_face_vertices)
 
 
 def test_numpy_face_vertices_mixed_arity_with_triangulate():
@@ -119,9 +113,7 @@ def test_numpy_face_vertices_mixed_arity_with_triangulate():
     assert shape.mesh.num_face_vertices == expected_num_face_vertices
 
     # Test.
-    np.testing.assert_array_equal(
-        shape.mesh.numpy_num_face_vertices(), expected_num_face_vertices
-    )
+    np.testing.assert_array_equal(shape.mesh.numpy_num_face_vertices(), expected_num_face_vertices)
 
 
 def test_numpy_index_array_two_quads():
@@ -207,14 +199,10 @@ def test_numpy_vertex_array_two_quads():
         82.834091,
         8.953863,
     ]
-    np.testing.assert_array_almost_equal(
-        loader.attrib.vertices, expected_vertices, decimal=6
-    )
+    np.testing.assert_array_almost_equal(loader.attrib.vertices, expected_vertices, decimal=6)
 
     # Test.
-    np.testing.assert_array_almost_equal(
-        loader.attrib.numpy_vertices(), expected_vertices, decimal=6
-    )
+    np.testing.assert_array_almost_equal(loader.attrib.numpy_vertices(), expected_vertices, decimal=6)
 
 
 def test_numpy_num_face_vertices_from_file():
