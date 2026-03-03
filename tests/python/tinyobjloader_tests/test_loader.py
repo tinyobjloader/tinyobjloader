@@ -1,6 +1,10 @@
+from pathlib import Path
+
 import numpy as np
 
 from .loader import Loader, LoadException
+
+MODELS_DIR = Path(__file__).parent.parent.parent.parent / "models"
 
 TWO_QUADS = """
 v 0 0 0
@@ -44,7 +48,9 @@ def test_numpy_face_vertices_two_quads():
     assert shape.mesh.num_face_vertices == expected_num_face_vertices
 
     # Test.
-    np.testing.assert_array_equal(shape.mesh.numpy_num_face_vertices(), expected_num_face_vertices)
+    np.testing.assert_array_equal(
+        shape.mesh.numpy_num_face_vertices(), expected_num_face_vertices
+    )
 
 
 def test_numpy_face_vertices_two_quads_with_triangulate():
@@ -65,7 +71,9 @@ def test_numpy_face_vertices_two_quads_with_triangulate():
     assert shape.mesh.num_face_vertices == expected_num_face_vertices
 
     # Test.
-    np.testing.assert_array_equal(shape.mesh.numpy_num_face_vertices(), expected_num_face_vertices)
+    np.testing.assert_array_equal(
+        shape.mesh.numpy_num_face_vertices(), expected_num_face_vertices
+    )
 
 
 def test_numpy_face_vertices_mixed_arity():
@@ -88,7 +96,9 @@ def test_numpy_face_vertices_mixed_arity():
     assert shape.mesh.num_face_vertices == expected_num_face_vertices
 
     # Test.
-    np.testing.assert_array_equal(shape.mesh.numpy_num_face_vertices(), expected_num_face_vertices)
+    np.testing.assert_array_equal(
+        shape.mesh.numpy_num_face_vertices(), expected_num_face_vertices
+    )
 
 
 def test_numpy_face_vertices_mixed_arity_with_triangulate():
@@ -109,7 +119,9 @@ def test_numpy_face_vertices_mixed_arity_with_triangulate():
     assert shape.mesh.num_face_vertices == expected_num_face_vertices
 
     # Test.
-    np.testing.assert_array_equal(shape.mesh.numpy_num_face_vertices(), expected_num_face_vertices)
+    np.testing.assert_array_equal(
+        shape.mesh.numpy_num_face_vertices(), expected_num_face_vertices
+    )
 
 
 def test_numpy_index_array_two_quads():
@@ -130,7 +142,32 @@ def test_numpy_index_array_two_quads():
     assert [x.vertex_index for x in shape.mesh.indices] == expected_vertex_index
 
     # Test.
-    expected_numpy_indices = [0, -1, -1, 1, -1, -1, 2, -1, -1, 3, -1, -1, 4, -1, -1, 5, -1, -1, 6, -1, -1, 7, -1, -1]
+    expected_numpy_indices = [
+        0,
+        -1,
+        -1,
+        1,
+        -1,
+        -1,
+        2,
+        -1,
+        -1,
+        3,
+        -1,
+        -1,
+        4,
+        -1,
+        -1,
+        5,
+        -1,
+        -1,
+        6,
+        -1,
+        -1,
+        7,
+        -1,
+        -1,
+    ]
     np.testing.assert_array_equal(shape.mesh.numpy_indices(), expected_numpy_indices)
 
 
@@ -170,7 +207,41 @@ def test_numpy_vertex_array_two_quads():
         82.834091,
         8.953863,
     ]
-    np.testing.assert_array_almost_equal(loader.attrib.vertices, expected_vertices, decimal=6)
+    np.testing.assert_array_almost_equal(
+        loader.attrib.vertices, expected_vertices, decimal=6
+    )
 
     # Test.
-    np.testing.assert_array_almost_equal(loader.attrib.numpy_vertices(), expected_vertices, decimal=6)
+    np.testing.assert_array_almost_equal(
+        loader.attrib.numpy_vertices(), expected_vertices, decimal=6
+    )
+
+
+def test_numpy_num_face_vertices_from_file():
+    """
+    Regression test for https://github.com/tinyobjloader/tinyobjloader/issues/400
+
+    Loads a mixed quad/triangle mesh from a .obj file and checks that
+    numpy_num_face_vertices() returns correct unsigned int values.
+    With the bug (unsigned char element type), values were read as zeros.
+    """
+
+    # Set up.
+    obj_path = str(MODELS_DIR / "issue-400-num-face-vertices.obj")
+    loader = Loader(triangulate=False)
+    loader.load(obj_path)
+
+    shapes = loader.shapes
+    assert len(shapes) == 1
+
+    (shape,) = shapes
+    # The file has one quad face (4 vertices) and two triangle faces (3 vertices each).
+    expected_num_face_vertices = [4, 3, 3]
+
+    # Confidence check using the non-numpy accessor.
+    assert shape.mesh.num_face_vertices == expected_num_face_vertices
+
+    # Test: numpy_num_face_vertices() must return the same values with the correct dtype.
+    result = shape.mesh.numpy_num_face_vertices()
+    np.testing.assert_array_equal(result, expected_num_face_vertices)
+    assert result.dtype == np.dtype("uint32")
