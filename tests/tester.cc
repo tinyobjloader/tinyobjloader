@@ -1550,6 +1550,60 @@ void test_texcoord_w_component() {
 
 
 
+void test_loadObjWithCallback_with_BOM() {
+  // Verify that LoadObjWithCallback correctly strips a UTF-8 BOM from the
+  // first line, just as LoadObj and LoadMtl do.
+  // We reuse cube_w_BOM.obj which starts with 0xEF 0xBB 0xBF followed by
+  // "mtllib cube_w_BOM.mtl".  Without BOM stripping the mtllib line would
+  // not be recognised and no materials would be loaded; with BOM stripping
+  // all 8 vertices and 6 groups are parsed.
+
+  struct CallbackData {
+    int vertex_count;
+    int group_count;
+    int material_count;
+    CallbackData() : vertex_count(0), group_count(0), material_count(0) {}
+  };
+
+  CallbackData data;
+
+  tinyobj::callback_t cb;
+  cb.vertex_cb = [](void *user_data, tinyobj::real_t x, tinyobj::real_t y,
+                    tinyobj::real_t z, tinyobj::real_t w) {
+    reinterpret_cast<CallbackData *>(user_data)->vertex_count++;
+  };
+  cb.group_cb = [](void *user_data, const char **names, int num_names) {
+    if (num_names > 0)
+      reinterpret_cast<CallbackData *>(user_data)->group_count++;
+  };
+  cb.mtllib_cb = [](void *user_data, const tinyobj::material_t *materials,
+                    int num_materials) {
+    reinterpret_cast<CallbackData *>(user_data)->material_count +=
+        num_materials;
+  };
+
+  std::ifstream ifs("../models/cube_w_BOM.obj");
+  TEST_CHECK(ifs.is_open());
+
+  tinyobj::MaterialFileReader matReader(gMtlBasePath);
+  std::string warn, err;
+  bool ret = tinyobj::LoadObjWithCallback(ifs, cb, &data, &matReader, &warn, &err);
+
+  if (!warn.empty()) {
+    std::cout << "WARN: " << warn << std::endl;
+  }
+  if (!err.empty()) {
+    std::cerr << "ERR: " << err << std::endl;
+  }
+
+  TEST_CHECK(true == ret);
+  TEST_CHECK(8 == data.vertex_count);   // 8 vertices in cube_w_BOM.obj
+  TEST_CHECK(6 == data.group_count);    // 6 groups: front/back/right/top/left/bottom
+  TEST_CHECK(data.material_count > 0);  // materials loaded => mtllib line was parsed
+}
+
+
+
 // Fuzzer test.
 // Just check if it does not crash.
 // Disable by default since Windows filesystem can't create filename of afl
@@ -1663,5 +1717,6 @@ TEST_LIST = {
      test_default_kd_for_multiple_materials_issue391},
     {"test_removeUtf8Bom", test_removeUtf8Bom},
     {"test_loadObj_with_BOM", test_loadObj_with_BOM},
+    {"test_loadObjWithCallback_with_BOM", test_loadObjWithCallback_with_BOM},
     {"test_texcoord_w_component", test_texcoord_w_component},
     {NULL, NULL}};
