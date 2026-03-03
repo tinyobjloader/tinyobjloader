@@ -35,6 +35,7 @@
 #include <direct.h>    // _mkdir
 #include <windows.h>   // GetTempPathA, CreateDirectoryA, RegOpenKeyExA
 #include <winreg.h>    // registry constants
+#pragma comment(lib, "Advapi32.lib")  // RegOpenKeyExA, RegQueryValueExA, RegCloseKey
 #else
 #include <cerrno>
 #include <sys/stat.h>  // mkdir
