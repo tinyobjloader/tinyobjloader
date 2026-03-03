@@ -1550,6 +1550,36 @@ void test_texcoord_w_component() {
 
 
 
+void test_texcoord_w_mixed_component() {
+  // Test a mix of vt lines with the optional w present and omitted.
+  // Lines without w should produce 0.0 in texcoord_ws.
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string warn;
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              "../models/texcoord-w-mixed.obj", gMtlBasePath,
+                              /*triangulate*/ false);
+
+  if (!warn.empty()) {
+    std::cout << "WARN: " << warn << std::endl;
+  }
+
+  if (!err.empty()) {
+    std::cerr << "ERR: " << err << std::endl;
+  }
+
+  TEST_CHECK(true == ret);
+  TEST_CHECK(4 == attrib.texcoords.size() / 2);    // 4 uv pairs
+  TEST_CHECK(4 == attrib.texcoord_ws.size());       // 4 w values (present or defaulted)
+  TEST_CHECK(FloatEquals(0.50f, attrib.texcoord_ws[0]));  // w present
+  TEST_CHECK(FloatEquals(0.00f, attrib.texcoord_ws[1]));  // w omitted -> 0.0
+  TEST_CHECK(FloatEquals(0.75f, attrib.texcoord_ws[2]));  // w present
+  TEST_CHECK(FloatEquals(0.00f, attrib.texcoord_ws[3]));  // w omitted -> 0.0
+}
+
 void test_loadObjWithCallback_with_BOM() {
   // Verify that LoadObjWithCallback correctly strips a UTF-8 BOM from the
   // first line, just as LoadObj and LoadMtl do.
@@ -1719,4 +1749,5 @@ TEST_LIST = {
     {"test_loadObj_with_BOM", test_loadObj_with_BOM},
     {"test_loadObjWithCallback_with_BOM", test_loadObjWithCallback_with_BOM},
     {"test_texcoord_w_component", test_texcoord_w_component},
+    {"test_texcoord_w_mixed_component", test_texcoord_w_mixed_component},
     {NULL, NULL}};
