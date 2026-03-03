@@ -738,18 +738,25 @@ static std::wstring LongPathW(const std::wstring &wpath) {
     return wpath;
   }
 
+  // Normalize forward slashes to backslashes: the extended-length "\\?\"
+  // prefix requires backslash separators only.
+  std::wstring normalized = wpath;
+  for (std::wstring::size_type i = 0; i < normalized.size(); ++i) {
+    if (normalized[i] == L'/') normalized[i] = L'\\';
+  }
+
   // UNC path: "\\server\share\..." -> "\\?\UNC\server\share\..."
-  if (wpath.size() >= kUNCPrefix.size() &&
-      wpath.substr(0, kUNCPrefix.size()) == kUNCPrefix) {
-    return kLongUNCPathPrefix + wpath.substr(kUNCPrefix.size());
+  if (normalized.size() >= kUNCPrefix.size() &&
+      normalized.substr(0, kUNCPrefix.size()) == kUNCPrefix) {
+    return kLongUNCPathPrefix + normalized.substr(kUNCPrefix.size());
   }
 
   // Absolute path with drive letter: "C:\..." -> "\\?\C:\..."
-  if (wpath.size() >= 2 && wpath[1] == L':') {
-    return kLongPathPrefix + wpath;
+  if (normalized.size() >= 2 && normalized[1] == L':') {
+    return kLongPathPrefix + normalized;
   }
 
-  return wpath;
+  return normalized;
 }
 #endif  // _WIN32
 

@@ -33,9 +33,20 @@
 
 #ifdef _WIN32
 #include <direct.h>    // _mkdir
-#include <windows.h>   // GetTempPathA, CreateDirectoryA, RegOpenKeyExA
+#include <windows.h>   // GetTempPathW, CreateDirectoryW, RegOpenKeyExA
 #include <winreg.h>    // registry constants
 #pragma comment(lib, "Advapi32.lib")  // RegOpenKeyExA, RegQueryValueExA, RegCloseKey
+
+// Converts a UTF-16 wide string to a UTF-8 std::string.
+static std::string WcharToUTF8(const std::wstring &wstr) {
+  if (wstr.empty()) return std::string();
+  int len = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1,
+                                NULL, 0, NULL, NULL);
+  if (len <= 0) return std::string();
+  std::string str(static_cast<size_t>(len - 1), '\0');
+  WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, &str[0], len, NULL, NULL);
+  return str;
+}
 #else
 #include <cerrno>
 #include <sys/stat.h>  // mkdir
@@ -417,8 +428,10 @@ const char* gMtlBasePath = "../models/";
 // Creates a single directory level. Returns true on success or if it already exists.
 static bool MakeDir(const std::string& path) {
 #ifdef _WIN32
-  // Call CreateDirectoryA, then check GetLastError only on failure.
-  if (CreateDirectoryA(path.c_str(), NULL) != 0) return true;
+  // Use the wide-character API so that paths with non-ASCII characters work.
+  std::wstring wpath = UTF8ToWchar(path);
+  if (wpath.empty()) return false;
+  if (CreateDirectoryW(wpath.c_str(), NULL) != 0) return true;
   return GetLastError() == ERROR_ALREADY_EXISTS;
 #else
   return mkdir(path.c_str(), 0755) == 0 || errno == EEXIST;
@@ -439,16 +452,14 @@ static void RemoveTestDir(const std::string& path) {
 }
 
 // Copies a file in binary mode. The destination path is taken as UTF-8.
-// On Windows, UTF8ToWchar() (provided by tiny_obj_loader.h when
-// TINYOBJLOADER_IMPLEMENTATION is defined) is used so that the destination
-// path is opened via the wide-character file API, exercising the same
-// conversion that tinyobjloader itself uses for loading.
+// On Windows, LongPathW(UTF8ToWchar()) is used so that long paths (> MAX_PATH)
+// are handled, exercising the same conversion that tinyobjloader itself uses.
 static bool CopyTestFile(const std::string& src, const std::string& dst) {
   std::ifstream in(src.c_str(), std::ios::binary);
   if (!in) return false;
 #ifdef _WIN32
-  // Use wide char path for the destination to support Unicode filenames.
-  std::ofstream out(UTF8ToWchar(dst).c_str(), std::ios::binary);
+  // Apply long-path prefix so that the copy works even for paths > MAX_PATH.
+  std::ofstream out(LongPathW(UTF8ToWchar(dst)).c_str(), std::ios::binary);
 #else
   std::ofstream out(dst.c_str(), std::ios::binary);
 #endif
@@ -486,10 +497,10 @@ void test_load_obj_from_utf8_path() {
   // Build a temp directory name that contains the UTF-8 encoded character é
   // (U+00E9, encoded as \xC3\xA9 in UTF-8).
 #ifdef _WIN32
-  char tmpbuf[MAX_PATH];
-  GetTempPathA(MAX_PATH, tmpbuf);
+  wchar_t wtmpbuf[MAX_PATH];
+  GetTempPathW(MAX_PATH, wtmpbuf);
   std::string test_dir =
-      std::string(tmpbuf) + "tinyobj_utf8_\xc3\xa9_test\\";
+      WcharToUTF8(wtmpbuf) + "tinyobj_utf8_\xc3\xa9_test\\";
 #else
   std::string test_dir = "/tmp/tinyobj_utf8_\xc3\xa9_test/";
 #endif
@@ -538,19 +549,21 @@ void test_load_obj_from_long_path() {
            "enabled\n";
     return;
   }
-  char tmpbuf[MAX_PATH];
-  GetTempPathA(MAX_PATH, tmpbuf);
-  std::string base = tmpbuf;  // e.g. "C:\Users\...\Temp\"
+  wchar_t wtmpbuf[MAX_PATH];
+  GetTempPathW(MAX_PATH, wtmpbuf);
+  std::string base = WcharToUTF8(wtmpbuf);  // e.g. "C:\Users\...\Temp\"
+  const char path_sep = '\\';
 #else
   std::string base = "/tmp/";
+  const char path_sep = '/';
 #endif
 
   // Create a two-level directory where the deepest directory name is 250
   // characters long.  Combined with the base path and the filename
   // "utf8-path-test.obj" (18 chars) the total file path comfortably exceeds
   // MAX_PATH (260) on all supported platforms.
-  std::string test_root = base + "tinyobj_lp_test/";
-  std::string long_subdir = test_root + std::string(250, 'a') + "/";
+  std::string test_root = base + "tinyobj_lp_test" + path_sep;
+  std::string long_subdir = test_root + std::string(250, 'a') + path_sep;
   std::string obj_path = long_subdir + "utf8-path-test.obj";
 
   // obj_path must exceed MAX_PATH for the test to be meaningful.
