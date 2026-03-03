@@ -1,0 +1,15 @@
+# Regression test model for issue #400 - numpy_num_face_vertices()
+# Mixed quad and triangle faces to verify correct uint type handling.
+# With the bug (unsigned char instead of unsigned int in the numpy binding),
+# numpy_num_face_vertices() returned all zeros for quad (4-vertex) faces.
+v 0.0 0.0 0.0
+v 1.0 0.0 0.0
+v 1.0 1.0 0.0
+v 0.0 1.0 0.0
+v 0.5 0.5 1.0
+# quad face (num_face_vertices = 4)
+f 1 2 3 4
+# triangle face (num_face_vertices = 3)
+f 1 2 5
+# triangle face (num_face_vertices = 3)
+f 2 3 5
