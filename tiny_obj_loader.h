@@ -663,6 +663,20 @@ bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
 #include <cstring>
 #include <fstream>
 #include <limits>
+
+#ifdef TINYOBJLOADER_USE_MMAP
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#else  // POSIX
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
+#endif  // TINYOBJLOADER_USE_MMAP
 #include <set>
 #include <sstream>
 #include <utility>
@@ -693,6 +707,29 @@ bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
 namespace tinyobj {
 
 MaterialReader::~MaterialReader() {}
+
+// Memory-backed streambuf for zero-copy reading from a buffer (used with mmap).
+// `const_cast` is required because std::streambuf::setg takes non-const char*
+// for its internal get-area bookkeeping, but it never writes through the
+// pointers when the stream is used read-only.  The mapped memory itself remains
+// protected by the OS (PROT_READ / PAGE_READONLY).
+struct membuf : public std::streambuf {
+  membuf(const char *begin, const char *end) {
+    this->setg(const_cast<char *>(begin), const_cast<char *>(begin),
+               const_cast<char *>(end));
+  }
+};
+
+// An istream backed by a membuf.
+struct imemstream : public std::istream {
+  imemstream(const char *begin, const char *end)
+      : std::istream(&buf_), buf_(begin, end) {
+    rdbuf(&buf_);
+  }
+
+ private:
+  membuf buf_;
+};
 
 struct vertex_index_t {
   int v_idx, vt_idx, vn_idx;
@@ -2504,12 +2541,85 @@ bool MaterialFileReader::operator()(const std::string &matId,
     for (size_t i = 0; i < paths.size(); i++) {
       std::string filepath = JoinPath(paths[i], matId);
 
+#ifdef TINYOBJLOADER_USE_MMAP
+#if defined(_WIN32)
+      {
+        HANDLE hFile =
+            CreateFileA(filepath.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL,
+                        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (hFile == INVALID_HANDLE_VALUE) continue;
+        LARGE_INTEGER fileSize;
+        if (!GetFileSizeEx(hFile, &fileSize)) {
+          CloseHandle(hFile);
+          continue;
+        }
+        const size_t file_size = static_cast<size_t>(fileSize.QuadPart);
+        if (file_size == 0) {
+          CloseHandle(hFile);
+          std::istringstream empty_stream;
+          LoadMtl(matMap, materials, &empty_stream, warn, err);
+          return true;
+        }
+        HANDLE hMapping =
+            CreateFileMappingA(hFile, NULL, PAGE_READONLY, 0, 0, NULL);
+        if (hMapping == NULL) {
+          CloseHandle(hFile);
+          continue;
+        }
+        const char *mmap_data = static_cast<const char *>(
+            MapViewOfFile(hMapping, FILE_MAP_READ, 0, 0, 0));
+        if (!mmap_data) {
+          CloseHandle(hMapping);
+          CloseHandle(hFile);
+          continue;
+        }
+        {
+          imemstream matIStream(mmap_data, mmap_data + file_size);
+          LoadMtl(matMap, materials, &matIStream, warn, err);
+        }
+        UnmapViewOfFile(mmap_data);
+        CloseHandle(hMapping);
+        CloseHandle(hFile);
+        return true;
+      }
+#else  // POSIX mmap
+      {
+        int fd = open(filepath.c_str(), O_RDONLY);
+        if (fd == -1) continue;
+        struct stat sb;
+        if (fstat(fd, &sb) != 0) {
+          close(fd);
+          continue;
+        }
+        const size_t file_size = static_cast<size_t>(sb.st_size);
+        if (file_size == 0) {
+          close(fd);
+          std::istringstream empty_stream;
+          LoadMtl(matMap, materials, &empty_stream, warn, err);
+          return true;
+        }
+        void *mapped = mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
+        // On POSIX the fd can be closed immediately after mmap(); the kernel
+        // keeps the mapping alive independently of the file descriptor.
+        close(fd);
+        if (mapped == MAP_FAILED) continue;
+        const char *mmap_data = static_cast<const char *>(mapped);
+        {
+          imemstream matIStream(mmap_data, mmap_data + file_size);
+          LoadMtl(matMap, materials, &matIStream, warn, err);
+        }
+        munmap(mapped, file_size);
+        return true;
+      }
+#endif  // _WIN32
+#else   // !TINYOBJLOADER_USE_MMAP
       std::ifstream matIStream(filepath.c_str());
       if (matIStream) {
         LoadMtl(matMap, materials, &matIStream, warn, err);
 
         return true;
       }
+#endif  // TINYOBJLOADER_USE_MMAP
     }
 
     std::stringstream ss;
@@ -2522,12 +2632,84 @@ bool MaterialFileReader::operator()(const std::string &matId,
 
   } else {
     std::string filepath = matId;
+
+#ifdef TINYOBJLOADER_USE_MMAP
+#if defined(_WIN32)
+    {
+      HANDLE hFile =
+          CreateFileA(filepath.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL,
+                      OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+      if (hFile != INVALID_HANDLE_VALUE) {
+        LARGE_INTEGER fileSize;
+        if (GetFileSizeEx(hFile, &fileSize)) {
+          const size_t file_size = static_cast<size_t>(fileSize.QuadPart);
+          if (file_size == 0) {
+            CloseHandle(hFile);
+            std::istringstream empty_stream;
+            LoadMtl(matMap, materials, &empty_stream, warn, err);
+            return true;
+          }
+          HANDLE hMapping =
+              CreateFileMappingA(hFile, NULL, PAGE_READONLY, 0, 0, NULL);
+          if (hMapping != NULL) {
+            const char *mmap_data = static_cast<const char *>(
+                MapViewOfFile(hMapping, FILE_MAP_READ, 0, 0, 0));
+            if (mmap_data) {
+              {
+                imemstream matIStream(mmap_data, mmap_data + file_size);
+                LoadMtl(matMap, materials, &matIStream, warn, err);
+              }
+              UnmapViewOfFile(mmap_data);
+              CloseHandle(hMapping);
+              CloseHandle(hFile);
+              return true;
+            }
+            CloseHandle(hMapping);
+          }
+        }
+        CloseHandle(hFile);
+      }
+    }
+#else  // POSIX mmap
+    {
+      int fd = open(filepath.c_str(), O_RDONLY);
+      if (fd != -1) {
+        struct stat sb;
+        if (fstat(fd, &sb) == 0) {
+          const size_t file_size = static_cast<size_t>(sb.st_size);
+          if (file_size == 0) {
+            close(fd);
+            std::istringstream empty_stream;
+            LoadMtl(matMap, materials, &empty_stream, warn, err);
+            return true;
+          }
+          void *mapped = mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
+          // On POSIX the fd can be closed immediately after mmap(); the kernel
+          // keeps the mapping alive independently of the file descriptor.
+          close(fd);
+          if (mapped != MAP_FAILED) {
+            const char *mmap_data = static_cast<const char *>(mapped);
+            {
+              imemstream matIStream(mmap_data, mmap_data + file_size);
+              LoadMtl(matMap, materials, &matIStream, warn, err);
+            }
+            munmap(mapped, file_size);
+            return true;
+          }
+        } else {
+          close(fd);
+        }
+      }
+    }
+#endif  // _WIN32
+#else   // !TINYOBJLOADER_USE_MMAP
     std::ifstream matIStream(filepath.c_str());
     if (matIStream) {
       LoadMtl(matMap, materials, &matIStream, warn, err);
 
       return true;
     }
+#endif  // TINYOBJLOADER_USE_MMAP
 
     std::stringstream ss;
     ss << "Material file [ " << filepath
@@ -2570,17 +2752,6 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   attrib->colors.clear();
   shapes->clear();
 
-  std::stringstream errss;
-
-  std::ifstream ifs(filename);
-  if (!ifs) {
-    errss << "Cannot open file [" << filename << "]\n";
-    if (err) {
-      (*err) = errss.str();
-    }
-    return false;
-  }
-
   std::string baseDir = mtl_basedir ? mtl_basedir : "";
   if (!baseDir.empty()) {
 #ifndef _WIN32
@@ -2592,8 +2763,135 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   }
   MaterialFileReader matFileReader(baseDir);
 
+#ifdef TINYOBJLOADER_USE_MMAP
+#if defined(_WIN32)
+  {
+    HANDLE hFile =
+        CreateFileA(filename, GENERIC_READ, FILE_SHARE_READ, NULL,
+                    OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile == INVALID_HANDLE_VALUE) {
+      if (err) {
+        std::stringstream ss;
+        ss << "Cannot open file [" << filename << "]\n";
+        (*err) = ss.str();
+      }
+      return false;
+    }
+    LARGE_INTEGER fileSize;
+    if (!GetFileSizeEx(hFile, &fileSize)) {
+      CloseHandle(hFile);
+      if (err) {
+        std::stringstream ss;
+        ss << "Cannot get size of file [" << filename << "]\n";
+        (*err) = ss.str();
+      }
+      return false;
+    }
+    const size_t file_size = static_cast<size_t>(fileSize.QuadPart);
+    if (file_size == 0) {
+      CloseHandle(hFile);
+      std::istringstream empty_stream;
+      return LoadObj(attrib, shapes, materials, warn, err, &empty_stream,
+                     &matFileReader, triangulate, default_vcols_fallback);
+    }
+    HANDLE hMapping =
+        CreateFileMappingA(hFile, NULL, PAGE_READONLY, 0, 0, NULL);
+    if (hMapping == NULL) {
+      CloseHandle(hFile);
+      if (err) {
+        std::stringstream ss;
+        ss << "CreateFileMapping failed for file [" << filename << "]\n";
+        (*err) = ss.str();
+      }
+      return false;
+    }
+    const char *mmap_data = static_cast<const char *>(
+        MapViewOfFile(hMapping, FILE_MAP_READ, 0, 0, 0));
+    if (!mmap_data) {
+      CloseHandle(hMapping);
+      CloseHandle(hFile);
+      if (err) {
+        std::stringstream ss;
+        ss << "MapViewOfFile failed for file [" << filename << "]\n";
+        (*err) = ss.str();
+      }
+      return false;
+    }
+    bool result;
+    {
+      imemstream ifs(mmap_data, mmap_data + file_size);
+      result = LoadObj(attrib, shapes, materials, warn, err, &ifs,
+                       &matFileReader, triangulate, default_vcols_fallback);
+    }
+    UnmapViewOfFile(mmap_data);
+    CloseHandle(hMapping);
+    CloseHandle(hFile);
+    return result;
+  }
+#else  // POSIX mmap
+  {
+    int fd = open(filename, O_RDONLY);
+    if (fd == -1) {
+      if (err) {
+        std::stringstream ss;
+        ss << "Cannot open file [" << filename << "]\n";
+        (*err) = ss.str();
+      }
+      return false;
+    }
+    struct stat sb;
+    if (fstat(fd, &sb) != 0) {
+      close(fd);
+      if (err) {
+        std::stringstream ss;
+        ss << "Cannot stat file [" << filename << "]\n";
+        (*err) = ss.str();
+      }
+      return false;
+    }
+    const size_t file_size = static_cast<size_t>(sb.st_size);
+    if (file_size == 0) {
+      close(fd);
+      std::istringstream empty_stream;
+      return LoadObj(attrib, shapes, materials, warn, err, &empty_stream,
+                     &matFileReader, triangulate, default_vcols_fallback);
+    }
+    void *mapped = mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    // On POSIX the fd can be closed immediately after mmap(); the kernel
+    // keeps the mapping alive independently of the file descriptor.
+    close(fd);
+    if (mapped == MAP_FAILED) {
+      if (err) {
+        std::stringstream ss;
+        ss << "mmap failed for file [" << filename << "]\n";
+        (*err) = ss.str();
+      }
+      return false;
+    }
+    const char *mmap_data = static_cast<const char *>(mapped);
+    bool result;
+    {
+      imemstream ifs(mmap_data, mmap_data + file_size);
+      result = LoadObj(attrib, shapes, materials, warn, err, &ifs,
+                       &matFileReader, triangulate, default_vcols_fallback);
+    }
+    munmap(mapped, file_size);
+    return result;
+  }
+#endif  // _WIN32
+#else   // !TINYOBJLOADER_USE_MMAP
+  std::ifstream ifs(filename);
+  if (!ifs) {
+    if (err) {
+      std::stringstream ss;
+      ss << "Cannot open file [" << filename << "]\n";
+      (*err) = ss.str();
+    }
+    return false;
+  }
   return LoadObj(attrib, shapes, materials, warn, err, &ifs, &matFileReader,
                  triangulate, default_vcols_fallback);
+#endif  // TINYOBJLOADER_USE_MMAP
 }
 
 bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
@@ -2726,7 +3024,10 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
       sw.vertex_id = vid;
 
-      while (!IS_NEW_LINE(token[0]) && token[0] != '#') {
+      size_t vw_loop_max = linebuf.size() + 1;
+      size_t vw_loop_iter = 0;
+      while (!IS_NEW_LINE(token[0]) && token[0] != '#' &&
+             vw_loop_iter < vw_loop_max) {
         real_t j, w;
         // joint_id should not be negative, weight may be negative
         // TODO(syoyo): # of elements check
@@ -2752,6 +3053,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
         size_t n = strspn(token, " \t\r");
         token += n;
+        vw_loop_iter++;
       }
 
       vw.push_back(sw);
@@ -2767,7 +3069,10 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
       __line_t line;
 
-      while (!IS_NEW_LINE(token[0]) && token[0] != '#') {
+      size_t l_loop_max = linebuf.size() + 1;
+      size_t l_loop_iter = 0;
+      while (!IS_NEW_LINE(token[0]) && token[0] != '#' &&
+             l_loop_iter < l_loop_max) {
         vertex_index_t vi;
         if (!parseTriple(&token, static_cast<int>(v.size() / 3),
                          static_cast<int>(vn.size() / 3),
@@ -2785,6 +3090,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
         size_t n = strspn(token, " \t\r");
         token += n;
+        l_loop_iter++;
       }
 
       prim_group.lineGroup.push_back(line);
@@ -2798,7 +3104,10 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
       __points_t pts;
 
-      while (!IS_NEW_LINE(token[0]) && token[0] != '#') {
+      size_t p_loop_max = linebuf.size() + 1;
+      size_t p_loop_iter = 0;
+      while (!IS_NEW_LINE(token[0]) && token[0] != '#' &&
+             p_loop_iter < p_loop_max) {
         vertex_index_t vi;
         if (!parseTriple(&token, static_cast<int>(v.size() / 3),
                          static_cast<int>(vn.size() / 3),
@@ -2816,6 +3125,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
         size_t n = strspn(token, " \t\r");
         token += n;
+        p_loop_iter++;
       }
 
       prim_group.pointsGroup.push_back(pts);
@@ -2833,7 +3143,10 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       face.smoothing_group_id = current_smoothing_id;
       face.vertex_indices.reserve(3);
 
-      while (!IS_NEW_LINE(token[0]) && token[0] != '#') {
+      size_t f_loop_max = linebuf.size() + 1;
+      size_t f_loop_iter = 0;
+      while (!IS_NEW_LINE(token[0]) && token[0] != '#' &&
+             f_loop_iter < f_loop_max) {
         vertex_index_t vi;
         if (!parseTriple(&token, static_cast<int>(v.size() / 3),
                          static_cast<int>(vn.size() / 3),
@@ -2856,6 +3169,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
         face.vertex_indices.push_back(vi);
         size_t n = strspn(token, " \t\r");
         token += n;
+        f_loop_iter++;
       }
 
       // replace with emplace_back + std::move on C++11
@@ -2969,10 +3283,14 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
       std::vector<std::string> names;
 
-      while (!IS_NEW_LINE(token[0]) && token[0] != '#') {
+      size_t g_loop_max = linebuf.size() + 1;
+      size_t g_loop_iter = 0;
+      while (!IS_NEW_LINE(token[0]) && token[0] != '#' &&
+             g_loop_iter < g_loop_max) {
         std::string str = parseString(&token);
         names.push_back(str);
         token += strspn(token, " \t\r");  // skip tag
+        g_loop_iter++;
       }
 
       // names[0] must be 'g'
@@ -3263,7 +3581,10 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
       token += strspn(token, " \t");
 
       indices.clear();
-      while (!IS_NEW_LINE(token[0]) && token[0] != '#') {
+      size_t cf_loop_max = linebuf.size() + 1;
+      size_t cf_loop_iter = 0;
+      while (!IS_NEW_LINE(token[0]) && token[0] != '#' &&
+             cf_loop_iter < cf_loop_max) {
         vertex_index_t vi = parseRawTriple(&token);
 
         index_t idx;
@@ -3274,6 +3595,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
         indices.push_back(idx);
         size_t n = strspn(token, " \t\r");
         token += n;
+        cf_loop_iter++;
       }
 
       if (callback.index_cb && indices.size() > 0) {
@@ -3378,10 +3700,14 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
     if (token[0] == 'g' && IS_SPACE((token[1]))) {
       names.clear();
 
-      while (!IS_NEW_LINE(token[0]) && token[0] != '#') {
+      size_t cg_loop_max = linebuf.size() + 1;
+      size_t cg_loop_iter = 0;
+      while (!IS_NEW_LINE(token[0]) && token[0] != '#' &&
+             cg_loop_iter < cg_loop_max) {
         std::string str = parseString(&token);
         names.push_back(str);
         token += strspn(token, " \t\r");  // skip tag
+        cg_loop_iter++;
       }
 
       assert(names.size() > 0);

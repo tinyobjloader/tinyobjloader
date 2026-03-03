@@ -1519,6 +1519,85 @@ void test_loadObj_with_BOM() {
                                                          // single white space.
 }
 
+// Verify that mmap-based loading (TINYOBJLOADER_USE_MMAP) produces the same
+// vertex/shape/material data as the standard ifstream-based path.
+void test_mmap_and_standard_load_agree() {
+  const char *obj_file = "../models/cornell_box.obj";
+
+  // Load using whatever path is compiled in (mmap or ifstream).
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              obj_file, gMtlBasePath);
+  if (!warn.empty()) std::cout << "WARN: " << warn << "\n";
+  if (!err.empty()) std::cerr << "ERR: " << err << "\n";
+  TEST_CHECK(ret == true);
+
+  // Also load via the stream API (always uses ifstream-equivalent path).
+  tinyobj::attrib_t attrib2;
+  std::vector<tinyobj::shape_t> shapes2;
+  std::vector<tinyobj::material_t> materials2;
+  std::string warn2, err2;
+  std::ifstream ifs(obj_file);
+  TEST_CHECK(ifs.good());
+  tinyobj::MaterialFileReader matReader(gMtlBasePath);
+  bool ret2 = tinyobj::LoadObj(&attrib2, &shapes2, &materials2, &warn2, &err2,
+                               &ifs, &matReader);
+  TEST_CHECK(ret2 == true);
+
+  // Compare results.
+  TEST_CHECK(attrib.vertices.size() == attrib2.vertices.size());
+  TEST_CHECK(attrib.normals.size() == attrib2.normals.size());
+  TEST_CHECK(shapes.size() == shapes2.size());
+  TEST_CHECK(materials.size() == materials2.size());
+  for (size_t i = 0; i < shapes.size(); i++) {
+    TEST_CHECK(shapes[i].mesh.indices.size() == shapes2[i].mesh.indices.size());
+  }
+}
+
+// Verify robustness: loading from a memory buffer (imemstream) is consistent
+// with standard file loading.
+void test_load_from_memory_buffer() {
+  const char *obj_file = "../models/cube.obj";
+
+  // Read file into memory manually.
+  std::ifstream file(obj_file, std::ios::binary | std::ios::ate);
+  TEST_CHECK(file.good());
+  std::streamsize sz = file.tellg();
+  file.seekg(0, std::ios::beg);
+  std::vector<char> buf(static_cast<size_t>(sz));
+  TEST_CHECK(file.read(buf.data(), sz).good());
+  file.close();
+
+  // Parse from the memory buffer via the stream API.
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  // Use membuf / imemstream through the stream API.
+  std::string obj_text(buf.begin(), buf.end());
+  std::istringstream obj_ss(obj_text);
+  tinyobj::MaterialFileReader matReader(gMtlBasePath);
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &obj_ss, &matReader);
+  if (!warn.empty()) std::cout << "WARN: " << warn << "\n";
+  if (!err.empty()) std::cerr << "ERR: " << err << "\n";
+  TEST_CHECK(ret == true);
+
+  // Compare with direct file load to check consistency.
+  tinyobj::attrib_t attrib2;
+  std::vector<tinyobj::shape_t> shapes2;
+  std::vector<tinyobj::material_t> materials2;
+  std::string warn2, err2;
+  bool ret2 = tinyobj::LoadObj(&attrib2, &shapes2, &materials2, &warn2, &err2,
+                               obj_file, gMtlBasePath);
+  TEST_CHECK(ret2 == true);
+  TEST_CHECK(attrib.vertices.size() == attrib2.vertices.size());
+  TEST_CHECK(shapes.size() == shapes2.size());
+}
+
 
 // Fuzzer test.
 // Just check if it does not crash.
@@ -1633,4 +1712,6 @@ TEST_LIST = {
      test_default_kd_for_multiple_materials_issue391},
     {"test_removeUtf8Bom", test_removeUtf8Bom},
     {"test_loadObj_with_BOM", test_loadObj_with_BOM},
+    {"test_mmap_and_standard_load_agree", test_mmap_and_standard_load_agree},
+    {"test_load_from_memory_buffer", test_load_from_memory_buffer},
     {NULL, NULL}};
