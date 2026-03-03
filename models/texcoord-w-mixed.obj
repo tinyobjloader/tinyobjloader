@@ -1,0 +1,15 @@
+# OBJ file with mixed 3-component and 2-component texture coordinates
+# Tests that texcoord_ws correctly stores 0.0 for omitted w values
+v 0 0 0
+v 1 0 0
+v 1 1 0
+v 0 1 0
+
+# vt lines alternating: w present, w omitted, w present, w omitted
+vt 0.0 0.0 0.5
+vt 1.0 0.0
+vt 1.0 1.0 0.75
+vt 0.0 1.0
+
+f 1/1 2/2 3/3
+f 1/1 3/3 4/4
