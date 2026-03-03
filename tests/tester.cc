@@ -889,7 +889,7 @@ void test_invalid_texture_vertex_index() {
   std::string err;
   bool ret =
       tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
-                       "../models/invalid-relative-texture-vertex-index.obj", gMtlBasePath);
+                       "../models/invalid-relative-texture-index.obj", gMtlBasePath);
 
   if (!warn.empty()) {
     std::cout << "WARN: " << warn << std::endl;
@@ -1520,6 +1520,36 @@ void test_loadObj_with_BOM() {
 }
 
 
+void test_texcoord_w_component() {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string warn;
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              "../models/texcoord-w.obj", gMtlBasePath,
+                              /*triangulate*/ false);
+
+  if (!warn.empty()) {
+    std::cout << "WARN: " << warn << std::endl;
+  }
+
+  if (!err.empty()) {
+    std::cerr << "ERR: " << err << std::endl;
+  }
+
+  TEST_CHECK(true == ret);
+  TEST_CHECK(4 == attrib.texcoords.size() / 2);    // 4 uv pairs
+  TEST_CHECK(4 == attrib.texcoord_ws.size());       // 4 w values
+  TEST_CHECK(FloatEquals(0.50f, attrib.texcoord_ws[0]));
+  TEST_CHECK(FloatEquals(0.25f, attrib.texcoord_ws[1]));
+  TEST_CHECK(FloatEquals(0.75f, attrib.texcoord_ws[2]));
+  TEST_CHECK(FloatEquals(0.00f, attrib.texcoord_ws[3]));
+}
+
+
+
 // Fuzzer test.
 // Just check if it does not crash.
 // Disable by default since Windows filesystem can't create filename of afl
@@ -1633,4 +1663,5 @@ TEST_LIST = {
      test_default_kd_for_multiple_materials_issue391},
     {"test_removeUtf8Bom", test_removeUtf8Bom},
     {"test_loadObj_with_BOM", test_loadObj_with_BOM},
+    {"test_texcoord_w_component", test_texcoord_w_component},
     {NULL, NULL}};

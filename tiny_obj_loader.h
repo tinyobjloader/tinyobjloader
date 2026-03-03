@@ -2386,7 +2386,6 @@ void LoadMtl(std::map<std::string, int> *material_map,
     // alpha texture
     if ((0 == strncmp(token, "map_d", 5)) && IS_SPACE(token[5])) {
       token += 6;
-      material.alpha_texname = token;
       ParseTextureNameAndOption(&(material.alpha_texname),
                                 &(material.alpha_texopt), token);
       continue;
@@ -2607,6 +2606,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   std::vector<real_t> vertex_weights;  // optional [w] component in `v`
   std::vector<real_t> vn;
   std::vector<real_t> vt;
+  std::vector<real_t> vt_w;  // optional [w] component in `vt`
   std::vector<real_t> vc;
   std::vector<skin_weight_t> vw;  // tinyobj extension: vertex skin weights
   std::vector<tag_t> tags;
@@ -2707,6 +2707,12 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       parseReal2(&x, &y, &token);
       vt.push_back(x);
       vt.push_back(y);
+
+      // Parse optional w component
+      real_t w = static_cast<real_t>(0.0);
+      parseReal(&token, &w);
+      vt_w.push_back(w);
+
       continue;
     }
 
@@ -3165,7 +3171,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   attrib->vertex_weights.swap(vertex_weights);
   attrib->normals.swap(vn);
   attrib->texcoords.swap(vt);
-  attrib->texcoord_ws.swap(vt);
+  attrib->texcoord_ws.swap(vt_w);
   attrib->colors.swap(vc);
   attrib->skin_weights.swap(vw);
 
@@ -3191,8 +3197,11 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
   std::vector<const char *> names_out;
 
   std::string linebuf;
+  size_t line_num = 0;
   while (inStream.peek() != -1) {
     safeGetline(inStream, linebuf);
+
+    line_num++;
 
     // Trim newline '\r\n' or '\n'
     if (linebuf.size() > 0) {
@@ -3207,6 +3216,9 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
     // Skip if empty line.
     if (linebuf.empty()) {
       continue;
+    }
+    if (line_num == 1) {
+      linebuf = removeUtf8Bom(linebuf);
     }
 
     // Skip leading space.
