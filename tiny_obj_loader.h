@@ -667,6 +667,16 @@ bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
 #include <sstream>
 #include <utility>
 
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 #ifdef TINYOBJLOADER_USE_MAPBOX_EARCUT
 
 #ifdef TINYOBJLOADER_DONOT_INCLUDE_MAPBOX_EARCUT
@@ -689,6 +699,59 @@ bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
 #endif
 
 #endif  // TINYOBJLOADER_USE_MAPBOX_EARCUT
+
+#ifdef _WIN32
+// Converts a UTF-8 encoded string to a UTF-16 wide string for use with
+// Windows file APIs that support Unicode paths (including paths longer than
+// MAX_PATH when combined with the extended-length path prefix).
+static std::wstring UTF8ToWchar(const std::string &str) {
+  if (str.empty()) return std::wstring();
+  int size_needed =
+      MultiByteToWideChar(CP_UTF8, 0, str.c_str(),
+                          static_cast<int>(str.size()), NULL, 0);
+  if (size_needed == 0) return std::wstring();
+  std::wstring wstr(static_cast<size_t>(size_needed), L'\0');
+  int result =
+      MultiByteToWideChar(CP_UTF8, 0, str.c_str(),
+                          static_cast<int>(str.size()), &wstr[0], size_needed);
+  if (result == 0) return std::wstring();
+  return wstr;
+}
+
+// Prepends the Windows extended-length path prefix ("\\?\") to an absolute
+// path when the path length meets or exceeds MAX_PATH (260 characters).
+// This allows Windows APIs to handle paths up to 32767 characters long.
+// UNC paths (starting with "\\") are converted to "\\?\UNC\" form.
+static std::wstring LongPathW(const std::wstring &wpath) {
+  const std::wstring kLongPathPrefix = L"\\\\?\\";
+  const std::wstring kUNCPrefix = L"\\\\";
+  const std::wstring kLongUNCPathPrefix = L"\\\\?\\UNC\\";
+
+  // Already has the extended-length prefix; return as-is.
+  if (wpath.size() >= kLongPathPrefix.size() &&
+      wpath.substr(0, kLongPathPrefix.size()) == kLongPathPrefix) {
+    return wpath;
+  }
+
+  // Only add the prefix when the path is long enough to require it.
+  if (wpath.size() < MAX_PATH) {
+    return wpath;
+  }
+
+  // UNC path: "\\server\share\..." -> "\\?\UNC\server\share\..."
+  if (wpath.size() >= kUNCPrefix.size() &&
+      wpath.substr(0, kUNCPrefix.size()) == kUNCPrefix) {
+    return kLongUNCPathPrefix + wpath.substr(kUNCPrefix.size());
+  }
+
+  // Absolute path with drive letter: "C:\..." -> "\\?\C:\..."
+  if (wpath.size() >= 2 && wpath[1] == L':') {
+    return kLongPathPrefix + wpath;
+  }
+
+  return wpath;
+}
+#endif  // _WIN32
 
 namespace tinyobj {
 
@@ -2504,7 +2567,11 @@ bool MaterialFileReader::operator()(const std::string &matId,
     for (size_t i = 0; i < paths.size(); i++) {
       std::string filepath = JoinPath(paths[i], matId);
 
+#ifdef _WIN32
+      std::ifstream matIStream(LongPathW(UTF8ToWchar(filepath)).c_str());
+#else
       std::ifstream matIStream(filepath.c_str());
+#endif
       if (matIStream) {
         LoadMtl(matMap, materials, &matIStream, warn, err);
 
@@ -2522,7 +2589,11 @@ bool MaterialFileReader::operator()(const std::string &matId,
 
   } else {
     std::string filepath = matId;
+#ifdef _WIN32
+    std::ifstream matIStream(LongPathW(UTF8ToWchar(filepath)).c_str());
+#else
     std::ifstream matIStream(filepath.c_str());
+#endif
     if (matIStream) {
       LoadMtl(matMap, materials, &matIStream, warn, err);
 
@@ -2572,7 +2643,11 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
   std::stringstream errss;
 
+#ifdef _WIN32
+  std::ifstream ifs(LongPathW(UTF8ToWchar(filename)).c_str());
+#else
   std::ifstream ifs(filename);
+#endif
   if (!ifs) {
     errss << "Cannot open file [" << filename << "]\n";
     if (err) {
