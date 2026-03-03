@@ -726,7 +726,7 @@ class StreamReader {
       is.seekg(0, std::ios::beg);
       if (file_size > 0) {
         owned_buf_.resize(static_cast<size_t>(file_size));
-        is.read(&owned_buf_[0], file_size);
+        is.read(&owned_buf_[0], static_cast<std::streamsize>(file_size));
         size_t actually_read = static_cast<size_t>(is.gcount());
         owned_buf_.resize(actually_read);
       }
@@ -3715,8 +3715,7 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
 
   bool ret = exportGroupsToShape(&shape, prim_group, tags, material, name,
                                  triangulate, v, warn);
-  if (ret || shape.mesh.indices
-                 .size()) {
+  if (ret || shape.mesh.indices.size()) {
     shapes->push_back(shape);
   }
   prim_group.clear();
