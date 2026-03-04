@@ -687,6 +687,16 @@ bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
 #include <sstream>
 #include <utility>
 
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 #ifdef TINYOBJLOADER_USE_MAPBOX_EARCUT
 
 #ifdef TINYOBJLOADER_DONOT_INCLUDE_MAPBOX_EARCUT
