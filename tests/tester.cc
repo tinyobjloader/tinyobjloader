@@ -1840,6 +1840,213 @@ void test_loadObjWithCallback_with_BOM() {
 
 
 
+void test_numeric_edge_cases() {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string warn;
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              "../models/numeric-edge-cases.obj");
+
+  if (!warn.empty()) std::cout << "WARN: " << warn << std::endl;
+  if (!err.empty()) std::cerr << "ERR: " << err << std::endl;
+
+  TEST_CHECK(true == ret);
+
+  // 16 vertices * 3 components = 48
+  TEST_CHECK(attrib.vertices.size() == 48);
+
+  // v0: 0 0 0
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[0]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[1]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[2]));
+
+  // v1: 1.5 -2.25 3.125
+  TEST_CHECK(FloatEquals(1.5f, attrib.vertices[3]));
+  TEST_CHECK(FloatEquals(-2.25f, attrib.vertices[4]));
+  TEST_CHECK(FloatEquals(3.125f, attrib.vertices[5]));
+
+  // v2: .5 -.75 .001 (leading decimal dot)
+  TEST_CHECK(FloatEquals(0.5f, attrib.vertices[6]));
+  TEST_CHECK(FloatEquals(-0.75f, attrib.vertices[7]));
+  TEST_CHECK(FloatEquals(0.001f, attrib.vertices[8]));
+
+  // v3: 1. -2. 100. (trailing dot)
+  TEST_CHECK(FloatEquals(1.0f, attrib.vertices[9]));
+  TEST_CHECK(FloatEquals(-2.0f, attrib.vertices[10]));
+  TEST_CHECK(FloatEquals(100.0f, attrib.vertices[11]));
+
+  // v4: 1.5e2 -3.0e-4 7e10 (scientific notation lowercase)
+  TEST_CHECK(FloatEquals(150.0f, attrib.vertices[12]));
+  TEST_CHECK(FloatEquals(-3.0e-4f, attrib.vertices[13]));
+  TEST_CHECK(FloatEquals(7e10f, attrib.vertices[14]));
+
+  // v5: 2.5E3 -1.0E-2 4E+5 (scientific notation uppercase)
+  TEST_CHECK(FloatEquals(2500.0f, attrib.vertices[15]));
+  TEST_CHECK(FloatEquals(-0.01f, attrib.vertices[16]));
+  TEST_CHECK(FloatEquals(400000.0f, attrib.vertices[17]));
+
+  // v6: +1.0 +0.5 +100 (leading plus)
+  TEST_CHECK(FloatEquals(1.0f, attrib.vertices[18]));
+  TEST_CHECK(FloatEquals(0.5f, attrib.vertices[19]));
+  TEST_CHECK(FloatEquals(100.0f, attrib.vertices[20]));
+
+  // v7: 007.5 -003.14 000.001 (leading zeros)
+  TEST_CHECK(FloatEquals(7.5f, attrib.vertices[21]));
+  TEST_CHECK(FloatEquals(-3.14f, attrib.vertices[22]));
+  TEST_CHECK(FloatEquals(0.001f, attrib.vertices[23]));
+
+  // v8: 1e-300 -1e-300 5e-310 (tiny values -- flush to zero in float)
+  // These are below float min, so they become 0 in float mode.
+  // Just check they parsed without error (ret == true above).
+
+  // v9: 1.7976931348623157e+308 -1e+308 1e+307
+  // These overflow float, but should not crash. Check parse succeeded.
+
+  // v10: -0 -0.0 -0.0e0 (negative zero)
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[30]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[31]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[32]));
+
+  // v11: 1.5e002 -3.0e+007 7e-003 (exponent with leading zeros)
+  TEST_CHECK(FloatEquals(150.0f, attrib.vertices[33]));
+  TEST_CHECK(FloatEquals(-3.0e7f, attrib.vertices[34]));
+  TEST_CHECK(FloatEquals(7e-3f, attrib.vertices[35]));
+
+  // v12: 0 1 9 (single digit values)
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[36]));
+  TEST_CHECK(FloatEquals(1.0f, attrib.vertices[37]));
+  TEST_CHECK(FloatEquals(9.0f, attrib.vertices[38]));
+
+  // v13: 1e+0 1e-0 -1e+0 (exponent zero)
+  TEST_CHECK(FloatEquals(1.0f, attrib.vertices[39]));
+  TEST_CHECK(FloatEquals(1.0f, attrib.vertices[40]));
+  TEST_CHECK(FloatEquals(-1.0f, attrib.vertices[41]));
+
+  // v14: pi, e, sqrt(2) (high precision)
+  TEST_CHECK(FloatEquals(3.141592653589793f, attrib.vertices[42]));
+  TEST_CHECK(FloatEquals(2.718281828459045f, attrib.vertices[43]));
+  TEST_CHECK(FloatEquals(1.4142135623730951f, attrib.vertices[44]));
+
+  // v15: 1e1 1e-1 -1e1 (simple exponent)
+  TEST_CHECK(FloatEquals(10.0f, attrib.vertices[45]));
+  TEST_CHECK(FloatEquals(0.1f, attrib.vertices[46]));
+  TEST_CHECK(FloatEquals(-10.0f, attrib.vertices[47]));
+
+  // Normals: 3 normals * 3 = 9
+  TEST_CHECK(attrib.normals.size() == 9);
+  TEST_CHECK(FloatEquals(0.0f, attrib.normals[0]));
+  TEST_CHECK(FloatEquals(1.0f, attrib.normals[1]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.normals[2]));
+  TEST_CHECK(FloatEquals(-0.707107f, attrib.normals[3]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.normals[4]));
+  TEST_CHECK(FloatEquals(0.707107f, attrib.normals[5]));
+  TEST_CHECK(FloatEquals(1e-5f, attrib.normals[6]));
+  TEST_CHECK(FloatEquals(-1e-5f, attrib.normals[7]));
+  TEST_CHECK(FloatEquals(0.99999f, attrib.normals[8]));
+
+  // Texcoords: 4 texcoords * 2 = 8
+  TEST_CHECK(attrib.texcoords.size() == 8);
+  TEST_CHECK(FloatEquals(0.0f, attrib.texcoords[0]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.texcoords[1]));
+  TEST_CHECK(FloatEquals(1.0f, attrib.texcoords[2]));
+  TEST_CHECK(FloatEquals(1.0f, attrib.texcoords[3]));
+  TEST_CHECK(FloatEquals(0.5f, attrib.texcoords[4]));
+  TEST_CHECK(FloatEquals(0.5f, attrib.texcoords[5]));
+  TEST_CHECK(FloatEquals(0.25f, attrib.texcoords[6]));
+  TEST_CHECK(FloatEquals(0.75f, attrib.texcoords[7]));
+}
+
+void test_numeric_nan_inf() {
+  // Test nan/inf parsing via an in-memory OBJ string
+  std::string obj_str =
+      "v nan 0 0\n"
+      "v NaN 1 1\n"
+      "v NAN 2 2\n"
+      "v inf 0 0\n"
+      "v -inf 1 1\n"
+      "v Inf 2 2\n"
+      "v -Inf 3 3\n"
+      "v INF 4 4\n"
+      "v infinity 0 0\n"
+      "v -infinity 1 1\n"
+      "v +nan 0 0\n"
+      "v +inf 0 0\n"
+      "f 1 2 3\n";
+
+  std::istringstream obj_stream(obj_str);
+
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string warn;
+  std::string err;
+  tinyobj::MaterialStreamReader mtl_reader(obj_stream);  // dummy
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &obj_stream, NULL);
+
+  if (!warn.empty()) std::cout << "WARN: " << warn << std::endl;
+  if (!err.empty()) std::cerr << "ERR: " << err << std::endl;
+
+  TEST_CHECK(true == ret);
+  // 12 vertices * 3 components = 36
+  TEST_CHECK(attrib.vertices.size() == 36);
+
+  // All nan/inf should parse without crashing.
+  // The exact values depend on the implementation (nan -> max, inf -> max),
+  // but the parser must not fail or produce garbage for the non-nan/inf coords.
+
+  // v0: nan 0 0 -> second and third should be 0
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[1]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[2]));
+
+  // v3: inf 0 0 -> second and third should be 0
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[10]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[11]));
+
+  // v4: -inf 1 1
+  TEST_CHECK(FloatEquals(1.0f, attrib.vertices[13]));
+  TEST_CHECK(FloatEquals(1.0f, attrib.vertices[14]));
+}
+
+void test_numeric_from_stream() {
+  // Test that stream-based loading also gets the same numeric results
+  std::string obj_str =
+      "v 1.5e2 -3.0e-4 +7.5\n"
+      "v .001 -.999 1.\n"
+      "v 0 0 0\n"
+      "f 1 2 3\n";
+
+  std::istringstream obj_stream(obj_str);
+
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string warn;
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &obj_stream, NULL);
+
+  TEST_CHECK(true == ret);
+  TEST_CHECK(attrib.vertices.size() == 9);
+
+  TEST_CHECK(FloatEquals(150.0f, attrib.vertices[0]));
+  TEST_CHECK(FloatEquals(-3.0e-4f, attrib.vertices[1]));
+  TEST_CHECK(FloatEquals(7.5f, attrib.vertices[2]));
+
+  TEST_CHECK(FloatEquals(0.001f, attrib.vertices[3]));
+  TEST_CHECK(FloatEquals(-0.999f, attrib.vertices[4]));
+  TEST_CHECK(FloatEquals(1.0f, attrib.vertices[5]));
+
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[6]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[7]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[8]));
+}
+
 // Fuzzer test.
 // Just check if it does not crash.
 // Disable by default since Windows filesystem can't create filename of afl
@@ -1958,4 +2165,7 @@ TEST_LIST = {
     {"test_loadObjWithCallback_with_BOM", test_loadObjWithCallback_with_BOM},
     {"test_texcoord_w_component", test_texcoord_w_component},
     {"test_texcoord_w_mixed_component", test_texcoord_w_mixed_component},
+    {"test_numeric_edge_cases", test_numeric_edge_cases},
+    {"test_numeric_nan_inf", test_numeric_nan_inf},
+    {"test_numeric_from_stream", test_numeric_from_stream},
     {NULL, NULL}};
