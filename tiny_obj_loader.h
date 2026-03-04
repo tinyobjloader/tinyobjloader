@@ -5621,7 +5621,7 @@ static inline bool tryParseNanInf(const char *first, const char *last,
 // is returned.
 //
 static bool tryParseDouble(const char *s, const char *s_end, double *result) {
-  if (s >= s_end) {
+  if (!s || !s_end || !result || s >= s_end) {
     return false;
   }
 
@@ -5644,10 +5644,13 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result) {
   if (*parse_start == '+') ++parse_start;
 
   if (parse_start < s_end) {
-    auto r = fast_float::from_chars(parse_start, s_end, *result);
+    double tmp;
+    auto r = fast_float::from_chars(parse_start, s_end, tmp);
     if (r.ec == tinyobj_ff::ff_errc::ok) {
+      *result = tmp;
       return true;
     }
+    // On error (invalid_argument, result_out_of_range), *result is unchanged.
   }
 
   return false;
