@@ -36,7 +36,8 @@ jobs:
         env:
           # These are the only wheels we need for the `test_wheels` job. For
           # faster iteration times, we limit the job to only build these wheels.
-          CIBW_BUILD: "*manylinux_x86_64"
+          # Restrict to CPython to avoid building unused PyPy wheels.
+          CIBW_BUILD: "cp*-manylinux_x86_64"
 
       - uses: actions/upload-artifact@v4
         with:
