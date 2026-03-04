@@ -667,6 +667,16 @@ bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
 #include <sstream>
 #include <utility>
 
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 #ifdef TINYOBJLOADER_USE_MAPBOX_EARCUT
 
 #ifdef TINYOBJLOADER_DONOT_INCLUDE_MAPBOX_EARCUT
@@ -689,6 +699,66 @@ bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
 #endif
 
 #endif  // TINYOBJLOADER_USE_MAPBOX_EARCUT
+
+#ifdef _WIN32
+// Converts a UTF-8 encoded string to a UTF-16 wide string for use with
+// Windows file APIs that support Unicode paths (including paths longer than
+// MAX_PATH when combined with the extended-length path prefix).
+static std::wstring UTF8ToWchar(const std::string &str) {
+  if (str.empty()) return std::wstring();
+  int size_needed =
+      MultiByteToWideChar(CP_UTF8, 0, str.c_str(),
+                          static_cast<int>(str.size()), NULL, 0);
+  if (size_needed == 0) return std::wstring();
+  std::wstring wstr(static_cast<size_t>(size_needed), L'\0');
+  int result =
+      MultiByteToWideChar(CP_UTF8, 0, str.c_str(),
+                          static_cast<int>(str.size()), &wstr[0], size_needed);
+  if (result == 0) return std::wstring();
+  return wstr;
+}
+
+// Prepends the Windows extended-length path prefix ("\\?\") to an absolute
+// path when the path length meets or exceeds MAX_PATH (260 characters).
+// This allows Windows APIs to handle paths up to 32767 characters long.
+// UNC paths (starting with "\\") are converted to "\\?\UNC\" form.
+static std::wstring LongPathW(const std::wstring &wpath) {
+  const std::wstring kLongPathPrefix = L"\\\\?\\";
+  const std::wstring kUNCPrefix = L"\\\\";
+  const std::wstring kLongUNCPathPrefix = L"\\\\?\\UNC\\";
+
+  // Already has the extended-length prefix; return as-is.
+  if (wpath.size() >= kLongPathPrefix.size() &&
+      wpath.substr(0, kLongPathPrefix.size()) == kLongPathPrefix) {
+    return wpath;
+  }
+
+  // Only add the prefix when the path is long enough to require it.
+  if (wpath.size() < MAX_PATH) {
+    return wpath;
+  }
+
+  // Normalize forward slashes to backslashes: the extended-length "\\?\"
+  // prefix requires backslash separators only.
+  std::wstring normalized = wpath;
+  for (std::wstring::size_type i = 0; i < normalized.size(); ++i) {
+    if (normalized[i] == L'/') normalized[i] = L'\\';
+  }
+
+  // UNC path: "\\server\share\..." -> "\\?\UNC\server\share\..."
+  if (normalized.size() >= kUNCPrefix.size() &&
+      normalized.substr(0, kUNCPrefix.size()) == kUNCPrefix) {
+    return kLongUNCPathPrefix + normalized.substr(kUNCPrefix.size());
+  }
+
+  // Absolute path with drive letter: "C:\..." -> "\\?\C:\..."
+  if (normalized.size() >= 2 && normalized[1] == L':') {
+    return kLongPathPrefix + normalized;
+  }
+
+  return normalized;
+}
+#endif  // _WIN32
 
 namespace tinyobj {
 
@@ -2386,7 +2456,6 @@ void LoadMtl(std::map<std::string, int> *material_map,
     // alpha texture
     if ((0 == strncmp(token, "map_d", 5)) && IS_SPACE(token[5])) {
       token += 6;
-      material.alpha_texname = token;
       ParseTextureNameAndOption(&(material.alpha_texname),
                                 &(material.alpha_texopt), token);
       continue;
@@ -2504,7 +2573,11 @@ bool MaterialFileReader::operator()(const std::string &matId,
     for (size_t i = 0; i < paths.size(); i++) {
       std::string filepath = JoinPath(paths[i], matId);
 
+#ifdef _WIN32
+      std::ifstream matIStream(LongPathW(UTF8ToWchar(filepath)).c_str());
+#else
       std::ifstream matIStream(filepath.c_str());
+#endif
       if (matIStream) {
         LoadMtl(matMap, materials, &matIStream, warn, err);
 
@@ -2522,7 +2595,11 @@ bool MaterialFileReader::operator()(const std::string &matId,
 
   } else {
     std::string filepath = matId;
+#ifdef _WIN32
+    std::ifstream matIStream(LongPathW(UTF8ToWchar(filepath)).c_str());
+#else
     std::ifstream matIStream(filepath.c_str());
+#endif
     if (matIStream) {
       LoadMtl(matMap, materials, &matIStream, warn, err);
 
@@ -2572,7 +2649,11 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
   std::stringstream errss;
 
+#ifdef _WIN32
+  std::ifstream ifs(LongPathW(UTF8ToWchar(filename)).c_str());
+#else
   std::ifstream ifs(filename);
+#endif
   if (!ifs) {
     errss << "Cannot open file [" << filename << "]\n";
     if (err) {
@@ -2607,6 +2688,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   std::vector<real_t> vertex_weights;  // optional [w] component in `v`
   std::vector<real_t> vn;
   std::vector<real_t> vt;
+  std::vector<real_t> vt_w;  // optional [w] component in `vt`
   std::vector<real_t> vc;
   std::vector<skin_weight_t> vw;  // tinyobj extension: vertex skin weights
   std::vector<tag_t> tags;
@@ -2707,6 +2789,12 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       parseReal2(&x, &y, &token);
       vt.push_back(x);
       vt.push_back(y);
+
+      // Parse optional w component
+      real_t w = static_cast<real_t>(0.0);
+      parseReal(&token, &w);
+      vt_w.push_back(w);
+
       continue;
     }
 
@@ -3165,7 +3253,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   attrib->vertex_weights.swap(vertex_weights);
   attrib->normals.swap(vn);
   attrib->texcoords.swap(vt);
-  attrib->texcoord_ws.swap(vt);
+  attrib->texcoord_ws.swap(vt_w);
   attrib->colors.swap(vc);
   attrib->skin_weights.swap(vw);
 
@@ -3191,8 +3279,11 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
   std::vector<const char *> names_out;
 
   std::string linebuf;
+  size_t line_num = 0;
   while (inStream.peek() != -1) {
     safeGetline(inStream, linebuf);
+
+    line_num++;
 
     // Trim newline '\r\n' or '\n'
     if (linebuf.size() > 0) {
@@ -3207,6 +3298,9 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
     // Skip if empty line.
     if (linebuf.empty()) {
       continue;
+    }
+    if (line_num == 1) {
+      linebuf = removeUtf8Bom(linebuf);
     }
 
     // Skip leading space.

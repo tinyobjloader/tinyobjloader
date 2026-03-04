@@ -29,6 +29,28 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <string>
+
+#ifdef _WIN32
+#include <direct.h>    // _mkdir
+#include <windows.h>   // GetTempPathW, CreateDirectoryW, RegOpenKeyExA
+#include <winreg.h>    // registry constants
+#pragma comment(lib, "Advapi32.lib")  // RegOpenKeyExA, RegQueryValueExA, RegCloseKey
+
+// Converts a UTF-16 wide string to a UTF-8 std::string.
+static std::string WcharToUTF8(const std::wstring &wstr) {
+  if (wstr.empty()) return std::string();
+  int len = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1,
+                                NULL, 0, NULL, NULL);
+  if (len <= 0) return std::string();
+  std::string str(static_cast<size_t>(len - 1), '\0');
+  WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, &str[0], len, NULL, NULL);
+  return str;
+}
+#else
+#include <cerrno>
+#include <sys/stat.h>  // mkdir
+#endif
 
 template <typename T>
 static bool FloatEquals(const T& a, const T& b) {
@@ -398,6 +420,190 @@ static bool TestStreamLoadObj() {
 }
 
 const char* gMtlBasePath = "../models/";
+
+// ---------------------------------------------------------------------------
+// Helpers for path-related tests
+// ---------------------------------------------------------------------------
+
+// Creates a single directory level. Returns true on success or if it already exists.
+static bool MakeDir(const std::string& path) {
+#ifdef _WIN32
+  // Use the wide-character API so that paths with non-ASCII characters work.
+  std::wstring wpath = UTF8ToWchar(path);
+  if (wpath.empty()) return false;
+  if (CreateDirectoryW(wpath.c_str(), NULL) != 0) return true;
+  return GetLastError() == ERROR_ALREADY_EXISTS;
+#else
+  return mkdir(path.c_str(), 0755) == 0 || errno == EEXIST;
+#endif
+}
+
+// Removes a directory and all its contents.
+// NOTE: All callers pass paths that are fully constructed within this test
+// file from hardcoded string literals, so there is no user-controlled input
+// that could be used for command injection.
+static void RemoveTestDir(const std::string& path) {
+#ifdef _WIN32
+  std::string cmd = "rd /s /q \"" + path + "\"";
+#else
+  std::string cmd = "rm -rf '" + path + "'";
+#endif
+  if (system(cmd.c_str()) != 0) { /* cleanup failure is non-fatal */ }
+}
+
+// Copies a file in binary mode. The destination path is taken as UTF-8.
+// On Windows, LongPathW(UTF8ToWchar()) is used so that long paths (> MAX_PATH)
+// are handled, exercising the same conversion that tinyobjloader itself uses.
+static bool CopyTestFile(const std::string& src, const std::string& dst) {
+  std::ifstream in(src.c_str(), std::ios::binary);
+  if (!in) return false;
+#ifdef _WIN32
+  // Apply long-path prefix so that the copy works even for paths > MAX_PATH.
+  std::ofstream out(LongPathW(UTF8ToWchar(dst)).c_str(), std::ios::binary);
+#else
+  std::ofstream out(dst.c_str(), std::ios::binary);
+#endif
+  if (!out) return false;
+  out << in.rdbuf();
+  return !out.fail();
+}
+
+#ifdef _WIN32
+// Returns true if Windows has the system-wide long path support enabled
+// (HKLM\SYSTEM\CurrentControlSet\Control\FileSystem\LongPathsEnabled = 1).
+static bool IsWindowsLongPathEnabled() {
+  HKEY hKey;
+  DWORD value = 0;
+  DWORD size = sizeof(DWORD);
+  if (RegOpenKeyExA(HKEY_LOCAL_MACHINE,
+                    "SYSTEM\\CurrentControlSet\\Control\\FileSystem", 0,
+                    KEY_READ, &hKey) == ERROR_SUCCESS) {
+    RegQueryValueExA(hKey, "LongPathsEnabled", NULL, NULL,
+                     reinterpret_cast<LPBYTE>(&value), &size);
+    RegCloseKey(hKey);
+  }
+  return value != 0;
+}
+#endif  // _WIN32
+
+// ---------------------------------------------------------------------------
+// Path-related tests
+// ---------------------------------------------------------------------------
+
+// Test: load .obj/.mtl from a directory path containing UTF-8 non-ASCII
+// characters. On Windows our code converts the UTF-8 path to UTF-16 before
+// calling the file API. On Linux, UTF-8 paths are handled natively.
+void test_load_obj_from_utf8_path() {
+  // Build a temp directory name that contains the UTF-8 encoded character é
+  // (U+00E9, encoded as \xC3\xA9 in UTF-8).
+#ifdef _WIN32
+  wchar_t wtmpbuf[MAX_PATH];
+  GetTempPathW(MAX_PATH, wtmpbuf);
+  std::string test_dir =
+      WcharToUTF8(wtmpbuf) + "tinyobj_utf8_\xc3\xa9_test\\";
+#else
+  std::string test_dir = "/tmp/tinyobj_utf8_\xc3\xa9_test/";
+#endif
+
+  if (!MakeDir(test_dir)) {
+    std::cout << "SKIPPED: Cannot create Unicode temp directory: " << test_dir
+              << "\n";
+    return;
+  }
+
+  const std::string obj_dst = test_dir + "utf8-path-test.obj";
+  const std::string mtl_dst = test_dir + "utf8-path-test.mtl";
+
+  if (!CopyTestFile("../models/utf8-path-test.obj", obj_dst) ||
+      !CopyTestFile("../models/utf8-path-test.mtl", mtl_dst)) {
+    RemoveTestDir(test_dir);
+    TEST_CHECK_(false, "Failed to copy test files to Unicode temp directory");
+    return;
+  }
+
+  tinyobj::ObjReader reader;
+  bool ret = reader.ParseFromFile(obj_dst);
+
+  RemoveTestDir(test_dir);
+
+  if (!reader.Warning().empty())
+    std::cout << "WARN: " << reader.Warning() << "\n";
+  if (!reader.Error().empty())
+    std::cerr << "ERR: " << reader.Error() << "\n";
+
+  TEST_CHECK(ret == true);
+  TEST_CHECK(reader.GetShapes().size() == 1);
+  TEST_CHECK(reader.GetMaterials().size() == 1);
+}
+
+// Test: load .obj/.mtl from a path whose total length exceeds MAX_PATH (260).
+// On Windows, tinyobjloader prepends the \\?\ extended-length path prefix so
+// that the file can be opened even on systems that have the OS-wide long path
+// support enabled. The test is skipped when that support is not active.
+// On Linux, long paths work natively; this test verifies no regression.
+void test_load_obj_from_long_path() {
+#ifdef _WIN32
+  if (!IsWindowsLongPathEnabled()) {
+    std::cout
+        << "SKIPPED: Windows long path support (LongPathsEnabled) is not "
+           "enabled\n";
+    return;
+  }
+  wchar_t wtmpbuf[MAX_PATH];
+  GetTempPathW(MAX_PATH, wtmpbuf);
+  std::string base = WcharToUTF8(wtmpbuf);  // e.g. "C:\Users\...\Temp\"
+  const char path_sep = '\\';
+#else
+  std::string base = "/tmp/";
+  const char path_sep = '/';
+#endif
+
+  // Create a two-level directory where the deepest directory name is 250
+  // characters long.  Combined with the base path and the filename
+  // "utf8-path-test.obj" (18 chars) the total file path comfortably exceeds
+  // MAX_PATH (260) on all supported platforms.
+  std::string test_root = base + "tinyobj_lp_test" + path_sep;
+  std::string long_subdir = test_root + std::string(250, 'a') + path_sep;
+  std::string obj_path = long_subdir + "utf8-path-test.obj";
+
+  // obj_path must exceed MAX_PATH for the test to be meaningful.
+  // (On a typical Windows installation it is ~320 chars; on Linux ~287 chars.)
+  if (obj_path.size() <= 260) {
+    std::cout << "SKIPPED: generated path (" << obj_path.size()
+              << " chars) does not exceed MAX_PATH=260\n";
+    return;
+  }
+
+  if (!MakeDir(test_root) || !MakeDir(long_subdir)) {
+    RemoveTestDir(test_root);
+    std::cout << "SKIPPED: Cannot create long-path temp directory: "
+              << long_subdir << "\n";
+    return;
+  }
+
+  if (!CopyTestFile("../models/utf8-path-test.obj",
+                    long_subdir + "utf8-path-test.obj") ||
+      !CopyTestFile("../models/utf8-path-test.mtl",
+                    long_subdir + "utf8-path-test.mtl")) {
+    RemoveTestDir(test_root);
+    TEST_CHECK_(false, "Failed to copy test files to long-path directory");
+    return;
+  }
+
+  tinyobj::ObjReader reader;
+  bool ret = reader.ParseFromFile(obj_path);
+
+  RemoveTestDir(test_root);
+
+  if (!reader.Warning().empty())
+    std::cout << "WARN: " << reader.Warning() << "\n";
+  if (!reader.Error().empty())
+    std::cerr << "ERR: " << reader.Error() << "\n";
+
+  TEST_CHECK(ret == true);
+  TEST_CHECK(reader.GetShapes().size() == 1);
+  TEST_CHECK(reader.GetMaterials().size() == 1);
+}
 
 void test_cornell_box() {
   TEST_CHECK(true == TestLoadObj("../models/cornell_box.obj", gMtlBasePath));
@@ -889,7 +1095,7 @@ void test_invalid_texture_vertex_index() {
   std::string err;
   bool ret =
       tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
-                       "../models/invalid-relative-texture-vertex-index.obj", gMtlBasePath);
+                       "../models/invalid-relative-texture-index.obj", gMtlBasePath);
 
   if (!warn.empty()) {
     std::cout << "WARN: " << warn << std::endl;
@@ -1520,6 +1726,120 @@ void test_loadObj_with_BOM() {
 }
 
 
+void test_texcoord_w_component() {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string warn;
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              "../models/texcoord-w.obj", gMtlBasePath,
+                              /*triangulate*/ false);
+
+  if (!warn.empty()) {
+    std::cout << "WARN: " << warn << std::endl;
+  }
+
+  if (!err.empty()) {
+    std::cerr << "ERR: " << err << std::endl;
+  }
+
+  TEST_CHECK(true == ret);
+  TEST_CHECK(4 == attrib.texcoords.size() / 2);    // 4 uv pairs
+  TEST_CHECK(4 == attrib.texcoord_ws.size());       // 4 w values
+  TEST_CHECK(FloatEquals(0.50f, attrib.texcoord_ws[0]));
+  TEST_CHECK(FloatEquals(0.25f, attrib.texcoord_ws[1]));
+  TEST_CHECK(FloatEquals(0.75f, attrib.texcoord_ws[2]));
+  TEST_CHECK(FloatEquals(0.00f, attrib.texcoord_ws[3]));
+}
+
+
+
+void test_texcoord_w_mixed_component() {
+  // Test a mix of vt lines with the optional w present and omitted.
+  // Lines without w should produce 0.0 in texcoord_ws.
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string warn;
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              "../models/texcoord-w-mixed.obj", gMtlBasePath,
+                              /*triangulate*/ false);
+
+  if (!warn.empty()) {
+    std::cout << "WARN: " << warn << std::endl;
+  }
+
+  if (!err.empty()) {
+    std::cerr << "ERR: " << err << std::endl;
+  }
+
+  TEST_CHECK(true == ret);
+  TEST_CHECK(4 == attrib.texcoords.size() / 2);    // 4 uv pairs
+  TEST_CHECK(4 == attrib.texcoord_ws.size());       // 4 w values (present or defaulted)
+  TEST_CHECK(FloatEquals(0.50f, attrib.texcoord_ws[0]));  // w present
+  TEST_CHECK(FloatEquals(0.00f, attrib.texcoord_ws[1]));  // w omitted -> 0.0
+  TEST_CHECK(FloatEquals(0.75f, attrib.texcoord_ws[2]));  // w present
+  TEST_CHECK(FloatEquals(0.00f, attrib.texcoord_ws[3]));  // w omitted -> 0.0
+}
+
+void test_loadObjWithCallback_with_BOM() {
+  // Verify that LoadObjWithCallback correctly strips a UTF-8 BOM from the
+  // first line, just as LoadObj and LoadMtl do.
+  // We reuse cube_w_BOM.obj which starts with 0xEF 0xBB 0xBF followed by
+  // "mtllib cube_w_BOM.mtl".  Without BOM stripping the mtllib line would
+  // not be recognised and no materials would be loaded; with BOM stripping
+  // all 8 vertices and 6 groups are parsed.
+
+  struct CallbackData {
+    int vertex_count;
+    int group_count;
+    int material_count;
+    CallbackData() : vertex_count(0), group_count(0), material_count(0) {}
+  };
+
+  CallbackData data;
+
+  tinyobj::callback_t cb;
+  cb.vertex_cb = [](void *user_data, tinyobj::real_t x, tinyobj::real_t y,
+                    tinyobj::real_t z, tinyobj::real_t w) {
+    reinterpret_cast<CallbackData *>(user_data)->vertex_count++;
+  };
+  cb.group_cb = [](void *user_data, const char **names, int num_names) {
+    if (num_names > 0)
+      reinterpret_cast<CallbackData *>(user_data)->group_count++;
+  };
+  cb.mtllib_cb = [](void *user_data, const tinyobj::material_t *materials,
+                    int num_materials) {
+    reinterpret_cast<CallbackData *>(user_data)->material_count +=
+        num_materials;
+  };
+
+  std::ifstream ifs("../models/cube_w_BOM.obj");
+  TEST_CHECK(ifs.is_open());
+
+  tinyobj::MaterialFileReader matReader(gMtlBasePath);
+  std::string warn, err;
+  bool ret = tinyobj::LoadObjWithCallback(ifs, cb, &data, &matReader, &warn, &err);
+
+  if (!warn.empty()) {
+    std::cout << "WARN: " << warn << std::endl;
+  }
+  if (!err.empty()) {
+    std::cerr << "ERR: " << err << std::endl;
+  }
+
+  TEST_CHECK(true == ret);
+  TEST_CHECK(8 == data.vertex_count);   // 8 vertices in cube_w_BOM.obj
+  TEST_CHECK(6 == data.group_count);    // 6 groups: front/back/right/top/left/bottom
+  TEST_CHECK(data.material_count > 0);  // materials loaded => mtllib line was parsed
+}
+
+
+
 // Fuzzer test.
 // Just check if it does not crash.
 // Disable by default since Windows filesystem can't create filename of afl
@@ -1633,4 +1953,9 @@ TEST_LIST = {
      test_default_kd_for_multiple_materials_issue391},
     {"test_removeUtf8Bom", test_removeUtf8Bom},
     {"test_loadObj_with_BOM", test_loadObj_with_BOM},
+    {"test_load_obj_from_utf8_path", test_load_obj_from_utf8_path},
+    {"test_load_obj_from_long_path", test_load_obj_from_long_path},
+    {"test_loadObjWithCallback_with_BOM", test_loadObjWithCallback_with_BOM},
+    {"test_texcoord_w_component", test_texcoord_w_component},
+    {"test_texcoord_w_mixed_component", test_texcoord_w_mixed_component},
     {NULL, NULL}};

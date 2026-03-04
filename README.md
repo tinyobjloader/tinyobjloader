@@ -6,8 +6,6 @@
 
 [![AppVeyor Build status](https://ci.appveyor.com/api/projects/status/m6wfkvket7gth8wn/branch/master?svg=true)](https://ci.appveyor.com/project/syoyo/tinyobjloader-6e4qf/branch/master)
 
-[![Coverage Status](https://coveralls.io/repos/github/syoyo/tinyobjloader/badge.svg?branch=master)](https://coveralls.io/github/syoyo/tinyobjloader?branch=master)
-
 [![AUR version](https://img.shields.io/aur/version/tinyobjloader?logo=arch-linux)](https://aur.archlinux.org/packages/tinyobjloader)
 
 Tiny but powerful single file wavefront obj loader written in C++03. No dependency except for C++ STL. It can parse over 10M polygons with moderate memory and time.
@@ -19,7 +17,7 @@ If you are looking for C99 version, please see https://github.com/syoyo/tinyobjl
 Version notice
 --------------
 
-We recommend to use `master`(`main`) branch. Its v2.0 release candidate. Most features are now nearly robust and stable(Remaining task for release v2.0 is polishing C++ and Python API, and fix built-in triangulation code).
+We recommend using the `release` (main) branch. It contains the v2.0 release candidate. Most features are now nearly robust and stable. (The remaining task for release v2.0 is polishing C++ and Python API, and fix built-in triangulation code).
 
 We have released new version v1.0.0 on 20 Aug, 2016.
 Old version is available as `v0.9.x` branch https://github.com/syoyo/tinyobjloader/tree/v0.9.x
@@ -76,6 +74,7 @@ TinyObjLoader is successfully used in ...
 * AGE (Arc Game Engine) - An open-source engine for building 2D & 3D real-time rendering and interactive contents: https://github.com/MohitSethi99/ArcGameEngine
 * [Wicked Engine<img src="https://github.com/turanszkij/WickedEngine/blob/master/Content/logo_small.png" width="28px" align="center"/>](https://github.com/turanszkij/WickedEngine) - 3D engine with modern graphics
 * [Lumina Game Engine](https://github.com/MrDrElliot/LuminaEngine) - A modern, high-performance game engine built with Vulkan
+* lacecore: Python polygonal mesh library optimized for cloud computation https://github.com/lace/lacecore
 * Your project here! (Plese send PR)
 
 ### Old version(v0.9.x)
@@ -426,17 +425,16 @@ See [python/sample.py](python/sample.py) for example use of Python binding of ti
 
 ### CI + PyPI upload
 
-cibuildwheels + twine upload for each git tagging event is handled in Github Actions and Cirrus CI(arm builds).
+cibuildwheels + twine upload for each git tagging event is handled in Github Actions.
 
 #### How to bump version(For developer)
 
-* Apply `black` to python files(`python/sample.py`)
 * Bump version in CMakeLists.txt
 * Commit and push `release`. Confirm C.I. build is OK.
 * Create tag starting with `v`(e.g. `v2.1.0`)
 * `git push --tags`
   * version settings is automatically handled in python binding through setuptools_scm.
-  * cibuildwheels + pypi upload(through twine) will be automatically triggered in Github Actions + Cirrus CI.
+  * cibuildwheels + pypi upload (through twine) will be automatically triggered in Github Actions.
 
 ## Tests
 
