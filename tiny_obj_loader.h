@@ -70,12 +70,8 @@ THE SOFTWARE.
 
 namespace tinyobj {
 
-// TODO(syoyo): Better C++11 detection for older compiler
-#if __cplusplus > 199711L
+// C++11 is now the minimum required standard.
 #define TINYOBJ_OVERRIDE override
-#else
-#define TINYOBJ_OVERRIDE
-#endif
 
 #ifdef __clang__
 #pragma clang diagnostic push

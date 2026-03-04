@@ -8,7 +8,7 @@
 
 [![AUR version](https://img.shields.io/aur/version/tinyobjloader?logo=arch-linux)](https://aur.archlinux.org/packages/tinyobjloader)
 
-Tiny but powerful single file wavefront obj loader written in C++03. No dependency except for C++ STL. It can parse over 10M polygons with moderate memory and time.
+Tiny but powerful single file wavefront obj loader written in C++11. No dependency except for C++ STL. It can parse over 10M polygons with moderate memory and time.
 
 `tinyobjloader` is good for embedding .obj loader to your (global illumination) renderer ;-)
 
@@ -32,7 +32,7 @@ Old version is available as `v0.9.x` branch https://github.com/syoyo/tinyobjload
 
 ## Requirements
 
-* C++03 compiler
+* C++11 compiler
 
 ### Old version
 
