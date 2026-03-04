@@ -1,0 +1,14 @@
+# OBJ file with 3-component texture coordinates to test texcoord_ws parsing
+v 0 0 0
+v 1 0 0
+v 1 1 0
+v 0 1 0
+
+# texture coords with optional w component
+vt 0.0 0.0 0.5
+vt 1.0 0.0 0.25
+vt 1.0 1.0 0.75
+vt 0.0 1.0 0.0
+
+f 1/1 2/2 3/3
+f 1/1 3/3 4/4
