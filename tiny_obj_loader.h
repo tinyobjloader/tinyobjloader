@@ -790,10 +790,10 @@ MaterialReader::~MaterialReader() {}
 class StreamReader {
  public:
   StreamReader(const char *buf, size_t length)
-      : buf_(buf), length_(length), idx_(0), line_num_(1) {}
+      : buf_(buf), length_(length), idx_(0), line_num_(1), col_num_(1) {}
 
   // Build from std::istream by reading all content into an internal buffer.
-  explicit StreamReader(std::istream &is) : buf_(NULL), length_(0), idx_(0), line_num_(1) {
+  explicit StreamReader(std::istream &is) : buf_(NULL), length_(0), idx_(0), line_num_(1), col_num_(1) {
     std::streampos start_pos = is.tellg();
     bool can_seek = (start_pos != std::streampos(-1));
     if (can_seek) {
@@ -823,6 +823,7 @@ class StreamReader {
   size_t tell() const { return idx_; }
   size_t size() const { return length_; }
   size_t line_num() const { return line_num_; }
+  size_t col_num() const { return col_num_; }
 
   char peek() const {
     if (idx_ >= length_) return '\0';
@@ -832,25 +833,27 @@ class StreamReader {
   char get() {
     if (idx_ >= length_) return '\0';
     char c = buf_[idx_++];
-    if (c == '\n') line_num_++;
+    if (c == '\n') { line_num_++; col_num_ = 1; } else { col_num_++; }
     return c;
   }
 
   void advance(size_t n) {
     for (size_t i = 0; i < n && idx_ < length_; i++) {
-      if (buf_[idx_] == '\n') line_num_++;
+      if (buf_[idx_] == '\n') { line_num_++; col_num_ = 1; } else { col_num_++; }
       idx_++;
     }
   }
 
   void skip_space() {
     while (idx_ < length_ && (buf_[idx_] == ' ' || buf_[idx_] == '\t')) {
+      col_num_++;
       idx_++;
     }
   }
 
   void skip_space_and_cr() {
     while (idx_ < length_ && (buf_[idx_] == ' ' || buf_[idx_] == '\t' || buf_[idx_] == '\r')) {
+      col_num_++;
       idx_++;
     }
   }
@@ -861,6 +864,7 @@ class StreamReader {
       if (c == '\n') {
         idx_++;
         line_num_++;
+        col_num_ = 1;
         return;
       }
       if (c == '\r') {
@@ -869,8 +873,10 @@ class StreamReader {
           idx_++;
         }
         line_num_++;
+        col_num_ = 1;
         return;
       }
+      col_num_++;
       idx_++;
     }
   }
@@ -887,6 +893,7 @@ class StreamReader {
       char c = buf_[idx_];
       if (c == '\n' || c == '\r') break;
       result += c;
+      col_num_++;
       idx_++;
     }
     return result;
@@ -899,6 +906,7 @@ class StreamReader {
       char c = buf_[idx_];
       if (c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\0') break;
       result += c;
+      col_num_++;
       idx_++;
     }
     return result;
@@ -928,12 +936,76 @@ class StreamReader {
     return (idx_ < length_) ? (length_ - idx_) : 0;
   }
 
+  // Returns the full text of the current line (for diagnostic display).
+  std::string current_line_text() const {
+    // Scan backward to find line start
+    size_t line_start = idx_;
+    while (line_start > 0 && buf_[line_start - 1] != '\n' && buf_[line_start - 1] != '\r') {
+      line_start--;
+    }
+    // Scan forward to find line end
+    size_t line_end = idx_;
+    while (line_end < length_ && buf_[line_end] != '\n' && buf_[line_end] != '\r') {
+      line_end++;
+    }
+    return std::string(buf_ + line_start, line_end - line_start);
+  }
+
+  // Clang-style formatted error with file:line:col and caret.
+  std::string format_error(const std::string &filename, const std::string &msg) const {
+    std::stringstream line_ss, col_ss;
+    line_ss << line_num_;
+    col_ss << col_num_;
+    std::string result;
+    result += filename + ":" + line_ss.str() + ":" + col_ss.str() + ": error: " + msg + "\n";
+    std::string line_text = current_line_text();
+    result += line_text + "\n";
+    // Build caret line preserving tab alignment
+    std::string caret;
+    size_t caret_pos = (col_num_ > 0) ? (col_num_ - 1) : 0;
+    for (size_t i = 0; i < caret_pos && i < line_text.size(); i++) {
+      caret += (line_text[i] == '\t') ? '\t' : ' ';
+    }
+    caret += "^";
+    result += caret + "\n";
+    return result;
+  }
+
+  std::string format_error(const std::string &msg) const {
+    return format_error("<input>", msg);
+  }
+
+  // Error stack
+  void push_error(const std::string &msg) {
+    errors_.push_back(msg);
+  }
+
+  void push_formatted_error(const std::string &filename, const std::string &msg) {
+    errors_.push_back(format_error(filename, msg));
+  }
+
+  bool has_errors() const { return !errors_.empty(); }
+
+  std::string get_errors() const {
+    std::string result;
+    for (size_t i = 0; i < errors_.size(); i++) {
+      result += errors_[i];
+    }
+    return result;
+  }
+
+  const std::vector<std::string> &error_stack() const { return errors_; }
+
+  void clear_errors() { errors_.clear(); }
+
  private:
   const char *buf_;
   size_t length_;
   size_t idx_;
   size_t line_num_;
+  size_t col_num_;
   std::vector<char> owned_buf_;
+  std::vector<std::string> errors_;
 };
 
 
@@ -1063,6 +1135,7 @@ static inline std::string trimTrailingWhitespace(const std::string &s) {
 struct warning_context {
   std::string *warn;
   size_t line_number;
+  std::string filename;
 };
 
 // Make index zero-base, and also support relative index.
@@ -1081,9 +1154,9 @@ static inline bool fixIndex(int idx, int n, int *ret, bool allow_zero,
     // zero is not allowed according to the spec.
     if (context.warn) {
       (*context.warn) +=
-          "A zero value index found (will have a value of -1 for normal and "
-          "tex indices. Line " +
-          toString(context.line_number) + ").\n";
+          context.filename + ":" + toString(context.line_number) +
+          ": warning: zero value index found (will have a value of -1 for "
+          "normal and tex indices)\n";
     }
 
     (*ret) = idx - 1;
@@ -1621,6 +1694,143 @@ static inline int sr_parseVertexWithColor(real_t *x, real_t *y, real_t *z,
   (*x) = sr_parseReal(sr, default_x);
   (*y) = sr_parseReal(sr, default_y);
   (*z) = sr_parseReal(sr, default_z);
+
+  bool has_r = sr_parseReal(sr, r);
+  if (!has_r) {
+    (*r) = (*g) = (*b) = 1.0;
+    return 3;
+  }
+
+  bool has_g = sr_parseReal(sr, g);
+  if (!has_g) {
+    (*g) = (*b) = 1.0;
+    return 4;
+  }
+
+  bool has_b = sr_parseReal(sr, b);
+  if (!has_b) {
+    (*r) = (*g) = (*b) = 1.0;
+    return 3;
+  }
+
+  return 6;
+}
+
+// --- Error-reporting overloads ---
+// These overloads push clang-style diagnostics into `err` when parsing fails
+// and return false so callers can early-return on unrecoverable parse errors.
+// The original signatures are preserved above for backward compatibility.
+
+static inline bool sr_parseInt(StreamReader &sr, int *out, std::string *err,
+                               const std::string &filename) {
+  sr.skip_space();
+  const char *start = sr.current_ptr();
+  size_t rem = sr.remaining();
+  size_t len = 0;
+  while (len < rem) {
+    char c = start[len];
+    if (c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\0') break;
+    len++;
+  }
+  if (len == 0) {
+    if (err) {
+      (*err) += sr.format_error(filename, "expected integer value");
+    }
+    *out = 0;
+    return false;
+  }
+  char tmp[64];
+  size_t copy_len = len < 63 ? len : 63;
+  memcpy(tmp, start, copy_len);
+  tmp[copy_len] = '\0';
+  char *endptr = NULL;
+  long val = strtol(tmp, &endptr, 10);
+  if (endptr == tmp || (*endptr != '\0' && *endptr != ' ' && *endptr != '\t')) {
+    if (err) {
+      (*err) += sr.format_error(filename,
+          "expected integer, got '" + std::string(tmp) + "'");
+    }
+    *out = 0;
+    sr.advance(len);
+    return false;
+  }
+  *out = static_cast<int>(val);
+  sr.advance(len);
+  return true;
+}
+
+static inline bool sr_parseReal(StreamReader &sr, real_t *out,
+                                 double default_value,
+                                 std::string *err,
+                                 const std::string &filename) {
+  sr.skip_space();
+  const char *start = sr.current_ptr();
+  size_t rem = sr.remaining();
+  size_t len = 0;
+  while (len < rem) {
+    char c = start[len];
+    if (c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\0') break;
+    len++;
+  }
+  if (len == 0) {
+    // No token to parse — not necessarily an error (e.g. optional component).
+    *out = static_cast<real_t>(default_value);
+    return true;
+  }
+  double val;
+  if (!tryParseDouble(start, start + len, &val)) {
+    if (err) {
+      char tmp[64];
+      size_t copy_len = len < 63 ? len : 63;
+      memcpy(tmp, start, copy_len);
+      tmp[copy_len] = '\0';
+      (*err) += sr.format_error(filename,
+          "expected number, got '" + std::string(tmp) + "'");
+    }
+    *out = static_cast<real_t>(default_value);
+    sr.advance(len);
+    return false;
+  }
+  *out = static_cast<real_t>(val);
+  sr.advance(len);
+  return true;
+}
+
+static inline bool sr_parseReal2(real_t *x, real_t *y, StreamReader &sr,
+                                  std::string *err,
+                                  const std::string &filename,
+                                  const double default_x = 0.0,
+                                  const double default_y = 0.0) {
+  if (!sr_parseReal(sr, x, default_x, err, filename)) return false;
+  if (!sr_parseReal(sr, y, default_y, err, filename)) return false;
+  return true;
+}
+
+static inline bool sr_parseReal3(real_t *x, real_t *y, real_t *z,
+                                  StreamReader &sr,
+                                  std::string *err,
+                                  const std::string &filename,
+                                  const double default_x = 0.0,
+                                  const double default_y = 0.0,
+                                  const double default_z = 0.0) {
+  if (!sr_parseReal(sr, x, default_x, err, filename)) return false;
+  if (!sr_parseReal(sr, y, default_y, err, filename)) return false;
+  if (!sr_parseReal(sr, z, default_z, err, filename)) return false;
+  return true;
+}
+
+// Returns number of components parsed (3, 4, or 6) on success, -1 on error.
+static inline int sr_parseVertexWithColor(real_t *x, real_t *y, real_t *z,
+                                          real_t *r, real_t *g, real_t *b,
+                                          StreamReader &sr,
+                                          std::string *err,
+                                          const std::string &filename,
+                                          const double default_x = 0.0,
+                                          const double default_y = 0.0,
+                                          const double default_z = 0.0) {
+  if (!sr_parseReal(sr, x, default_x, err, filename)) return -1;
+  if (!sr_parseReal(sr, y, default_y, err, filename)) return -1;
+  if (!sr_parseReal(sr, z, default_z, err, filename)) return -1;
 
   bool has_r = sr_parseReal(sr, r);
   if (!has_r) {
@@ -2562,11 +2772,11 @@ static std::string JoinPath(const std::string &dir,
   }
 }
 
-static void LoadMtlInternal(std::map<std::string, int> *material_map,
+static bool LoadMtlInternal(std::map<std::string, int> *material_map,
                             std::vector<material_t> *materials,
                             StreamReader &sr,
-                            std::string *warning, std::string *err) {
-  (void)err;
+                            std::string *warning, std::string *err,
+                            const std::string &filename = "<stream>") {
 
   material_t material;
   InitMaterial(&material);
@@ -2629,7 +2839,7 @@ static void LoadMtlInternal(std::map<std::string, int> *material_map,
     if (sr.peek() == 'K' && sr.peek_at(1) == 'a' && (sr.peek_at(2) == ' ' || sr.peek_at(2) == '\t')) {
       sr.advance(2);
       real_t r, g, b;
-      sr_parseReal3(&r, &g, &b, sr);
+      if (!sr_parseReal3(&r, &g, &b, sr, err, filename)) return false;
       material.ambient[0] = r;
       material.ambient[1] = g;
       material.ambient[2] = b;
@@ -2641,7 +2851,7 @@ static void LoadMtlInternal(std::map<std::string, int> *material_map,
     if (sr.peek() == 'K' && sr.peek_at(1) == 'd' && (sr.peek_at(2) == ' ' || sr.peek_at(2) == '\t')) {
       sr.advance(2);
       real_t r, g, b;
-      sr_parseReal3(&r, &g, &b, sr);
+      if (!sr_parseReal3(&r, &g, &b, sr, err, filename)) return false;
       material.diffuse[0] = r;
       material.diffuse[1] = g;
       material.diffuse[2] = b;
@@ -2654,7 +2864,7 @@ static void LoadMtlInternal(std::map<std::string, int> *material_map,
     if (sr.peek() == 'K' && sr.peek_at(1) == 's' && (sr.peek_at(2) == ' ' || sr.peek_at(2) == '\t')) {
       sr.advance(2);
       real_t r, g, b;
-      sr_parseReal3(&r, &g, &b, sr);
+      if (!sr_parseReal3(&r, &g, &b, sr, err, filename)) return false;
       material.specular[0] = r;
       material.specular[1] = g;
       material.specular[2] = b;
@@ -2667,7 +2877,7 @@ static void LoadMtlInternal(std::map<std::string, int> *material_map,
         (sr.peek() == 'T' && sr.peek_at(1) == 'f' && (sr.peek_at(2) == ' ' || sr.peek_at(2) == '\t'))) {
       sr.advance(2);
       real_t r, g, b;
-      sr_parseReal3(&r, &g, &b, sr);
+      if (!sr_parseReal3(&r, &g, &b, sr, err, filename)) return false;
       material.transmittance[0] = r;
       material.transmittance[1] = g;
       material.transmittance[2] = b;
@@ -2678,7 +2888,7 @@ static void LoadMtlInternal(std::map<std::string, int> *material_map,
     // ior(index of refraction)
     if (sr.peek() == 'N' && sr.peek_at(1) == 'i' && (sr.peek_at(2) == ' ' || sr.peek_at(2) == '\t')) {
       sr.advance(2);
-      material.ior = sr_parseReal(sr);
+      if (!sr_parseReal(sr, &material.ior, 0.0, err, filename)) return false;
       sr.skip_line();
       continue;
     }
@@ -2687,7 +2897,7 @@ static void LoadMtlInternal(std::map<std::string, int> *material_map,
     if (sr.peek() == 'K' && sr.peek_at(1) == 'e' && (sr.peek_at(2) == ' ' || sr.peek_at(2) == '\t')) {
       sr.advance(2);
       real_t r, g, b;
-      sr_parseReal3(&r, &g, &b, sr);
+      if (!sr_parseReal3(&r, &g, &b, sr, err, filename)) return false;
       material.emission[0] = r;
       material.emission[1] = g;
       material.emission[2] = b;
@@ -2698,7 +2908,7 @@ static void LoadMtlInternal(std::map<std::string, int> *material_map,
     // shininess
     if (sr.peek() == 'N' && sr.peek_at(1) == 's' && (sr.peek_at(2) == ' ' || sr.peek_at(2) == '\t')) {
       sr.advance(2);
-      material.shininess = sr_parseReal(sr);
+      if (!sr_parseReal(sr, &material.shininess, 0.0, err, filename)) return false;
       sr.skip_line();
       continue;
     }
@@ -2706,7 +2916,7 @@ static void LoadMtlInternal(std::map<std::string, int> *material_map,
     // illum model
     if (sr.match("illum", 5) && (sr.peek_at(5) == ' ' || sr.peek_at(5) == '\t')) {
       sr.advance(6);
-      material.illum = sr_parseInt(sr);
+      if (!sr_parseInt(sr, &material.illum, err, filename)) return false;
       sr.skip_line();
       continue;
     }
@@ -2714,7 +2924,7 @@ static void LoadMtlInternal(std::map<std::string, int> *material_map,
     // dissolve
     if (sr.peek() == 'd' && (sr.peek_at(1) == ' ' || sr.peek_at(1) == '\t')) {
       sr.advance(1);
-      material.dissolve = sr_parseReal(sr);
+      if (!sr_parseReal(sr, &material.dissolve, 0.0, err, filename)) return false;
 
       if (has_tr) {
         warn_ss << "Both `d` and `Tr` parameters defined for \""
@@ -2734,7 +2944,9 @@ static void LoadMtlInternal(std::map<std::string, int> *material_map,
                 << "\". Use the value of `d` for dissolve (line " << line_no
                 << " in .mtl.)\n";
       } else {
-        material.dissolve = static_cast<real_t>(1.0) - sr_parseReal(sr);
+        real_t tr_val;
+        if (!sr_parseReal(sr, &tr_val, 0.0, err, filename)) return false;
+        material.dissolve = static_cast<real_t>(1.0) - tr_val;
       }
       has_tr = true;
       sr.skip_line();
@@ -2744,7 +2956,7 @@ static void LoadMtlInternal(std::map<std::string, int> *material_map,
     // PBR: roughness
     if (sr.peek() == 'P' && sr.peek_at(1) == 'r' && (sr.peek_at(2) == ' ' || sr.peek_at(2) == '\t')) {
       sr.advance(2);
-      material.roughness = sr_parseReal(sr);
+      if (!sr_parseReal(sr, &material.roughness, 0.0, err, filename)) return false;
       sr.skip_line();
       continue;
     }
@@ -2752,7 +2964,7 @@ static void LoadMtlInternal(std::map<std::string, int> *material_map,
     // PBR: metallic
     if (sr.peek() == 'P' && sr.peek_at(1) == 'm' && (sr.peek_at(2) == ' ' || sr.peek_at(2) == '\t')) {
       sr.advance(2);
-      material.metallic = sr_parseReal(sr);
+      if (!sr_parseReal(sr, &material.metallic, 0.0, err, filename)) return false;
       sr.skip_line();
       continue;
     }
@@ -2760,7 +2972,7 @@ static void LoadMtlInternal(std::map<std::string, int> *material_map,
     // PBR: sheen
     if (sr.peek() == 'P' && sr.peek_at(1) == 's' && (sr.peek_at(2) == ' ' || sr.peek_at(2) == '\t')) {
       sr.advance(2);
-      material.sheen = sr_parseReal(sr);
+      if (!sr_parseReal(sr, &material.sheen, 0.0, err, filename)) return false;
       sr.skip_line();
       continue;
     }
@@ -2768,7 +2980,7 @@ static void LoadMtlInternal(std::map<std::string, int> *material_map,
     // PBR: clearcoat thickness
     if (sr.peek() == 'P' && sr.peek_at(1) == 'c' && (sr.peek_at(2) == ' ' || sr.peek_at(2) == '\t')) {
       sr.advance(2);
-      material.clearcoat_thickness = sr_parseReal(sr);
+      if (!sr_parseReal(sr, &material.clearcoat_thickness, 0.0, err, filename)) return false;
       sr.skip_line();
       continue;
     }
@@ -2776,7 +2988,7 @@ static void LoadMtlInternal(std::map<std::string, int> *material_map,
     // PBR: clearcoat roughness
     if (sr.match("Pcr", 3) && (sr.peek_at(3) == ' ' || sr.peek_at(3) == '\t')) {
       sr.advance(4);
-      material.clearcoat_roughness = sr_parseReal(sr);
+      if (!sr_parseReal(sr, &material.clearcoat_roughness, 0.0, err, filename)) return false;
       sr.skip_line();
       continue;
     }
@@ -2784,7 +2996,7 @@ static void LoadMtlInternal(std::map<std::string, int> *material_map,
     // PBR: anisotropy
     if (sr.match("aniso", 5) && (sr.peek_at(5) == ' ' || sr.peek_at(5) == '\t')) {
       sr.advance(6);
-      material.anisotropy = sr_parseReal(sr);
+      if (!sr_parseReal(sr, &material.anisotropy, 0.0, err, filename)) return false;
       sr.skip_line();
       continue;
     }
@@ -2792,7 +3004,7 @@ static void LoadMtlInternal(std::map<std::string, int> *material_map,
     // PBR: anisotropy rotation
     if (sr.match("anisor", 6) && (sr.peek_at(6) == ' ' || sr.peek_at(6) == '\t')) {
       sr.advance(7);
-      material.anisotropy_rotation = sr_parseReal(sr);
+      if (!sr_parseReal(sr, &material.anisotropy_rotation, 0.0, err, filename)) return false;
       sr.skip_line();
       continue;
     }
@@ -2983,6 +3195,8 @@ static void LoadMtlInternal(std::map<std::string, int> *material_map,
   if (warning) {
     (*warning) = warn_ss.str();
   }
+
+  return true;
 }
 
 void LoadMtl(std::map<std::string, int> *material_map,
@@ -3032,7 +3246,7 @@ bool MaterialFileReader::operator()(const std::string &matId,
         if (file_size == 0) {
           CloseHandle(hFile);
           StreamReader empty_sr("", 0);
-          LoadMtlInternal(matMap, materials, empty_sr, warn, err);
+          LoadMtlInternal(matMap, materials, empty_sr, warn, err, filepath);
           return true;
         }
         HANDLE hMapping =
@@ -3050,7 +3264,7 @@ bool MaterialFileReader::operator()(const std::string &matId,
         }
         {
           StreamReader sr(mmap_data, file_size);
-          LoadMtlInternal(matMap, materials, sr, warn, err);
+          LoadMtlInternal(matMap, materials, sr, warn, err, filepath);
         }
         UnmapViewOfFile(mmap_data);
         CloseHandle(hMapping);
@@ -3070,7 +3284,7 @@ bool MaterialFileReader::operator()(const std::string &matId,
         if (file_size == 0) {
           close(fd);
           StreamReader empty_sr("", 0);
-          LoadMtlInternal(matMap, materials, empty_sr, warn, err);
+          LoadMtlInternal(matMap, materials, empty_sr, warn, err, filepath);
           return true;
         }
         void *mapped = mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
@@ -3079,7 +3293,7 @@ bool MaterialFileReader::operator()(const std::string &matId,
         const char *mmap_data = static_cast<const char *>(mapped);
         {
           StreamReader sr(mmap_data, file_size);
-          LoadMtlInternal(matMap, materials, sr, warn, err);
+          LoadMtlInternal(matMap, materials, sr, warn, err, filepath);
         }
         munmap(mapped, file_size);
         return true;
@@ -3092,7 +3306,8 @@ bool MaterialFileReader::operator()(const std::string &matId,
       std::ifstream matIStream(filepath.c_str());
 #endif
       if (matIStream) {
-        LoadMtl(matMap, materials, &matIStream, warn, err);
+        StreamReader mtl_sr(matIStream);
+        LoadMtlInternal(matMap, materials, mtl_sr, warn, err, filepath);
 
         return true;
       }
@@ -3123,7 +3338,7 @@ bool MaterialFileReader::operator()(const std::string &matId,
           if (file_size == 0) {
             CloseHandle(hFile);
             StreamReader empty_sr("", 0);
-            LoadMtlInternal(matMap, materials, empty_sr, warn, err);
+            LoadMtlInternal(matMap, materials, empty_sr, warn, err, filepath);
             return true;
           }
           HANDLE hMapping =
@@ -3134,7 +3349,7 @@ bool MaterialFileReader::operator()(const std::string &matId,
             if (mmap_data) {
               {
                 StreamReader sr(mmap_data, file_size);
-                LoadMtlInternal(matMap, materials, sr, warn, err);
+                LoadMtlInternal(matMap, materials, sr, warn, err, filepath);
               }
               UnmapViewOfFile(mmap_data);
               CloseHandle(hMapping);
@@ -3157,7 +3372,7 @@ bool MaterialFileReader::operator()(const std::string &matId,
           if (file_size == 0) {
             close(fd);
             StreamReader empty_sr("", 0);
-            LoadMtlInternal(matMap, materials, empty_sr, warn, err);
+            LoadMtlInternal(matMap, materials, empty_sr, warn, err, filepath);
             return true;
           }
           void *mapped = mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
@@ -3166,7 +3381,7 @@ bool MaterialFileReader::operator()(const std::string &matId,
             const char *mmap_data = static_cast<const char *>(mapped);
             {
               StreamReader sr(mmap_data, file_size);
-              LoadMtlInternal(matMap, materials, sr, warn, err);
+              LoadMtlInternal(matMap, materials, sr, warn, err, filepath);
             }
             munmap(mapped, file_size);
             return true;
@@ -3184,7 +3399,8 @@ bool MaterialFileReader::operator()(const std::string &matId,
     std::ifstream matIStream(filepath.c_str());
 #endif
     if (matIStream) {
-      LoadMtl(matMap, materials, &matIStream, warn, err);
+      StreamReader mtl_sr(matIStream);
+      LoadMtlInternal(matMap, materials, mtl_sr, warn, err, filepath);
 
       return true;
     }
@@ -3205,7 +3421,6 @@ bool MaterialStreamReader::operator()(const std::string &matId,
                                       std::vector<material_t> *materials,
                                       std::map<std::string, int> *matMap,
                                       std::string *warn, std::string *err) {
-  (void)err;
   (void)matId;
   if (!m_inStream) {
     std::stringstream ss;
@@ -3216,7 +3431,8 @@ bool MaterialStreamReader::operator()(const std::string &matId,
     return false;
   }
 
-  LoadMtl(matMap, materials, &m_inStream, warn, err);
+  StreamReader mtl_sr(m_inStream);
+  LoadMtlInternal(matMap, materials, mtl_sr, warn, err, "<stream>");
 
   return true;
 }
@@ -3226,7 +3442,8 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
                             std::string *warn, std::string *err,
                             StreamReader &sr,
                             MaterialReader *readMatFn, bool triangulate,
-                            bool default_vcols_fallback) {
+                            bool default_vcols_fallback,
+                            const std::string &filename = "<stream>") {
   std::stringstream errss;
 
   std::vector<real_t> v;
@@ -3276,7 +3493,8 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
       real_t x, y, z;
       real_t r, g, b;
 
-      int num_components = sr_parseVertexWithColor(&x, &y, &z, &r, &g, &b, sr);
+      int num_components = sr_parseVertexWithColor(&x, &y, &z, &r, &g, &b, sr, err, filename);
+      if (num_components < 0) return false;
       found_all_colors &= (num_components == 6);
 
       v.push_back(x);
@@ -3299,7 +3517,7 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
     if (sr.peek() == 'v' && sr.peek_at(1) == 'n' && (sr.peek_at(2) == ' ' || sr.peek_at(2) == '\t')) {
       sr.advance(3);
       real_t x, y, z;
-      sr_parseReal3(&x, &y, &z, sr);
+      if (!sr_parseReal3(&x, &y, &z, sr, err, filename)) return false;
       vn.push_back(x);
       vn.push_back(y);
       vn.push_back(z);
@@ -3311,7 +3529,7 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
     if (sr.peek() == 'v' && sr.peek_at(1) == 't' && (sr.peek_at(2) == ' ' || sr.peek_at(2) == '\t')) {
       sr.advance(3);
       real_t x, y;
-      sr_parseReal2(&x, &y, sr);
+      if (!sr_parseReal2(&x, &y, sr, err, filename)) return false;
       vt.push_back(x);
       vt.push_back(y);
 
@@ -3328,7 +3546,8 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
     if (sr.peek() == 'v' && sr.peek_at(1) == 'w' && (sr.peek_at(2) == ' ' || sr.peek_at(2) == '\t')) {
       sr.advance(3);
 
-      int vid = sr_parseInt(sr);
+      int vid;
+      if (!sr_parseInt(sr, &vid, err, filename)) return false;
 
       skin_weight_t sw;
       sw.vertex_id = vid;
@@ -3342,11 +3561,8 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
 
         if (j < static_cast<real_t>(0)) {
           if (err) {
-            std::stringstream ss;
-            ss << "Failed parse `vw' line. joint_id is negative. "
-                  "line "
-               << line_num << ".)\n";
-            (*err) += ss.str();
+            (*err) += sr.format_error(filename,
+                "failed to parse `vw' line: joint_id is negative");
           }
           return false;
         }
@@ -3368,6 +3584,7 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
     warning_context context;
     context.warn = warn;
     context.line_number = line_num;
+    context.filename = filename;
 
     // line
     if (sr.peek() == 'l' && (sr.peek_at(1) == ' ' || sr.peek_at(1) == '\t')) {
@@ -3384,10 +3601,8 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
                          static_cast<int>(vn.size() / 3),
                          static_cast<int>(vt.size() / 2), &vi, context)) {
           if (err) {
-            (*err) +=
-                "Failed to parse `l' line (e.g. a zero value for vertex index. "
-                "Line " +
-                toString(line_num) + ").\n";
+            (*err) += sr.format_error(filename,
+                "failed to parse `l' line (invalid vertex index)");
           }
           return false;
         }
@@ -3417,10 +3632,8 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
                          static_cast<int>(vn.size() / 3),
                          static_cast<int>(vt.size() / 2), &vi, context)) {
           if (err) {
-            (*err) +=
-                "Failed to parse `p' line (e.g. a zero value for vertex index. "
-                "Line " +
-                toString(line_num) + ").\n";
+            (*err) += sr.format_error(filename,
+                "failed to parse `p' line (invalid vertex index)");
           }
           return false;
         }
@@ -3454,10 +3667,8 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
                          static_cast<int>(vn.size() / 3),
                          static_cast<int>(vt.size() / 2), &vi, context)) {
           if (err) {
-            (*err) +=
-                "Failed to parse `f' line (e.g. a zero value for vertex index "
-                "or invalid relative vertex index). Line " +
-                toString(line_num) + ").\n";
+            (*err) += sr.format_error(filename,
+                "failed to parse `f' line (invalid vertex index)");
           }
           return false;
         }
@@ -3829,7 +4040,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       CloseHandle(hFile);
       StreamReader empty_sr("", 0);
       return LoadObjInternal(attrib, shapes, materials, warn, err, empty_sr,
-                             &matFileReader, triangulate, default_vcols_fallback);
+                             &matFileReader, triangulate, default_vcols_fallback,
+                             filename);
     }
     HANDLE hMapping =
         CreateFileMappingA(hFile, NULL, PAGE_READONLY, 0, 0, NULL);
@@ -3858,7 +4070,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     {
       StreamReader sr(mmap_data, file_size);
       result = LoadObjInternal(attrib, shapes, materials, warn, err, sr,
-                               &matFileReader, triangulate, default_vcols_fallback);
+                               &matFileReader, triangulate, default_vcols_fallback,
+                               filename);
     }
     UnmapViewOfFile(mmap_data);
     CloseHandle(hMapping);
@@ -3891,7 +4104,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       close(fd);
       StreamReader empty_sr("", 0);
       return LoadObjInternal(attrib, shapes, materials, warn, err, empty_sr,
-                             &matFileReader, triangulate, default_vcols_fallback);
+                             &matFileReader, triangulate, default_vcols_fallback,
+                             filename);
     }
     void *mapped = mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
     close(fd);
@@ -3908,7 +4122,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     {
       StreamReader sr(mmap_data, file_size);
       result = LoadObjInternal(attrib, shapes, materials, warn, err, sr,
-                               &matFileReader, triangulate, default_vcols_fallback);
+                               &matFileReader, triangulate, default_vcols_fallback,
+                               filename);
     }
     munmap(mapped, file_size);
     return result;
@@ -3928,8 +4143,12 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     }
     return false;
   }
-  return LoadObj(attrib, shapes, materials, warn, err, &ifs, &matFileReader,
-                 triangulate, default_vcols_fallback);
+  {
+    StreamReader sr(ifs);
+    return LoadObjInternal(attrib, shapes, materials, warn, err, sr,
+                           &matFileReader, triangulate, default_vcols_fallback,
+                           filename);
+  }
 #endif  // TINYOBJLOADER_USE_MMAP
 }
 
