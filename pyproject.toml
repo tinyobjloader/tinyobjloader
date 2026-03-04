@@ -51,5 +51,5 @@ readme = {file = "README.md", content-type = "text/markdown"}
 write_to = "python/_version.py"
 
 [tool.cibuildwheel]
-# Disable aarch64 build since its too slow to build(docker + qemu).
+# Disable aarch64 build since it's too slow to build(docker + qemu).
 skip = ["cp38-*", "cp314t-*", "*_aarch64*"]
