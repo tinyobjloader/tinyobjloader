@@ -1567,53 +1567,6 @@ static inline int sr_parseVertexWithColor(real_t *x, real_t *y, real_t *z,
   return 6;
 }
 
-static inline bool sr_parseOnOff(StreamReader &sr, bool default_value = true) {
-  sr.skip_space();
-  bool ret = default_value;
-  if (sr.remaining() >= 2 && sr.match("on", 2)) {
-    ret = true;
-    sr.advance(2);
-  } else if (sr.remaining() >= 3 && sr.match("off", 3)) {
-    ret = false;
-    sr.advance(3);
-  }
-  while (!sr.eof()) {
-    char c = sr.peek();
-    if (c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\0') break;
-    sr.advance(1);
-  }
-  return ret;
-}
-
-static inline texture_type_t sr_parseTextureType(
-    StreamReader &sr, texture_type_t default_value = TEXTURE_TYPE_NONE) {
-  sr.skip_space();
-  texture_type_t ty = default_value;
-
-  if (sr.remaining() >= 11 && sr.match("cube_bottom", 11)) {
-    ty = TEXTURE_TYPE_CUBE_BOTTOM;
-  } else if (sr.remaining() >= 10 && sr.match("cube_right", 10)) {
-    ty = TEXTURE_TYPE_CUBE_RIGHT;
-  } else if (sr.remaining() >= 10 && sr.match("cube_front", 10)) {
-    ty = TEXTURE_TYPE_CUBE_FRONT;
-  } else if (sr.remaining() >= 9 && sr.match("cube_left", 9)) {
-    ty = TEXTURE_TYPE_CUBE_LEFT;
-  } else if (sr.remaining() >= 9 && sr.match("cube_back", 9)) {
-    ty = TEXTURE_TYPE_CUBE_BACK;
-  } else if (sr.remaining() >= 8 && sr.match("cube_top", 8)) {
-    ty = TEXTURE_TYPE_CUBE_TOP;
-  } else if (sr.remaining() >= 6 && sr.match("sphere", 6)) {
-    ty = TEXTURE_TYPE_SPHERE;
-  }
-
-  while (!sr.eof()) {
-    char c = sr.peek();
-    if (c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\0') break;
-    sr.advance(1);
-  }
-  return ty;
-}
-
 static tag_sizes sr_parseTagTriple(StreamReader &sr) {
   tag_sizes ts;
 
