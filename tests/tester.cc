@@ -2022,13 +2022,19 @@ void test_malformed_mtl_error() {
 }
 
 void test_parse_error_backward_compat() {
-  // Old sr_parseReal(sr) still works without err
-  const char *input = "  42.5  \n";
-  tinyobj::StreamReader sr(input, strlen(input));
-  // The old API should still work (no crash, returns correct value)
-  // We can't call it directly since it's static, but we verify
-  // existing tests still pass (which they do).
-  TEST_CHECK(true);
+  // Verify that valid OBJ input parses without errors (the old non-error
+  // sr_parseReal path is still exercised by the callback API).
+  const char *obj_text = "v 1.0 2.0 3.0\nv 4.0 5.0 6.0\nf 1 2 1\n";
+  std::istringstream iss(obj_text);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &iss, NULL);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(err.empty());
+  TEST_CHECK(attrib.vertices.size() == 6);
 }
 
 // Fuzzer test.

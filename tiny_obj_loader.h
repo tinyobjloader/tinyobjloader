@@ -3480,6 +3480,10 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
     sr.advance(3);
   }
 
+  warning_context context;
+  context.warn = warn;
+  context.filename = filename;
+
   while (!sr.eof()) {
     sr.skip_space();
     if (sr.at_line_end()) { sr.skip_line(); continue; }
@@ -3581,10 +3585,7 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
       continue;
     }
 
-    warning_context context;
-    context.warn = warn;
     context.line_number = line_num;
-    context.filename = filename;
 
     // line
     if (sr.peek() == 'l' && (sr.peek_at(1) == ' ' || sr.peek_at(1) == '\t')) {
