@@ -632,6 +632,13 @@ void test_catmark_torus_creases0() {
 
   TEST_CHECK(1 == shapes.size());
   TEST_CHECK(8 == shapes[0].mesh.tags.size());
+  TEST_CHECK(std::string("crease") == shapes[0].mesh.tags[0].name);
+  TEST_CHECK(2 == shapes[0].mesh.tags[0].intValues.size());
+  TEST_CHECK(1 == shapes[0].mesh.tags[0].floatValues.size());
+  TEST_CHECK(0 == shapes[0].mesh.tags[0].stringValues.size());
+  TEST_CHECK(1 == shapes[0].mesh.tags[0].intValues[0]);
+  TEST_CHECK(5 == shapes[0].mesh.tags[0].intValues[1]);
+  TEST_CHECK(FloatEquals(4.7f, shapes[0].mesh.tags[0].floatValues[0]));
 }
 
 void test_pbr() {

@@ -1830,15 +1830,25 @@ static inline int sr_parseVertexWithColor(real_t *x, real_t *y, real_t *z,
   return 6;
 }
 
+static inline int sr_parseIntNoSkip(StreamReader &sr);
+
 static tag_sizes sr_parseTagTriple(StreamReader &sr) {
   tag_sizes ts;
 
   sr.skip_space();
-  ts.num_ints = sr_parseInt(sr);
+  ts.num_ints = sr_parseIntNoSkip(sr);
+  while (!sr.eof() && !sr.at_line_end() && !IS_SPACE(sr.peek()) &&
+         sr.peek() != '/') {
+    sr.advance(1);
+  }
   if (!sr.eof() && sr.peek() == '/') {
     sr.advance(1);
     sr.skip_space();
-    ts.num_reals = sr_parseInt(sr);
+    ts.num_reals = sr_parseIntNoSkip(sr);
+    while (!sr.eof() && !sr.at_line_end() && !IS_SPACE(sr.peek()) &&
+           sr.peek() != '/') {
+      sr.advance(1);
+    }
     if (!sr.eof() && sr.peek() == '/') {
       sr.advance(1);
       ts.num_strings = sr_parseInt(sr);
