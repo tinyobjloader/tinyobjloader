@@ -889,6 +889,7 @@ class StreamReader {
     return result;
   }
 
+  // Reads a whitespace-delimited token. Used by tests and as a general utility.
   std::string read_token() {
     skip_space();
     std::string result;
@@ -997,6 +998,79 @@ class StreamReader {
   std::vector<char> owned_buf_;
   std::vector<std::string> errors_;
 };
+
+#ifdef TINYOBJLOADER_USE_MMAP
+// RAII wrapper for memory-mapped file I/O.
+// Opens a file and maps it into memory; the mapping is released on destruction.
+struct MappedFile {
+  const char *data;
+  size_t size;
+#if defined(_WIN32)
+  HANDLE hFile;
+  HANDLE hMapping;
+#else
+  void *mapped_ptr;
+#endif
+
+  MappedFile() : data(NULL), size(0)
+#if defined(_WIN32)
+    , hFile(INVALID_HANDLE_VALUE), hMapping(NULL)
+#else
+    , mapped_ptr(NULL)
+#endif
+  {}
+
+  // Opens and maps the file. Returns true on success.
+  bool open(const char *filepath) {
+#if defined(_WIN32)
+    hFile = CreateFileA(filepath, GENERIC_READ, FILE_SHARE_READ, NULL,
+                        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile == INVALID_HANDLE_VALUE) return false;
+    LARGE_INTEGER fileSize;
+    if (!GetFileSizeEx(hFile, &fileSize)) { close(); return false; }
+    size = static_cast<size_t>(fileSize.QuadPart);
+    if (size == 0) { data = ""; return true; }  // valid but empty
+    hMapping = CreateFileMappingA(hFile, NULL, PAGE_READONLY, 0, 0, NULL);
+    if (hMapping == NULL) { close(); return false; }
+    data = static_cast<const char *>(MapViewOfFile(hMapping, FILE_MAP_READ, 0, 0, 0));
+    if (!data) { close(); return false; }
+    return true;
+#else
+    int fd = ::open(filepath, O_RDONLY);
+    if (fd == -1) return false;
+    struct stat sb;
+    if (fstat(fd, &sb) != 0) { ::close(fd); return false; }
+    size = static_cast<size_t>(sb.st_size);
+    if (size == 0) { ::close(fd); data = ""; return true; }
+    mapped_ptr = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
+    ::close(fd);
+    if (mapped_ptr == MAP_FAILED) { mapped_ptr = NULL; return false; }
+    data = static_cast<const char *>(mapped_ptr);
+    return true;
+#endif
+  }
+
+  void close() {
+#if defined(_WIN32)
+    if (data && size > 0) { UnmapViewOfFile(data); }
+    data = NULL;
+    if (hMapping != NULL) { CloseHandle(hMapping); hMapping = NULL; }
+    if (hFile != INVALID_HANDLE_VALUE) { CloseHandle(hFile); hFile = INVALID_HANDLE_VALUE; }
+#else
+    if (mapped_ptr && mapped_ptr != MAP_FAILED) { munmap(mapped_ptr, size); }
+    mapped_ptr = NULL;
+    data = NULL;
+#endif
+    size = 0;
+  }
+
+  ~MappedFile() { close(); }
+
+ private:
+  MappedFile(const MappedFile &);             // non-copyable
+  MappedFile &operator=(const MappedFile &);  // non-copyable
+};
+#endif  // TINYOBJLOADER_USE_MMAP
 
 
 struct vertex_index_t {
@@ -1822,23 +1896,25 @@ static inline int sr_parseVertexWithColor(real_t *x, real_t *y, real_t *z,
 
 static inline int sr_parseIntNoSkip(StreamReader &sr);
 
+// Advance past remaining characters in a tag triple field (stops at '/', whitespace, or line end).
+static inline void sr_skipTagField(StreamReader &sr) {
+  while (!sr.eof() && !sr.at_line_end() && !IS_SPACE(sr.peek()) &&
+         sr.peek() != '/') {
+    sr.advance(1);
+  }
+}
+
 static tag_sizes sr_parseTagTriple(StreamReader &sr) {
   tag_sizes ts;
 
   sr.skip_space();
   ts.num_ints = sr_parseIntNoSkip(sr);
-  while (!sr.eof() && !sr.at_line_end() && !IS_SPACE(sr.peek()) &&
-         sr.peek() != '/') {
-    sr.advance(1);
-  }
+  sr_skipTagField(sr);
   if (!sr.eof() && sr.peek() == '/') {
     sr.advance(1);
     sr.skip_space();
     ts.num_reals = sr_parseIntNoSkip(sr);
-    while (!sr.eof() && !sr.at_line_end() && !IS_SPACE(sr.peek()) &&
-           sr.peek() != '/') {
-      sr.advance(1);
-    }
+    sr_skipTagField(sr);
     if (!sr.eof() && sr.peek() == '/') {
       sr.advance(1);
       ts.num_strings = sr_parseInt(sr);
@@ -2781,7 +2857,7 @@ static bool LoadMtlInternal(std::map<std::string, int> *material_map,
     if (sr.at_line_end()) { sr.skip_line(); continue; }
     if (sr.peek() == '#') { sr.skip_line(); continue; }
 
-    size_t line_no = sr.line_num();
+    size_t line_num = sr.line_num();
 
     // new mtl
     if (sr.match("newmtl", 6) && (sr.peek_at(6) == ' ' || sr.peek_at(6) == '\t')) {
@@ -2906,7 +2982,7 @@ static bool LoadMtlInternal(std::map<std::string, int> *material_map,
       if (has_tr) {
         warn_ss << "Both `d` and `Tr` parameters defined for \""
                 << material.name
-                << "\". Use the value of `d` for dissolve (line " << line_no
+                << "\". Use the value of `d` for dissolve (line " << line_num
                 << " in .mtl.)\n";
       }
       has_d = true;
@@ -2918,7 +2994,7 @@ static bool LoadMtlInternal(std::map<std::string, int> *material_map,
       if (has_d) {
         warn_ss << "Both `d` and `Tr` parameters defined for \""
                 << material.name
-                << "\". Use the value of `d` for dissolve (line " << line_no
+                << "\". Use the value of `d` for dissolve (line " << line_num
                 << " in .mtl.)\n";
       } else {
         real_t tr_val;
@@ -3208,74 +3284,13 @@ bool MaterialFileReader::operator()(const std::string &matId,
       std::string filepath = JoinPath(paths[i], matId);
 
 #ifdef TINYOBJLOADER_USE_MMAP
-#if defined(_WIN32)
       {
-        HANDLE hFile =
-            CreateFileA(filepath.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL,
-                        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-        if (hFile == INVALID_HANDLE_VALUE) continue;
-        LARGE_INTEGER fileSize;
-        if (!GetFileSizeEx(hFile, &fileSize)) {
-          CloseHandle(hFile);
-          continue;
-        }
-        const size_t file_size = static_cast<size_t>(fileSize.QuadPart);
-        if (file_size == 0) {
-          CloseHandle(hFile);
-          StreamReader empty_sr("", 0);
-          LoadMtlInternal(matMap, materials, empty_sr, warn, err, filepath);
-          return true;
-        }
-        HANDLE hMapping =
-            CreateFileMappingA(hFile, NULL, PAGE_READONLY, 0, 0, NULL);
-        if (hMapping == NULL) {
-          CloseHandle(hFile);
-          continue;
-        }
-        const char *mmap_data = static_cast<const char *>(
-            MapViewOfFile(hMapping, FILE_MAP_READ, 0, 0, 0));
-        if (!mmap_data) {
-          CloseHandle(hMapping);
-          CloseHandle(hFile);
-          continue;
-        }
-        {
-          StreamReader sr(mmap_data, file_size);
-          LoadMtlInternal(matMap, materials, sr, warn, err, filepath);
-        }
-        UnmapViewOfFile(mmap_data);
-        CloseHandle(hMapping);
-        CloseHandle(hFile);
+        MappedFile mf;
+        if (!mf.open(filepath.c_str())) continue;
+        StreamReader sr(mf.data, mf.size);
+        LoadMtlInternal(matMap, materials, sr, warn, err, filepath);
         return true;
       }
-#else  // POSIX mmap
-      {
-        int fd = open(filepath.c_str(), O_RDONLY);
-        if (fd == -1) continue;
-        struct stat sb;
-        if (fstat(fd, &sb) != 0) {
-          close(fd);
-          continue;
-        }
-        const size_t file_size = static_cast<size_t>(sb.st_size);
-        if (file_size == 0) {
-          close(fd);
-          StreamReader empty_sr("", 0);
-          LoadMtlInternal(matMap, materials, empty_sr, warn, err, filepath);
-          return true;
-        }
-        void *mapped = mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
-        close(fd);
-        if (mapped == MAP_FAILED) continue;
-        const char *mmap_data = static_cast<const char *>(mapped);
-        {
-          StreamReader sr(mmap_data, file_size);
-          LoadMtlInternal(matMap, materials, sr, warn, err, filepath);
-        }
-        munmap(mapped, file_size);
-        return true;
-      }
-#endif  // _WIN32
 #else   // !TINYOBJLOADER_USE_MMAP
 #ifdef _WIN32
       std::ifstream matIStream(LongPathW(UTF8ToWchar(filepath)).c_str());
@@ -3303,72 +3318,14 @@ bool MaterialFileReader::operator()(const std::string &matId,
     std::string filepath = matId;
 
 #ifdef TINYOBJLOADER_USE_MMAP
-#if defined(_WIN32)
     {
-      HANDLE hFile =
-          CreateFileA(filepath.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL,
-                      OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-      if (hFile != INVALID_HANDLE_VALUE) {
-        LARGE_INTEGER fileSize;
-        if (GetFileSizeEx(hFile, &fileSize)) {
-          const size_t file_size = static_cast<size_t>(fileSize.QuadPart);
-          if (file_size == 0) {
-            CloseHandle(hFile);
-            StreamReader empty_sr("", 0);
-            LoadMtlInternal(matMap, materials, empty_sr, warn, err, filepath);
-            return true;
-          }
-          HANDLE hMapping =
-              CreateFileMappingA(hFile, NULL, PAGE_READONLY, 0, 0, NULL);
-          if (hMapping != NULL) {
-            const char *mmap_data = static_cast<const char *>(
-                MapViewOfFile(hMapping, FILE_MAP_READ, 0, 0, 0));
-            if (mmap_data) {
-              {
-                StreamReader sr(mmap_data, file_size);
-                LoadMtlInternal(matMap, materials, sr, warn, err, filepath);
-              }
-              UnmapViewOfFile(mmap_data);
-              CloseHandle(hMapping);
-              CloseHandle(hFile);
-              return true;
-            }
-            CloseHandle(hMapping);
-          }
-        }
-        CloseHandle(hFile);
+      MappedFile mf;
+      if (mf.open(filepath.c_str())) {
+        StreamReader sr(mf.data, mf.size);
+        LoadMtlInternal(matMap, materials, sr, warn, err, filepath);
+        return true;
       }
     }
-#else  // POSIX mmap
-    {
-      int fd = open(filepath.c_str(), O_RDONLY);
-      if (fd != -1) {
-        struct stat sb;
-        if (fstat(fd, &sb) == 0) {
-          const size_t file_size = static_cast<size_t>(sb.st_size);
-          if (file_size == 0) {
-            close(fd);
-            StreamReader empty_sr("", 0);
-            LoadMtlInternal(matMap, materials, empty_sr, warn, err, filepath);
-            return true;
-          }
-          void *mapped = mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
-          close(fd);
-          if (mapped != MAP_FAILED) {
-            const char *mmap_data = static_cast<const char *>(mapped);
-            {
-              StreamReader sr(mmap_data, file_size);
-              LoadMtlInternal(matMap, materials, sr, warn, err, filepath);
-            }
-            munmap(mapped, file_size);
-            return true;
-          }
-        } else {
-          close(fd);
-        }
-      }
-    }
-#endif  // _WIN32
 #else   // !TINYOBJLOADER_USE_MMAP
 #ifdef _WIN32
     std::ifstream matIStream(LongPathW(UTF8ToWchar(filepath)).c_str());
@@ -3988,12 +3945,9 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   MaterialFileReader matFileReader(baseDir);
 
 #ifdef TINYOBJLOADER_USE_MMAP
-#if defined(_WIN32)
   {
-    HANDLE hFile =
-        CreateFileA(filename, GENERIC_READ, FILE_SHARE_READ, NULL,
-                    OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (hFile == INVALID_HANDLE_VALUE) {
+    MappedFile mf;
+    if (!mf.open(filename)) {
       if (err) {
         std::stringstream ss;
         ss << "Cannot open file [" << filename << "]\n";
@@ -4001,110 +3955,11 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       }
       return false;
     }
-    LARGE_INTEGER fileSize;
-    if (!GetFileSizeEx(hFile, &fileSize)) {
-      CloseHandle(hFile);
-      if (err) {
-        std::stringstream ss;
-        ss << "Cannot get size of file [" << filename << "]\n";
-        (*err) = ss.str();
-      }
-      return false;
-    }
-    const size_t file_size = static_cast<size_t>(fileSize.QuadPart);
-    if (file_size == 0) {
-      CloseHandle(hFile);
-      StreamReader empty_sr("", 0);
-      return LoadObjInternal(attrib, shapes, materials, warn, err, empty_sr,
-                             &matFileReader, triangulate, default_vcols_fallback,
-                             filename);
-    }
-    HANDLE hMapping =
-        CreateFileMappingA(hFile, NULL, PAGE_READONLY, 0, 0, NULL);
-    if (hMapping == NULL) {
-      CloseHandle(hFile);
-      if (err) {
-        std::stringstream ss;
-        ss << "CreateFileMapping failed for file [" << filename << "]\n";
-        (*err) = ss.str();
-      }
-      return false;
-    }
-    const char *mmap_data = static_cast<const char *>(
-        MapViewOfFile(hMapping, FILE_MAP_READ, 0, 0, 0));
-    if (!mmap_data) {
-      CloseHandle(hMapping);
-      CloseHandle(hFile);
-      if (err) {
-        std::stringstream ss;
-        ss << "MapViewOfFile failed for file [" << filename << "]\n";
-        (*err) = ss.str();
-      }
-      return false;
-    }
-    bool result;
-    {
-      StreamReader sr(mmap_data, file_size);
-      result = LoadObjInternal(attrib, shapes, materials, warn, err, sr,
-                               &matFileReader, triangulate, default_vcols_fallback,
-                               filename);
-    }
-    UnmapViewOfFile(mmap_data);
-    CloseHandle(hMapping);
-    CloseHandle(hFile);
-    return result;
+    StreamReader sr(mf.data, mf.size);
+    return LoadObjInternal(attrib, shapes, materials, warn, err, sr,
+                           &matFileReader, triangulate, default_vcols_fallback,
+                           filename);
   }
-#else  // POSIX mmap
-  {
-    int fd = open(filename, O_RDONLY);
-    if (fd == -1) {
-      if (err) {
-        std::stringstream ss;
-        ss << "Cannot open file [" << filename << "]\n";
-        (*err) = ss.str();
-      }
-      return false;
-    }
-    struct stat sb;
-    if (fstat(fd, &sb) != 0) {
-      close(fd);
-      if (err) {
-        std::stringstream ss;
-        ss << "Cannot stat file [" << filename << "]\n";
-        (*err) = ss.str();
-      }
-      return false;
-    }
-    const size_t file_size = static_cast<size_t>(sb.st_size);
-    if (file_size == 0) {
-      close(fd);
-      StreamReader empty_sr("", 0);
-      return LoadObjInternal(attrib, shapes, materials, warn, err, empty_sr,
-                             &matFileReader, triangulate, default_vcols_fallback,
-                             filename);
-    }
-    void *mapped = mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
-    close(fd);
-    if (mapped == MAP_FAILED) {
-      if (err) {
-        std::stringstream ss;
-        ss << "mmap failed for file [" << filename << "]\n";
-        (*err) = ss.str();
-      }
-      return false;
-    }
-    const char *mmap_data = static_cast<const char *>(mapped);
-    bool result;
-    {
-      StreamReader sr(mmap_data, file_size);
-      result = LoadObjInternal(attrib, shapes, materials, warn, err, sr,
-                               &matFileReader, triangulate, default_vcols_fallback,
-                               filename);
-    }
-    munmap(mapped, file_size);
-    return result;
-  }
-#endif  // _WIN32
 #else   // !TINYOBJLOADER_USE_MMAP
 #ifdef _WIN32
   std::ifstream ifs(LongPathW(UTF8ToWchar(filename)).c_str());
