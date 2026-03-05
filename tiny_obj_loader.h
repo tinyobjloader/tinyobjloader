@@ -1002,9 +1002,12 @@ class StreamReader {
 #ifdef TINYOBJLOADER_USE_MMAP
 // RAII wrapper for memory-mapped file I/O.
 // Opens a file and maps it into memory; the mapping is released on destruction.
+// For empty files, data is set to "" and is_mapped remains false so close()
+// will not attempt to unmap a string literal.
 struct MappedFile {
   const char *data;
   size_t size;
+  bool is_mapped;  // true when data points to an actual mapped region
 #if defined(_WIN32)
   HANDLE hFile;
   HANDLE hMapping;
@@ -1012,7 +1015,7 @@ struct MappedFile {
   void *mapped_ptr;
 #endif
 
-  MappedFile() : data(NULL), size(0)
+  MappedFile() : data(NULL), size(0), is_mapped(false)
 #if defined(_WIN32)
     , hFile(INVALID_HANDLE_VALUE), hMapping(NULL)
 #else
@@ -1029,11 +1032,12 @@ struct MappedFile {
     LARGE_INTEGER fileSize;
     if (!GetFileSizeEx(hFile, &fileSize)) { close(); return false; }
     size = static_cast<size_t>(fileSize.QuadPart);
-    if (size == 0) { data = ""; return true; }  // valid but empty
+    if (size == 0) { data = ""; return true; }  // valid but empty; is_mapped stays false
     hMapping = CreateFileMappingA(hFile, NULL, PAGE_READONLY, 0, 0, NULL);
     if (hMapping == NULL) { close(); return false; }
     data = static_cast<const char *>(MapViewOfFile(hMapping, FILE_MAP_READ, 0, 0, 0));
     if (!data) { close(); return false; }
+    is_mapped = true;
     return true;
 #else
     int fd = ::open(filepath, O_RDONLY);
@@ -1041,25 +1045,28 @@ struct MappedFile {
     struct stat sb;
     if (fstat(fd, &sb) != 0) { ::close(fd); return false; }
     size = static_cast<size_t>(sb.st_size);
-    if (size == 0) { ::close(fd); data = ""; return true; }
+    if (size == 0) { ::close(fd); data = ""; return true; }  // valid but empty
     mapped_ptr = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
     ::close(fd);
     if (mapped_ptr == MAP_FAILED) { mapped_ptr = NULL; return false; }
     data = static_cast<const char *>(mapped_ptr);
+    is_mapped = true;
     return true;
 #endif
   }
 
   void close() {
 #if defined(_WIN32)
-    if (data && size > 0) { UnmapViewOfFile(data); }
+    if (is_mapped && data) { UnmapViewOfFile(data); }
     data = NULL;
+    is_mapped = false;
     if (hMapping != NULL) { CloseHandle(hMapping); hMapping = NULL; }
     if (hFile != INVALID_HANDLE_VALUE) { CloseHandle(hFile); hFile = INVALID_HANDLE_VALUE; }
 #else
-    if (mapped_ptr && mapped_ptr != MAP_FAILED) { munmap(mapped_ptr, size); }
+    if (is_mapped && mapped_ptr && mapped_ptr != MAP_FAILED) { munmap(mapped_ptr, size); }
     mapped_ptr = NULL;
     data = NULL;
+    is_mapped = false;
 #endif
     size = 0;
   }
