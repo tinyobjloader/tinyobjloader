@@ -779,31 +779,67 @@ MaterialReader::~MaterialReader() {}
 // Every byte access is guarded by an EOF check.
 class StreamReader {
  public:
+#ifndef TINYOBJLOADER_STREAM_READER_MAX_BYTES
+#define TINYOBJLOADER_STREAM_READER_MAX_BYTES (size_t(256) * size_t(1024) * size_t(1024))
+#endif
+
   StreamReader(const char *buf, size_t length)
       : buf_(buf), length_(length), idx_(0), line_num_(1), col_num_(1) {}
 
   // Build from std::istream by reading all content into an internal buffer.
   explicit StreamReader(std::istream &is) : buf_(NULL), length_(0), idx_(0), line_num_(1), col_num_(1) {
+    const size_t max_stream_bytes = TINYOBJLOADER_STREAM_READER_MAX_BYTES;
     std::streampos start_pos = is.tellg();
     bool can_seek = (start_pos != std::streampos(-1));
     if (can_seek) {
       is.seekg(0, std::ios::end);
-      std::streampos file_size = is.tellg();
-      is.seekg(0, std::ios::beg);
-      if (file_size > 0) {
-        owned_buf_.resize(static_cast<size_t>(file_size));
-        is.read(&owned_buf_[0], static_cast<std::streamsize>(file_size));
+      std::streampos end_pos = is.tellg();
+      if (end_pos >= start_pos) {
+        size_t remaining_size = static_cast<size_t>(end_pos - start_pos);
+        is.seekg(start_pos);
+        if (remaining_size > max_stream_bytes) {
+          std::stringstream ss;
+          ss << "input stream too large (" << remaining_size
+             << " bytes exceeds limit " << max_stream_bytes << " bytes)\n";
+          push_error(ss.str());
+          buf_ = "";
+          length_ = 0;
+          return;
+        }
+        owned_buf_.resize(remaining_size);
+        if (remaining_size > 0) {
+          is.read(&owned_buf_[0], static_cast<std::streamsize>(remaining_size));
+        }
         size_t actually_read = static_cast<size_t>(is.gcount());
         owned_buf_.resize(actually_read);
       }
     }
     if (!can_seek || owned_buf_.empty()) {
-      // Stream doesn't support seeking (e.g. stringstream) or empty
-      if (can_seek) is.seekg(0, std::ios::beg);
+      // Stream doesn't support seeking, or seek probing failed.
+      if (can_seek) is.seekg(start_pos);
       is.clear();
-      std::string content((std::istreambuf_iterator<char>(is)),
-                           std::istreambuf_iterator<char>());
-      owned_buf_.assign(content.begin(), content.end());
+      std::vector<char> content;
+      char chunk[4096];
+      size_t total_read = 0;
+      while (is.good()) {
+        is.read(chunk, static_cast<std::streamsize>(sizeof(chunk)));
+        std::streamsize nread = is.gcount();
+        if (nread <= 0) break;
+        size_t n = static_cast<size_t>(nread);
+        if (total_read + n > max_stream_bytes) {
+          std::stringstream ss;
+          ss << "input stream too large (" << (total_read + n)
+             << " bytes exceeds limit " << max_stream_bytes << " bytes)\n";
+          push_error(ss.str());
+          owned_buf_.clear();
+          buf_ = "";
+          length_ = 0;
+          return;
+        }
+        content.insert(content.end(), chunk, chunk + n);
+        total_read += n;
+      }
+      owned_buf_.swap(content);
     }
     buf_ = owned_buf_.empty() ? "" : &owned_buf_[0];
     length_ = owned_buf_.size();
@@ -2837,6 +2873,12 @@ static bool LoadMtlInternal(std::map<std::string, int> *material_map,
                             StreamReader &sr,
                             std::string *warning, std::string *err,
                             const std::string &filename = "<stream>") {
+  if (sr.has_errors()) {
+    if (err) {
+      (*err) += sr.get_errors();
+    }
+    return false;
+  }
 
   material_t material;
   InitMaterial(&material);
@@ -3385,6 +3427,12 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
                             MaterialReader *readMatFn, bool triangulate,
                             bool default_vcols_fallback,
                             const std::string &filename = "<stream>") {
+  if (sr.has_errors()) {
+    if (err) {
+      (*err) += sr.get_errors();
+    }
+    return false;
+  }
 
   std::vector<real_t> v;
   std::vector<real_t> vertex_weights;
@@ -4016,6 +4064,12 @@ static bool LoadObjWithCallbackInternal(StreamReader &sr,
                                         MaterialReader *readMatFn,
                                         std::string *warn,
                                         std::string *err) {
+  if (sr.has_errors()) {
+    if (err) {
+      (*err) += sr.get_errors();
+    }
+    return false;
+  }
 
   // material
   std::set<std::string> material_filenames;

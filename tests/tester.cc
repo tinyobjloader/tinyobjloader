@@ -1,4 +1,5 @@
 #define TINYOBJLOADER_IMPLEMENTATION
+#define TINYOBJLOADER_STREAM_READER_MAX_BYTES (size_t(8) * size_t(1024) * size_t(1024))
 #include "../tiny_obj_loader.h"
 
 #if defined(__clang__)
@@ -1963,6 +1964,42 @@ void test_streamreader_column_tracking() {
   TEST_CHECK(sr.col_num() == 4);
 }
 
+void test_stream_load_from_current_offset() {
+  std::string prefix = "v 0 0 0\n";
+  std::string payload = "v 1 2 3\n";
+  std::string text = prefix + payload;
+  std::istringstream obj_ss(text);
+  obj_ss.seekg(static_cast<std::streamoff>(prefix.size()), std::ios::beg);
+
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &obj_ss, NULL);
+  if (!warn.empty()) std::cout << "WARN: " << warn << "\n";
+  if (!err.empty()) std::cerr << "ERR: " << err << "\n";
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 3);
+  TEST_CHECK(attrib.vertices[0] == 1.0f);
+  TEST_CHECK(attrib.vertices[1] == 2.0f);
+  TEST_CHECK(attrib.vertices[2] == 3.0f);
+}
+
+void test_stream_load_rejects_oversized_input() {
+  std::string oversized(TINYOBJLOADER_STREAM_READER_MAX_BYTES + size_t(1), ' ');
+  std::istringstream obj_ss(oversized);
+
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &obj_ss, NULL);
+  TEST_CHECK(ret == false);
+  TEST_CHECK(err.find("input stream too large") != std::string::npos);
+}
+
 void test_error_format_clang_style() {
   const char *input = "v 1.0 abc 3.0\n";
   tinyobj::StreamReader sr(input, strlen(input));
@@ -2165,6 +2202,8 @@ TEST_LIST = {
     {"test_mmap_and_standard_load_agree", test_mmap_and_standard_load_agree},
     {"test_load_from_memory_buffer", test_load_from_memory_buffer},
     {"test_streamreader_column_tracking", test_streamreader_column_tracking},
+    {"test_stream_load_from_current_offset", test_stream_load_from_current_offset},
+    {"test_stream_load_rejects_oversized_input", test_stream_load_rejects_oversized_input},
     {"test_error_format_clang_style", test_error_format_clang_style},
     {"test_error_stack", test_error_stack},
     {"test_malformed_vertex_error", test_malformed_vertex_error},
