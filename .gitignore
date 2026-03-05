@@ -11,3 +11,5 @@ build/
 /python/_version.py
 /tinyobjloader.egg-info/
 **/__pycache__/
+
+/Testing/Temporary/
