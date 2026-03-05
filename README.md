@@ -2,11 +2,7 @@
 
 [![PyPI version](https://badge.fury.io/py/tinyobjloader.svg)](https://badge.fury.io/py/tinyobjloader)
 
-[![AZ Build Status](https://dev.azure.com/tinyobjloader/tinyobjloader/_apis/build/status/tinyobjloader.tinyobjloader?branchName=master)](https://dev.azure.com/tinyobjloader/tinyobjloader/_build/latest?definitionId=1&branchName=master)
-
 [![AppVeyor Build status](https://ci.appveyor.com/api/projects/status/m6wfkvket7gth8wn/branch/master?svg=true)](https://ci.appveyor.com/project/syoyo/tinyobjloader-6e4qf/branch/master)
-
-[![AUR version](https://img.shields.io/aur/version/tinyobjloader?logo=arch-linux)](https://aur.archlinux.org/packages/tinyobjloader)
 
 Tiny but powerful single file wavefront obj loader written in C++03. No dependency except for C++ STL. It can parse over 10M polygons with moderate memory and time.
 
