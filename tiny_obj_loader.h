@@ -1009,29 +1009,6 @@ class StreamReader {
 };
 
 
-// Memory-backed streambuf for zero-copy reading from a buffer (used with mmap).
-// `const_cast` is required because std::streambuf::setg takes non-const char*
-// for its internal get-area bookkeeping, but it never writes through the
-// pointers when the stream is used read-only.  The mapped memory itself remains
-// protected by the OS (PROT_READ / PAGE_READONLY).
-struct membuf : public std::streambuf {
-  membuf(const char *begin, const char *end) {
-    this->setg(const_cast<char *>(begin), const_cast<char *>(begin),
-               const_cast<char *>(end));
-  }
-};
-
-// An istream backed by a membuf.
-struct imemstream : public std::istream {
-  imemstream(const char *begin, const char *end)
-      : std::istream(&buf_), buf_(begin, end) {
-    rdbuf(&buf_);
-  }
-
- private:
-  membuf buf_;
-};
-
 struct vertex_index_t {
   int v_idx, vt_idx, vn_idx;
   vertex_index_t() : v_idx(-1), vt_idx(-1), vn_idx(-1) {}
