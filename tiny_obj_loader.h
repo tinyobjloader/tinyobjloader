@@ -687,16 +687,6 @@ bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
 #include <sstream>
 #include <utility>
 
-#ifdef _WIN32
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-#endif
-
 #ifdef TINYOBJLOADER_USE_MAPBOX_EARCUT
 
 #ifdef TINYOBJLOADER_DONOT_INCLUDE_MAPBOX_EARCUT
@@ -3431,7 +3421,6 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
                             MaterialReader *readMatFn, bool triangulate,
                             bool default_vcols_fallback,
                             const std::string &filename = "<stream>") {
-  std::stringstream errss;
 
   std::vector<real_t> v;
   std::vector<real_t> vertex_weights;
@@ -3678,7 +3667,7 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
     }
 
     // use mtl
-    if (sr.match("usemtl", 6)) {
+    if (sr.match("usemtl", 6) && (sr.peek_at(6) == ' ' || sr.peek_at(6) == '\t')) {
       sr.advance(6);
       std::string namebuf = sr_parseString(sr);
 
@@ -3963,10 +3952,6 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
   }
   prim_group.clear();
 
-  if (err) {
-    (*err) += errss.str();
-  }
-
   attrib->vertices.swap(v);
   attrib->vertex_weights.swap(vertex_weights);
   attrib->normals.swap(vn);
@@ -3983,9 +3968,12 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              std::string *err, const char *filename, const char *mtl_basedir,
              bool triangulate, bool default_vcols_fallback) {
   attrib->vertices.clear();
+  attrib->vertex_weights.clear();
   attrib->normals.clear();
   attrib->texcoords.clear();
+  attrib->texcoord_ws.clear();
   attrib->colors.clear();
+  attrib->skin_weights.clear();
   shapes->clear();
 
   std::string baseDir = mtl_basedir ? mtl_basedir : "";
@@ -4145,6 +4133,15 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              std::string *err, std::istream *inStream,
              MaterialReader *readMatFn /*= NULL*/, bool triangulate,
              bool default_vcols_fallback) {
+  attrib->vertices.clear();
+  attrib->vertex_weights.clear();
+  attrib->normals.clear();
+  attrib->texcoords.clear();
+  attrib->texcoord_ws.clear();
+  attrib->colors.clear();
+  attrib->skin_weights.clear();
+  shapes->clear();
+
   StreamReader sr(*inStream);
   return LoadObjInternal(attrib, shapes, materials, warn, err, sr,
                          readMatFn, triangulate, default_vcols_fallback);
@@ -4157,7 +4154,6 @@ static bool LoadObjWithCallbackInternal(StreamReader &sr,
                                         MaterialReader *readMatFn,
                                         std::string *warn,
                                         std::string *err) {
-  std::stringstream errss;
 
   // material
   std::set<std::string> material_filenames;
@@ -4424,10 +4420,6 @@ static bool LoadObjWithCallbackInternal(StreamReader &sr,
 
     // Ignore unknown command.
     sr.skip_line();
-  }
-
-  if (err) {
-    (*err) += errss.str();
   }
 
   return true;
