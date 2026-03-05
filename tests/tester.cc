@@ -1897,7 +1897,7 @@ void test_load_from_memory_buffer() {
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
   std::string warn, err;
-  // Use membuf / imemstream through the stream API.
+  // Copy the memory buffer into a std::string and parse via std::istringstream.
   std::string obj_text(buf.begin(), buf.end());
   std::istringstream obj_ss(obj_text);
   tinyobj::MaterialFileReader matReader(gMtlBasePath);
