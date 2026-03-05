@@ -2047,6 +2047,122 @@ void test_numeric_from_stream() {
   TEST_CHECK(FloatEquals(0.0f, attrib.vertices[8]));
 }
 
+void test_numeric_overflow_preserves_default() {
+  // Regression: values that overflow double must not corrupt adjacent coords.
+  // tryParseDouble now parses into a temp; *result is only written on success.
+  std::string obj_str =
+      "v 1e9999 2.0 3.0\n"    // first coord overflows, should get default 0
+      "v -1e9999 5.0 6.0\n"   // negative overflow
+      "v 1.0 1e9999 7.0\n"    // middle coord overflows
+      "f 1 2 3\n";
+
+  std::istringstream obj_stream(obj_str);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &obj_stream, NULL);
+
+  TEST_CHECK(true == ret);
+  TEST_CHECK(attrib.vertices.size() == 9);
+
+  // Overflowed coords get default 0.0; non-overflowed coords parse correctly.
+  TEST_CHECK(FloatEquals(2.0f, attrib.vertices[1]));
+  TEST_CHECK(FloatEquals(3.0f, attrib.vertices[2]));
+  TEST_CHECK(FloatEquals(5.0f, attrib.vertices[4]));
+  TEST_CHECK(FloatEquals(6.0f, attrib.vertices[5]));
+  TEST_CHECK(FloatEquals(1.0f, attrib.vertices[6]));
+  TEST_CHECK(FloatEquals(7.0f, attrib.vertices[8]));
+}
+
+void test_numeric_empty_and_whitespace() {
+  // Regression: empty tokens, whitespace-only lines, and trailing whitespace
+  // must not crash the parser.
+  std::string obj_str =
+      "v   1.0   2.0   3.0  \n"   // extra whitespace around values
+      "v 4.0 5.0 6.0\r\n"         // Windows line endings
+      "v\t7.0\t8.0\t9.0\n"        // tab-separated
+      "\n"                          // blank line
+      "   \n"                       // whitespace-only line
+      "f 1 2 3\n";
+
+  std::istringstream obj_stream(obj_str);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &obj_stream, NULL);
+
+  TEST_CHECK(true == ret);
+  TEST_CHECK(attrib.vertices.size() == 9);
+
+  TEST_CHECK(FloatEquals(1.0f, attrib.vertices[0]));
+  TEST_CHECK(FloatEquals(2.0f, attrib.vertices[1]));
+  TEST_CHECK(FloatEquals(3.0f, attrib.vertices[2]));
+  TEST_CHECK(FloatEquals(4.0f, attrib.vertices[3]));
+  TEST_CHECK(FloatEquals(5.0f, attrib.vertices[4]));
+  TEST_CHECK(FloatEquals(6.0f, attrib.vertices[5]));
+  TEST_CHECK(FloatEquals(7.0f, attrib.vertices[6]));
+  TEST_CHECK(FloatEquals(8.0f, attrib.vertices[7]));
+  TEST_CHECK(FloatEquals(9.0f, attrib.vertices[8]));
+}
+
+void test_numeric_garbage_input() {
+  // Regression: totally invalid numeric input must not crash.
+  // tryParseDouble should return false, parseReal returns default_value (0.0).
+  std::string obj_str =
+      "v abc def ghi\n"           // alphabetic garbage
+      "v !@# $%^ &*()\n"         // symbols
+      "v 1.0 abc 3.0\n"          // mixed valid/invalid
+      "v 1.0 2.0 3.0\n"          // valid (sanity check)
+      "f 1 2 3\n";
+
+  std::istringstream obj_stream(obj_str);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &obj_stream, NULL);
+
+  // Should parse without crashing. Some vertices may have default values.
+  TEST_CHECK(true == ret);
+  TEST_CHECK(attrib.vertices.size() == 12);
+
+  // v3 (last vertex) must parse correctly
+  TEST_CHECK(FloatEquals(1.0f, attrib.vertices[9]));
+  TEST_CHECK(FloatEquals(2.0f, attrib.vertices[10]));
+  TEST_CHECK(FloatEquals(3.0f, attrib.vertices[11]));
+}
+
+void test_numeric_extreme_precision() {
+  // Regression: values with many digits must not crash or corrupt.
+  // fast_float handles arbitrary digit counts gracefully.
+  std::string obj_str =
+      "v 1.00000000000000000000000000000000000001 "
+         "2.99999999999999999999999999999999999999 "
+         "0.00000000000000000000000000000000000001\n"
+      "v 123456789012345678.0 -123456789012345678.0 0.0\n"
+      "f 1 2\n";
+
+  std::istringstream obj_stream(obj_str);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &obj_stream, NULL);
+
+  TEST_CHECK(true == ret);
+  TEST_CHECK(attrib.vertices.size() == 6);
+
+  // Values should round to nearest representable float
+  TEST_CHECK(FloatEquals(1.0f, attrib.vertices[0]));
+  TEST_CHECK(FloatEquals(3.0f, attrib.vertices[1]));
+}
+
 // Fuzzer test.
 // Just check if it does not crash.
 // Disable by default since Windows filesystem can't create filename of afl
@@ -2168,4 +2284,8 @@ TEST_LIST = {
     {"test_numeric_edge_cases", test_numeric_edge_cases},
     {"test_numeric_nan_inf", test_numeric_nan_inf},
     {"test_numeric_from_stream", test_numeric_from_stream},
+    {"test_numeric_overflow_preserves_default", test_numeric_overflow_preserves_default},
+    {"test_numeric_empty_and_whitespace", test_numeric_empty_and_whitespace},
+    {"test_numeric_garbage_input", test_numeric_garbage_input},
+    {"test_numeric_extreme_precision", test_numeric_extreme_precision},
     {NULL, NULL}};
