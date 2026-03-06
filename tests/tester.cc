@@ -1,4 +1,5 @@
 #define TINYOBJLOADER_IMPLEMENTATION
+#define TINYOBJLOADER_STREAM_READER_MAX_BYTES (size_t(8) * size_t(1024) * size_t(1024))
 #include "../tiny_obj_loader.h"
 
 #if defined(__clang__)
@@ -632,6 +633,13 @@ void test_catmark_torus_creases0() {
 
   TEST_CHECK(1 == shapes.size());
   TEST_CHECK(8 == shapes[0].mesh.tags.size());
+  TEST_CHECK(std::string("crease") == shapes[0].mesh.tags[0].name);
+  TEST_CHECK(2 == shapes[0].mesh.tags[0].intValues.size());
+  TEST_CHECK(1 == shapes[0].mesh.tags[0].floatValues.size());
+  TEST_CHECK(0 == shapes[0].mesh.tags[0].stringValues.size());
+  TEST_CHECK(1 == shapes[0].mesh.tags[0].intValues[0]);
+  TEST_CHECK(5 == shapes[0].mesh.tags[0].intValues[1]);
+  TEST_CHECK(FloatEquals(4.7f, shapes[0].mesh.tags[0].floatValues[0]));
 }
 
 void test_pbr() {
@@ -1838,7 +1846,408 @@ void test_loadObjWithCallback_with_BOM() {
   TEST_CHECK(data.material_count > 0);  // materials loaded => mtllib line was parsed
 }
 
+void test_loadObjWithCallback_mtllib_failure_does_not_crash() {
+  // mtllib load failure should not crash callback path, and should report an
+  // error/warning while continuing OBJ parsing.
+  std::string obj_text = "mtllib test.mtl\nv 1 2 3\n";
+  std::istringstream obj_stream(obj_text);
 
+  std::string oversized_mtl(TINYOBJLOADER_STREAM_READER_MAX_BYTES + size_t(1), ' ');
+  std::istringstream mtl_stream(oversized_mtl);
+  tinyobj::MaterialStreamReader mtl_reader(mtl_stream);
+
+  struct CallbackData {
+    int vertex_count;
+    int mtllib_count;
+    CallbackData() : vertex_count(0), mtllib_count(0) {}
+  } data;
+
+  tinyobj::callback_t cb;
+  cb.vertex_cb = [](void *user_data, tinyobj::real_t, tinyobj::real_t,
+                    tinyobj::real_t, tinyobj::real_t) {
+    reinterpret_cast<CallbackData *>(user_data)->vertex_count++;
+  };
+  cb.mtllib_cb = [](void *user_data, const tinyobj::material_t *, int) {
+    reinterpret_cast<CallbackData *>(user_data)->mtllib_count++;
+  };
+
+  std::string warn, err;
+  bool ret = tinyobj::LoadObjWithCallback(obj_stream, cb, &data, &mtl_reader,
+                                          &warn, &err);
+
+  TEST_CHECK(ret == true);
+  TEST_CHECK(data.vertex_count == 1);
+  TEST_CHECK(data.mtllib_count == 0);
+  TEST_CHECK(warn.find("Failed to load material file(s)") != std::string::npos);
+  TEST_CHECK(err.find("input stream too large") != std::string::npos);
+}
+
+void test_mtllib_empty_filename_is_ignored_loadobj() {
+  std::string obj_text = "mtllib    \nv 1 2 3\n";
+  std::istringstream obj_stream(obj_text);
+
+  std::string mtl_text = "newmtl should_not_load\nKd 1 1 1\n";
+  std::istringstream mtl_stream(mtl_text);
+  tinyobj::MaterialStreamReader mtl_reader(mtl_stream);
+
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &obj_stream, &mtl_reader);
+
+  TEST_CHECK(ret == true);
+  TEST_CHECK(materials.empty());
+  TEST_CHECK(warn.find("Looks like empty filename for mtllib") != std::string::npos);
+  TEST_CHECK(err.empty());
+}
+
+void test_mtllib_empty_filename_is_ignored_callback() {
+  std::string obj_text = "mtllib    \nv 1 2 3\n";
+  std::istringstream obj_stream(obj_text);
+
+  std::string mtl_text = "newmtl should_not_load\nKd 1 1 1\n";
+  std::istringstream mtl_stream(mtl_text);
+  tinyobj::MaterialStreamReader mtl_reader(mtl_stream);
+
+  struct CallbackData {
+    int vertex_count;
+    int mtllib_count;
+    CallbackData() : vertex_count(0), mtllib_count(0) {}
+  } data;
+
+  tinyobj::callback_t cb;
+  cb.vertex_cb = [](void *user_data, tinyobj::real_t, tinyobj::real_t,
+                    tinyobj::real_t, tinyobj::real_t) {
+    reinterpret_cast<CallbackData *>(user_data)->vertex_count++;
+  };
+  cb.mtllib_cb = [](void *user_data, const tinyobj::material_t *, int) {
+    reinterpret_cast<CallbackData *>(user_data)->mtllib_count++;
+  };
+
+  std::string warn, err;
+  bool ret = tinyobj::LoadObjWithCallback(obj_stream, cb, &data, &mtl_reader,
+                                          &warn, &err);
+
+  TEST_CHECK(ret == true);
+  TEST_CHECK(data.vertex_count == 1);
+  TEST_CHECK(data.mtllib_count == 0);
+  TEST_CHECK(warn.find("Looks like empty filename for mtllib") != std::string::npos);
+  TEST_CHECK(err.empty());
+}
+
+void test_usemtl_callback_trims_trailing_comment() {
+  std::string obj_text =
+      "mtllib test.mtl\n"
+      "usemtl mat   # trailing comment\n"
+      "v 0 0 0\n";
+  std::istringstream obj_stream(obj_text);
+
+  std::string mtl_text = "newmtl mat\nKd 1 1 1\n";
+  std::istringstream mtl_stream(mtl_text);
+  tinyobj::MaterialStreamReader mtl_reader(mtl_stream);
+
+  struct CallbackData {
+    int usemtl_count;
+    int last_material_id;
+    std::string last_name;
+    CallbackData() : usemtl_count(0), last_material_id(-1), last_name() {}
+  } data;
+
+  tinyobj::callback_t cb;
+  cb.usemtl_cb = [](void *user_data, const char *name, int material_id) {
+    CallbackData *d = reinterpret_cast<CallbackData *>(user_data);
+    d->usemtl_count++;
+    d->last_name = name ? name : "";
+    d->last_material_id = material_id;
+  };
+
+  std::string warn, err;
+  bool ret = tinyobj::LoadObjWithCallback(obj_stream, cb, &data, &mtl_reader,
+                                          &warn, &err);
+
+  TEST_CHECK(ret == true);
+  TEST_CHECK(data.usemtl_count == 1);
+  TEST_CHECK(data.last_name == "mat");
+  TEST_CHECK(data.last_material_id == 0);
+  TEST_CHECK(err.empty());
+}
+
+void test_tag_triple_huge_count_is_safely_rejected() {
+  std::string obj_text =
+      "v 0 0 0\n"
+      "v 1 0 0\n"
+      "v 0 1 0\n"
+      "f 1 2 3\n"
+      "t crease 999999999999999999999999999999999999999999999999999999999999999999/0/0\n";
+  std::istringstream obj_stream(obj_text);
+  std::string mtl_text;
+  std::istringstream mtl_stream(mtl_text);
+  tinyobj::MaterialStreamReader mtl_reader(mtl_stream);
+
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &obj_stream, &mtl_reader);
+
+  TEST_CHECK(ret == true);
+  TEST_CHECK(shapes.size() == size_t(1));
+  TEST_CHECK(shapes[0].mesh.tags.size() == size_t(1));
+  TEST_CHECK(shapes[0].mesh.tags[0].intValues.size() == size_t(0));
+  TEST_CHECK(shapes[0].mesh.tags[0].floatValues.size() == size_t(0));
+  TEST_CHECK(shapes[0].mesh.tags[0].stringValues.size() == size_t(0));
+}
+
+
+
+// Verify that mmap-based loading (TINYOBJLOADER_USE_MMAP) produces the same
+// vertex/shape/material data as the standard ifstream-based path.
+void test_mmap_and_standard_load_agree() {
+  const char *obj_file = "../models/cornell_box.obj";
+
+  // Load using whatever path is compiled in (mmap or ifstream).
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              obj_file, gMtlBasePath);
+  if (!warn.empty()) std::cout << "WARN: " << warn << "\n";
+  if (!err.empty()) std::cerr << "ERR: " << err << "\n";
+  TEST_CHECK(ret == true);
+
+  // Also load via the stream API (always uses ifstream-equivalent path).
+  tinyobj::attrib_t attrib2;
+  std::vector<tinyobj::shape_t> shapes2;
+  std::vector<tinyobj::material_t> materials2;
+  std::string warn2, err2;
+  std::ifstream ifs(obj_file);
+  TEST_CHECK(ifs.good());
+  tinyobj::MaterialFileReader matReader(gMtlBasePath);
+  bool ret2 = tinyobj::LoadObj(&attrib2, &shapes2, &materials2, &warn2, &err2,
+                               &ifs, &matReader);
+  TEST_CHECK(ret2 == true);
+
+  // Compare results.
+  TEST_CHECK(attrib.vertices.size() == attrib2.vertices.size());
+  TEST_CHECK(attrib.normals.size() == attrib2.normals.size());
+  TEST_CHECK(shapes.size() == shapes2.size());
+  TEST_CHECK(materials.size() == materials2.size());
+  for (size_t i = 0; i < shapes.size(); i++) {
+    TEST_CHECK(shapes[i].mesh.indices.size() == shapes2[i].mesh.indices.size());
+  }
+}
+
+// Verify robustness: loading from a memory buffer (imemstream) is consistent
+// with standard file loading.
+void test_load_from_memory_buffer() {
+  const char *obj_file = "../models/cube.obj";
+
+  // Read file into memory manually.
+  std::ifstream file(obj_file, std::ios::binary | std::ios::ate);
+  TEST_CHECK(file.good());
+  std::streamsize sz = file.tellg();
+  file.seekg(0, std::ios::beg);
+  std::vector<char> buf(static_cast<size_t>(sz));
+  TEST_CHECK(file.read(buf.data(), sz).good());
+  file.close();
+
+  // Parse from the memory buffer via the stream API.
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  // Copy the memory buffer into a std::string and parse via std::istringstream.
+  std::string obj_text(buf.begin(), buf.end());
+  std::istringstream obj_ss(obj_text);
+  tinyobj::MaterialFileReader matReader(gMtlBasePath);
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &obj_ss, &matReader);
+  if (!warn.empty()) std::cout << "WARN: " << warn << "\n";
+  if (!err.empty()) std::cerr << "ERR: " << err << "\n";
+  TEST_CHECK(ret == true);
+
+  // Compare with direct file load to check consistency.
+  tinyobj::attrib_t attrib2;
+  std::vector<tinyobj::shape_t> shapes2;
+  std::vector<tinyobj::material_t> materials2;
+  std::string warn2, err2;
+  bool ret2 = tinyobj::LoadObj(&attrib2, &shapes2, &materials2, &warn2, &err2,
+                               obj_file, gMtlBasePath);
+  TEST_CHECK(ret2 == true);
+  TEST_CHECK(attrib.vertices.size() == attrib2.vertices.size());
+  TEST_CHECK(shapes.size() == shapes2.size());
+}
+
+
+// --- Error reporting tests ---
+
+void test_streamreader_column_tracking() {
+  const char *input = "hello world\nfoo\n";
+  tinyobj::StreamReader sr(input, strlen(input));
+
+  TEST_CHECK(sr.col_num() == 1);
+  TEST_CHECK(sr.line_num() == 1);
+
+  // Advance 5 chars: "hello"
+  sr.advance(5);
+  TEST_CHECK(sr.col_num() == 6);  // col is 1-based, after 5 chars -> col 6
+  TEST_CHECK(sr.line_num() == 1);
+
+  // skip_space: " "
+  sr.skip_space();
+  TEST_CHECK(sr.col_num() == 7);
+
+  // read_token: "world"
+  std::string tok = sr.read_token();
+  TEST_CHECK(tok == "world");
+  TEST_CHECK(sr.col_num() == 12);
+
+  // skip_line: "\n"
+  sr.skip_line();
+  TEST_CHECK(sr.line_num() == 2);
+  TEST_CHECK(sr.col_num() == 1);
+
+  // get each char of "foo"
+  sr.get();  // 'f'
+  TEST_CHECK(sr.col_num() == 2);
+  sr.get();  // 'o'
+  sr.get();  // 'o'
+  TEST_CHECK(sr.col_num() == 4);
+}
+
+void test_stream_load_from_current_offset() {
+  std::string prefix = "v 0 0 0\n";
+  std::string payload = "v 1 2 3\n";
+  std::string text = prefix + payload;
+  std::istringstream obj_ss(text);
+  obj_ss.seekg(static_cast<std::streamoff>(prefix.size()), std::ios::beg);
+
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &obj_ss, NULL);
+  if (!warn.empty()) std::cout << "WARN: " << warn << "\n";
+  if (!err.empty()) std::cerr << "ERR: " << err << "\n";
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 3);
+  TEST_CHECK(attrib.vertices[0] == 1.0f);
+  TEST_CHECK(attrib.vertices[1] == 2.0f);
+  TEST_CHECK(attrib.vertices[2] == 3.0f);
+}
+
+void test_stream_load_rejects_oversized_input() {
+  std::string oversized(TINYOBJLOADER_STREAM_READER_MAX_BYTES + size_t(1), ' ');
+  std::istringstream obj_ss(oversized);
+
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &obj_ss, NULL);
+  TEST_CHECK(ret == false);
+  TEST_CHECK(err.find("input stream too large") != std::string::npos);
+}
+
+void test_error_format_clang_style() {
+  const char *input = "v 1.0 abc 3.0\n";
+  tinyobj::StreamReader sr(input, strlen(input));
+
+  // Position to the 'a' in 'abc' (column 7)
+  sr.advance(6);  // past "v 1.0 "
+  TEST_CHECK(sr.col_num() == 7);
+
+  std::string err = sr.format_error("test.obj", "expected number");
+  // Should contain file:line:col
+  TEST_CHECK(err.find("test.obj:1:7: error: expected number") != std::string::npos);
+  // Should contain the source line
+  TEST_CHECK(err.find("v 1.0 abc 3.0") != std::string::npos);
+  // Should contain a caret
+  TEST_CHECK(err.find("^") != std::string::npos);
+}
+
+void test_error_stack() {
+  const char *input = "test\n";
+  tinyobj::StreamReader sr(input, strlen(input));
+
+  TEST_CHECK(!sr.has_errors());
+  TEST_CHECK(sr.error_stack().empty());
+
+  sr.push_error("error 1\n");
+  sr.push_error("error 2\n");
+  TEST_CHECK(sr.has_errors());
+  TEST_CHECK(sr.error_stack().size() == 2);
+
+  std::string all = sr.get_errors();
+  TEST_CHECK(all.find("error 1") != std::string::npos);
+  TEST_CHECK(all.find("error 2") != std::string::npos);
+
+  sr.clear_errors();
+  TEST_CHECK(!sr.has_errors());
+  TEST_CHECK(sr.error_stack().empty());
+}
+
+void test_malformed_vertex_error() {
+  const char *obj_text = "v 1.0 abc 3.0\n";
+  std::istringstream iss(obj_text);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &iss, NULL);
+  // Early return: malformed vertex coordinate is unrecoverable
+  TEST_CHECK(ret == false);
+  TEST_CHECK(err.find("expected number") != std::string::npos);
+  TEST_CHECK(err.find("abc") != std::string::npos);
+}
+
+void test_malformed_mtl_error() {
+  const char *mtl_text = "newmtl test\nNs abc\n";
+  std::istringstream mtl_iss(mtl_text);
+  std::map<std::string, int> matMap;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  tinyobj::LoadMtl(&matMap, &materials, &mtl_iss, &warn, &err);
+  // LoadMtl is void (public API), but error should still be reported
+  TEST_CHECK(err.find("expected number") != std::string::npos);
+  TEST_CHECK(err.find("abc") != std::string::npos);
+}
+
+void test_parse_error_backward_compat() {
+  // Verify that valid OBJ input parses without errors (the old non-error
+  // sr_parseReal path is still exercised by the callback API).
+  const char *obj_text = "v 1.0 2.0 3.0\nv 4.0 5.0 6.0\nf 1 2 1\n";
+  std::istringstream iss(obj_text);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &iss, NULL);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(err.empty());
+  TEST_CHECK(attrib.vertices.size() == 6);
+}
+
+void test_split_string_preserves_non_escape_backslash() {
+  std::vector<std::string> tokens;
+  tinyobj::SplitString("subdir\\file.mtl", ' ', '\\', tokens);
+
+  TEST_CHECK(tokens.size() == 1);
+  TEST_CHECK(tokens[0] == "subdir\\file.mtl");
+
+  tokens.clear();
+  tinyobj::SplitString("a\\ b.mtl", ' ', '\\', tokens);
+  TEST_CHECK(tokens.size() == 1);
+  TEST_CHECK(tokens[0] == "a b.mtl");
+}
 
 void test_numeric_edge_cases() {
   tinyobj::attrib_t attrib;
@@ -2149,202 +2558,6 @@ void test_numeric_extreme_precision() {
   TEST_CHECK(FloatEquals(3.0f, attrib.vertices[1]));
 }
 
-// Verify that mmap-based loading (TINYOBJLOADER_USE_MMAP) produces the same
-// vertex/shape/material data as the standard ifstream-based path.
-void test_mmap_and_standard_load_agree() {
-  const char *obj_file = "../models/cornell_box.obj";
-
-  // Load using whatever path is compiled in (mmap or ifstream).
-  tinyobj::attrib_t attrib;
-  std::vector<tinyobj::shape_t> shapes;
-  std::vector<tinyobj::material_t> materials;
-  std::string warn, err;
-  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
-                              obj_file, gMtlBasePath);
-  if (!warn.empty()) std::cout << "WARN: " << warn << "\n";
-  if (!err.empty()) std::cerr << "ERR: " << err << "\n";
-  TEST_CHECK(ret == true);
-
-  // Also load via the stream API (always uses ifstream-equivalent path).
-  tinyobj::attrib_t attrib2;
-  std::vector<tinyobj::shape_t> shapes2;
-  std::vector<tinyobj::material_t> materials2;
-  std::string warn2, err2;
-  std::ifstream ifs(obj_file);
-  TEST_CHECK(ifs.good());
-  tinyobj::MaterialFileReader matReader(gMtlBasePath);
-  bool ret2 = tinyobj::LoadObj(&attrib2, &shapes2, &materials2, &warn2, &err2,
-                               &ifs, &matReader);
-  TEST_CHECK(ret2 == true);
-
-  // Compare results.
-  TEST_CHECK(attrib.vertices.size() == attrib2.vertices.size());
-  TEST_CHECK(attrib.normals.size() == attrib2.normals.size());
-  TEST_CHECK(shapes.size() == shapes2.size());
-  TEST_CHECK(materials.size() == materials2.size());
-  for (size_t i = 0; i < shapes.size(); i++) {
-    TEST_CHECK(shapes[i].mesh.indices.size() == shapes2[i].mesh.indices.size());
-  }
-}
-
-// Verify robustness: loading from a memory buffer (imemstream) is consistent
-// with standard file loading.
-void test_load_from_memory_buffer() {
-  const char *obj_file = "../models/cube.obj";
-
-  // Read file into memory manually.
-  std::ifstream file(obj_file, std::ios::binary | std::ios::ate);
-  TEST_CHECK(file.good());
-  std::streamsize sz = file.tellg();
-  file.seekg(0, std::ios::beg);
-  std::vector<char> buf(static_cast<size_t>(sz));
-  TEST_CHECK(file.read(buf.data(), sz).good());
-  file.close();
-
-  // Parse from the memory buffer via the stream API.
-  tinyobj::attrib_t attrib;
-  std::vector<tinyobj::shape_t> shapes;
-  std::vector<tinyobj::material_t> materials;
-  std::string warn, err;
-  std::string obj_text(buf.begin(), buf.end());
-  std::istringstream obj_ss(obj_text);
-  tinyobj::MaterialFileReader matReader(gMtlBasePath);
-  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
-                              &obj_ss, &matReader);
-  if (!warn.empty()) std::cout << "WARN: " << warn << "\n";
-  if (!err.empty()) std::cerr << "ERR: " << err << "\n";
-  TEST_CHECK(ret == true);
-
-  // Compare with direct file load to check consistency.
-  tinyobj::attrib_t attrib2;
-  std::vector<tinyobj::shape_t> shapes2;
-  std::vector<tinyobj::material_t> materials2;
-  std::string warn2, err2;
-  bool ret2 = tinyobj::LoadObj(&attrib2, &shapes2, &materials2, &warn2, &err2,
-                               obj_file, gMtlBasePath);
-  TEST_CHECK(ret2 == true);
-  TEST_CHECK(attrib.vertices.size() == attrib2.vertices.size());
-  TEST_CHECK(shapes.size() == shapes2.size());
-}
-
-
-// --- Error reporting tests ---
-
-void test_streamreader_column_tracking() {
-  const char *input = "hello world\nfoo\n";
-  tinyobj::StreamReader sr(input, strlen(input));
-
-  TEST_CHECK(sr.col_num() == 1);
-  TEST_CHECK(sr.line_num() == 1);
-
-  // Advance 5 chars: "hello"
-  sr.advance(5);
-  TEST_CHECK(sr.col_num() == 6);  // col is 1-based, after 5 chars -> col 6
-  TEST_CHECK(sr.line_num() == 1);
-
-  // skip_space: " "
-  sr.skip_space();
-  TEST_CHECK(sr.col_num() == 7);
-
-  // read_token: "world"
-  std::string tok = sr.read_token();
-  TEST_CHECK(tok == "world");
-  TEST_CHECK(sr.col_num() == 12);
-
-  // skip_line: "\n"
-  sr.skip_line();
-  TEST_CHECK(sr.line_num() == 2);
-  TEST_CHECK(sr.col_num() == 1);
-
-  // get each char of "foo"
-  sr.get();  // 'f'
-  TEST_CHECK(sr.col_num() == 2);
-  sr.get();  // 'o'
-  sr.get();  // 'o'
-  TEST_CHECK(sr.col_num() == 4);
-}
-
-void test_error_format_clang_style() {
-  const char *input = "v 1.0 abc 3.0\n";
-  tinyobj::StreamReader sr(input, strlen(input));
-
-  // Position to the 'a' in 'abc' (column 7)
-  sr.advance(6);  // past "v 1.0 "
-  TEST_CHECK(sr.col_num() == 7);
-
-  std::string err = sr.format_error("test.obj", "expected number");
-  // Should contain file:line:col
-  TEST_CHECK(err.find("test.obj:1:7: error: expected number") != std::string::npos);
-  // Should contain the source line
-  TEST_CHECK(err.find("v 1.0 abc 3.0") != std::string::npos);
-  // Should contain a caret
-  TEST_CHECK(err.find("^") != std::string::npos);
-}
-
-void test_error_stack() {
-  const char *input = "test\n";
-  tinyobj::StreamReader sr(input, strlen(input));
-
-  TEST_CHECK(!sr.has_errors());
-  TEST_CHECK(sr.error_stack().empty());
-
-  sr.push_error("error 1\n");
-  sr.push_error("error 2\n");
-  TEST_CHECK(sr.has_errors());
-  TEST_CHECK(sr.error_stack().size() == 2);
-
-  std::string all = sr.get_errors();
-  TEST_CHECK(all.find("error 1") != std::string::npos);
-  TEST_CHECK(all.find("error 2") != std::string::npos);
-
-  sr.clear_errors();
-  TEST_CHECK(!sr.has_errors());
-  TEST_CHECK(sr.error_stack().empty());
-}
-
-void test_malformed_vertex_error() {
-  const char *obj_text = "v 1.0 abc 3.0\n";
-  std::istringstream iss(obj_text);
-  tinyobj::attrib_t attrib;
-  std::vector<tinyobj::shape_t> shapes;
-  std::vector<tinyobj::material_t> materials;
-  std::string warn, err;
-  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
-                              &iss, NULL);
-  // Early return: malformed vertex coordinate is unrecoverable
-  TEST_CHECK(ret == false);
-  TEST_CHECK(err.find("expected number") != std::string::npos);
-  TEST_CHECK(err.find("abc") != std::string::npos);
-}
-
-void test_malformed_mtl_error() {
-  const char *mtl_text = "newmtl test\nNs abc\n";
-  std::istringstream mtl_iss(mtl_text);
-  std::map<std::string, int> matMap;
-  std::vector<tinyobj::material_t> materials;
-  std::string warn, err;
-  tinyobj::LoadMtl(&matMap, &materials, &mtl_iss, &warn, &err);
-  // LoadMtl is void (public API), but error should still be reported
-  TEST_CHECK(err.find("expected number") != std::string::npos);
-  TEST_CHECK(err.find("abc") != std::string::npos);
-}
-
-void test_parse_error_backward_compat() {
-  // Verify that valid OBJ input parses without errors (the old non-error
-  // sr_parseReal path is still exercised by the callback API).
-  const char *obj_text = "v 1.0 2.0 3.0\nv 4.0 5.0 6.0\nf 1 2 1\n";
-  std::istringstream iss(obj_text);
-  tinyobj::attrib_t attrib;
-  std::vector<tinyobj::shape_t> shapes;
-  std::vector<tinyobj::material_t> materials;
-  std::string warn, err;
-  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
-                              &iss, NULL);
-  TEST_CHECK(ret == true);
-  TEST_CHECK(err.empty());
-  TEST_CHECK(attrib.vertices.size() == 6);
-}
-
 // Fuzzer test.
 // Just check if it does not crash.
 // Disable by default since Windows filesystem can't create filename of afl
@@ -2440,7 +2653,7 @@ TEST_LIST = {
      test_usemtl_then_o_issue235},
     {"mtl_searchpaths_issue244",
      test_mtl_searchpaths_issue244},
-    {"usemtl_whitespece_issue246",
+    {"usemtl_whitespace_issue246",
      test_usemtl_whitespace_issue246},
     {"texres_texopt_issue248",
      test_texres_texopt_issue248},
@@ -2461,6 +2674,16 @@ TEST_LIST = {
     {"test_load_obj_from_utf8_path", test_load_obj_from_utf8_path},
     {"test_load_obj_from_long_path", test_load_obj_from_long_path},
     {"test_loadObjWithCallback_with_BOM", test_loadObjWithCallback_with_BOM},
+    {"test_loadObjWithCallback_mtllib_failure_does_not_crash",
+     test_loadObjWithCallback_mtllib_failure_does_not_crash},
+    {"test_mtllib_empty_filename_is_ignored_loadobj",
+     test_mtllib_empty_filename_is_ignored_loadobj},
+    {"test_mtllib_empty_filename_is_ignored_callback",
+     test_mtllib_empty_filename_is_ignored_callback},
+    {"test_usemtl_callback_trims_trailing_comment",
+     test_usemtl_callback_trims_trailing_comment},
+    {"test_tag_triple_huge_count_is_safely_rejected",
+     test_tag_triple_huge_count_is_safely_rejected},
     {"test_texcoord_w_component", test_texcoord_w_component},
     {"test_texcoord_w_mixed_component", test_texcoord_w_mixed_component},
     {"test_numeric_edge_cases", test_numeric_edge_cases},
@@ -2473,9 +2696,13 @@ TEST_LIST = {
     {"test_mmap_and_standard_load_agree", test_mmap_and_standard_load_agree},
     {"test_load_from_memory_buffer", test_load_from_memory_buffer},
     {"test_streamreader_column_tracking", test_streamreader_column_tracking},
+    {"test_stream_load_from_current_offset", test_stream_load_from_current_offset},
+    {"test_stream_load_rejects_oversized_input", test_stream_load_rejects_oversized_input},
     {"test_error_format_clang_style", test_error_format_clang_style},
     {"test_error_stack", test_error_stack},
     {"test_malformed_vertex_error", test_malformed_vertex_error},
     {"test_malformed_mtl_error", test_malformed_mtl_error},
     {"test_parse_error_backward_compat", test_parse_error_backward_compat},
+    {"test_split_string_preserves_non_escape_backslash",
+     test_split_string_preserves_non_escape_backslash},
     {NULL, NULL}};
