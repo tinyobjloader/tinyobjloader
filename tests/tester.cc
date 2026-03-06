@@ -2172,6 +2172,19 @@ void test_parse_error_backward_compat() {
   TEST_CHECK(attrib.vertices.size() == 6);
 }
 
+void test_split_string_preserves_non_escape_backslash() {
+  std::vector<std::string> tokens;
+  tinyobj::SplitString("subdir\\file.mtl", ' ', '\\', tokens);
+
+  TEST_CHECK(tokens.size() == 1);
+  TEST_CHECK(tokens[0] == "subdir\\file.mtl");
+
+  tokens.clear();
+  tinyobj::SplitString("a\\ b.mtl", ' ', '\\', tokens);
+  TEST_CHECK(tokens.size() == 1);
+  TEST_CHECK(tokens[0] == "a b.mtl");
+}
+
 // Fuzzer test.
 // Just check if it does not crash.
 // Disable by default since Windows filesystem can't create filename of afl
@@ -2306,4 +2319,6 @@ TEST_LIST = {
     {"test_malformed_vertex_error", test_malformed_vertex_error},
     {"test_malformed_mtl_error", test_malformed_mtl_error},
     {"test_parse_error_backward_compat", test_parse_error_backward_compat},
+    {"test_split_string_preserves_non_escape_backslash",
+     test_split_string_preserves_non_escape_backslash},
     {NULL, NULL}};

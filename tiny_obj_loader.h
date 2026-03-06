@@ -829,10 +829,10 @@ class StreamReader {
         std::streamsize nread = is.gcount();
         if (nread <= 0) break;
         size_t n = static_cast<size_t>(nread);
-        if (total_read + n > max_stream_bytes) {
+        if (n > (max_stream_bytes - total_read)) {
           std::stringstream ss;
-          ss << "input stream too large (" << (total_read + n)
-             << " bytes exceeds limit " << max_stream_bytes << " bytes)\n";
+          ss << "input stream too large (exceeds limit " << max_stream_bytes
+             << " bytes)\n";
           push_error(ss.str());
           owned_buf_.clear();
           buf_ = "";
@@ -2841,8 +2841,13 @@ static void SplitString(const std::string &s, char delim, char escape,
     if (escaping) {
       escaping = false;
     } else if (ch == escape) {
-      escaping = true;
-      continue;
+      if ((i + 1) < s.size()) {
+        const char next = s[i + 1];
+        if ((next == delim) || (next == escape)) {
+          escaping = true;
+          continue;
+        }
+      }
     } else if (ch == delim) {
       if (!token.empty()) {
         elems.push_back(token);
