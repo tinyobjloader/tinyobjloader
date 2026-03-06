@@ -684,29 +684,6 @@ bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
 #include <sstream>
 #include <utility>
 
-#ifdef _WIN32
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-#endif
-
-#ifdef TINYOBJLOADER_USE_MMAP
-#if !defined(_WIN32)
-// POSIX headers for mmap
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#endif
-#endif  // TINYOBJLOADER_USE_MMAP
-#include <set>
-#include <sstream>
-#include <utility>
-
 #ifdef TINYOBJLOADER_USE_MAPBOX_EARCUT
 
 #ifdef TINYOBJLOADER_DONOT_INCLUDE_MAPBOX_EARCUT
@@ -797,77 +774,10 @@ static std::wstring LongPathW(const std::wstring &wpath) {
 // --------------------------------------------------------------------------
 #ifndef TINYOBJLOADER_DISABLE_FAST_FLOAT
 
-// --------------------------------------------------------------------------
-// Minimal shims so the embedded fast_float needs no extra standard headers.
-// --------------------------------------------------------------------------
-
-// --- Fixed-width integer types (replace <cstdint>) ---
-#if defined(__GNUC__) || defined(__clang__)
-typedef __INT8_TYPE__   tinyobj_int8_t;
-typedef __INT16_TYPE__  tinyobj_int16_t;
-typedef __INT32_TYPE__  tinyobj_int32_t;
-typedef __INT64_TYPE__  tinyobj_int64_t;
-typedef __UINT8_TYPE__  tinyobj_uint8_t;
-typedef __UINT16_TYPE__ tinyobj_uint16_t;
-typedef __UINT32_TYPE__ tinyobj_uint32_t;
-typedef __UINT64_TYPE__ tinyobj_uint64_t;
-#elif defined(_MSC_VER)
-typedef signed __int8    tinyobj_int8_t;
-typedef signed __int16   tinyobj_int16_t;
-typedef signed __int32   tinyobj_int32_t;
-typedef signed __int64   tinyobj_int64_t;
-typedef unsigned __int8  tinyobj_uint8_t;
-typedef unsigned __int16 tinyobj_uint16_t;
-typedef unsigned __int32 tinyobj_uint32_t;
-typedef unsigned __int64 tinyobj_uint64_t;
-#else
+// Standard headers needed by the embedded fast_float.
+#include <cfloat>
+#include <climits>
 #include <cstdint>
-typedef int8_t   tinyobj_int8_t;
-typedef int16_t  tinyobj_int16_t;
-typedef int32_t  tinyobj_int32_t;
-typedef int64_t  tinyobj_int64_t;
-typedef uint8_t  tinyobj_uint8_t;
-typedef uint16_t tinyobj_uint16_t;
-typedef uint32_t tinyobj_uint32_t;
-typedef uint64_t tinyobj_uint64_t;
-#endif
-
-// Provide uint8_t..uint64_t / int8_t..int64_t in the global scope so that
-// the embedded fast_float code (which uses them unqualified) compiles.
-#ifndef _CSTDINT_
-#ifndef __CSTDINT_H
-#ifndef _GLIBCXX_CSTDINT
-typedef tinyobj_uint8_t  uint8_t;
-typedef tinyobj_uint16_t uint16_t;
-typedef tinyobj_uint32_t uint32_t;
-typedef tinyobj_uint64_t uint64_t;
-typedef tinyobj_int8_t   int8_t;
-typedef tinyobj_int16_t  int16_t;
-typedef tinyobj_int32_t  int32_t;
-typedef tinyobj_int64_t  int64_t;
-#endif
-#endif
-#endif
-
-// --- FLT_EVAL_METHOD (replace <cfloat>) ---
-#ifndef FLT_EVAL_METHOD
-#ifdef __FLT_EVAL_METHOD__
-#define FLT_EVAL_METHOD __FLT_EVAL_METHOD__
-#else
-#define FLT_EVAL_METHOD 0
-#endif
-#endif
-
-// --- UINT64_MAX etc. (replace <climits>/<cstdint> macros) ---
-#ifndef UINT64_MAX
-#define UINT64_MAX  ((tinyobj_uint64_t)(~(tinyobj_uint64_t)0))
-#endif
-#ifndef INT64_MAX
-#define INT64_MAX   ((tinyobj_int64_t)(UINT64_MAX >> 1))
-#endif
-#ifndef UINT32_MAX
-#define UINT32_MAX  ((tinyobj_uint32_t)(~(tinyobj_uint32_t)0))
-#endif
 
 namespace tinyobj_ff {
 
@@ -5385,6 +5295,47 @@ from_chars_advanced(UC const *first, UC const *last, T &value,
 
 // --- End embedded fast_float ---
 
+// Clean up fast_float macros to avoid polluting the user's namespace.
+#undef FASTFLOAT_32BIT
+#undef FASTFLOAT_32BIT_LIMB
+#undef FASTFLOAT_64BIT
+#undef FASTFLOAT_64BIT_LIMB
+#undef FASTFLOAT_ASCII_NUMBER_H
+#undef FASTFLOAT_ASSERT
+#undef FASTFLOAT_BIGINT_H
+#undef FASTFLOAT_CONSTEXPR14
+#undef FASTFLOAT_CONSTEXPR20
+#undef FASTFLOAT_CONSTEXPR_FEATURE_DETECT_H
+#undef FASTFLOAT_DEBUG_ASSERT
+#undef FASTFLOAT_DECIMAL_TO_BINARY_H
+#undef FASTFLOAT_DETAIL_MUST_DEFINE_CONSTEXPR_VARIABLE
+#undef FASTFLOAT_DIGIT_COMPARISON_H
+#undef FASTFLOAT_ENABLE_IF
+#undef FASTFLOAT_FAST_FLOAT_H
+#undef FASTFLOAT_FAST_TABLE_H
+#undef FASTFLOAT_FLOAT_COMMON_H
+#undef FASTFLOAT_HAS_BIT_CAST
+#undef FASTFLOAT_HAS_IS_CONSTANT_EVALUATED
+#undef FASTFLOAT_HAS_SIMD
+#undef FASTFLOAT_IF_CONSTEXPR17
+#undef FASTFLOAT_IS_BIG_ENDIAN
+#undef FASTFLOAT_IS_CONSTEXPR
+#undef FASTFLOAT_NEON
+#undef FASTFLOAT_PARSE_NUMBER_H
+#undef fastfloat_really_inline
+#undef FASTFLOAT_SIMD_DISABLE_WARNINGS
+#undef FASTFLOAT_SIMD_RESTORE_WARNINGS
+#undef FASTFLOAT_SSE2
+#undef FASTFLOAT_STRINGIZE
+#undef FASTFLOAT_STRINGIZE_IMPL
+#undef FASTFLOAT_TRY
+#undef FASTFLOAT_VERSION
+#undef FASTFLOAT_VERSION_MAJOR
+#undef FASTFLOAT_VERSION_MINOR
+#undef FASTFLOAT_VERSION_PATCH
+#undef FASTFLOAT_VERSION_STR
+#undef FASTFLOAT_VISUAL_STUDIO
+
 #endif  // TINYOBJLOADER_DISABLE_FAST_FLOAT
 
 namespace tinyobj {
@@ -5406,6 +5357,10 @@ class StreamReader {
   StreamReader(const char *buf, size_t length)
       : buf_(buf), length_(length), idx_(0), line_num_(1), col_num_(1) {}
 
+  // Non-copyable, non-movable: buf_ may point into owned_buf_.
+  StreamReader(const StreamReader &) /* = delete */;
+  StreamReader &operator=(const StreamReader &) /* = delete */;
+
   // Build from std::istream by reading all content into an internal buffer.
   explicit StreamReader(std::istream &is) : buf_(NULL), length_(0), idx_(0), line_num_(1), col_num_(1) {
     const size_t max_stream_bytes = TINYOBJLOADER_STREAM_READER_MAX_BYTES;
@@ -5416,13 +5371,6 @@ class StreamReader {
       std::streampos end_pos = is.tellg();
       if (end_pos >= start_pos) {
         std::streamoff remaining_off = static_cast<std::streamoff>(end_pos - start_pos);
-        if (remaining_off < 0) {
-          is.seekg(start_pos);
-          push_error("failed to determine stream size\n");
-          buf_ = "";
-          length_ = 0;
-          return;
-        }
         is.seekg(start_pos);
         unsigned long long remaining_ull = static_cast<unsigned long long>(remaining_off);
         if (remaining_ull > static_cast<unsigned long long>((std::numeric_limits<size_t>::max)())) {
@@ -5578,17 +5526,17 @@ class StreamReader {
   }
 
   bool match(const char *prefix, size_t len) const {
-    if (len > length_ - idx_) return false;
+    if (idx_ >= length_ || len > length_ - idx_) return false;
     return (memcmp(buf_ + idx_, prefix, len) == 0);
   }
 
   bool char_at(size_t offset, char c) const {
-    if (offset >= length_ - idx_) return false;
+    if (idx_ >= length_ || offset >= length_ - idx_) return false;
     return buf_[idx_ + offset] == c;
   }
 
   char peek_at(size_t offset) const {
-    if (offset >= length_ - idx_) return '\0';
+    if (idx_ >= length_ || offset >= length_ - idx_) return '\0';
     return buf_[idx_ + offset];
   }
 
@@ -5735,7 +5683,7 @@ struct MappedFile {
     if (size == 0) { ::close(fd); data = ""; return true; }  // valid but empty
     mapped_ptr = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
     ::close(fd);
-    if (mapped_ptr == MAP_FAILED) { mapped_ptr = NULL; return false; }
+    if (mapped_ptr == MAP_FAILED) { mapped_ptr = NULL; size = 0; return false; }
     data = static_cast<const char *>(mapped_ptr);
     is_mapped = true;
     return true;
@@ -5872,6 +5820,11 @@ struct warning_context {
   size_t line_number;
   std::string filename;
 };
+
+// Safely convert size_t to int, clamping at INT_MAX to prevent overflow.
+static inline int size_to_int(size_t sz) {
+  return sz > static_cast<size_t>(INT_MAX) ? INT_MAX : static_cast<int>(sz);
+}
 
 // Make index zero-base, and also support relative index.
 static inline bool fixIndex(int idx, int n, int *ret, bool allow_zero,
@@ -7155,6 +7108,13 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
           vertex_index_t i2 = face.vertex_indices[2];
           vertex_index_t i3 = face.vertex_indices[3];
 
+          if (i0.v_idx < 0 || i1.v_idx < 0 || i2.v_idx < 0 || i3.v_idx < 0) {
+            if (warn) {
+              (*warn) += "Face with invalid vertex index found.\n";
+            }
+            continue;
+          }
+
           size_t vi0 = size_t(i0.v_idx);
           size_t vi1 = size_t(i1.v_idx);
           size_t vi2 = size_t(i2.v_idx);
@@ -7258,6 +7218,24 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
 
         } else {
 #ifdef TINYOBJLOADER_USE_MAPBOX_EARCUT
+          // Validate all vertex indices before accessing the vertex array.
+          {
+            bool valid_poly = true;
+            for (size_t k = 0; k < npolys; ++k) {
+              size_t vi = size_t(face.vertex_indices[k].v_idx);
+              if ((3 * vi + 2) >= v.size()) {
+                valid_poly = false;
+                break;
+              }
+            }
+            if (!valid_poly) {
+              if (warn) {
+                (*warn) += "Face with invalid vertex index found.\n";
+              }
+              continue;
+            }
+          }
+
           vertex_index_t i0 = face.vertex_indices[0];
           vertex_index_t i0_2 = i0;
 
@@ -8148,13 +8126,15 @@ static bool LoadMtlInternal(std::map<std::string, int> *material_map,
     }
     sr.skip_line();
   }
-  // flush last material.
-  material_map->insert(std::pair<std::string, int>(
-      material.name, static_cast<int>(materials->size())));
-  materials->push_back(material);
+  // flush last material (only if it was actually defined).
+  if (!material.name.empty()) {
+    material_map->insert(std::pair<std::string, int>(
+        material.name, static_cast<int>(materials->size())));
+    materials->push_back(material);
+  }
 
   if (warning) {
-    (*warning) = warn_ss.str();
+    (*warning) += warn_ss.str();
   }
 
   return true;
@@ -8457,9 +8437,9 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
       while (!sr.at_line_end() && sr.peek() != '#' &&
              l_loop_iter < l_loop_max) {
         vertex_index_t vi;
-        if (!sr_parseTriple(sr, static_cast<int>(v.size() / 3),
-                         static_cast<int>(vn.size() / 3),
-                         static_cast<int>(vt.size() / 2), &vi, context)) {
+        if (!sr_parseTriple(sr, size_to_int(v.size() / 3),
+                         size_to_int(vn.size() / 3),
+                         size_to_int(vt.size() / 2), &vi, context)) {
           if (err) {
             (*err) += sr.format_error(filename,
                 "failed to parse `l' line (invalid vertex index)");
@@ -8488,9 +8468,9 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
       while (!sr.at_line_end() && sr.peek() != '#' &&
              p_loop_iter < p_loop_max) {
         vertex_index_t vi;
-        if (!sr_parseTriple(sr, static_cast<int>(v.size() / 3),
-                         static_cast<int>(vn.size() / 3),
-                         static_cast<int>(vt.size() / 2), &vi, context)) {
+        if (!sr_parseTriple(sr, size_to_int(v.size() / 3),
+                         size_to_int(vn.size() / 3),
+                         size_to_int(vt.size() / 2), &vi, context)) {
           if (err) {
             (*err) += sr.format_error(filename,
                 "failed to parse `p' line (invalid vertex index)");
@@ -8523,9 +8503,9 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
       while (!sr.at_line_end() && sr.peek() != '#' &&
              f_loop_iter < f_loop_max) {
         vertex_index_t vi;
-        if (!sr_parseTriple(sr, static_cast<int>(v.size() / 3),
-                         static_cast<int>(vn.size() / 3),
-                         static_cast<int>(vt.size() / 2), &vi, context)) {
+        if (!sr_parseTriple(sr, size_to_int(v.size() / 3),
+                         size_to_int(vn.size() / 3),
+                         size_to_int(vt.size() / 2), &vi, context)) {
           if (err) {
             (*err) += sr.format_error(filename,
                 "failed to parse `f' line (invalid vertex index)");
@@ -8805,14 +8785,14 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
     vc.clear();
   }
 
-  if (greatest_v_idx >= static_cast<int>(v.size() / 3)) {
+  if (greatest_v_idx >= size_to_int(v.size() / 3)) {
     if (warn) {
       std::stringstream ss;
       ss << "Vertex indices out of bounds (line " << sr.line_num() << ".)\n\n";
       (*warn) += ss.str();
     }
   }
-  if (greatest_vn_idx >= static_cast<int>(vn.size() / 3)) {
+  if (greatest_vn_idx >= size_to_int(vn.size() / 3)) {
     if (warn) {
       std::stringstream ss;
       ss << "Vertex normal indices out of bounds (line " << sr.line_num()
@@ -8820,7 +8800,7 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
       (*warn) += ss.str();
     }
   }
-  if (greatest_vt_idx >= static_cast<int>(vt.size() / 2)) {
+  if (greatest_vt_idx >= size_to_int(vt.size() / 2)) {
     if (warn) {
       std::stringstream ss;
       ss << "Vertex texcoord indices out of bounds (line " << sr.line_num()
@@ -8983,7 +8963,10 @@ static bool LoadObjWithCallbackInternal(StreamReader &sr,
       real_t x, y, z;
       real_t r, g, b;
 
-      int num_components = sr_parseVertexWithColor(&x, &y, &z, &r, &g, &b, sr);
+      int num_components = sr_parseVertexWithColor(&x, &y, &z, &r, &g, &b, sr, err, std::string());
+      if (num_components < 0) {
+        return false;
+      }
       if (callback.vertex_cb) {
         callback.vertex_cb(user_data, x, y, z, r);
       }
