@@ -2856,6 +2856,20 @@ static void SplitString(const std::string &s, char delim, char escape,
   elems.push_back(token);
 }
 
+static void RemoveEmptyTokens(std::vector<std::string> *tokens) {
+  if (!tokens) return;
+
+  const std::vector<std::string> &src = *tokens;
+  std::vector<std::string> filtered;
+  filtered.reserve(src.size());
+  for (size_t i = 0; i < src.size(); i++) {
+    if (!src[i].empty()) {
+      filtered.push_back(src[i]);
+    }
+  }
+  tokens->swap(filtered);
+}
+
 static std::string JoinPath(const std::string &dir,
                             const std::string &filename) {
   if (dir.empty()) {
@@ -3339,6 +3353,16 @@ bool MaterialFileReader::operator()(const std::string &matId,
       {
         MappedFile mf;
         if (!mf.open(filepath.c_str())) continue;
+        if (mf.size > TINYOBJLOADER_STREAM_READER_MAX_BYTES) {
+          if (err) {
+            std::stringstream ss;
+            ss << "input stream too large (" << mf.size
+               << " bytes exceeds limit "
+               << TINYOBJLOADER_STREAM_READER_MAX_BYTES << " bytes)\n";
+            (*err) += ss.str();
+          }
+          return false;
+        }
         StreamReader sr(mf.data, mf.size);
         return LoadMtlInternal(matMap, materials, sr, warn, err, filepath);
       }
@@ -3370,6 +3394,16 @@ bool MaterialFileReader::operator()(const std::string &matId,
     {
       MappedFile mf;
       if (mf.open(filepath.c_str())) {
+        if (mf.size > TINYOBJLOADER_STREAM_READER_MAX_BYTES) {
+          if (err) {
+            std::stringstream ss;
+            ss << "input stream too large (" << mf.size
+               << " bytes exceeds limit "
+               << TINYOBJLOADER_STREAM_READER_MAX_BYTES << " bytes)\n";
+            (*err) += ss.str();
+          }
+          return false;
+        }
         StreamReader sr(mf.data, mf.size);
         return LoadMtlInternal(matMap, materials, sr, warn, err, filepath);
       }
@@ -3708,6 +3742,7 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
         std::string line_rest = trimTrailingWhitespace(sr.read_line());
         std::vector<std::string> filenames;
         SplitString(line_rest, ' ', '\\', filenames);
+        RemoveEmptyTokens(&filenames);
 
         if (filenames.empty()) {
           if (warn) {
@@ -4005,6 +4040,16 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
       }
       return false;
     }
+    if (mf.size > TINYOBJLOADER_STREAM_READER_MAX_BYTES) {
+      if (err) {
+        std::stringstream ss;
+        ss << "input stream too large (" << mf.size
+           << " bytes exceeds limit "
+           << TINYOBJLOADER_STREAM_READER_MAX_BYTES << " bytes)\n";
+        (*err) += ss.str();
+      }
+      return false;
+    }
     StreamReader sr(mf.data, mf.size);
     return LoadObjInternal(attrib, shapes, materials, warn, err, sr,
                            &matFileReader, triangulate, default_vcols_fallback,
@@ -4199,6 +4244,7 @@ static bool LoadObjWithCallbackInternal(StreamReader &sr,
         std::string line_rest = trimTrailingWhitespace(sr.read_line());
         std::vector<std::string> filenames;
         SplitString(line_rest, ' ', '\\', filenames);
+        RemoveEmptyTokens(&filenames);
 
         if (filenames.empty()) {
           if (warn) {

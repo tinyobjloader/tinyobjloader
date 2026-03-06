@@ -1882,6 +1882,61 @@ void test_loadObjWithCallback_mtllib_failure_does_not_crash() {
   TEST_CHECK(err.find("input stream too large") != std::string::npos);
 }
 
+void test_mtllib_empty_filename_is_ignored_loadobj() {
+  std::string obj_text = "mtllib    \nv 1 2 3\n";
+  std::istringstream obj_stream(obj_text);
+
+  std::string mtl_text = "newmtl should_not_load\nKd 1 1 1\n";
+  std::istringstream mtl_stream(mtl_text);
+  tinyobj::MaterialStreamReader mtl_reader(mtl_stream);
+
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &obj_stream, &mtl_reader);
+
+  TEST_CHECK(ret == true);
+  TEST_CHECK(materials.empty());
+  TEST_CHECK(warn.find("Looks like empty filename for mtllib") != std::string::npos);
+  TEST_CHECK(err.empty());
+}
+
+void test_mtllib_empty_filename_is_ignored_callback() {
+  std::string obj_text = "mtllib    \nv 1 2 3\n";
+  std::istringstream obj_stream(obj_text);
+
+  std::string mtl_text = "newmtl should_not_load\nKd 1 1 1\n";
+  std::istringstream mtl_stream(mtl_text);
+  tinyobj::MaterialStreamReader mtl_reader(mtl_stream);
+
+  struct CallbackData {
+    int vertex_count;
+    int mtllib_count;
+    CallbackData() : vertex_count(0), mtllib_count(0) {}
+  } data;
+
+  tinyobj::callback_t cb;
+  cb.vertex_cb = [](void *user_data, tinyobj::real_t, tinyobj::real_t,
+                    tinyobj::real_t, tinyobj::real_t) {
+    reinterpret_cast<CallbackData *>(user_data)->vertex_count++;
+  };
+  cb.mtllib_cb = [](void *user_data, const tinyobj::material_t *, int) {
+    reinterpret_cast<CallbackData *>(user_data)->mtllib_count++;
+  };
+
+  std::string warn, err;
+  bool ret = tinyobj::LoadObjWithCallback(obj_stream, cb, &data, &mtl_reader,
+                                          &warn, &err);
+
+  TEST_CHECK(ret == true);
+  TEST_CHECK(data.vertex_count == 1);
+  TEST_CHECK(data.mtllib_count == 0);
+  TEST_CHECK(warn.find("Looks like empty filename for mtllib") != std::string::npos);
+  TEST_CHECK(err.empty());
+}
+
 
 
 // Verify that mmap-based loading (TINYOBJLOADER_USE_MMAP) produces the same
@@ -2235,6 +2290,10 @@ TEST_LIST = {
     {"test_loadObjWithCallback_with_BOM", test_loadObjWithCallback_with_BOM},
     {"test_loadObjWithCallback_mtllib_failure_does_not_crash",
      test_loadObjWithCallback_mtllib_failure_does_not_crash},
+    {"test_mtllib_empty_filename_is_ignored_loadobj",
+     test_mtllib_empty_filename_is_ignored_loadobj},
+    {"test_mtllib_empty_filename_is_ignored_callback",
+     test_mtllib_empty_filename_is_ignored_callback},
     {"test_texcoord_w_component", test_texcoord_w_component},
     {"test_texcoord_w_mixed_component", test_texcoord_w_mixed_component},
     {"test_mmap_and_standard_load_agree", test_mmap_and_standard_load_agree},
