@@ -1937,6 +1937,43 @@ void test_mtllib_empty_filename_is_ignored_callback() {
   TEST_CHECK(err.empty());
 }
 
+void test_usemtl_callback_trims_trailing_comment() {
+  std::string obj_text =
+      "mtllib test.mtl\n"
+      "usemtl mat   # trailing comment\n"
+      "v 0 0 0\n";
+  std::istringstream obj_stream(obj_text);
+
+  std::string mtl_text = "newmtl mat\nKd 1 1 1\n";
+  std::istringstream mtl_stream(mtl_text);
+  tinyobj::MaterialStreamReader mtl_reader(mtl_stream);
+
+  struct CallbackData {
+    int usemtl_count;
+    int last_material_id;
+    std::string last_name;
+    CallbackData() : usemtl_count(0), last_material_id(-1), last_name() {}
+  } data;
+
+  tinyobj::callback_t cb;
+  cb.usemtl_cb = [](void *user_data, const char *name, int material_id) {
+    CallbackData *d = reinterpret_cast<CallbackData *>(user_data);
+    d->usemtl_count++;
+    d->last_name = name ? name : "";
+    d->last_material_id = material_id;
+  };
+
+  std::string warn, err;
+  bool ret = tinyobj::LoadObjWithCallback(obj_stream, cb, &data, &mtl_reader,
+                                          &warn, &err);
+
+  TEST_CHECK(ret == true);
+  TEST_CHECK(data.usemtl_count == 1);
+  TEST_CHECK(data.last_name == "mat");
+  TEST_CHECK(data.last_material_id == 0);
+  TEST_CHECK(err.empty());
+}
+
 
 
 // Verify that mmap-based loading (TINYOBJLOADER_USE_MMAP) produces the same
@@ -2307,6 +2344,8 @@ TEST_LIST = {
      test_mtllib_empty_filename_is_ignored_loadobj},
     {"test_mtllib_empty_filename_is_ignored_callback",
      test_mtllib_empty_filename_is_ignored_callback},
+    {"test_usemtl_callback_trims_trailing_comment",
+     test_usemtl_callback_trims_trailing_comment},
     {"test_texcoord_w_component", test_texcoord_w_component},
     {"test_texcoord_w_mixed_component", test_texcoord_w_mixed_component},
     {"test_mmap_and_standard_load_agree", test_mmap_and_standard_load_agree},

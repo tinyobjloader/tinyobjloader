@@ -659,6 +659,7 @@ bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
 #include <cctype>
 #include <cmath>
 #include <cstddef>
+#include <cerrno>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
@@ -1709,9 +1710,22 @@ static inline int sr_parseInt(StreamReader &sr) {
   if (len > 0) {
     char tmp[64];
     size_t copy_len = len < 63 ? len : 63;
+    if (copy_len != len) {
+      sr.advance(len);
+      return 0;
+    }
     memcpy(tmp, start, copy_len);
     tmp[copy_len] = '\0';
-    i = atoi(tmp);
+    errno = 0;
+    char *endptr = NULL;
+    long val = strtol(tmp, &endptr, 10);
+    const bool has_error =
+        (errno == ERANGE || endptr == tmp ||
+         val > (std::numeric_limits<int>::max)() ||
+         val < (std::numeric_limits<int>::min)());
+    if (!has_error) {
+      i = static_cast<int>(val);
+    }
   }
   sr.advance(len);
   return i;
@@ -1830,8 +1844,27 @@ static inline bool sr_parseInt(StreamReader &sr, int *out, std::string *err,
   size_t copy_len = len < 63 ? len : 63;
   memcpy(tmp, start, copy_len);
   tmp[copy_len] = '\0';
+  if (copy_len != len) {
+    if (err) {
+      (*err) += sr.format_error(filename, "integer value too long");
+    }
+    *out = 0;
+    sr.advance(len);
+    return false;
+  }
+  errno = 0;
   char *endptr = NULL;
   long val = strtol(tmp, &endptr, 10);
+  if (errno == ERANGE || val > (std::numeric_limits<int>::max)() ||
+      val < (std::numeric_limits<int>::min)()) {
+    if (err) {
+      (*err) += sr.format_error(filename,
+          "integer value out of range, got '" + std::string(tmp) + "'");
+    }
+    *out = 0;
+    sr.advance(len);
+    return false;
+  }
   if (endptr == tmp || (*endptr != '\0' && *endptr != ' ' && *endptr != '\t')) {
     if (err) {
       (*err) += sr.format_error(filename,
@@ -4216,7 +4249,7 @@ static bool LoadObjWithCallbackInternal(StreamReader &sr,
     // use mtl
     if (sr.match("usemtl", 6) && (sr.peek_at(6) == ' ' || sr.peek_at(6) == '\t')) {
       sr.advance(7);
-      std::string namebuf = sr.read_line();
+      std::string namebuf = sr_parseString(sr);
 
       int newMaterialId = -1;
       std::map<std::string, int>::const_iterator it =
