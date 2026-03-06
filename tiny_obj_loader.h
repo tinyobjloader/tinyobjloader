@@ -2475,22 +2475,42 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
               continue;
             }
 
-            real_t v0x = v[vi0 * 3 + 0]; real_t v0y = v[vi0 * 3 + 1]; real_t v0z = v[vi0 * 3 + 2];
-            real_t v1x = v[vi1 * 3 + 0]; real_t v1y = v[vi1 * 3 + 1]; real_t v1z = v[vi1 * 3 + 2];
-            real_t v2x = v[vi2 * 3 + 0]; real_t v2y = v[vi2 * 3 + 1]; real_t v2z = v[vi2 * 3 + 2];
-            real_t v3x = v[vi3 * 3 + 0]; real_t v3y = v[vi3 * 3 + 1]; real_t v3z = v[vi3 * 3 + 2];
+            real_t v0x = v[vi0 * 3 + 0];
+            real_t v0y = v[vi0 * 3 + 1];
+            real_t v0z = v[vi0 * 3 + 2];
+            real_t v1x = v[vi1 * 3 + 0];
+            real_t v1y = v[vi1 * 3 + 1];
+            real_t v1z = v[vi1 * 3 + 2];
+            real_t v2x = v[vi2 * 3 + 0];
+            real_t v2y = v[vi2 * 3 + 1];
+            real_t v2z = v[vi2 * 3 + 2];
+            real_t v3x = v[vi3 * 3 + 0];
+            real_t v3y = v[vi3 * 3 + 1];
+            real_t v3z = v[vi3 * 3 + 2];
 
-            real_t e02x = v2x - v0x; real_t e02y = v2y - v0y; real_t e02z = v2z - v0z;
-            real_t e13x = v3x - v1x; real_t e13y = v3y - v1y; real_t e13z = v3z - v1z;
+            real_t e02x = v2x - v0x;
+            real_t e02y = v2y - v0y;
+            real_t e02z = v2z - v0z;
+            real_t e13x = v3x - v1x;
+            real_t e13y = v3y - v1y;
+            real_t e13z = v3z - v1z;
 
             real_t sqr02 = e02x * e02x + e02y * e02y + e02z * e02z;
             real_t sqr13 = e13x * e13x + e13y * e13y + e13z * e13z;
 
             index_t idx0, idx1, idx2, idx3;
-            idx0.vertex_index = i0.v_idx; idx0.normal_index = i0.vn_idx; idx0.texcoord_index = i0.vt_idx;
-            idx1.vertex_index = i1.v_idx; idx1.normal_index = i1.vn_idx; idx1.texcoord_index = i1.vt_idx;
-            idx2.vertex_index = i2.v_idx; idx2.normal_index = i2.vn_idx; idx2.texcoord_index = i2.vt_idx;
-            idx3.vertex_index = i3.v_idx; idx3.normal_index = i3.vn_idx; idx3.texcoord_index = i3.vt_idx;
+            idx0.vertex_index = i0.v_idx;
+            idx0.normal_index = i0.vn_idx;
+            idx0.texcoord_index = i0.vt_idx;
+            idx1.vertex_index = i1.v_idx;
+            idx1.normal_index = i1.vn_idx;
+            idx1.texcoord_index = i1.vt_idx;
+            idx2.vertex_index = i2.v_idx;
+            idx2.normal_index = i2.vn_idx;
+            idx2.texcoord_index = i2.vt_idx;
+            idx3.vertex_index = i3.v_idx;
+            idx3.normal_index = i3.vn_idx;
+            idx3.texcoord_index = i3.vt_idx;
 
             if (sqr02 < sqr13) {
               shape->mesh.indices.push_back(idx0);
