@@ -505,14 +505,30 @@ class MaterialStreamReader : public MaterialReader {
   std::istream &m_inStream;
 };
 
+// Triangulation method constants for ObjReaderConfig::triangulation_method.
+// Used with the v2 ObjReader API.
+#define TINYOBJLOADER_TRIANGULATE_NONE 0
+#define TINYOBJLOADER_TRIANGULATE_FAN 1
+#define TINYOBJLOADER_TRIANGULATE_EARCLIP 2
+#define TINYOBJLOADER_TRIANGULATE_MAPBOX_EARCUT 3
+
 // v2 API
 struct ObjReaderConfig {
   bool triangulate;  // triangulate polygon?
 
-  // Currently not used.
-  // "simple" or empty: Create triangle fan
-  // "earcut": Use the algorithm based on Ear clipping
+  /// Triangulation method selection (used when triangulate = true).
+  /// "fan" or "simple": Simple triangle fan (fastest, but may produce
+  ///                    degenerate triangles for concave polygons)
+  /// "earclip": Built-in ear clipping algorithm (robust, default)
+  /// "earcut" or "mapbox": Mapbox earcut algorithm
+  ///                       (requires TINYOBJLOADER_USE_MAPBOX_EARCUT,
+  ///                        falls back to earclip if not available)
   std::string triangulation_method;
+
+  /// When true and triangulate is true, keep quad faces (4 vertices) as-is
+  /// and only triangulate faces with 5+ vertices.
+  /// Triangles (3 vertices) are always kept as-is regardless of this option.
+  bool preserve_quads;
 
   /// Parse vertex color.
   /// If vertex color is not present, its filled with default value.
@@ -528,7 +544,10 @@ struct ObjReaderConfig {
   std::string mtl_search_path;
 
   ObjReaderConfig()
-      : triangulate(true), triangulation_method("simple"), vertex_color(true) {}
+      : triangulate(true),
+        triangulation_method("earclip"),
+        preserve_quads(false),
+        vertex_color(true) {}
 };
 
 ///
@@ -2360,11 +2379,22 @@ inline TinyObjPoint WorldToLocal(const TinyObjPoint &a, const TinyObjPoint &u,
   return TinyObjPoint(dot(a, u), dot(a, v), dot(a, w));
 }
 
+static unsigned int parseTriangulationMethod(const std::string &method) {
+  if (method == "fan" || method == "simple") {
+    return TINYOBJLOADER_TRIANGULATE_FAN;
+  } else if (method == "earcut" || method == "mapbox") {
+    return TINYOBJLOADER_TRIANGULATE_MAPBOX_EARCUT;
+  }
+  // "earclip" or anything else defaults to built-in ear clipping
+  return TINYOBJLOADER_TRIANGULATE_EARCLIP;
+}
+
 // TODO(syoyo): refactor function.
 static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
                                 const std::vector<tag_t> &tags,
                                 const int material_id, const std::string &name,
-                                bool triangulate, const std::vector<real_t> &v,
+                                unsigned int tri_method, bool preserve_quads,
+                                const std::vector<real_t> &v,
                                 std::string *warn) {
   if (prim_group.IsEmpty()) {
     return false;
@@ -2388,258 +2418,239 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
         continue;
       }
 
-      if (triangulate && npolys != 3) {
-        if (npolys == 4) {
-          vertex_index_t i0 = face.vertex_indices[0];
-          vertex_index_t i1 = face.vertex_indices[1];
-          vertex_index_t i2 = face.vertex_indices[2];
-          vertex_index_t i3 = face.vertex_indices[3];
+      bool do_triangulate = (tri_method != TINYOBJLOADER_TRIANGULATE_NONE) &&
+                             (npolys != 3);
 
-          size_t vi0 = size_t(i0.v_idx);
-          size_t vi1 = size_t(i1.v_idx);
-          size_t vi2 = size_t(i2.v_idx);
-          size_t vi3 = size_t(i3.v_idx);
+      // preserve_quads: keep quads as-is, only triangulate 5+ ngons
+      if (do_triangulate && preserve_quads && npolys == 4) {
+        do_triangulate = false;
+      }
 
-          if (((3 * vi0 + 2) >= v.size()) || ((3 * vi1 + 2) >= v.size()) ||
-              ((3 * vi2 + 2) >= v.size()) || ((3 * vi3 + 2) >= v.size())) {
-            // Invalid triangle.
-            // FIXME(syoyo): Is it ok to simply skip this invalid triangle?
-            if (warn) {
-              (*warn) += "Face with invalid vertex index found.\n";
-            }
-            continue;
+      if (do_triangulate) {
+
+        if (tri_method == TINYOBJLOADER_TRIANGULATE_FAN) {
+          // Simple triangle fan from vertex 0: (0,1,2), (0,2,3), ...
+          for (size_t k = 2; k < npolys; k++) {
+            index_t idx0, idx1, idx2;
+            idx0.vertex_index = face.vertex_indices[0].v_idx;
+            idx0.normal_index = face.vertex_indices[0].vn_idx;
+            idx0.texcoord_index = face.vertex_indices[0].vt_idx;
+            idx1.vertex_index = face.vertex_indices[k - 1].v_idx;
+            idx1.normal_index = face.vertex_indices[k - 1].vn_idx;
+            idx1.texcoord_index = face.vertex_indices[k - 1].vt_idx;
+            idx2.vertex_index = face.vertex_indices[k].v_idx;
+            idx2.normal_index = face.vertex_indices[k].vn_idx;
+            idx2.texcoord_index = face.vertex_indices[k].vt_idx;
+
+            shape->mesh.indices.push_back(idx0);
+            shape->mesh.indices.push_back(idx1);
+            shape->mesh.indices.push_back(idx2);
+
+            shape->mesh.num_face_vertices.push_back(3);
+            shape->mesh.material_ids.push_back(material_id);
+            shape->mesh.smoothing_group_ids.push_back(
+                face.smoothing_group_id);
           }
 
-          real_t v0x = v[vi0 * 3 + 0];
-          real_t v0y = v[vi0 * 3 + 1];
-          real_t v0z = v[vi0 * 3 + 2];
-          real_t v1x = v[vi1 * 3 + 0];
-          real_t v1y = v[vi1 * 3 + 1];
-          real_t v1z = v[vi1 * 3 + 2];
-          real_t v2x = v[vi2 * 3 + 0];
-          real_t v2y = v[vi2 * 3 + 1];
-          real_t v2z = v[vi2 * 3 + 2];
-          real_t v3x = v[vi3 * 3 + 0];
-          real_t v3y = v[vi3 * 3 + 1];
-          real_t v3z = v[vi3 * 3 + 2];
-
-          // There are two candidates to split the quad into two triangles.
-          //
-          // Choose the shortest edge.
-          // TODO: Is it better to determine the edge to split by calculating
-          // the area of each triangle?
-          //
-          // +---+
-          // |\  |
-          // | \ |
-          // |  \|
-          // +---+
-          //
-          // +---+
-          // |  /|
-          // | / |
-          // |/  |
-          // +---+
-
-          real_t e02x = v2x - v0x;
-          real_t e02y = v2y - v0y;
-          real_t e02z = v2z - v0z;
-          real_t e13x = v3x - v1x;
-          real_t e13y = v3y - v1y;
-          real_t e13z = v3z - v1z;
-
-          real_t sqr02 = e02x * e02x + e02y * e02y + e02z * e02z;
-          real_t sqr13 = e13x * e13x + e13y * e13y + e13z * e13z;
-
-          index_t idx0, idx1, idx2, idx3;
-
-          idx0.vertex_index = i0.v_idx;
-          idx0.normal_index = i0.vn_idx;
-          idx0.texcoord_index = i0.vt_idx;
-          idx1.vertex_index = i1.v_idx;
-          idx1.normal_index = i1.vn_idx;
-          idx1.texcoord_index = i1.vt_idx;
-          idx2.vertex_index = i2.v_idx;
-          idx2.normal_index = i2.vn_idx;
-          idx2.texcoord_index = i2.vt_idx;
-          idx3.vertex_index = i3.v_idx;
-          idx3.normal_index = i3.vn_idx;
-          idx3.texcoord_index = i3.vt_idx;
-
-          if (sqr02 < sqr13) {
-            // [0, 1, 2], [0, 2, 3]
-            shape->mesh.indices.push_back(idx0);
-            shape->mesh.indices.push_back(idx1);
-            shape->mesh.indices.push_back(idx2);
-
-            shape->mesh.indices.push_back(idx0);
-            shape->mesh.indices.push_back(idx2);
-            shape->mesh.indices.push_back(idx3);
-          } else {
-            // [0, 1, 3], [1, 2, 3]
-            shape->mesh.indices.push_back(idx0);
-            shape->mesh.indices.push_back(idx1);
-            shape->mesh.indices.push_back(idx3);
-
-            shape->mesh.indices.push_back(idx1);
-            shape->mesh.indices.push_back(idx2);
-            shape->mesh.indices.push_back(idx3);
-          }
-
-          // Two triangle faces
-          shape->mesh.num_face_vertices.push_back(3);
-          shape->mesh.num_face_vertices.push_back(3);
-
-          shape->mesh.material_ids.push_back(material_id);
-          shape->mesh.material_ids.push_back(material_id);
-
-          shape->mesh.smoothing_group_ids.push_back(face.smoothing_group_id);
-          shape->mesh.smoothing_group_ids.push_back(face.smoothing_group_id);
-
-        } else {
 #ifdef TINYOBJLOADER_USE_MAPBOX_EARCUT
-          vertex_index_t i0 = face.vertex_indices[0];
-          vertex_index_t i0_2 = i0;
+        } else if (tri_method == TINYOBJLOADER_TRIANGULATE_MAPBOX_EARCUT) {
+          // Mapbox earcut triangulation
+          if (npolys == 4) {
+            // Optimized quad splitting using shortest diagonal
+            vertex_index_t i0 = face.vertex_indices[0];
+            vertex_index_t i1 = face.vertex_indices[1];
+            vertex_index_t i2 = face.vertex_indices[2];
+            vertex_index_t i3 = face.vertex_indices[3];
 
-          // TMW change: Find the normal axis of the polygon using Newell's
-          // method
-          TinyObjPoint n;
-          for (size_t k = 0; k < npolys; ++k) {
-            i0 = face.vertex_indices[k % npolys];
-            size_t vi0 = size_t(i0.v_idx);
-
-            size_t j = (k + 1) % npolys;
-            i0_2 = face.vertex_indices[j];
-            size_t vi0_2 = size_t(i0_2.v_idx);
-
-            real_t v0x = v[vi0 * 3 + 0];
-            real_t v0y = v[vi0 * 3 + 1];
-            real_t v0z = v[vi0 * 3 + 2];
-
-            real_t v0x_2 = v[vi0_2 * 3 + 0];
-            real_t v0y_2 = v[vi0_2 * 3 + 1];
-            real_t v0z_2 = v[vi0_2 * 3 + 2];
-
-            const TinyObjPoint point1(v0x, v0y, v0z);
-            const TinyObjPoint point2(v0x_2, v0y_2, v0z_2);
-
-            TinyObjPoint a(point1.x - point2.x, point1.y - point2.y,
-                           point1.z - point2.z);
-            TinyObjPoint b(point1.x + point2.x, point1.y + point2.y,
-                           point1.z + point2.z);
-
-            n.x += (a.y * b.z);
-            n.y += (a.z * b.x);
-            n.z += (a.x * b.y);
-          }
-          real_t length_n = GetLength(n);
-          // Check if zero length normal
-          if (length_n <= 0) {
-            continue;
-          }
-          // Negative is to flip the normal to the correct direction
-          real_t inv_length = -real_t(1.0) / length_n;
-          n.x *= inv_length;
-          n.y *= inv_length;
-          n.z *= inv_length;
-
-          TinyObjPoint axis_w, axis_v, axis_u;
-          axis_w = n;
-          TinyObjPoint a;
-          if (std::fabs(axis_w.x) > real_t(0.9999999)) {
-            a = TinyObjPoint(0, 1, 0);
-          } else {
-            a = TinyObjPoint(1, 0, 0);
-          }
-          axis_v = Normalize(cross(axis_w, a));
-          axis_u = cross(axis_w, axis_v);
-          using Point = std::array<real_t, 2>;
-
-          // first polyline define the main polygon.
-          // following polylines define holes(not used in tinyobj).
-          std::vector<std::vector<Point> > polygon;
-
-          std::vector<Point> polyline;
-
-          // TMW change: Find best normal and project v0x and v0y to those
-          // coordinates, instead of picking a plane aligned with an axis (which
-          // can flip polygons).
-
-          // Fill polygon data(facevarying vertices).
-          for (size_t k = 0; k < npolys; k++) {
-            i0 = face.vertex_indices[k];
-            size_t vi0 = size_t(i0.v_idx);
-
-            assert(((3 * vi0 + 2) < v.size()));
-
-            real_t v0x = v[vi0 * 3 + 0];
-            real_t v0y = v[vi0 * 3 + 1];
-            real_t v0z = v[vi0 * 3 + 2];
-
-            TinyObjPoint polypoint(v0x, v0y, v0z);
-            TinyObjPoint loc = WorldToLocal(polypoint, axis_u, axis_v, axis_w);
-
-            polyline.push_back({loc.x, loc.y});
-          }
-
-          polygon.push_back(polyline);
-          std::vector<uint32_t> indices = mapbox::earcut<uint32_t>(polygon);
-          // => result = 3 * faces, clockwise
-
-          assert(indices.size() % 3 == 0);
-
-          // Reconstruct vertex_index_t
-          for (size_t k = 0; k < indices.size() / 3; k++) {
-            {
-              index_t idx0, idx1, idx2;
-              idx0.vertex_index = face.vertex_indices[indices[3 * k + 0]].v_idx;
-              idx0.normal_index =
-                  face.vertex_indices[indices[3 * k + 0]].vn_idx;
-              idx0.texcoord_index =
-                  face.vertex_indices[indices[3 * k + 0]].vt_idx;
-              idx1.vertex_index = face.vertex_indices[indices[3 * k + 1]].v_idx;
-              idx1.normal_index =
-                  face.vertex_indices[indices[3 * k + 1]].vn_idx;
-              idx1.texcoord_index =
-                  face.vertex_indices[indices[3 * k + 1]].vt_idx;
-              idx2.vertex_index = face.vertex_indices[indices[3 * k + 2]].v_idx;
-              idx2.normal_index =
-                  face.vertex_indices[indices[3 * k + 2]].vn_idx;
-              idx2.texcoord_index =
-                  face.vertex_indices[indices[3 * k + 2]].vt_idx;
-
-              shape->mesh.indices.push_back(idx0);
-              shape->mesh.indices.push_back(idx1);
-              shape->mesh.indices.push_back(idx2);
-
-              shape->mesh.num_face_vertices.push_back(3);
-              shape->mesh.material_ids.push_back(material_id);
-              shape->mesh.smoothing_group_ids.push_back(
-                  face.smoothing_group_id);
-            }
-          }
-
-#else  // Built-in ear clipping triangulation
-          vertex_index_t i0 = face.vertex_indices[0];
-          vertex_index_t i1(-1);
-          vertex_index_t i2 = face.vertex_indices[1];
-
-          // find the two axes to work in
-          size_t axes[2] = {1, 2};
-          for (size_t k = 0; k < npolys; ++k) {
-            i0 = face.vertex_indices[(k + 0) % npolys];
-            i1 = face.vertex_indices[(k + 1) % npolys];
-            i2 = face.vertex_indices[(k + 2) % npolys];
             size_t vi0 = size_t(i0.v_idx);
             size_t vi1 = size_t(i1.v_idx);
             size_t vi2 = size_t(i2.v_idx);
+            size_t vi3 = size_t(i3.v_idx);
 
             if (((3 * vi0 + 2) >= v.size()) || ((3 * vi1 + 2) >= v.size()) ||
-                ((3 * vi2 + 2) >= v.size())) {
-              // Invalid triangle.
-              // FIXME(syoyo): Is it ok to simply skip this invalid triangle?
+                ((3 * vi2 + 2) >= v.size()) || ((3 * vi3 + 2) >= v.size())) {
+              if (warn) {
+                (*warn) += "Face with invalid vertex index found.\n";
+              }
               continue;
             }
+
+            real_t v0x = v[vi0 * 3 + 0]; real_t v0y = v[vi0 * 3 + 1]; real_t v0z = v[vi0 * 3 + 2];
+            real_t v1x = v[vi1 * 3 + 0]; real_t v1y = v[vi1 * 3 + 1]; real_t v1z = v[vi1 * 3 + 2];
+            real_t v2x = v[vi2 * 3 + 0]; real_t v2y = v[vi2 * 3 + 1]; real_t v2z = v[vi2 * 3 + 2];
+            real_t v3x = v[vi3 * 3 + 0]; real_t v3y = v[vi3 * 3 + 1]; real_t v3z = v[vi3 * 3 + 2];
+
+            real_t e02x = v2x - v0x; real_t e02y = v2y - v0y; real_t e02z = v2z - v0z;
+            real_t e13x = v3x - v1x; real_t e13y = v3y - v1y; real_t e13z = v3z - v1z;
+
+            real_t sqr02 = e02x * e02x + e02y * e02y + e02z * e02z;
+            real_t sqr13 = e13x * e13x + e13y * e13y + e13z * e13z;
+
+            index_t idx0, idx1, idx2, idx3;
+            idx0.vertex_index = i0.v_idx; idx0.normal_index = i0.vn_idx; idx0.texcoord_index = i0.vt_idx;
+            idx1.vertex_index = i1.v_idx; idx1.normal_index = i1.vn_idx; idx1.texcoord_index = i1.vt_idx;
+            idx2.vertex_index = i2.v_idx; idx2.normal_index = i2.vn_idx; idx2.texcoord_index = i2.vt_idx;
+            idx3.vertex_index = i3.v_idx; idx3.normal_index = i3.vn_idx; idx3.texcoord_index = i3.vt_idx;
+
+            if (sqr02 < sqr13) {
+              shape->mesh.indices.push_back(idx0);
+              shape->mesh.indices.push_back(idx1);
+              shape->mesh.indices.push_back(idx2);
+              shape->mesh.indices.push_back(idx0);
+              shape->mesh.indices.push_back(idx2);
+              shape->mesh.indices.push_back(idx3);
+            } else {
+              shape->mesh.indices.push_back(idx0);
+              shape->mesh.indices.push_back(idx1);
+              shape->mesh.indices.push_back(idx3);
+              shape->mesh.indices.push_back(idx1);
+              shape->mesh.indices.push_back(idx2);
+              shape->mesh.indices.push_back(idx3);
+            }
+
+            shape->mesh.num_face_vertices.push_back(3);
+            shape->mesh.num_face_vertices.push_back(3);
+            shape->mesh.material_ids.push_back(material_id);
+            shape->mesh.material_ids.push_back(material_id);
+            shape->mesh.smoothing_group_ids.push_back(face.smoothing_group_id);
+            shape->mesh.smoothing_group_ids.push_back(face.smoothing_group_id);
+
+          } else {
+            // 5+ ngon: use mapbox earcut
+            vertex_index_t i0 = face.vertex_indices[0];
+            vertex_index_t i0_2 = i0;
+
+            // Find the normal axis of the polygon using Newell's method
+            TinyObjPoint n;
+            for (size_t k = 0; k < npolys; ++k) {
+              i0 = face.vertex_indices[k % npolys];
+              size_t vi0 = size_t(i0.v_idx);
+
+              size_t j = (k + 1) % npolys;
+              i0_2 = face.vertex_indices[j];
+              size_t vi0_2 = size_t(i0_2.v_idx);
+
+              real_t v0x = v[vi0 * 3 + 0];
+              real_t v0y = v[vi0 * 3 + 1];
+              real_t v0z = v[vi0 * 3 + 2];
+
+              real_t v0x_2 = v[vi0_2 * 3 + 0];
+              real_t v0y_2 = v[vi0_2 * 3 + 1];
+              real_t v0z_2 = v[vi0_2 * 3 + 2];
+
+              const TinyObjPoint point1(v0x, v0y, v0z);
+              const TinyObjPoint point2(v0x_2, v0y_2, v0z_2);
+
+              TinyObjPoint a(point1.x - point2.x, point1.y - point2.y,
+                             point1.z - point2.z);
+              TinyObjPoint b(point1.x + point2.x, point1.y + point2.y,
+                             point1.z + point2.z);
+
+              n.x += (a.y * b.z);
+              n.y += (a.z * b.x);
+              n.z += (a.x * b.y);
+            }
+            real_t length_n = GetLength(n);
+            if (length_n <= 0) {
+              continue;
+            }
+            real_t inv_length = -real_t(1.0) / length_n;
+            n.x *= inv_length;
+            n.y *= inv_length;
+            n.z *= inv_length;
+
+            TinyObjPoint axis_w, axis_v, axis_u;
+            axis_w = n;
+            TinyObjPoint a;
+            if (std::fabs(axis_w.x) > real_t(0.9999999)) {
+              a = TinyObjPoint(0, 1, 0);
+            } else {
+              a = TinyObjPoint(1, 0, 0);
+            }
+            axis_v = Normalize(cross(axis_w, a));
+            axis_u = cross(axis_w, axis_v);
+            using Point = std::array<real_t, 2>;
+
+            std::vector<std::vector<Point> > polygon;
+            std::vector<Point> polyline;
+
+            for (size_t k = 0; k < npolys; k++) {
+              i0 = face.vertex_indices[k];
+              size_t vi0 = size_t(i0.v_idx);
+
+              assert(((3 * vi0 + 2) < v.size()));
+
+              real_t v0x = v[vi0 * 3 + 0];
+              real_t v0y = v[vi0 * 3 + 1];
+              real_t v0z = v[vi0 * 3 + 2];
+
+              TinyObjPoint polypoint(v0x, v0y, v0z);
+              TinyObjPoint loc = WorldToLocal(polypoint, axis_u, axis_v, axis_w);
+
+              polyline.push_back({loc.x, loc.y});
+            }
+
+            polygon.push_back(polyline);
+            std::vector<uint32_t> indices = mapbox::earcut<uint32_t>(polygon);
+
+            assert(indices.size() % 3 == 0);
+
+            for (size_t k = 0; k < indices.size() / 3; k++) {
+              {
+                index_t idx0, idx1, idx2;
+                idx0.vertex_index = face.vertex_indices[indices[3 * k + 0]].v_idx;
+                idx0.normal_index =
+                    face.vertex_indices[indices[3 * k + 0]].vn_idx;
+                idx0.texcoord_index =
+                    face.vertex_indices[indices[3 * k + 0]].vt_idx;
+                idx1.vertex_index = face.vertex_indices[indices[3 * k + 1]].v_idx;
+                idx1.normal_index =
+                    face.vertex_indices[indices[3 * k + 1]].vn_idx;
+                idx1.texcoord_index =
+                    face.vertex_indices[indices[3 * k + 1]].vt_idx;
+                idx2.vertex_index = face.vertex_indices[indices[3 * k + 2]].v_idx;
+                idx2.normal_index =
+                    face.vertex_indices[indices[3 * k + 2]].vn_idx;
+                idx2.texcoord_index =
+                    face.vertex_indices[indices[3 * k + 2]].vt_idx;
+
+                shape->mesh.indices.push_back(idx0);
+                shape->mesh.indices.push_back(idx1);
+                shape->mesh.indices.push_back(idx2);
+
+                shape->mesh.num_face_vertices.push_back(3);
+                shape->mesh.material_ids.push_back(material_id);
+                shape->mesh.smoothing_group_ids.push_back(
+                    face.smoothing_group_id);
+              }
+            }
+          }
+#endif
+
+        } else {
+          // TINYOBJLOADER_TRIANGULATE_EARCLIP (default built-in ear clipping)
+          // Also used as fallback when mapbox earcut is requested but not
+          // compiled in.
+          if (npolys == 4) {
+            // Optimized quad splitting using shortest diagonal
+            vertex_index_t i0 = face.vertex_indices[0];
+            vertex_index_t i1 = face.vertex_indices[1];
+            vertex_index_t i2 = face.vertex_indices[2];
+            vertex_index_t i3 = face.vertex_indices[3];
+
+            size_t vi0 = size_t(i0.v_idx);
+            size_t vi1 = size_t(i1.v_idx);
+            size_t vi2 = size_t(i2.v_idx);
+            size_t vi3 = size_t(i3.v_idx);
+
+            if (((3 * vi0 + 2) >= v.size()) || ((3 * vi1 + 2) >= v.size()) ||
+                ((3 * vi2 + 2) >= v.size()) || ((3 * vi3 + 2) >= v.size())) {
+              if (warn) {
+                (*warn) += "Face with invalid vertex index found.\n";
+              }
+              continue;
+            }
+
             real_t v0x = v[vi0 * 3 + 0];
             real_t v0y = v[vi0 * 3 + 1];
             real_t v0z = v[vi0 * 3 + 2];
@@ -2649,201 +2660,254 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
             real_t v2x = v[vi2 * 3 + 0];
             real_t v2y = v[vi2 * 3 + 1];
             real_t v2z = v[vi2 * 3 + 2];
-            real_t e0x = v1x - v0x;
-            real_t e0y = v1y - v0y;
-            real_t e0z = v1z - v0z;
-            real_t e1x = v2x - v1x;
-            real_t e1y = v2y - v1y;
-            real_t e1z = v2z - v1z;
-            real_t cx = std::fabs(e0y * e1z - e0z * e1y);
-            real_t cy = std::fabs(e0z * e1x - e0x * e1z);
-            real_t cz = std::fabs(e0x * e1y - e0y * e1x);
-            const real_t epsilon = std::numeric_limits<real_t>::epsilon();
-            // std::cout << "cx " << cx << ", cy " << cy << ", cz " << cz <<
-            // "\n";
-            if (cx > epsilon || cy > epsilon || cz > epsilon) {
-              // std::cout << "corner\n";
-              // found a corner
-              if (cx > cy && cx > cz) {
-                // std::cout << "pattern0\n";
-              } else {
-                // std::cout << "axes[0] = 0\n";
-                axes[0] = 0;
-                if (cz > cx && cz > cy) {
-                  // std::cout << "axes[1] = 1\n";
-                  axes[1] = 1;
-                }
-              }
-              break;
-            }
-          }
+            real_t v3x = v[vi3 * 3 + 0];
+            real_t v3y = v[vi3 * 3 + 1];
+            real_t v3z = v[vi3 * 3 + 2];
 
-          face_t remainingFace = face;  // copy
-          size_t guess_vert = 0;
-          vertex_index_t ind[3];
-          real_t vx[3];
-          real_t vy[3];
+            real_t e02x = v2x - v0x;
+            real_t e02y = v2y - v0y;
+            real_t e02z = v2z - v0z;
+            real_t e13x = v3x - v1x;
+            real_t e13y = v3y - v1y;
+            real_t e13z = v3z - v1z;
 
-          // How many iterations can we do without decreasing the remaining
-          // vertices.
-          size_t remainingIterations = face.vertex_indices.size();
-          size_t previousRemainingVertices =
-              remainingFace.vertex_indices.size();
+            real_t sqr02 = e02x * e02x + e02y * e02y + e02z * e02z;
+            real_t sqr13 = e13x * e13x + e13y * e13y + e13z * e13z;
 
-          while (remainingFace.vertex_indices.size() > 3 &&
-                 remainingIterations > 0) {
-            // std::cout << "remainingIterations " << remainingIterations <<
-            // "\n";
+            index_t idx0, idx1, idx2, idx3;
 
-            npolys = remainingFace.vertex_indices.size();
-            if (guess_vert >= npolys) {
-              guess_vert -= npolys;
-            }
+            idx0.vertex_index = i0.v_idx;
+            idx0.normal_index = i0.vn_idx;
+            idx0.texcoord_index = i0.vt_idx;
+            idx1.vertex_index = i1.v_idx;
+            idx1.normal_index = i1.vn_idx;
+            idx1.texcoord_index = i1.vt_idx;
+            idx2.vertex_index = i2.v_idx;
+            idx2.normal_index = i2.vn_idx;
+            idx2.texcoord_index = i2.vt_idx;
+            idx3.vertex_index = i3.v_idx;
+            idx3.normal_index = i3.vn_idx;
+            idx3.texcoord_index = i3.vt_idx;
 
-            if (previousRemainingVertices != npolys) {
-              // The number of remaining vertices decreased. Reset counters.
-              previousRemainingVertices = npolys;
-              remainingIterations = npolys;
+            if (sqr02 < sqr13) {
+              // [0, 1, 2], [0, 2, 3]
+              shape->mesh.indices.push_back(idx0);
+              shape->mesh.indices.push_back(idx1);
+              shape->mesh.indices.push_back(idx2);
+
+              shape->mesh.indices.push_back(idx0);
+              shape->mesh.indices.push_back(idx2);
+              shape->mesh.indices.push_back(idx3);
             } else {
-              // We didn't consume a vertex on previous iteration, reduce the
-              // available iterations.
-              remainingIterations--;
+              // [0, 1, 3], [1, 2, 3]
+              shape->mesh.indices.push_back(idx0);
+              shape->mesh.indices.push_back(idx1);
+              shape->mesh.indices.push_back(idx3);
+
+              shape->mesh.indices.push_back(idx1);
+              shape->mesh.indices.push_back(idx2);
+              shape->mesh.indices.push_back(idx3);
             }
 
-            for (size_t k = 0; k < 3; k++) {
-              ind[k] = remainingFace.vertex_indices[(guess_vert + k) % npolys];
-              size_t vi = size_t(ind[k].v_idx);
-              if (((vi * 3 + axes[0]) >= v.size()) ||
-                  ((vi * 3 + axes[1]) >= v.size())) {
-                // ???
-                vx[k] = static_cast<real_t>(0.0);
-                vy[k] = static_cast<real_t>(0.0);
-              } else {
-                vx[k] = v[vi * 3 + axes[0]];
-                vy[k] = v[vi * 3 + axes[1]];
-              }
-            }
+            // Two triangle faces
+            shape->mesh.num_face_vertices.push_back(3);
+            shape->mesh.num_face_vertices.push_back(3);
 
-            //
-            // area is calculated per face
-            //
-            real_t e0x = vx[1] - vx[0];
-            real_t e0y = vy[1] - vy[0];
-            real_t e1x = vx[2] - vx[1];
-            real_t e1y = vy[2] - vy[1];
-            real_t cross = e0x * e1y - e0y * e1x;
-            // std::cout << "axes = " << axes[0] << ", " << axes[1] << "\n";
-            // std::cout << "e0x, e0y, e1x, e1y " << e0x << ", " << e0y << ", "
-            // << e1x << ", " << e1y << "\n";
+            shape->mesh.material_ids.push_back(material_id);
+            shape->mesh.material_ids.push_back(material_id);
 
-            real_t area =
-                (vx[0] * vy[1] - vy[0] * vx[1]) * static_cast<real_t>(0.5);
-            // std::cout << "cross " << cross << ", area " << area << "\n";
-            // if an internal angle
-            if (cross * area < static_cast<real_t>(0.0)) {
-              // std::cout << "internal \n";
-              guess_vert += 1;
-              // std::cout << "guess vert : " << guess_vert << "\n";
-              continue;
-            }
+            shape->mesh.smoothing_group_ids.push_back(face.smoothing_group_id);
+            shape->mesh.smoothing_group_ids.push_back(face.smoothing_group_id);
 
-            // check all other verts in case they are inside this triangle
-            bool overlap = false;
-            for (size_t otherVert = 3; otherVert < npolys; ++otherVert) {
-              size_t idx = (guess_vert + otherVert) % npolys;
+          } else {
+            // 5+ ngon: Built-in ear clipping triangulation
+            vertex_index_t i0 = face.vertex_indices[0];
+            vertex_index_t i1(-1);
+            vertex_index_t i2 = face.vertex_indices[1];
 
-              if (idx >= remainingFace.vertex_indices.size()) {
-                // std::cout << "???0\n";
-                // ???
+            // find the two axes to work in
+            size_t axes[2] = {1, 2};
+            for (size_t k = 0; k < npolys; ++k) {
+              i0 = face.vertex_indices[(k + 0) % npolys];
+              i1 = face.vertex_indices[(k + 1) % npolys];
+              i2 = face.vertex_indices[(k + 2) % npolys];
+              size_t vi0 = size_t(i0.v_idx);
+              size_t vi1 = size_t(i1.v_idx);
+              size_t vi2 = size_t(i2.v_idx);
+
+              if (((3 * vi0 + 2) >= v.size()) || ((3 * vi1 + 2) >= v.size()) ||
+                  ((3 * vi2 + 2) >= v.size())) {
                 continue;
               }
-
-              size_t ovi = size_t(remainingFace.vertex_indices[idx].v_idx);
-
-              if (((ovi * 3 + axes[0]) >= v.size()) ||
-                  ((ovi * 3 + axes[1]) >= v.size())) {
-                // std::cout << "???1\n";
-                // ???
-                continue;
-              }
-              real_t tx = v[ovi * 3 + axes[0]];
-              real_t ty = v[ovi * 3 + axes[1]];
-              if (pnpoly(3, vx, vy, tx, ty)) {
-                // std::cout << "overlap\n";
-                overlap = true;
+              real_t v0x = v[vi0 * 3 + 0];
+              real_t v0y = v[vi0 * 3 + 1];
+              real_t v0z = v[vi0 * 3 + 2];
+              real_t v1x = v[vi1 * 3 + 0];
+              real_t v1y = v[vi1 * 3 + 1];
+              real_t v1z = v[vi1 * 3 + 2];
+              real_t v2x = v[vi2 * 3 + 0];
+              real_t v2y = v[vi2 * 3 + 1];
+              real_t v2z = v[vi2 * 3 + 2];
+              real_t e0x = v1x - v0x;
+              real_t e0y = v1y - v0y;
+              real_t e0z = v1z - v0z;
+              real_t e1x = v2x - v1x;
+              real_t e1y = v2y - v1y;
+              real_t e1z = v2z - v1z;
+              real_t cx = std::fabs(e0y * e1z - e0z * e1y);
+              real_t cy = std::fabs(e0z * e1x - e0x * e1z);
+              real_t cz = std::fabs(e0x * e1y - e0y * e1x);
+              const real_t epsilon = std::numeric_limits<real_t>::epsilon();
+              if (cx > epsilon || cy > epsilon || cz > epsilon) {
+                if (cx > cy && cx > cz) {
+                } else {
+                  axes[0] = 0;
+                  if (cz > cx && cz > cy) {
+                    axes[1] = 1;
+                  }
+                }
                 break;
               }
             }
 
-            if (overlap) {
-              // std::cout << "overlap2\n";
-              guess_vert += 1;
-              continue;
+            face_t remainingFace = face;  // copy
+            size_t guess_vert = 0;
+            vertex_index_t ind[3];
+            real_t vx[3];
+            real_t vy[3];
+
+            size_t remainingIterations = face.vertex_indices.size();
+            size_t previousRemainingVertices =
+                remainingFace.vertex_indices.size();
+
+            while (remainingFace.vertex_indices.size() > 3 &&
+                   remainingIterations > 0) {
+              npolys = remainingFace.vertex_indices.size();
+              if (guess_vert >= npolys) {
+                guess_vert -= npolys;
+              }
+
+              if (previousRemainingVertices != npolys) {
+                previousRemainingVertices = npolys;
+                remainingIterations = npolys;
+              } else {
+                remainingIterations--;
+              }
+
+              for (size_t k = 0; k < 3; k++) {
+                ind[k] = remainingFace.vertex_indices[(guess_vert + k) % npolys];
+                size_t vi = size_t(ind[k].v_idx);
+                if (((vi * 3 + axes[0]) >= v.size()) ||
+                    ((vi * 3 + axes[1]) >= v.size())) {
+                  vx[k] = static_cast<real_t>(0.0);
+                  vy[k] = static_cast<real_t>(0.0);
+                } else {
+                  vx[k] = v[vi * 3 + axes[0]];
+                  vy[k] = v[vi * 3 + axes[1]];
+                }
+              }
+
+              real_t e0x = vx[1] - vx[0];
+              real_t e0y = vy[1] - vy[0];
+              real_t e1x = vx[2] - vx[1];
+              real_t e1y = vy[2] - vy[1];
+              real_t cross = e0x * e1y - e0y * e1x;
+
+              real_t area =
+                  (vx[0] * vy[1] - vy[0] * vx[1]) * static_cast<real_t>(0.5);
+              if (cross * area < static_cast<real_t>(0.0)) {
+                guess_vert += 1;
+                continue;
+              }
+
+              bool overlap = false;
+              for (size_t otherVert = 3; otherVert < npolys; ++otherVert) {
+                size_t idx = (guess_vert + otherVert) % npolys;
+
+                if (idx >= remainingFace.vertex_indices.size()) {
+                  continue;
+                }
+
+                size_t ovi = size_t(remainingFace.vertex_indices[idx].v_idx);
+
+                if (((ovi * 3 + axes[0]) >= v.size()) ||
+                    ((ovi * 3 + axes[1]) >= v.size())) {
+                  continue;
+                }
+                real_t tx = v[ovi * 3 + axes[0]];
+                real_t ty = v[ovi * 3 + axes[1]];
+                if (pnpoly(3, vx, vy, tx, ty)) {
+                  overlap = true;
+                  break;
+                }
+              }
+
+              if (overlap) {
+                guess_vert += 1;
+                continue;
+              }
+
+              // this triangle is an ear
+              {
+                index_t idx0, idx1, idx2;
+                idx0.vertex_index = ind[0].v_idx;
+                idx0.normal_index = ind[0].vn_idx;
+                idx0.texcoord_index = ind[0].vt_idx;
+                idx1.vertex_index = ind[1].v_idx;
+                idx1.normal_index = ind[1].vn_idx;
+                idx1.texcoord_index = ind[1].vt_idx;
+                idx2.vertex_index = ind[2].v_idx;
+                idx2.normal_index = ind[2].vn_idx;
+                idx2.texcoord_index = ind[2].vt_idx;
+
+                shape->mesh.indices.push_back(idx0);
+                shape->mesh.indices.push_back(idx1);
+                shape->mesh.indices.push_back(idx2);
+
+                shape->mesh.num_face_vertices.push_back(3);
+                shape->mesh.material_ids.push_back(material_id);
+                shape->mesh.smoothing_group_ids.push_back(
+                    face.smoothing_group_id);
+              }
+
+              // remove v1 from the list
+              size_t removed_vert_index = (guess_vert + 1) % npolys;
+              while (removed_vert_index + 1 < npolys) {
+                remainingFace.vertex_indices[removed_vert_index] =
+                    remainingFace.vertex_indices[removed_vert_index + 1];
+                removed_vert_index += 1;
+              }
+              remainingFace.vertex_indices.pop_back();
             }
 
-            // this triangle is an ear
-            {
-              index_t idx0, idx1, idx2;
-              idx0.vertex_index = ind[0].v_idx;
-              idx0.normal_index = ind[0].vn_idx;
-              idx0.texcoord_index = ind[0].vt_idx;
-              idx1.vertex_index = ind[1].v_idx;
-              idx1.normal_index = ind[1].vn_idx;
-              idx1.texcoord_index = ind[1].vt_idx;
-              idx2.vertex_index = ind[2].v_idx;
-              idx2.normal_index = ind[2].vn_idx;
-              idx2.texcoord_index = ind[2].vt_idx;
+            if (remainingFace.vertex_indices.size() == 3) {
+              i0 = remainingFace.vertex_indices[0];
+              i1 = remainingFace.vertex_indices[1];
+              i2 = remainingFace.vertex_indices[2];
+              {
+                index_t idx0, idx1, idx2;
+                idx0.vertex_index = i0.v_idx;
+                idx0.normal_index = i0.vn_idx;
+                idx0.texcoord_index = i0.vt_idx;
+                idx1.vertex_index = i1.v_idx;
+                idx1.normal_index = i1.vn_idx;
+                idx1.texcoord_index = i1.vt_idx;
+                idx2.vertex_index = i2.v_idx;
+                idx2.normal_index = i2.vn_idx;
+                idx2.texcoord_index = i2.vt_idx;
 
-              shape->mesh.indices.push_back(idx0);
-              shape->mesh.indices.push_back(idx1);
-              shape->mesh.indices.push_back(idx2);
+                shape->mesh.indices.push_back(idx0);
+                shape->mesh.indices.push_back(idx1);
+                shape->mesh.indices.push_back(idx2);
 
-              shape->mesh.num_face_vertices.push_back(3);
-              shape->mesh.material_ids.push_back(material_id);
-              shape->mesh.smoothing_group_ids.push_back(
-                  face.smoothing_group_id);
+                shape->mesh.num_face_vertices.push_back(3);
+                shape->mesh.material_ids.push_back(material_id);
+                shape->mesh.smoothing_group_ids.push_back(
+                    face.smoothing_group_id);
+              }
             }
-
-            // remove v1 from the list
-            size_t removed_vert_index = (guess_vert + 1) % npolys;
-            while (removed_vert_index + 1 < npolys) {
-              remainingFace.vertex_indices[removed_vert_index] =
-                  remainingFace.vertex_indices[removed_vert_index + 1];
-              removed_vert_index += 1;
-            }
-            remainingFace.vertex_indices.pop_back();
           }
-
-          // std::cout << "remainingFace.vi.size = " <<
-          // remainingFace.vertex_indices.size() << "\n";
-          if (remainingFace.vertex_indices.size() == 3) {
-            i0 = remainingFace.vertex_indices[0];
-            i1 = remainingFace.vertex_indices[1];
-            i2 = remainingFace.vertex_indices[2];
-            {
-              index_t idx0, idx1, idx2;
-              idx0.vertex_index = i0.v_idx;
-              idx0.normal_index = i0.vn_idx;
-              idx0.texcoord_index = i0.vt_idx;
-              idx1.vertex_index = i1.v_idx;
-              idx1.normal_index = i1.vn_idx;
-              idx1.texcoord_index = i1.vt_idx;
-              idx2.vertex_index = i2.v_idx;
-              idx2.normal_index = i2.vn_idx;
-              idx2.texcoord_index = i2.vt_idx;
-
-              shape->mesh.indices.push_back(idx0);
-              shape->mesh.indices.push_back(idx1);
-              shape->mesh.indices.push_back(idx2);
-
-              shape->mesh.num_face_vertices.push_back(3);
-              shape->mesh.material_ids.push_back(material_id);
-              shape->mesh.smoothing_group_ids.push_back(
-                  face.smoothing_group_id);
-            }
-          }
-#endif
-        }  // npolys
+        }  // tri_method dispatch
       } else {
         for (size_t k = 0; k < npolys; k++) {
           index_t idx;
@@ -3535,7 +3599,8 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
                             std::vector<material_t> *materials,
                             std::string *warn, std::string *err,
                             StreamReader &sr,
-                            MaterialReader *readMatFn, bool triangulate,
+                            MaterialReader *readMatFn,
+                            unsigned int tri_method, bool preserve_quads,
                             bool default_vcols_fallback,
                             const std::string &filename = "<stream>") {
   if (sr.has_errors()) {
@@ -3807,7 +3872,7 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
 
       if (newMaterialId != material) {
         exportGroupsToShape(&shape, prim_group, tags, material, name,
-                            triangulate, v, warn);
+                            tri_method, preserve_quads, v, warn);
         prim_group.faceGroup.clear();
         material = newMaterialId;
       }
@@ -3880,7 +3945,7 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
     if (sr.peek() == 'g' && (sr.peek_at(1) == ' ' || sr.peek_at(1) == '\t')) {
       // flush previous face group.
       bool ret = exportGroupsToShape(&shape, prim_group, tags, material, name,
-                                     triangulate, v, warn);
+                                     tri_method, preserve_quads, v, warn);
       (void)ret;
 
       if (shape.mesh.indices.size() > 0) {
@@ -3933,7 +3998,7 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
     if (sr.peek() == 'o' && (sr.peek_at(1) == ' ' || sr.peek_at(1) == '\t')) {
       // flush previous face group.
       bool ret = exportGroupsToShape(&shape, prim_group, tags, material, name,
-                                     triangulate, v, warn);
+                                     tri_method, preserve_quads, v, warn);
       (void)ret;
 
       if (shape.mesh.indices.size() > 0 || shape.lines.indices.size() > 0 ||
@@ -4070,7 +4135,7 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
   }
 
   bool ret = exportGroupsToShape(&shape, prim_group, tags, material, name,
-                                 triangulate, v, warn);
+                                 tri_method, preserve_quads, v, warn);
   if (ret || shape.mesh.indices.size()) {
     shapes->push_back(shape);
   }
@@ -4087,10 +4152,11 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
   return true;
 }
 
-bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
-             std::vector<material_t> *materials, std::string *warn,
-             std::string *err, const char *filename, const char *mtl_basedir,
-             bool triangulate, bool default_vcols_fallback) {
+static bool LoadObjEx(attrib_t *attrib, std::vector<shape_t> *shapes,
+                      std::vector<material_t> *materials, std::string *warn,
+                      std::string *err, const char *filename,
+                      const char *mtl_basedir, unsigned int tri_method,
+                      bool preserve_quads, bool default_vcols_fallback) {
   attrib->vertices.clear();
   attrib->vertex_weights.clear();
   attrib->normals.clear();
@@ -4134,8 +4200,8 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
     }
     StreamReader sr(mf.data, mf.size);
     return LoadObjInternal(attrib, shapes, materials, warn, err, sr,
-                           &matFileReader, triangulate, default_vcols_fallback,
-                           filename);
+                           &matFileReader, tri_method, preserve_quads,
+                           default_vcols_fallback, filename);
   }
 #else   // !TINYOBJLOADER_USE_MMAP
 #ifdef _WIN32
@@ -4154,17 +4220,17 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   {
     StreamReader sr(ifs);
     return LoadObjInternal(attrib, shapes, materials, warn, err, sr,
-                           &matFileReader, triangulate, default_vcols_fallback,
-                           filename);
+                           &matFileReader, tri_method, preserve_quads,
+                           default_vcols_fallback, filename);
   }
 #endif  // TINYOBJLOADER_USE_MMAP
 }
 
-bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
-             std::vector<material_t> *materials, std::string *warn,
-             std::string *err, std::istream *inStream,
-             MaterialReader *readMatFn /*= NULL*/, bool triangulate,
-             bool default_vcols_fallback) {
+static bool LoadObjEx(attrib_t *attrib, std::vector<shape_t> *shapes,
+                      std::vector<material_t> *materials, std::string *warn,
+                      std::string *err, std::istream *inStream,
+                      MaterialReader *readMatFn, unsigned int tri_method,
+                      bool preserve_quads, bool default_vcols_fallback) {
   attrib->vertices.clear();
   attrib->vertex_weights.clear();
   attrib->normals.clear();
@@ -4176,7 +4242,31 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 
   StreamReader sr(*inStream);
   return LoadObjInternal(attrib, shapes, materials, warn, err, sr,
-                         readMatFn, triangulate, default_vcols_fallback);
+                         readMatFn, tri_method, preserve_quads,
+                         default_vcols_fallback);
+}
+
+bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
+             std::vector<material_t> *materials, std::string *warn,
+             std::string *err, const char *filename, const char *mtl_basedir,
+             bool triangulate, bool default_vcols_fallback) {
+  unsigned int tri_method = triangulate
+      ? TINYOBJLOADER_TRIANGULATE_EARCLIP
+      : TINYOBJLOADER_TRIANGULATE_NONE;
+  return LoadObjEx(attrib, shapes, materials, warn, err, filename, mtl_basedir,
+                   tri_method, false, default_vcols_fallback);
+}
+
+bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
+             std::vector<material_t> *materials, std::string *warn,
+             std::string *err, std::istream *inStream,
+             MaterialReader *readMatFn /*= NULL*/, bool triangulate,
+             bool default_vcols_fallback) {
+  unsigned int tri_method = triangulate
+      ? TINYOBJLOADER_TRIANGULATE_EARCLIP
+      : TINYOBJLOADER_TRIANGULATE_NONE;
+  return LoadObjEx(attrib, shapes, materials, warn, err, inStream, readMatFn,
+                   tri_method, false, default_vcols_fallback);
 }
 
 
@@ -4491,9 +4581,14 @@ bool ObjReader::ParseFromFile(const std::string &filename,
     mtl_search_path = config.mtl_search_path;
   }
 
-  valid_ = LoadObj(&attrib_, &shapes_, &materials_, &warning_, &error_,
-                   filename.c_str(), mtl_search_path.c_str(),
-                   config.triangulate, config.vertex_color);
+  unsigned int tri_method = TINYOBJLOADER_TRIANGULATE_NONE;
+  if (config.triangulate) {
+    tri_method = parseTriangulationMethod(config.triangulation_method);
+  }
+
+  valid_ = LoadObjEx(&attrib_, &shapes_, &materials_, &warning_, &error_,
+                     filename.c_str(), mtl_search_path.c_str(),
+                     tri_method, config.preserve_quads, config.vertex_color);
 
   return valid_;
 }
@@ -4509,8 +4604,14 @@ bool ObjReader::ParseFromString(const std::string &obj_text,
 
   MaterialStreamReader mtl_ss(mtl_ifs);
 
-  valid_ = LoadObj(&attrib_, &shapes_, &materials_, &warning_, &error_,
-                   &obj_ifs, &mtl_ss, config.triangulate, config.vertex_color);
+  unsigned int tri_method = TINYOBJLOADER_TRIANGULATE_NONE;
+  if (config.triangulate) {
+    tri_method = parseTriangulationMethod(config.triangulation_method);
+  }
+
+  valid_ = LoadObjEx(&attrib_, &shapes_, &materials_, &warning_, &error_,
+                     &obj_ifs, &mtl_ss, tri_method, config.preserve_quads,
+                     config.vertex_color);
 
   return valid_;
 }
