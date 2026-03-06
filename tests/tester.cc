@@ -2301,6 +2301,266 @@ main(
 }
 #endif
 
+// Tests for triangulation method selection and preserve_quads option.
+
+// Helper: parse an inline OBJ string using the v2 API with given config.
+static void ParseInlineObj(const std::string &obj_text,
+                           const tinyobj::ObjReaderConfig &config,
+                           tinyobj::ObjReader &reader) {
+  bool ok = reader.ParseFromString(obj_text, std::string(""), config);
+  if (!reader.Warning().empty()) {
+    std::cout << "WARN: " << reader.Warning() << std::endl;
+  }
+  if (!reader.Error().empty()) {
+    std::cerr << "ERR: " << reader.Error() << std::endl;
+  }
+  TEST_CHECK(ok);
+}
+
+void test_triangulation_fan_quad() {
+  // A single quad face
+  const std::string obj =
+      "v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\n"
+      "f 1 2 3 4\n";
+
+  tinyobj::ObjReaderConfig config;
+  config.triangulate = true;
+  config.triangulation_method = "fan";
+  config.vertex_color = false;
+
+  tinyobj::ObjReader reader;
+  ParseInlineObj(obj, config, reader);
+  TEST_CHECK(1 == reader.GetShapes().size());
+  // A quad fan-triangulated should produce 2 triangles
+  TEST_CHECK(2 == reader.GetShapes()[0].mesh.num_face_vertices.size());
+  TEST_CHECK(3 == reader.GetShapes()[0].mesh.num_face_vertices[0]);
+  TEST_CHECK(3 == reader.GetShapes()[0].mesh.num_face_vertices[1]);
+  // 6 indices total
+  TEST_CHECK(6 == reader.GetShapes()[0].mesh.indices.size());
+  // Fan from vertex 0: (0,1,2), (0,2,3)
+  TEST_CHECK(0 == reader.GetShapes()[0].mesh.indices[0].vertex_index);
+  TEST_CHECK(1 == reader.GetShapes()[0].mesh.indices[1].vertex_index);
+  TEST_CHECK(2 == reader.GetShapes()[0].mesh.indices[2].vertex_index);
+  TEST_CHECK(0 == reader.GetShapes()[0].mesh.indices[3].vertex_index);
+  TEST_CHECK(2 == reader.GetShapes()[0].mesh.indices[4].vertex_index);
+  TEST_CHECK(3 == reader.GetShapes()[0].mesh.indices[5].vertex_index);
+}
+
+void test_triangulation_fan_pentagon() {
+  // A single pentagon face
+  const std::string obj =
+      "v 0 0 0\nv 1 0 0\nv 1.5 1 0\nv 0.5 1.5 0\nv -0.5 1 0\n"
+      "f 1 2 3 4 5\n";
+
+  tinyobj::ObjReaderConfig config;
+  config.triangulate = true;
+  config.triangulation_method = "fan";
+  config.vertex_color = false;
+
+  tinyobj::ObjReader reader;
+  ParseInlineObj(obj, config, reader);
+  TEST_CHECK(1 == reader.GetShapes().size());
+  // Pentagon fan-triangulated: 3 triangles
+  TEST_CHECK(3 == reader.GetShapes()[0].mesh.num_face_vertices.size());
+  TEST_CHECK(9 == reader.GetShapes()[0].mesh.indices.size());
+  // Fan: (0,1,2), (0,2,3), (0,3,4)
+  TEST_CHECK(0 == reader.GetShapes()[0].mesh.indices[0].vertex_index);
+  TEST_CHECK(1 == reader.GetShapes()[0].mesh.indices[1].vertex_index);
+  TEST_CHECK(2 == reader.GetShapes()[0].mesh.indices[2].vertex_index);
+  TEST_CHECK(0 == reader.GetShapes()[0].mesh.indices[6].vertex_index);
+  TEST_CHECK(3 == reader.GetShapes()[0].mesh.indices[7].vertex_index);
+  TEST_CHECK(4 == reader.GetShapes()[0].mesh.indices[8].vertex_index);
+}
+
+void test_triangulation_earclip_quad() {
+  // Default earclip method on quad
+  const std::string obj =
+      "v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\n"
+      "f 1 2 3 4\n";
+
+  tinyobj::ObjReaderConfig config;
+  config.triangulate = true;
+  config.triangulation_method = "earclip";
+  config.vertex_color = false;
+
+  tinyobj::ObjReader reader;
+  ParseInlineObj(obj, config, reader);
+  TEST_CHECK(1 == reader.GetShapes().size());
+  // Earclip quad => 2 triangles
+  TEST_CHECK(2 == reader.GetShapes()[0].mesh.num_face_vertices.size());
+  TEST_CHECK(6 == reader.GetShapes()[0].mesh.indices.size());
+}
+
+void test_triangulation_earclip_pentagon() {
+  // Earclip on pentagon
+  const std::string obj =
+      "v 0 0 0\nv 1 0 0\nv 1.5 1 0\nv 0.5 1.5 0\nv -0.5 1 0\n"
+      "f 1 2 3 4 5\n";
+
+  tinyobj::ObjReaderConfig config;
+  config.triangulate = true;
+  config.triangulation_method = "earclip";
+  config.vertex_color = false;
+
+  tinyobj::ObjReader reader;
+  ParseInlineObj(obj, config, reader);
+  TEST_CHECK(1 == reader.GetShapes().size());
+  // Pentagon ear-clipped: 3 triangles
+  TEST_CHECK(3 == reader.GetShapes()[0].mesh.num_face_vertices.size());
+  TEST_CHECK(9 == reader.GetShapes()[0].mesh.indices.size());
+}
+
+void test_preserve_quads() {
+  // Mix of triangle, quad, and pentagon faces
+  const std::string obj =
+      "v 0 0 0\nv 1 0 0\nv 0.5 1 0\n"
+      "v 2 0 0\nv 3 0 0\nv 3 1 0\nv 2 1 0\n"
+      "v 4 0 0\nv 5 0 0\nv 5.5 1 0\nv 4.5 1.5 0\nv 3.5 1 0\n"
+      "f 1 2 3\n"
+      "f 4 5 6 7\n"
+      "f 8 9 10 11 12\n";
+
+  tinyobj::ObjReaderConfig config;
+  config.triangulate = true;
+  config.triangulation_method = "earclip";
+  config.preserve_quads = true;
+  config.vertex_color = false;
+
+  tinyobj::ObjReader reader;
+  ParseInlineObj(obj, config, reader);
+  TEST_CHECK(1 == reader.GetShapes().size());
+  const tinyobj::shape_t &shape = reader.GetShapes()[0];
+
+  // Triangle (3 verts) => kept as-is (1 face, 3 verts)
+  // Quad (4 verts) => preserved as quad (1 face, 4 verts)
+  // Pentagon (5 verts) => triangulated (3 faces, 3 verts each)
+  // Total faces: 1 + 1 + 3 = 5
+  TEST_CHECK(5 == shape.mesh.num_face_vertices.size());
+  // face 0: triangle
+  TEST_CHECK(3 == shape.mesh.num_face_vertices[0]);
+  // face 1: quad preserved
+  TEST_CHECK(4 == shape.mesh.num_face_vertices[1]);
+  // faces 2,3,4: triangulated pentagon
+  TEST_CHECK(3 == shape.mesh.num_face_vertices[2]);
+  TEST_CHECK(3 == shape.mesh.num_face_vertices[3]);
+  TEST_CHECK(3 == shape.mesh.num_face_vertices[4]);
+
+  // Total indices: 3 + 4 + 9 = 16
+  TEST_CHECK(16 == shape.mesh.indices.size());
+}
+
+void test_preserve_quads_fan() {
+  // Same geometry but with fan triangulation
+  const std::string obj =
+      "v 0 0 0\nv 1 0 0\nv 0.5 1 0\n"
+      "v 2 0 0\nv 3 0 0\nv 3 1 0\nv 2 1 0\n"
+      "v 4 0 0\nv 5 0 0\nv 5.5 1 0\nv 4.5 1.5 0\nv 3.5 1 0\n"
+      "f 1 2 3\n"
+      "f 4 5 6 7\n"
+      "f 8 9 10 11 12\n";
+
+  tinyobj::ObjReaderConfig config;
+  config.triangulate = true;
+  config.triangulation_method = "fan";
+  config.preserve_quads = true;
+  config.vertex_color = false;
+
+  tinyobj::ObjReader reader;
+  ParseInlineObj(obj, config, reader);
+  TEST_CHECK(1 == reader.GetShapes().size());
+  const tinyobj::shape_t &shape = reader.GetShapes()[0];
+
+  // Triangle: 1 face (3 verts)
+  // Quad: preserved (1 face, 4 verts)
+  // Pentagon: fan-triangulated (3 faces, 3 verts each)
+  TEST_CHECK(5 == shape.mesh.num_face_vertices.size());
+  TEST_CHECK(3 == shape.mesh.num_face_vertices[0]);
+  TEST_CHECK(4 == shape.mesh.num_face_vertices[1]);
+  TEST_CHECK(3 == shape.mesh.num_face_vertices[2]);
+  TEST_CHECK(3 == shape.mesh.num_face_vertices[3]);
+  TEST_CHECK(3 == shape.mesh.num_face_vertices[4]);
+  TEST_CHECK(16 == shape.mesh.indices.size());
+}
+
+void test_no_triangulation() {
+  // Ensure triangulate=false still works
+  const std::string obj =
+      "v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\n"
+      "v 2 0 0\nv 3 0 0\nv 3.5 1 0\nv 2.5 1.5 0\nv 1.5 1 0\n"
+      "f 1 2 3 4\n"
+      "f 5 6 7 8 9\n";
+
+  tinyobj::ObjReaderConfig config;
+  config.triangulate = false;
+  config.vertex_color = false;
+
+  tinyobj::ObjReader reader;
+  ParseInlineObj(obj, config, reader);
+  TEST_CHECK(1 == reader.GetShapes().size());
+  const tinyobj::shape_t &shape = reader.GetShapes()[0];
+  // No triangulation: 2 original faces
+  TEST_CHECK(2 == shape.mesh.num_face_vertices.size());
+  TEST_CHECK(4 == shape.mesh.num_face_vertices[0]);
+  TEST_CHECK(5 == shape.mesh.num_face_vertices[1]);
+  TEST_CHECK(9 == shape.mesh.indices.size());
+}
+
+void test_triangulation_default_config_is_earclip() {
+  // Default ObjReaderConfig should use earclip
+  tinyobj::ObjReaderConfig config;
+  TEST_CHECK(true == config.triangulate);
+  TEST_CHECK(std::string("earclip") == config.triangulation_method);
+  TEST_CHECK(false == config.preserve_quads);
+}
+
+void test_triangulation_method_string_aliases() {
+  // "simple" should be equivalent to "fan"
+  const std::string obj =
+      "v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\n"
+      "f 1 2 3 4\n";
+
+  tinyobj::ObjReaderConfig config;
+  config.triangulate = true;
+  config.vertex_color = false;
+
+  // Load with "simple"
+  config.triangulation_method = "simple";
+  tinyobj::ObjReader reader1;
+  ParseInlineObj(obj, config, reader1);
+
+  // Load with "fan"
+  config.triangulation_method = "fan";
+  tinyobj::ObjReader reader2;
+  ParseInlineObj(obj, config, reader2);
+
+  // Both should produce identical results
+  TEST_CHECK(reader1.GetShapes()[0].mesh.indices.size() ==
+             reader2.GetShapes()[0].mesh.indices.size());
+  for (size_t i = 0; i < reader1.GetShapes()[0].mesh.indices.size(); i++) {
+    TEST_CHECK(reader1.GetShapes()[0].mesh.indices[i].vertex_index ==
+               reader2.GetShapes()[0].mesh.indices[i].vertex_index);
+  }
+}
+
+void test_triangulation_v1_api_backward_compat() {
+  // Ensure v1 API (LoadObj with bool triangulate) still works correctly
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string warn;
+  std::string err;
+  bool ret = tinyobj::LoadObj(
+      &attrib, &shapes, &materials, &warn, &err,
+      "../models/issue-295-trianguation-failure.obj",
+      gMtlBasePath, /* triangulate */ true);
+
+  TEST_CHECK(true == ret);
+  TEST_CHECK(1 == shapes.size());
+  // 14 quad faces => 28 triangles (same as existing test_face_missing_issue295)
+  TEST_CHECK(28 == shapes[0].mesh.num_face_vertices.size());
+}
+
 TEST_LIST = {
     {"cornell_box", test_cornell_box},
     {"catmark_torus_creases0", test_catmark_torus_creases0},
@@ -2389,4 +2649,17 @@ TEST_LIST = {
     {"test_parse_error_backward_compat", test_parse_error_backward_compat},
     {"test_split_string_preserves_non_escape_backslash",
      test_split_string_preserves_non_escape_backslash},
+    {"test_triangulation_fan_quad", test_triangulation_fan_quad},
+    {"test_triangulation_fan_pentagon", test_triangulation_fan_pentagon},
+    {"test_triangulation_earclip_quad", test_triangulation_earclip_quad},
+    {"test_triangulation_earclip_pentagon", test_triangulation_earclip_pentagon},
+    {"test_preserve_quads", test_preserve_quads},
+    {"test_preserve_quads_fan", test_preserve_quads_fan},
+    {"test_no_triangulation", test_no_triangulation},
+    {"test_triangulation_default_config_is_earclip",
+     test_triangulation_default_config_is_earclip},
+    {"test_triangulation_method_string_aliases",
+     test_triangulation_method_string_aliases},
+    {"test_triangulation_v1_api_backward_compat",
+     test_triangulation_v1_api_backward_compat},
     {NULL, NULL}};
