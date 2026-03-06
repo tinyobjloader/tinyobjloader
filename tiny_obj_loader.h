@@ -962,17 +962,17 @@ class StreamReader {
   }
 
   bool match(const char *prefix, size_t len) const {
-    if (idx_ + len > length_) return false;
+    if (len > length_ - idx_) return false;
     return (memcmp(buf_ + idx_, prefix, len) == 0);
   }
 
   bool char_at(size_t offset, char c) const {
-    if (idx_ + offset >= length_) return false;
+    if (offset >= length_ - idx_) return false;
     return buf_[idx_ + offset] == c;
   }
 
   char peek_at(size_t offset) const {
-    if (idx_ + offset >= length_) return '\0';
+    if (offset >= length_ - idx_) return '\0';
     return buf_[idx_ + offset];
   }
 
@@ -1446,7 +1446,7 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result) {
       // To avoid annoying MSVC's min/max macro definiton,
       // Use hardcoded int max value
       if (exponent >
-          (2147483647 / 10)) {  // 2147483647 = std::numeric_limits<int>::max()
+          ((2147483647 - 9) / 10)) {  // (INT_MAX - 9) / 10, guards both multiply and add
         // Integer overflow
         goto fail;
       }
@@ -2349,7 +2349,9 @@ inline real_t GetLength(TinyObjPoint &e) {
 }
 
 inline TinyObjPoint Normalize(TinyObjPoint e) {
-  real_t inv_length = real_t(1) / GetLength(e);
+  real_t len = GetLength(e);
+  if (len <= real_t(0)) return TinyObjPoint(real_t(0), real_t(0), real_t(0));
+  real_t inv_length = real_t(1) / len;
   return TinyObjPoint(e.x * inv_length, e.y * inv_length, e.z * inv_length);
 }
 
@@ -4290,7 +4292,7 @@ static bool LoadObjWithCallbackInternal(StreamReader &sr,
 
     // use mtl
     if (sr.match("usemtl", 6) && (sr.peek_at(6) == ' ' || sr.peek_at(6) == '\t')) {
-      sr.advance(7);
+      sr.advance(6);
       std::string namebuf = sr_parseString(sr);
 
       int newMaterialId = -1;

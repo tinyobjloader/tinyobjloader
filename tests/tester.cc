@@ -2344,7 +2344,7 @@ TEST_LIST = {
      test_usemtl_then_o_issue235},
     {"mtl_searchpaths_issue244",
      test_mtl_searchpaths_issue244},
-    {"usemtl_whitespece_issue246",
+    {"usemtl_whitespace_issue246",
      test_usemtl_whitespace_issue246},
     {"texres_texopt_issue248",
      test_texres_texopt_issue248},
