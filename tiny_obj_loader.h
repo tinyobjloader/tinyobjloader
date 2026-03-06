@@ -779,6 +779,9 @@ MaterialReader::~MaterialReader() {}
 // Every byte access is guarded by an EOF check.
 class StreamReader {
  public:
+// Maximum number of bytes StreamReader will buffer from std::istream.
+// Define this macro to a larger value if your application needs to parse
+// very large streamed OBJ/MTL content.
 #ifndef TINYOBJLOADER_STREAM_READER_MAX_BYTES
 #define TINYOBJLOADER_STREAM_READER_MAX_BYTES (size_t(256) * size_t(1024) * size_t(1024))
 #endif
@@ -3337,8 +3340,7 @@ bool MaterialFileReader::operator()(const std::string &matId,
         MappedFile mf;
         if (!mf.open(filepath.c_str())) continue;
         StreamReader sr(mf.data, mf.size);
-        LoadMtlInternal(matMap, materials, sr, warn, err, filepath);
-        return true;
+        return LoadMtlInternal(matMap, materials, sr, warn, err, filepath);
       }
 #else   // !TINYOBJLOADER_USE_MMAP
 #ifdef _WIN32
@@ -3348,9 +3350,7 @@ bool MaterialFileReader::operator()(const std::string &matId,
 #endif
       if (matIStream) {
         StreamReader mtl_sr(matIStream);
-        LoadMtlInternal(matMap, materials, mtl_sr, warn, err, filepath);
-
-        return true;
+        return LoadMtlInternal(matMap, materials, mtl_sr, warn, err, filepath);
       }
 #endif  // TINYOBJLOADER_USE_MMAP
     }
@@ -3371,8 +3371,7 @@ bool MaterialFileReader::operator()(const std::string &matId,
       MappedFile mf;
       if (mf.open(filepath.c_str())) {
         StreamReader sr(mf.data, mf.size);
-        LoadMtlInternal(matMap, materials, sr, warn, err, filepath);
-        return true;
+        return LoadMtlInternal(matMap, materials, sr, warn, err, filepath);
       }
     }
 #else   // !TINYOBJLOADER_USE_MMAP
@@ -3383,9 +3382,7 @@ bool MaterialFileReader::operator()(const std::string &matId,
 #endif
     if (matIStream) {
       StreamReader mtl_sr(matIStream);
-      LoadMtlInternal(matMap, materials, mtl_sr, warn, err, filepath);
-
-      return true;
+      return LoadMtlInternal(matMap, materials, mtl_sr, warn, err, filepath);
     }
 #endif  // TINYOBJLOADER_USE_MMAP
 
@@ -3415,9 +3412,7 @@ bool MaterialStreamReader::operator()(const std::string &matId,
   }
 
   StreamReader mtl_sr(m_inStream);
-  LoadMtlInternal(matMap, materials, mtl_sr, warn, err, "<stream>");
-
-  return true;
+  return LoadMtlInternal(matMap, materials, mtl_sr, warn, err, "<stream>");
 }
 
 static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
@@ -4246,7 +4241,7 @@ static bool LoadObjWithCallbackInternal(StreamReader &sr,
                   "material.\n";
             }
           } else {
-            if (callback.mtllib_cb) {
+            if (callback.mtllib_cb && !materials.empty()) {
               callback.mtllib_cb(user_data, &materials.at(0),
                                  static_cast<int>(materials.size()));
             }

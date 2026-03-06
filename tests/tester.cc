@@ -1846,6 +1846,42 @@ void test_loadObjWithCallback_with_BOM() {
   TEST_CHECK(data.material_count > 0);  // materials loaded => mtllib line was parsed
 }
 
+void test_loadObjWithCallback_mtllib_failure_does_not_crash() {
+  // mtllib load failure should not crash callback path, and should report an
+  // error/warning while continuing OBJ parsing.
+  std::string obj_text = "mtllib test.mtl\nv 1 2 3\n";
+  std::istringstream obj_stream(obj_text);
+
+  std::string oversized_mtl(TINYOBJLOADER_STREAM_READER_MAX_BYTES + size_t(1), ' ');
+  std::istringstream mtl_stream(oversized_mtl);
+  tinyobj::MaterialStreamReader mtl_reader(mtl_stream);
+
+  struct CallbackData {
+    int vertex_count;
+    int mtllib_count;
+    CallbackData() : vertex_count(0), mtllib_count(0) {}
+  } data;
+
+  tinyobj::callback_t cb;
+  cb.vertex_cb = [](void *user_data, tinyobj::real_t, tinyobj::real_t,
+                    tinyobj::real_t, tinyobj::real_t) {
+    reinterpret_cast<CallbackData *>(user_data)->vertex_count++;
+  };
+  cb.mtllib_cb = [](void *user_data, const tinyobj::material_t *, int) {
+    reinterpret_cast<CallbackData *>(user_data)->mtllib_count++;
+  };
+
+  std::string warn, err;
+  bool ret = tinyobj::LoadObjWithCallback(obj_stream, cb, &data, &mtl_reader,
+                                          &warn, &err);
+
+  TEST_CHECK(ret == true);
+  TEST_CHECK(data.vertex_count == 1);
+  TEST_CHECK(data.mtllib_count == 0);
+  TEST_CHECK(warn.find("Failed to load material file(s)") != std::string::npos);
+  TEST_CHECK(err.find("input stream too large") != std::string::npos);
+}
+
 
 
 // Verify that mmap-based loading (TINYOBJLOADER_USE_MMAP) produces the same
@@ -2197,6 +2233,8 @@ TEST_LIST = {
     {"test_load_obj_from_utf8_path", test_load_obj_from_utf8_path},
     {"test_load_obj_from_long_path", test_load_obj_from_long_path},
     {"test_loadObjWithCallback_with_BOM", test_loadObjWithCallback_with_BOM},
+    {"test_loadObjWithCallback_mtllib_failure_does_not_crash",
+     test_loadObjWithCallback_mtllib_failure_does_not_crash},
     {"test_texcoord_w_component", test_texcoord_w_component},
     {"test_texcoord_w_mixed_component", test_texcoord_w_mixed_component},
     {"test_mmap_and_standard_load_agree", test_mmap_and_standard_load_agree},
