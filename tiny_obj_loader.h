@@ -799,8 +799,26 @@ class StreamReader {
       is.seekg(0, std::ios::end);
       std::streampos end_pos = is.tellg();
       if (end_pos >= start_pos) {
-        size_t remaining_size = static_cast<size_t>(end_pos - start_pos);
+        std::streamoff remaining_off = static_cast<std::streamoff>(end_pos - start_pos);
+        if (remaining_off < 0) {
+          is.seekg(start_pos);
+          push_error("failed to determine stream size\n");
+          buf_ = "";
+          length_ = 0;
+          return;
+        }
         is.seekg(start_pos);
+        unsigned long long remaining_ull = static_cast<unsigned long long>(remaining_off);
+        if (remaining_ull > static_cast<unsigned long long>((std::numeric_limits<size_t>::max)())) {
+          std::stringstream ss;
+          ss << "input stream too large for this platform (" << remaining_ull
+             << " bytes exceeds size_t max " << (std::numeric_limits<size_t>::max)() << ")\n";
+          push_error(ss.str());
+          buf_ = "";
+          length_ = 0;
+          return;
+        }
+        size_t remaining_size = static_cast<size_t>(remaining_ull);
         if (remaining_size > max_stream_bytes) {
           std::stringstream ss;
           ss << "input stream too large (" << remaining_size
@@ -1066,12 +1084,19 @@ struct MappedFile {
   // Opens and maps the file. Returns true on success.
   bool open(const char *filepath) {
 #if defined(_WIN32)
-    hFile = CreateFileA(filepath, GENERIC_READ, FILE_SHARE_READ, NULL,
+    std::wstring wfilepath = LongPathW(UTF8ToWchar(std::string(filepath)));
+    hFile = CreateFileW(wfilepath.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL,
                         OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (hFile == INVALID_HANDLE_VALUE) return false;
     LARGE_INTEGER fileSize;
     if (!GetFileSizeEx(hFile, &fileSize)) { close(); return false; }
-    size = static_cast<size_t>(fileSize.QuadPart);
+    if (fileSize.QuadPart < 0) { close(); return false; }
+    unsigned long long fsize = static_cast<unsigned long long>(fileSize.QuadPart);
+    if (fsize > static_cast<unsigned long long>((std::numeric_limits<size_t>::max)())) {
+      close();
+      return false;
+    }
+    size = static_cast<size_t>(fsize);
     if (size == 0) { data = ""; return true; }  // valid but empty; is_mapped stays false
     hMapping = CreateFileMappingA(hFile, NULL, PAGE_READONLY, 0, 0, NULL);
     if (hMapping == NULL) { close(); return false; }
@@ -1084,6 +1109,12 @@ struct MappedFile {
     if (fd == -1) return false;
     struct stat sb;
     if (fstat(fd, &sb) != 0) { ::close(fd); return false; }
+    if (sb.st_size < 0) { ::close(fd); return false; }
+    if (static_cast<unsigned long long>(sb.st_size) >
+        static_cast<unsigned long long>((std::numeric_limits<size_t>::max)())) {
+      ::close(fd);
+      return false;
+    }
     size = static_cast<size_t>(sb.st_size);
     if (size == 0) { ::close(fd); data = ""; return true; }  // valid but empty
     mapped_ptr = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
@@ -2012,9 +2043,20 @@ static inline int sr_parseIntNoSkip(StreamReader &sr) {
   if (len > 0) {
     char tmp[64];
     size_t copy_len = len < 63 ? len : 63;
+    if (copy_len != len) {
+      sr.advance(len);
+      return 0;
+    }
     memcpy(tmp, start, copy_len);
     tmp[copy_len] = '\0';
-    i = atoi(tmp);
+    errno = 0;
+    char *endptr = NULL;
+    long val = strtol(tmp, &endptr, 10);
+    if (errno == 0 && endptr != tmp && *endptr == '\0' &&
+        val <= (std::numeric_limits<int>::max)() &&
+        val >= (std::numeric_limits<int>::min)()) {
+      i = static_cast<int>(val);
+    }
   }
   sr.advance(len);
   return i;

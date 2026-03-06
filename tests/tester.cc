@@ -1974,6 +1974,33 @@ void test_usemtl_callback_trims_trailing_comment() {
   TEST_CHECK(err.empty());
 }
 
+void test_tag_triple_huge_count_is_safely_rejected() {
+  std::string obj_text =
+      "v 0 0 0\n"
+      "v 1 0 0\n"
+      "v 0 1 0\n"
+      "f 1 2 3\n"
+      "t crease 999999999999999999999999999999999999999999999999999999999999999999/0/0\n";
+  std::istringstream obj_stream(obj_text);
+  std::string mtl_text;
+  std::istringstream mtl_stream(mtl_text);
+  tinyobj::MaterialStreamReader mtl_reader(mtl_stream);
+
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &obj_stream, &mtl_reader);
+
+  TEST_CHECK(ret == true);
+  TEST_CHECK(shapes.size() == size_t(1));
+  TEST_CHECK(shapes[0].mesh.tags.size() == size_t(1));
+  TEST_CHECK(shapes[0].mesh.tags[0].intValues.size() == size_t(0));
+  TEST_CHECK(shapes[0].mesh.tags[0].floatValues.size() == size_t(0));
+  TEST_CHECK(shapes[0].mesh.tags[0].stringValues.size() == size_t(0));
+}
+
 
 
 // Verify that mmap-based loading (TINYOBJLOADER_USE_MMAP) produces the same
@@ -2346,6 +2373,8 @@ TEST_LIST = {
      test_mtllib_empty_filename_is_ignored_callback},
     {"test_usemtl_callback_trims_trailing_comment",
      test_usemtl_callback_trims_trailing_comment},
+    {"test_tag_triple_huge_count_is_safely_rejected",
+     test_tag_triple_huge_count_is_safely_rejected},
     {"test_texcoord_w_component", test_texcoord_w_component},
     {"test_texcoord_w_mixed_component", test_texcoord_w_mixed_component},
     {"test_mmap_and_standard_load_agree", test_mmap_and_standard_load_agree},
