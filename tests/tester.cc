@@ -2404,7 +2404,7 @@ void test_numeric_nan_inf() {
   TEST_CHECK(attrib.vertices.size() == 36);
 
   // All nan/inf should parse without crashing.
-  // The exact values depend on the implementation (nan -> max, inf -> max),
+  // The exact values depend on the implementation (nan -> 0.0, inf -> max, -inf -> lowest),
   // but the parser must not fail or produce garbage for the non-nan/inf coords.
 
   // v0: nan 0 0 -> second and third should be 0
