@@ -28,6 +28,7 @@ force-exclude = '''
 
 [project]
 name = "tinyobjloader"
+license = { text = "MIT AND ISC" }
 
 # version: Use setuptools_scm
 dynamic = ["version", "classifiers", "authors", "description"]
@@ -48,3 +49,7 @@ readme = {file = "README.md", content-type = "text/markdown"}
 
 # setuptools_scm<8
 write_to = "python/_version.py"
+
+[tool.cibuildwheel]
+# Disable aarch64 build since it's too slow to build(docker + qemu).
+skip = ["cp38-*", "cp314t-*", "*_aarch64*"]

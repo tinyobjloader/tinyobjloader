@@ -1,6 +1,5 @@
 name: Python
 
-# Build on every branch push, tag push, and pull request change:
 on: [push, pull_request]
 
 jobs:
@@ -33,13 +32,12 @@ jobs:
           fetch-tags: true  # Optional, use if you use setuptools_scm
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.16.5
+        uses: pypa/cibuildwheel@v3.3.1
         env:
-            CIBW_ARCHS_LINUX: "x86_64"
-            # We do not need to support Python 3.6–3.8, and we only need
-            # manylinux for testing. PyPy isn't useful as this is a binary
-            # extension.
-            CIBW_SKIP: pp* cp36-* cp37-* cp38-* *-musllinux_*
+          # These are the only wheels we need for the `test_wheels` job. For
+          # faster iteration times, we limit the job to only build these wheels.
+          # Restrict to CPython to avoid building unused PyPy wheels.
+          CIBW_BUILD: "cp*-manylinux_x86_64"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -113,16 +111,12 @@ jobs:
           fetch-tags: true  # Optional, use if you use setuptools_scm
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.16.5
+        uses: pypa/cibuildwheel@v3.3.1
         env:
             CIBW_ARCHS_MACOS: "x86_64 universal2 arm64"
-            CIBW_ARCHS_WINDOWS: "AMD64 x86"
-            # disable aarm64 build since its too slow to build(docker + qemu)
-            CIBW_ARCHS_LINUX: "x86_64 i686"
-            # We do not need to support Python 3.6–3.8, and the quick build
-            # has already taken care of manylinux. PyPy isn't useful as this is
-            # a binary extension.
-            CIBW_SKIP: pp* cp36-* cp37-* cp38-* *-manylinux_x86_64
+            CIBW_ARCHS_WINDOWS: "AMD64"
+            # The quick build has already taken care of manylinux.
+            CIBW_SKIP: "*-manylinux_x86_64"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -142,10 +136,9 @@ jobs:
           fetch-tags: true  # Optional, use if you use setuptools_scm
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.16.5
+        uses: pypa/cibuildwheel@v3.3.1
         env:
             CIBW_ARCHS_WINDOWS: "ARM64"
-            CIBW_SKIP: pp*
 
       - uses: actions/upload-artifact@v4
         with:
