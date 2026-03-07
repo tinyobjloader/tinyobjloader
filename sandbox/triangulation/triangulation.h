@@ -487,7 +487,7 @@ static void FindProjectionAxes(const std::vector<size_t> &polygon_indices,
     double eps = std::numeric_limits<double>::epsilon();
     if (cx > eps || cy > eps || cz > eps) {
       if (cx > cy && cx > cz) {
-        /* axes stay {1, 2} */
+        // axes stay {1, 2}
       } else {
         axes[0] = 0;
         if (cz > cx && cz > cy) {
@@ -808,12 +808,15 @@ size_t TriangulateSweepLine(const std::vector<size_t> &polygon_indices,
   };
   std::vector<EdgeInfo> status;
 
+  // Tolerance for near-horizontal edge detection and edge-x comparison.
+  static const double kEdgeTolerance = 1e-12;
+
   // Compute x-coordinate where edge e_k intersects sweep line at y.
   auto edgeXAtY = [&](size_t eidx, double y) -> double {
     size_t from = eidx;
     size_t to = (eidx + 1) % n;
     double dy = py[to] - py[from];
-    if (std::fabs(dy) < 1e-15) return std::min(px[from], px[to]);
+    if (std::fabs(dy) < kEdgeTolerance) return std::min(px[from], px[to]);
     return px[from] + (px[to] - px[from]) * (y - py[from]) / dy;
   };
 
@@ -825,7 +828,7 @@ size_t TriangulateSweepLine(const std::vector<size_t> &polygon_indices,
     double best_x = -std::numeric_limits<double>::max();
     for (size_t j = 0; j < status.size(); j++) {
       double ex = edgeXAtY(status[j].edge_idx, vy);
-      if (ex <= vx + 1e-12 && ex > best_x) {
+      if (ex <= vx + kEdgeTolerance && ex > best_x) {
         best_x = ex;
         best = static_cast<int>(j);
       }
