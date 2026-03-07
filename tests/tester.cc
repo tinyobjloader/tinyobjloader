@@ -2301,6 +2301,231 @@ main(
 }
 #endif
 
+// ---- Tests for Optimized API (LoadObjOpt) ----
+
+void test_loadobjopt_from_buffer() {
+  // Simple triangle
+  const char *obj_text =
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "vn 0.0 0.0 1.0\n"
+      "vt 0.0 0.0\n"
+      "vt 1.0 0.0\n"
+      "vt 0.0 1.0\n"
+      "f 1/1/1 2/2/1 3/3/1\n";
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 1;  // force single-threaded for determinism
+  config.triangulate = true;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_text, obj_len, config);
+  if (!err.empty()) std::cerr << "ERR: " << err << "\n";
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 9);  // 3 vertices * 3 coords
+  TEST_CHECK(attrib.normals.size() == 3);   // 1 normal * 3 coords
+  TEST_CHECK(attrib.texcoords.size() == 6); // 3 texcoords * 2 coords
+  TEST_CHECK(attrib.indices.size() == 3);   // 3 face indices
+  TEST_CHECK(attrib.face_num_verts.size() == 1);  // 1 face
+  TEST_CHECK(attrib.face_num_verts[0] == 3);      // triangle
+
+  // Check vertex values
+  TEST_CHECK(attrib.vertices[0] == 0.0f);
+  TEST_CHECK(attrib.vertices[1] == 0.0f);
+  TEST_CHECK(attrib.vertices[2] == 0.0f);
+  TEST_CHECK(attrib.vertices[3] == 1.0f);
+}
+
+void test_loadobjopt_from_file() {
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 1;
+  config.triangulate = true;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  "../models/cornell_box.obj", gMtlBasePath,
+                                  config);
+  if (!err.empty()) std::cerr << "ERR: " << err << "\n";
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() > 0);
+  TEST_CHECK(shapes.size() > 0);
+
+  // Compare vertex count with standard LoadObj
+  tinyobj::attrib_t std_attrib;
+  std::vector<tinyobj::shape_t> std_shapes;
+  std::vector<tinyobj::material_t> std_materials;
+  std::string warn2, err2;
+  bool ret2 = tinyobj::LoadObj(&std_attrib, &std_shapes, &std_materials,
+                                &warn2, &err2, "../models/cornell_box.obj",
+                                gMtlBasePath);
+  TEST_CHECK(ret2 == true);
+  TEST_CHECK(attrib.vertices.size() == std_attrib.vertices.size());
+  TEST_CHECK(attrib.normals.size() == std_attrib.normals.size());
+}
+
+void test_loadobjopt_quad_triangulation() {
+  // Quad face that should be triangulated
+  const char *obj_text =
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 1.0 1.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "f 1 2 3 4\n";
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 1;
+  config.triangulate = true;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_text, obj_len, config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 12);  // 4 vertices * 3
+  // Quad triangulated into 2 triangles = 6 indices
+  TEST_CHECK(attrib.indices.size() == 6);
+  TEST_CHECK(attrib.face_num_verts.size() == 2);
+  TEST_CHECK(attrib.face_num_verts[0] == 3);
+  TEST_CHECK(attrib.face_num_verts[1] == 3);
+}
+
+void test_loadobjopt_no_triangulation() {
+  const char *obj_text =
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 1.0 1.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "f 1 2 3 4\n";
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 1;
+  config.triangulate = false;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_text, obj_len, config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.indices.size() == 4);  // quad = 4 indices
+  TEST_CHECK(attrib.face_num_verts.size() == 1);
+  TEST_CHECK(attrib.face_num_verts[0] == 4);
+}
+
+void test_loadobjopt_multiple_groups() {
+  const char *obj_text =
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "v 1.0 1.0 0.0\n"
+      "v 0.0 0.0 1.0\n"
+      "v 1.0 0.0 1.0\n"
+      "g group1\n"
+      "f 1 2 3\n"
+      "g group2\n"
+      "f 4 5 6\n";
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 1;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_text, obj_len, config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(shapes.size() == 2);
+}
+
+void test_loadobjopt_empty_buffer() {
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  "", static_cast<size_t>(0));
+  TEST_CHECK(ret == true);  // empty is not an error
+  TEST_CHECK(attrib.vertices.size() == 0);
+}
+
+void test_arena_allocator() {
+  tinyobj::ArenaAllocator arena(4096);
+
+  // Basic allocation
+  void *p1 = arena.allocate(100);
+  TEST_CHECK(p1 != NULL);
+
+  void *p2 = arena.allocate(200);
+  TEST_CHECK(p2 != NULL);
+  TEST_CHECK(p1 != p2);
+
+  // Aligned allocation
+  void *p3 = arena.allocate(64, 64);
+  TEST_CHECK(p3 != NULL);
+  TEST_CHECK(reinterpret_cast<uintptr_t>(p3) % 64 == 0);
+
+  // Large allocation (exceeds default block)
+  void *p4 = arena.allocate(8192);
+  TEST_CHECK(p4 != NULL);
+
+  // Reset and reuse
+  arena.reset();
+  void *p5 = arena.allocate(100);
+  TEST_CHECK(p5 != NULL);
+}
+
+void test_arena_adapter_with_vector() {
+  tinyobj::ArenaAllocator arena(1024 * 1024);
+  tinyobj::arena_adapter<float> alloc(&arena);
+
+  // Use arena allocator with std::vector
+  std::vector<float, tinyobj::arena_adapter<float>> vec(alloc);
+  vec.reserve(100);
+  for (int i = 0; i < 100; i++) {
+    vec.push_back(static_cast<float>(i));
+  }
+
+  TEST_CHECK(vec.size() == 100);
+  TEST_CHECK(vec[0] == 0.0f);
+  TEST_CHECK(vec[99] == 99.0f);
+}
+
+void test_basic_attrib_with_arena() {
+  // Test basic_attrib_t with custom allocator
+  tinyobj::ArenaAllocator arena(1024 * 1024);
+  typedef tinyobj::arena_adapter<char> ArenaAlloc;
+
+  // Verify the template compiles and works
+  tinyobj::basic_attrib_t<ArenaAlloc> attrib;
+  attrib.vertices.push_back(1.0f);
+  attrib.vertices.push_back(2.0f);
+  attrib.vertices.push_back(3.0f);
+  TEST_CHECK(attrib.vertices.size() == 3);
+  TEST_CHECK(attrib.vertices[0] == 1.0f);
+}
+
 TEST_LIST = {
     {"cornell_box", test_cornell_box},
     {"catmark_torus_creases0", test_catmark_torus_creases0},
@@ -2389,4 +2614,13 @@ TEST_LIST = {
     {"test_parse_error_backward_compat", test_parse_error_backward_compat},
     {"test_split_string_preserves_non_escape_backslash",
      test_split_string_preserves_non_escape_backslash},
+    {"test_loadobjopt_from_buffer", test_loadobjopt_from_buffer},
+    {"test_loadobjopt_from_file", test_loadobjopt_from_file},
+    {"test_loadobjopt_quad_triangulation", test_loadobjopt_quad_triangulation},
+    {"test_loadobjopt_no_triangulation", test_loadobjopt_no_triangulation},
+    {"test_loadobjopt_multiple_groups", test_loadobjopt_multiple_groups},
+    {"test_loadobjopt_empty_buffer", test_loadobjopt_empty_buffer},
+    {"test_arena_allocator", test_arena_allocator},
+    {"test_arena_adapter_with_vector", test_arena_adapter_with_vector},
+    {"test_basic_attrib_with_arena", test_basic_attrib_with_arena},
     {NULL, NULL}};
