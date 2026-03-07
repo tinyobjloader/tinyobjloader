@@ -5217,6 +5217,17 @@ static inline bool opt_is_line_ending(const char *p, size_t i, size_t end_i) {
 
 #ifdef TINYOBJLOADER_USE_SIMD
 
+// Portable count-trailing-zeros for SIMD bitmask extraction
+static inline unsigned int tinyobj_ctz(unsigned int x) {
+#if defined(_MSC_VER)
+  unsigned long idx;
+  _BitScanForward(&idx, x);
+  return static_cast<unsigned int>(idx);
+#else
+  return static_cast<unsigned int>(__builtin_ctz(x));
+#endif
+}
+
 #if defined(TINYOBJLOADER_SIMD_AVX2)
 
 /// AVX2-accelerated newline scanning — finds '\n' positions in a buffer.
@@ -5230,7 +5241,7 @@ static void simd_find_newlines(const char *buf, size_t len,
     __m256i cmp = _mm256_cmpeq_epi8(chunk, nl);
     unsigned int mask = static_cast<unsigned int>(_mm256_movemask_epi8(cmp));
     while (mask) {
-      unsigned int bit = __builtin_ctz(mask);
+      unsigned int bit = tinyobj_ctz(mask);
       positions.push_back(i + bit);
       mask &= mask - 1;
     }
@@ -5254,7 +5265,7 @@ static void simd_find_newlines(const char *buf, size_t len,
     __m128i cmp = _mm_cmpeq_epi8(chunk, nl);
     int mask = _mm_movemask_epi8(cmp);
     while (mask) {
-      int bit = __builtin_ctz(static_cast<unsigned int>(mask));
+      int bit = static_cast<int>(tinyobj_ctz(static_cast<unsigned int>(mask)));
       positions.push_back(i + static_cast<size_t>(bit));
       mask &= mask - 1;
     }
@@ -5275,9 +5286,11 @@ static void simd_find_newlines(const char *buf, size_t len,
   for (; i + 16 <= len; i += 16) {
     uint8x16_t chunk = vld1q_u8(reinterpret_cast<const uint8_t *>(buf + i));
     uint8x16_t cmp = vceqq_u8(chunk, nl);
-    // Extract results byte-by-byte (NEON lacks movemask)
+    // Extract results byte-by-byte (NEON lacks movemask).
+    // We rotate the comparison result left by 1 each iteration,
+    // so lane 0 always holds the result for the current byte.
     for (int j = 0; j < 16; j++) {
-      if (vgetq_lane_u8(cmp, 0) != 0) {  // Check lane j
+      if (vgetq_lane_u8(cmp, 0) != 0) {
         positions.push_back(i + static_cast<size_t>(j));
       }
       cmp = vextq_u8(cmp, cmp, 1);  // Rotate
@@ -5799,11 +5812,74 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
     if (err) *err = "Failed to read file: " + filepath;
     return false;
   }
+  ifs.close();
 
-  (void)mtl_basedir;  // TODO: use for material path resolution
+  // Resolve material base directory
+  std::string baseDir;
+  if (mtl_basedir) {
+    baseDir = mtl_basedir;
+  } else {
+    // Extract directory from filename
+    size_t pos = filepath.find_last_of("/\\");
+    if (pos != std::string::npos) {
+      baseDir = filepath.substr(0, pos + 1);
+    }
+  }
+  if (!baseDir.empty()) {
+#ifndef _WIN32
+    const char dirsep = '/';
+#else
+    const char dirsep = '\\';
+#endif
+    if (baseDir[baseDir.length() - 1] != dirsep) baseDir += dirsep;
+  }
 
-  return LoadObjOpt(attrib, shapes, materials, warn, err, buf.data(),
-                    static_cast<size_t>(fsize), config);
+  // Parse the buffer; material loading happens inside LoadObjOpt(buffer).
+  // We need to set up the mtl base dir for internal material loading.
+  // For now, we directly parse the buffer and handle mtl path resolution
+  // by pre-scanning for mtllib and adjusting the buffer approach.
+  //
+  // The buffer-based LoadObjOpt loads mtllib files using the filename as-is.
+  // To support mtl_basedir, we use MaterialFileReader for proper path search.
+  bool ret = LoadObjOpt(attrib, shapes, materials, warn, err, buf.data(),
+                        static_cast<size_t>(fsize), config);
+
+  // If materials weren't loaded by the buffer path (mtllib path may need
+  // base dir), try loading via MaterialFileReader as a fallback.
+  if (ret && materials && materials->empty()) {
+    // Scan buffer for mtllib directive
+    std::string mtl_filename;
+    const char *p = buf.data();
+    const char *end_p = p + fsize;
+    while (p < end_p) {
+      while (p < end_p && (*p == ' ' || *p == '\t')) p++;
+      if (p + 7 < end_p && std::strncmp(p, "mtllib", 6) == 0 &&
+          (p[6] == ' ' || p[6] == '\t')) {
+        p += 7;
+        while (p < end_p && (*p == ' ' || *p == '\t')) p++;
+        const char *name_start = p;
+        while (p < end_p && *p != '\n' && *p != '\r') p++;
+        mtl_filename.assign(name_start, p);
+        while (!mtl_filename.empty() &&
+               (mtl_filename.back() == ' ' || mtl_filename.back() == '\t'))
+          mtl_filename.pop_back();
+        break;
+      }
+      while (p < end_p && *p != '\n') p++;
+      if (p < end_p) p++;
+    }
+
+    if (!mtl_filename.empty() && !baseDir.empty()) {
+      std::map<std::string, int> matMap;
+      std::string mtl_path = baseDir + mtl_filename;
+      std::ifstream mtl_ifs(mtl_path);
+      if (mtl_ifs.good()) {
+        LoadMtl(&matMap, materials, &mtl_ifs, warn, err);
+      }
+    }
+  }
+
+  return ret;
 }
 
 #endif  // C++11 optimized API

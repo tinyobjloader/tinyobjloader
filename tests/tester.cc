@@ -2475,25 +2475,25 @@ void test_arena_allocator() {
 
   // Basic allocation
   void *p1 = arena.allocate(100);
-  TEST_CHECK(p1 != NULL);
+  TEST_CHECK(p1 != nullptr);
 
   void *p2 = arena.allocate(200);
-  TEST_CHECK(p2 != NULL);
+  TEST_CHECK(p2 != nullptr);
   TEST_CHECK(p1 != p2);
 
   // Aligned allocation
   void *p3 = arena.allocate(64, 64);
-  TEST_CHECK(p3 != NULL);
+  TEST_CHECK(p3 != nullptr);
   TEST_CHECK(reinterpret_cast<uintptr_t>(p3) % 64 == 0);
 
   // Large allocation (exceeds default block)
   void *p4 = arena.allocate(8192);
-  TEST_CHECK(p4 != NULL);
+  TEST_CHECK(p4 != nullptr);
 
   // Reset and reuse
   arena.reset();
   void *p5 = arena.allocate(100);
-  TEST_CHECK(p5 != NULL);
+  TEST_CHECK(p5 != nullptr);
 }
 
 void test_arena_adapter_with_vector() {
