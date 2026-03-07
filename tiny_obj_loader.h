@@ -511,6 +511,7 @@ class MaterialStreamReader : public MaterialReader {
 #define TINYOBJLOADER_TRIANGULATE_FAN 1
 #define TINYOBJLOADER_TRIANGULATE_EARCLIP 2
 #define TINYOBJLOADER_TRIANGULATE_MAPBOX_EARCUT 3
+#define TINYOBJLOADER_TRIANGULATE_MWT 4
 
 // v2 API
 struct ObjReaderConfig {
@@ -523,6 +524,9 @@ struct ObjReaderConfig {
   /// "earcut" or "mapbox": Mapbox earcut algorithm
   ///                       (requires TINYOBJLOADER_USE_MAPBOX_EARCUT,
   ///                        falls back to earclip if not available)
+  /// "mwt" or "greedy": Minimum Weight Triangulation greedy algorithm
+  ///                    (near-optimal triangulation minimizing total diagonal
+  ///                     length, based on directional greedy approach)
   std::string triangulation_method;
 
   /// When true and triangulate is true, keep quad faces (4 vertices) as-is
@@ -2384,6 +2388,8 @@ static unsigned int parseTriangulationMethod(const std::string &method) {
     return TINYOBJLOADER_TRIANGULATE_FAN;
   } else if (method == "earcut" || method == "mapbox") {
     return TINYOBJLOADER_TRIANGULATE_MAPBOX_EARCUT;
+  } else if (method == "mwt" || method == "greedy") {
+    return TINYOBJLOADER_TRIANGULATE_MWT;
   }
   // "earclip" or anything else defaults to built-in ear clipping
   return TINYOBJLOADER_TRIANGULATE_EARCLIP;
@@ -2450,6 +2456,263 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
             shape->mesh.material_ids.push_back(material_id);
             shape->mesh.smoothing_group_ids.push_back(
                 face.smoothing_group_id);
+          }
+
+        } else if (tri_method == TINYOBJLOADER_TRIANGULATE_MWT) {
+          // Minimum Weight Triangulation using greedy algorithm.
+          // Based on "A Linear-Time Greedy Algorithm with Directional
+          // Optimization for Near-Optimal Minimum Weight Triangulation of
+          // Convex Polygons" (drmasifhabib/MWT_Greedy_Algorithm).
+          //
+          // The algorithm works by iteratively removing vertices. For each
+          // window of 4 consecutive vertices (v1,v2,v3,v4), it compares the
+          // two possible diagonals (v1-v3 vs v2-v4) and picks the shorter one
+          // to split off a triangle. It tries both winding directions and picks
+          // the result with the lower total diagonal weight.
+
+          if (npolys == 4) {
+            // Optimized quad: split along shorter diagonal
+            vertex_index_t i0 = face.vertex_indices[0];
+            vertex_index_t i1 = face.vertex_indices[1];
+            vertex_index_t i2 = face.vertex_indices[2];
+            vertex_index_t i3 = face.vertex_indices[3];
+
+            size_t vi0 = size_t(i0.v_idx);
+            size_t vi1 = size_t(i1.v_idx);
+            size_t vi2 = size_t(i2.v_idx);
+            size_t vi3 = size_t(i3.v_idx);
+
+            if (((3 * vi0 + 2) >= v.size()) || ((3 * vi1 + 2) >= v.size()) ||
+                ((3 * vi2 + 2) >= v.size()) || ((3 * vi3 + 2) >= v.size())) {
+              if (warn) {
+                (*warn) += "Face with invalid vertex index found.\n";
+              }
+              continue;
+            }
+
+            real_t e02x = v[vi2 * 3 + 0] - v[vi0 * 3 + 0];
+            real_t e02y = v[vi2 * 3 + 1] - v[vi0 * 3 + 1];
+            real_t e02z = v[vi2 * 3 + 2] - v[vi0 * 3 + 2];
+            real_t e13x = v[vi3 * 3 + 0] - v[vi1 * 3 + 0];
+            real_t e13y = v[vi3 * 3 + 1] - v[vi1 * 3 + 1];
+            real_t e13z = v[vi3 * 3 + 2] - v[vi1 * 3 + 2];
+
+            real_t sqr02 = e02x * e02x + e02y * e02y + e02z * e02z;
+            real_t sqr13 = e13x * e13x + e13y * e13y + e13z * e13z;
+
+            index_t idx0, idx1, idx2, idx3;
+            idx0.vertex_index = i0.v_idx;
+            idx0.normal_index = i0.vn_idx;
+            idx0.texcoord_index = i0.vt_idx;
+            idx1.vertex_index = i1.v_idx;
+            idx1.normal_index = i1.vn_idx;
+            idx1.texcoord_index = i1.vt_idx;
+            idx2.vertex_index = i2.v_idx;
+            idx2.normal_index = i2.vn_idx;
+            idx2.texcoord_index = i2.vt_idx;
+            idx3.vertex_index = i3.v_idx;
+            idx3.normal_index = i3.vn_idx;
+            idx3.texcoord_index = i3.vt_idx;
+
+            if (sqr02 < sqr13) {
+              shape->mesh.indices.push_back(idx0);
+              shape->mesh.indices.push_back(idx1);
+              shape->mesh.indices.push_back(idx2);
+              shape->mesh.indices.push_back(idx0);
+              shape->mesh.indices.push_back(idx2);
+              shape->mesh.indices.push_back(idx3);
+            } else {
+              shape->mesh.indices.push_back(idx0);
+              shape->mesh.indices.push_back(idx1);
+              shape->mesh.indices.push_back(idx3);
+              shape->mesh.indices.push_back(idx1);
+              shape->mesh.indices.push_back(idx2);
+              shape->mesh.indices.push_back(idx3);
+            }
+
+            shape->mesh.num_face_vertices.push_back(3);
+            shape->mesh.num_face_vertices.push_back(3);
+            shape->mesh.material_ids.push_back(material_id);
+            shape->mesh.material_ids.push_back(material_id);
+            shape->mesh.smoothing_group_ids.push_back(face.smoothing_group_id);
+            shape->mesh.smoothing_group_ids.push_back(face.smoothing_group_id);
+
+          } else {
+            // 5+ ngon: MWT greedy with directional optimization.
+            // We try both vertex orderings (clockwise and reversed) and pick
+            // the one that produces the lower total diagonal weight.
+
+            // Helper lambda-like struct for running greedy on a vertex ordering
+            // We use indices into face.vertex_indices so we can map back.
+            // The algorithm:
+            //  1. Find shortest external edge, rotate to start there
+            //  2. For each window of 4 consecutive verts, compare two
+            //     diagonals and pick the shorter one, emit a triangle,
+            //     remove the ear vertex
+            //  3. Repeat until only 3 verts remain
+
+            // We'll run the greedy twice (forward and reversed order),
+            // collecting triangle index triples, then pick the run with
+            // lower total weight.
+
+            // Build a working copy of vertex indices for forward pass
+            std::vector<size_t> order_fwd(npolys);
+            for (size_t k = 0; k < npolys; k++) {
+              order_fwd[k] = k;
+            }
+
+            // Reversed order
+            std::vector<size_t> order_rev(npolys);
+            for (size_t k = 0; k < npolys; k++) {
+              order_rev[k] = npolys - 1 - k;
+            }
+
+            // Squared distance between two face vertex indices
+            // Returns squared 3D Euclidean distance
+            real_t best_weight = static_cast<real_t>(0.0);
+            std::vector<size_t> best_triangles;  // triples of original indices
+            bool first_pass = true;
+
+            for (int pass = 0; pass < 2; pass++) {
+              std::vector<size_t> order = (pass == 0) ? order_fwd : order_rev;
+              size_t n = order.size();
+
+              // Validate all vertex indices
+              bool valid = true;
+              for (size_t k = 0; k < n; k++) {
+                size_t vi = size_t(face.vertex_indices[order[k]].v_idx);
+                if ((vi * 3 + 2) >= v.size()) {
+                  valid = false;
+                  break;
+                }
+              }
+              if (!valid) continue;
+
+              // Find shortest external edge and rotate
+              real_t min_edge_sq = std::numeric_limits<real_t>::max();
+              size_t start_idx = 0;
+              for (size_t k = 0; k < n; k++) {
+                size_t vi_a = size_t(face.vertex_indices[order[k]].v_idx);
+                size_t vi_b = size_t(face.vertex_indices[order[(k + 1) % n]].v_idx);
+                real_t dx = v[vi_a * 3 + 0] - v[vi_b * 3 + 0];
+                real_t dy = v[vi_a * 3 + 1] - v[vi_b * 3 + 1];
+                real_t dz = v[vi_a * 3 + 2] - v[vi_b * 3 + 2];
+                real_t sq = dx * dx + dy * dy + dz * dz;
+                if (sq < min_edge_sq) {
+                  min_edge_sq = sq;
+                  start_idx = k;
+                }
+              }
+
+              // Rotate order to start from shortest edge
+              if (start_idx > 0) {
+                std::vector<size_t> rotated(n);
+                for (size_t k = 0; k < n; k++) {
+                  rotated[k] = order[(k + start_idx) % n];
+                }
+                order = rotated;
+              }
+
+              // Greedy triangulation
+              real_t total_weight = static_cast<real_t>(0.0);
+              std::vector<size_t> triangles;
+              triangles.reserve((n - 2) * 3);
+
+              while (n > 3) {
+                // Scan for best local diagonal to cut
+                bool cut_made = false;
+                for (size_t k = 0; k < n; k++) {
+                  size_t k0 = k;
+                  size_t k1 = (k + 1) % n;
+                  size_t k2 = (k + 2) % n;
+                  size_t k3 = (k + 3) % n;
+
+                  size_t vi1 = size_t(face.vertex_indices[order[k0]].v_idx);
+                  size_t vi2 = size_t(face.vertex_indices[order[k1]].v_idx);
+                  size_t vi3 = size_t(face.vertex_indices[order[k2]].v_idx);
+                  size_t vi4 = size_t(face.vertex_indices[order[k3]].v_idx);
+
+                  // Diagonal v1-v3
+                  real_t d1x = v[vi1 * 3 + 0] - v[vi3 * 3 + 0];
+                  real_t d1y = v[vi1 * 3 + 1] - v[vi3 * 3 + 1];
+                  real_t d1z = v[vi1 * 3 + 2] - v[vi3 * 3 + 2];
+                  real_t d1_sq = d1x * d1x + d1y * d1y + d1z * d1z;
+
+                  // Diagonal v2-v4
+                  real_t d2x = v[vi2 * 3 + 0] - v[vi4 * 3 + 0];
+                  real_t d2y = v[vi2 * 3 + 1] - v[vi4 * 3 + 1];
+                  real_t d2z = v[vi2 * 3 + 2] - v[vi4 * 3 + 2];
+                  real_t d2_sq = d2x * d2x + d2y * d2y + d2z * d2z;
+
+                  if (d1_sq < d2_sq) {
+                    // Use diagonal v1-v3, emit triangle (v1, v2, v3),
+                    // remove v2
+                    triangles.push_back(order[k0]);
+                    triangles.push_back(order[k1]);
+                    triangles.push_back(order[k2]);
+                    total_weight += std::sqrt(d1_sq);
+                    // Remove k1 from order
+                    order.erase(order.begin() +
+                                static_cast<std::ptrdiff_t>(k1));
+                  } else {
+                    // Use diagonal v2-v4, emit triangle (v2, v3, v4),
+                    // remove v3
+                    triangles.push_back(order[k1]);
+                    triangles.push_back(order[k2]);
+                    triangles.push_back(order[k3]);
+                    total_weight += std::sqrt(d2_sq);
+                    // Remove k2 from order
+                    order.erase(order.begin() +
+                                static_cast<std::ptrdiff_t>(k2));
+                  }
+                  n--;
+                  cut_made = true;
+                  break;  // Restart scan after each removal
+                }
+                if (!cut_made) break;  // safety
+              }
+
+              // Emit final triangle
+              if (n == 3) {
+                triangles.push_back(order[0]);
+                triangles.push_back(order[1]);
+                triangles.push_back(order[2]);
+              }
+
+              // Pick the pass with the lower total weight
+              if (first_pass || total_weight < best_weight) {
+                best_weight = total_weight;
+                best_triangles = triangles;
+                first_pass = false;
+              }
+            }
+
+            // Emit the best triangulation
+            for (size_t k = 0; k + 2 < best_triangles.size(); k += 3) {
+              size_t fi0 = best_triangles[k + 0];
+              size_t fi1 = best_triangles[k + 1];
+              size_t fi2 = best_triangles[k + 2];
+
+              index_t idx0, idx1, idx2;
+              idx0.vertex_index = face.vertex_indices[fi0].v_idx;
+              idx0.normal_index = face.vertex_indices[fi0].vn_idx;
+              idx0.texcoord_index = face.vertex_indices[fi0].vt_idx;
+              idx1.vertex_index = face.vertex_indices[fi1].v_idx;
+              idx1.normal_index = face.vertex_indices[fi1].vn_idx;
+              idx1.texcoord_index = face.vertex_indices[fi1].vt_idx;
+              idx2.vertex_index = face.vertex_indices[fi2].v_idx;
+              idx2.normal_index = face.vertex_indices[fi2].vn_idx;
+              idx2.texcoord_index = face.vertex_indices[fi2].vt_idx;
+
+              shape->mesh.indices.push_back(idx0);
+              shape->mesh.indices.push_back(idx1);
+              shape->mesh.indices.push_back(idx2);
+
+              shape->mesh.num_face_vertices.push_back(3);
+              shape->mesh.material_ids.push_back(material_id);
+              shape->mesh.smoothing_group_ids.push_back(
+                  face.smoothing_group_id);
+            }
           }
 
 #ifdef TINYOBJLOADER_USE_MAPBOX_EARCUT

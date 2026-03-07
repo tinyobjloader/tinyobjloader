@@ -2561,6 +2561,132 @@ void test_triangulation_v1_api_backward_compat() {
   TEST_CHECK(28 == shapes[0].mesh.num_face_vertices.size());
 }
 
+void test_triangulation_mwt_quad() {
+  // MWT greedy on a quad
+  const std::string obj =
+      "v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\n"
+      "f 1 2 3 4\n";
+
+  tinyobj::ObjReaderConfig config;
+  config.triangulate = true;
+  config.triangulation_method = "mwt";
+  config.vertex_color = false;
+
+  tinyobj::ObjReader reader;
+  ParseInlineObj(obj, config, reader);
+  TEST_CHECK(1 == reader.GetShapes().size());
+  // Quad => 2 triangles
+  TEST_CHECK(2 == reader.GetShapes()[0].mesh.num_face_vertices.size());
+  TEST_CHECK(3 == reader.GetShapes()[0].mesh.num_face_vertices[0]);
+  TEST_CHECK(3 == reader.GetShapes()[0].mesh.num_face_vertices[1]);
+  TEST_CHECK(6 == reader.GetShapes()[0].mesh.indices.size());
+}
+
+void test_triangulation_mwt_pentagon() {
+  // MWT greedy on a convex pentagon
+  const std::string obj =
+      "v 0 0 0\nv 1 0 0\nv 1.5 1 0\nv 0.5 1.5 0\nv -0.5 1 0\n"
+      "f 1 2 3 4 5\n";
+
+  tinyobj::ObjReaderConfig config;
+  config.triangulate = true;
+  config.triangulation_method = "mwt";
+  config.vertex_color = false;
+
+  tinyobj::ObjReader reader;
+  ParseInlineObj(obj, config, reader);
+  TEST_CHECK(1 == reader.GetShapes().size());
+  // Pentagon => 3 triangles
+  TEST_CHECK(3 == reader.GetShapes()[0].mesh.num_face_vertices.size());
+  TEST_CHECK(9 == reader.GetShapes()[0].mesh.indices.size());
+  // All faces should be triangles
+  for (size_t f = 0; f < reader.GetShapes()[0].mesh.num_face_vertices.size(); f++) {
+    TEST_CHECK(3 == reader.GetShapes()[0].mesh.num_face_vertices[f]);
+  }
+}
+
+void test_triangulation_mwt_hexagon() {
+  // MWT greedy on a convex hexagon
+  const std::string obj =
+      "v 1 0 0\nv 0.5 0.866 0\nv -0.5 0.866 0\n"
+      "v -1 0 0\nv -0.5 -0.866 0\nv 0.5 -0.866 0\n"
+      "f 1 2 3 4 5 6\n";
+
+  tinyobj::ObjReaderConfig config;
+  config.triangulate = true;
+  config.triangulation_method = "greedy";  // alias for mwt
+  config.vertex_color = false;
+
+  tinyobj::ObjReader reader;
+  ParseInlineObj(obj, config, reader);
+  TEST_CHECK(1 == reader.GetShapes().size());
+  // Hexagon => 4 triangles
+  TEST_CHECK(4 == reader.GetShapes()[0].mesh.num_face_vertices.size());
+  TEST_CHECK(12 == reader.GetShapes()[0].mesh.indices.size());
+
+  // Verify all generated triangles reference valid vertex indices (0-5)
+  for (size_t k = 0; k < reader.GetShapes()[0].mesh.indices.size(); k++) {
+    int vi = reader.GetShapes()[0].mesh.indices[k].vertex_index;
+    TEST_CHECK(vi >= 0 && vi < 6);
+  }
+}
+
+void test_triangulation_mwt_preserve_quads() {
+  // MWT + preserve_quads: quad kept, pentagon triangulated
+  const std::string obj =
+      "v 0 0 0\nv 1 0 0\nv 0.5 1 0\n"
+      "v 2 0 0\nv 3 0 0\nv 3 1 0\nv 2 1 0\n"
+      "v 4 0 0\nv 5 0 0\nv 5.5 1 0\nv 4.5 1.5 0\nv 3.5 1 0\n"
+      "f 1 2 3\n"
+      "f 4 5 6 7\n"
+      "f 8 9 10 11 12\n";
+
+  tinyobj::ObjReaderConfig config;
+  config.triangulate = true;
+  config.triangulation_method = "mwt";
+  config.preserve_quads = true;
+  config.vertex_color = false;
+
+  tinyobj::ObjReader reader;
+  ParseInlineObj(obj, config, reader);
+  TEST_CHECK(1 == reader.GetShapes().size());
+  const tinyobj::shape_t &shape = reader.GetShapes()[0];
+
+  // Triangle => 1 face (3 verts)
+  // Quad => preserved (4 verts)
+  // Pentagon => 3 triangles (3 verts each)
+  // Total: 1 + 1 + 3 = 5 faces
+  TEST_CHECK(5 == shape.mesh.num_face_vertices.size());
+  TEST_CHECK(3 == shape.mesh.num_face_vertices[0]);
+  TEST_CHECK(4 == shape.mesh.num_face_vertices[1]);
+  TEST_CHECK(3 == shape.mesh.num_face_vertices[2]);
+  TEST_CHECK(3 == shape.mesh.num_face_vertices[3]);
+  TEST_CHECK(3 == shape.mesh.num_face_vertices[4]);
+  TEST_CHECK(16 == shape.mesh.indices.size());
+}
+
+void test_triangulation_mwt_file_load() {
+  // Test MWT on a real file with quads (issue-295)
+  tinyobj::ObjReaderConfig config;
+  config.triangulate = true;
+  config.triangulation_method = "mwt";
+  config.vertex_color = true;
+
+  tinyobj::ObjReader reader;
+  bool ok = reader.ParseFromFile("../models/issue-295-trianguation-failure.obj",
+                                 config);
+  if (!reader.Warning().empty()) {
+    std::cout << "WARN: " << reader.Warning() << std::endl;
+  }
+  if (!reader.Error().empty()) {
+    std::cerr << "ERR: " << reader.Error() << std::endl;
+  }
+  TEST_CHECK(ok);
+  TEST_CHECK(1 == reader.GetShapes().size());
+  // 14 quad faces => 28 triangles
+  TEST_CHECK(28 == reader.GetShapes()[0].mesh.num_face_vertices.size());
+}
+
 TEST_LIST = {
     {"cornell_box", test_cornell_box},
     {"catmark_torus_creases0", test_catmark_torus_creases0},
@@ -2662,4 +2788,10 @@ TEST_LIST = {
      test_triangulation_method_string_aliases},
     {"test_triangulation_v1_api_backward_compat",
      test_triangulation_v1_api_backward_compat},
+    {"test_triangulation_mwt_quad", test_triangulation_mwt_quad},
+    {"test_triangulation_mwt_pentagon", test_triangulation_mwt_pentagon},
+    {"test_triangulation_mwt_hexagon", test_triangulation_mwt_hexagon},
+    {"test_triangulation_mwt_preserve_quads",
+     test_triangulation_mwt_preserve_quads},
+    {"test_triangulation_mwt_file_load", test_triangulation_mwt_file_load},
     {NULL, NULL}};
