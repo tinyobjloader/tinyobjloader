@@ -2688,7 +2688,7 @@ static bool exportGroupsToShape(shape_t *shape, const PrimGroup &prim_group,
             }
 
             // Emit the best triangulation
-            for (size_t k = 0; k + 2 < best_triangles.size(); k += 3) {
+            for (size_t k = 0; k + 3 <= best_triangles.size(); k += 3) {
               size_t fi0 = best_triangles[k + 0];
               size_t fi1 = best_triangles[k + 1];
               size_t fi2 = best_triangles[k + 2];
