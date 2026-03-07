@@ -2998,16 +2998,14 @@ void test_objreader_api_stream() {
       "v 4.0 5.0 6.0\n"
       "v 7.0 8.0 9.0\n"
       "f 1 2 3\n";
-  std::istringstream iss(obj_text);
 
-  tinyobj::ObjReaderConfig config;
   tinyobj::ObjReader reader;
   bool ret = reader.ParseFromString(obj_text, "");
   TEST_CHECK(ret == true);
   TEST_CHECK(reader.Valid());
   TEST_CHECK(reader.GetAttrib().vertices.size() == 9);
   TEST_CHECK(reader.GetShapes().size() == 1);
-  TEST_CHECK(reader.Warning().empty() || true);  // may or may not warn
+  // Warning output is optional and is not asserted here.
 }
 
 // ObjReader with invalid input
