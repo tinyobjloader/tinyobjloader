@@ -7,6 +7,7 @@ build/
 /tests/tester
 /tests/tester.dSYM
 /sandbox/triangulation/triangulation_test
+/sandbox/triangulation/benchmark
 /_codeql_build_dir/
 /_codeql_detected_source_root
 /python/_version.py

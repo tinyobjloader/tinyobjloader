@@ -429,6 +429,181 @@ void test_distance_sq_3d() {
 }
 
 // ============================================================
+// Sweep-Line tests
+// ============================================================
+
+void test_sweep_triangle() {
+  double pts[] = {0, 0, 1, 0, 0.5, 1};
+  std::vector<double> v = MakeVertices2D(pts, 3);
+  std::vector<size_t> poly = MakeSequence(3);
+  std::vector<size_t> tris;
+  size_t n = triangulation::TriangulateSweepLine(poly, v, &tris);
+  TEST_CHECK(n == 1);
+  TEST_CHECK(tris.size() == 3);
+  TEST_CHECK(ValidateTriangles(tris, 3));
+}
+
+void test_sweep_quad() {
+  double pts[] = {0, 0, 1, 0, 1, 1, 0, 1};
+  std::vector<double> v = MakeVertices2D(pts, 4);
+  std::vector<size_t> poly = MakeSequence(4);
+  std::vector<size_t> tris;
+  size_t n = triangulation::TriangulateSweepLine(poly, v, &tris);
+  TEST_CHECK(n == 2);
+  TEST_CHECK(tris.size() == 6);
+  TEST_CHECK(ValidateTriangles(tris, 4));
+}
+
+void test_sweep_pentagon() {
+  double pts[] = {0, 0, 1, 0, 1.5, 1, 0.5, 1.5, -0.5, 1};
+  std::vector<double> v = MakeVertices2D(pts, 5);
+  std::vector<size_t> poly = MakeSequence(5);
+  std::vector<size_t> tris;
+  size_t n = triangulation::TriangulateSweepLine(poly, v, &tris);
+  TEST_CHECK(n == 3);
+  TEST_CHECK(tris.size() == 9);
+  TEST_CHECK(ValidateTriangles(tris, 5));
+}
+
+void test_sweep_hexagon() {
+  double pts[] = {1, 0, 0.5, 0.866, -0.5, 0.866, -1, 0, -0.5, -0.866, 0.5, -0.866};
+  std::vector<double> v = MakeVertices2D(pts, 6);
+  std::vector<size_t> poly = MakeSequence(6);
+  std::vector<size_t> tris;
+  size_t n = triangulation::TriangulateSweepLine(poly, v, &tris);
+  TEST_CHECK(n == 4);
+  TEST_CHECK(tris.size() == 12);
+  TEST_CHECK(ValidateTriangles(tris, 6));
+}
+
+void test_sweep_concave_l_shape() {
+  //  3---2
+  //  |   |
+  //  4-5 |
+  //    | |
+  //    0-1
+  double pts[] = {1, 0,  2, 0,  2, 2,  0, 2,  0, 1,  1, 1};
+  std::vector<double> v = MakeVertices2D(pts, 6);
+  std::vector<size_t> poly = MakeSequence(6);
+  std::vector<size_t> tris;
+  size_t n = triangulation::TriangulateSweepLine(poly, v, &tris);
+  TEST_CHECK(n == 4);
+  TEST_CHECK(tris.size() == 12);
+  TEST_CHECK(ValidateTriangles(tris, 6));
+}
+
+void test_sweep_octagon() {
+  double r = 1.0;
+  double pts[16];
+  for (int i = 0; i < 8; i++) {
+    double angle = 2.0 * 3.14159265358979 * i / 8.0;
+    pts[i * 2 + 0] = r * std::cos(angle);
+    pts[i * 2 + 1] = r * std::sin(angle);
+  }
+  std::vector<double> v = MakeVertices2D(pts, 8);
+  std::vector<size_t> poly = MakeSequence(8);
+  std::vector<size_t> tris;
+  size_t n = triangulation::TriangulateSweepLine(poly, v, &tris);
+  TEST_CHECK(n == 6);
+  TEST_CHECK(tris.size() == 18);
+  TEST_CHECK(ValidateTriangles(tris, 8));
+}
+
+void test_sweep_degenerate() {
+  std::vector<double> v(6, 0.0);
+  std::vector<size_t> poly;
+  poly.push_back(0);
+  poly.push_back(1);
+  std::vector<size_t> tris;
+  TEST_CHECK(triangulation::TriangulateSweepLine(poly, v, &tris) == 0);
+}
+
+// ============================================================
+// Earcut Z-Curve tests
+// ============================================================
+
+void test_earcutz_triangle() {
+  double pts[] = {0, 0, 1, 0, 0.5, 1};
+  std::vector<double> v = MakeVertices2D(pts, 3);
+  std::vector<size_t> poly = MakeSequence(3);
+  std::vector<size_t> tris;
+  size_t n = triangulation::TriangulateEarcutZCurve(poly, v, &tris);
+  TEST_CHECK(n == 1);
+  TEST_CHECK(tris.size() == 3);
+  TEST_CHECK(ValidateTriangles(tris, 3));
+}
+
+void test_earcutz_quad() {
+  double pts[] = {0, 0, 1, 0, 1, 1, 0, 1};
+  std::vector<double> v = MakeVertices2D(pts, 4);
+  std::vector<size_t> poly = MakeSequence(4);
+  std::vector<size_t> tris;
+  size_t n = triangulation::TriangulateEarcutZCurve(poly, v, &tris);
+  TEST_CHECK(n == 2);
+  TEST_CHECK(tris.size() == 6);
+  TEST_CHECK(ValidateTriangles(tris, 4));
+}
+
+void test_earcutz_pentagon() {
+  double pts[] = {0, 0, 1, 0, 1.5, 1, 0.5, 1.5, -0.5, 1};
+  std::vector<double> v = MakeVertices2D(pts, 5);
+  std::vector<size_t> poly = MakeSequence(5);
+  std::vector<size_t> tris;
+  size_t n = triangulation::TriangulateEarcutZCurve(poly, v, &tris);
+  TEST_CHECK(n == 3);
+  TEST_CHECK(tris.size() == 9);
+  TEST_CHECK(ValidateTriangles(tris, 5));
+}
+
+void test_earcutz_hexagon() {
+  double pts[] = {1, 0, 0.5, 0.866, -0.5, 0.866, -1, 0, -0.5, -0.866, 0.5, -0.866};
+  std::vector<double> v = MakeVertices2D(pts, 6);
+  std::vector<size_t> poly = MakeSequence(6);
+  std::vector<size_t> tris;
+  size_t n = triangulation::TriangulateEarcutZCurve(poly, v, &tris);
+  TEST_CHECK(n == 4);
+  TEST_CHECK(tris.size() == 12);
+  TEST_CHECK(ValidateTriangles(tris, 6));
+}
+
+void test_earcutz_concave_l_shape() {
+  double pts[] = {1, 0,  2, 0,  2, 2,  0, 2,  0, 1,  1, 1};
+  std::vector<double> v = MakeVertices2D(pts, 6);
+  std::vector<size_t> poly = MakeSequence(6);
+  std::vector<size_t> tris;
+  size_t n = triangulation::TriangulateEarcutZCurve(poly, v, &tris);
+  TEST_CHECK(n == 4);
+  TEST_CHECK(tris.size() == 12);
+  TEST_CHECK(ValidateTriangles(tris, 6));
+}
+
+void test_earcutz_octagon() {
+  double r = 1.0;
+  double pts[16];
+  for (int i = 0; i < 8; i++) {
+    double angle = 2.0 * 3.14159265358979 * i / 8.0;
+    pts[i * 2 + 0] = r * std::cos(angle);
+    pts[i * 2 + 1] = r * std::sin(angle);
+  }
+  std::vector<double> v = MakeVertices2D(pts, 8);
+  std::vector<size_t> poly = MakeSequence(8);
+  std::vector<size_t> tris;
+  size_t n = triangulation::TriangulateEarcutZCurve(poly, v, &tris);
+  TEST_CHECK(n == 6);
+  TEST_CHECK(tris.size() == 18);
+  TEST_CHECK(ValidateTriangles(tris, 8));
+}
+
+void test_earcutz_degenerate() {
+  std::vector<double> v(6, 0.0);
+  std::vector<size_t> poly;
+  poly.push_back(0);
+  poly.push_back(1);
+  std::vector<size_t> tris;
+  TEST_CHECK(triangulation::TriangulateEarcutZCurve(poly, v, &tris) == 0);
+}
+
+// ============================================================
 // Main
 // ============================================================
 
@@ -459,6 +634,24 @@ int main(int /*argc*/, char ** /*argv*/) {
   RUN_TEST(test_mwt_octagon);
   RUN_TEST(test_mwt_directional_optimization);
   RUN_TEST(test_mwt_weight_is_minimal);
+
+  printf("\nSweep-Line:\n");
+  RUN_TEST(test_sweep_triangle);
+  RUN_TEST(test_sweep_quad);
+  RUN_TEST(test_sweep_pentagon);
+  RUN_TEST(test_sweep_hexagon);
+  RUN_TEST(test_sweep_concave_l_shape);
+  RUN_TEST(test_sweep_octagon);
+  RUN_TEST(test_sweep_degenerate);
+
+  printf("\nEarcut Z-Curve:\n");
+  RUN_TEST(test_earcutz_triangle);
+  RUN_TEST(test_earcutz_quad);
+  RUN_TEST(test_earcutz_pentagon);
+  RUN_TEST(test_earcutz_hexagon);
+  RUN_TEST(test_earcutz_concave_l_shape);
+  RUN_TEST(test_earcutz_octagon);
+  RUN_TEST(test_earcutz_degenerate);
 
   printf("\n3D tests:\n");
   RUN_TEST(test_mwt_3d_vertices);
