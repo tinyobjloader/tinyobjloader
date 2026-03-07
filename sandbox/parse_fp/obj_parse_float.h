@@ -159,11 +159,12 @@ inline bool parseFloat(const char *s, T *result, const char **end_ptr,
   if (*parse_start == '+') ++parse_start;
 
   if (*parse_start != '\0') {
-    // fast_float scans character-by-character and stops at non-numeric chars,
-    // so passing a far sentinel is safe for null-terminated strings. We use
-    // a fixed offset to avoid strlen overhead.
-    const char *far_end = parse_start + 256;
-    auto r = fast_float::from_chars(parse_start, far_end, *result);
+    // Scan to the end of the numeric token (null or OBJ delimiter) so that
+    // fast_float never reads past the bounds of the current token/buffer.
+    const char *token_end = parse_start;
+    while (*token_end && !detail::is_obj_delim(*token_end)) ++token_end;
+
+    auto r = fast_float::from_chars(parse_start, token_end, *result);
     if (r.ec == std::errc()) {
       *end_ptr = r.ptr;
       return true;
