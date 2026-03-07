@@ -120,55 +120,56 @@ inline bool tryParseNanInf(const char *first, const char *last, T *result,
 // Parse a float/double from an OBJ token string.
 //
 // - Skips leading whitespace (space/tab).
-// - Handles leading '+'.
+// - Handles leading '+' (via allow_leading_plus format flag).
 // - Handles nan/inf with replacement values.
 // - Sets *end_ptr to the character after the parsed number.
 // - Returns true on success.
 template <typename T>
 inline bool parseFloat(const char *s, T *result, const char **end_ptr,
                        const ParseOptions<T> &opts = ParseOptions<T>()) {
-  // Skip leading whitespace
-  while (*s == ' ' || *s == '\t') ++s;
+  // Skip leading whitespace to find the token start (needed for nan/inf
+  // detection and token_end computation below).
+  const char *p = s;
+  while (*p == ' ' || *p == '\t') ++p;
 
-  if (*s == '\0') {
-    *end_ptr = s;
+  if (*p == '\0') {
+    *end_ptr = p;
     return false;
   }
 
   // Check first significant char to decide path.
   // nan/inf starts with [nNiI] or [+-] followed by [nNiI].
-  const char *p = s;
-  if (*p == '+' || *p == '-') ++p;
-  char fc = *p;
+  const char *q = p;
+  if (*q == '+' || *q == '-') ++q;
+  char fc = *q;
   // ASCII tolower
   if (fc >= 'A' && fc <= 'Z') fc += 32;
 
   if (fc == 'n' || fc == 'i') {
     // Potential nan/inf — find token end and try match.
-    const char *token_end = s;
+    const char *token_end = p;
     while (*token_end && !detail::is_obj_delim(*token_end)) ++token_end;
-    if (s != token_end &&
-        detail::tryParseNanInf(s, token_end, result, end_ptr, opts)) {
+    if (p != token_end &&
+        detail::tryParseNanInf(p, token_end, result, end_ptr, opts)) {
       return true;
     }
   }
 
   // Fast path: numeric parse (most common case).
-  // Handle leading '+' which fast_float doesn't accept.
-  const char *parse_start = s;
-  if (*parse_start == '+') ++parse_start;
+  // Scan to the end of the numeric token (null or OBJ delimiter) so that
+  // fast_float never reads past the bounds of the current token/buffer.
+  // allow_leading_plus is a built-in fast_float flag that handles the '+'
+  // prefix without manual code.
+  const char *token_end = p;
+  while (*token_end && !detail::is_obj_delim(*token_end)) ++token_end;
 
-  if (*parse_start != '\0') {
-    // Scan to the end of the numeric token (null or OBJ delimiter) so that
-    // fast_float never reads past the bounds of the current token/buffer.
-    const char *token_end = parse_start;
-    while (*token_end && !detail::is_obj_delim(*token_end)) ++token_end;
-
-    auto r = fast_float::from_chars(parse_start, token_end, *result);
-    if (r.ec == std::errc()) {
-      *end_ptr = r.ptr;
-      return true;
-    }
+  auto r = fast_float::from_chars(
+      p, token_end, *result,
+      fast_float::chars_format::general |
+          fast_float::chars_format::allow_leading_plus);
+  if (r.ec == std::errc()) {
+    *end_ptr = r.ptr;
+    return true;
   }
 
   *end_ptr = s;
@@ -206,18 +207,11 @@ inline bool parseFloatRange(const char *first, const char *last, T *result,
     }
   }
 
-  // Handle leading '+'
-  const char *parse_start = first;
-  if (*parse_start == '+') {
-    ++parse_start;
-  }
-
-  if (parse_start >= last) {
-    *end_ptr = first;
-    return false;
-  }
-
-  auto r = fast_float::from_chars(parse_start, last, *result);
+  // Numeric parse: allow_leading_plus handles the '+' prefix natively so
+  // no manual advancement is needed.
+  auto r = fast_float::from_chars(first, last, *result,
+                                  fast_float::chars_format::general |
+                                      fast_float::chars_format::allow_leading_plus);
   if (r.ec == std::errc()) {
     *end_ptr = r.ptr;
     return true;
