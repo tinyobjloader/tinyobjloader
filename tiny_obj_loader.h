@@ -5976,19 +5976,16 @@ static bool tryParseDouble(const char *s, const char *s_end, double *result) {
     }
   }
 
-  // Handle leading '+' which fast_float doesn't accept
-  const char *parse_start = s;
-  if (*parse_start == '+') ++parse_start;
-
-  if (parse_start < s_end) {
-    double tmp;
-    auto r = fast_float::from_chars(parse_start, s_end, tmp);
-    if (r.ec == tinyobj_ff::ff_errc::ok) {
-      *result = tmp;
-      return true;
-    }
-    // On error (invalid_argument, result_out_of_range), *result is unchanged.
+  // Use allow_leading_plus so fast_float handles '+' natively.
+  double tmp;
+  auto r = fast_float::from_chars(s, s_end, tmp,
+      fast_float::chars_format::general |
+      fast_float::chars_format::allow_leading_plus);
+  if (r.ec == tinyobj_ff::ff_errc::ok) {
+    *result = tmp;
+    return true;
   }
+  // On error (invalid_argument, result_out_of_range), *result is unchanged.
 
   return false;
 }

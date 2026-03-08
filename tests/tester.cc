@@ -3046,10 +3046,11 @@ void test_split_string_edge_cases() {
   TEST_CHECK(tokens[0] == "path name.mtl");
   TEST_CHECK(tokens[1] == "other.mtl");
 
-  // Trailing backslash (not an escape)
+  // Trailing backslash (not an escape — preserved as-is)
   tokens.clear();
   tinyobj::SplitString("dir\\", ' ', '\\', tokens);
   TEST_CHECK(tokens.size() == 1);
+  TEST_CHECK(tokens[0] == "dir\\");
 }
 
 // Quad face (non-triangle)
