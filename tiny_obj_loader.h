@@ -659,6 +659,7 @@ bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
 #include <climits>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>

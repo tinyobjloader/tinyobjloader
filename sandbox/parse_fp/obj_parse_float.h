@@ -30,6 +30,7 @@
 
 #include <cstring>
 #include <limits>
+#include <system_error>
 
 namespace obj {
 
