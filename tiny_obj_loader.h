@@ -71,6 +71,9 @@ THE SOFTWARE.
 namespace tinyobj {
 
 // C++11 is now the minimum required standard.
+#if __cplusplus < 201103L && (!defined(_MSVC_LANG) || _MSVC_LANG < 201103L)
+#error "tinyobjloader requires C++11 or later. Compile with -std=c++11 or higher."
+#endif
 #define TINYOBJ_OVERRIDE override
 
 #ifdef __clang__
@@ -653,6 +656,7 @@ bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
 #ifdef TINYOBJLOADER_IMPLEMENTATION
 #include <cassert>
 #include <cctype>
+#include <climits>
 #include <cmath>
 #include <cstddef>
 #include <cerrno>
@@ -776,7 +780,6 @@ static std::wstring LongPathW(const std::wstring &wpath) {
 
 // Standard headers needed by the embedded fast_float.
 #include <cfloat>
-#include <climits>
 #include <cstdint>
 
 namespace tinyobj_ff {
