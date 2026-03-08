@@ -44,8 +44,9 @@ static std::string WcharToUTF8(const std::wstring &wstr) {
   int len = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1,
                                 NULL, 0, NULL, NULL);
   if (len <= 0) return std::string();
-  std::string str(static_cast<size_t>(len - 1), '\0');
+  std::string str(static_cast<size_t>(len), '\0');
   WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, &str[0], len, NULL, NULL);
+  str.resize(static_cast<size_t>(len - 1));  // trim terminating '\0'
   return str;
 }
 #else
