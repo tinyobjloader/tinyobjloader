@@ -2472,6 +2472,63 @@ void test_loadobjopt_empty_buffer() {
   TEST_CHECK(attrib.vertices.size() == 0);
 }
 
+void test_loadobjopt_leading_decimal_dot() {
+  // OBJ files may use leading decimal dots (e.g. ".7", "-.5234")
+  const char *obj_text =
+      "v .5 -.25 .0\n"
+      "v 1.0 .7 -.5234\n"
+      "v 0.0 0.0 0.0\n"
+      "f 1 2 3\n";
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.triangulate = true;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_text, obj_len, config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 9);  // 3 vertices * 3 coords
+
+  // v .5 -.25 .0
+  TEST_CHECK(std::abs(attrib.vertices[0] - 0.5f) < 1e-6f);
+  TEST_CHECK(std::abs(attrib.vertices[1] - (-0.25f)) < 1e-6f);
+  TEST_CHECK(std::abs(attrib.vertices[2] - 0.0f) < 1e-6f);
+
+  // v 1.0 .7 -.5234
+  TEST_CHECK(std::abs(attrib.vertices[3] - 1.0f) < 1e-6f);
+  TEST_CHECK(std::abs(attrib.vertices[4] - 0.7f) < 1e-5f);
+  TEST_CHECK(std::abs(attrib.vertices[5] - (-0.5234f)) < 1e-4f);
+}
+
+void test_loadobjopt_no_trailing_newline() {
+  // Buffer without trailing newline (tests sentinel handling)
+  const char *obj_text =
+      "v 1.0 2.0 3.0\n"
+      "v 4.0 5.0 6.0\n"
+      "v 7.0 8.0 9.0\n"
+      "f 1 2 3";  // no trailing newline
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.triangulate = true;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_text, obj_len, config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 9);  // 3 vertices * 3 coords
+  TEST_CHECK(attrib.indices.size() == 3);   // 3 face indices
+}
+
 void test_arena_allocator() {
   tinyobj::ArenaAllocator arena(4096);
 
@@ -2625,6 +2682,8 @@ TEST_LIST = {
     {"test_loadobjopt_no_triangulation", test_loadobjopt_no_triangulation},
     {"test_loadobjopt_multiple_groups", test_loadobjopt_multiple_groups},
     {"test_loadobjopt_empty_buffer", test_loadobjopt_empty_buffer},
+    {"test_loadobjopt_leading_decimal_dot", test_loadobjopt_leading_decimal_dot},
+    {"test_loadobjopt_no_trailing_newline", test_loadobjopt_no_trailing_newline},
     {"test_arena_allocator", test_arena_allocator},
     {"test_arena_adapter_with_vector", test_arena_adapter_with_vector},
     {"test_basic_attrib_with_arena", test_basic_attrib_with_arena},

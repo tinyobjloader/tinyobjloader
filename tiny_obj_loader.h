@@ -834,7 +834,7 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
                 const char *buf, size_t buf_len,
                 const OptLoadConfig &config = OptLoadConfig());
 
-/// Optimized loader — load from a file (memory-mapped when possible).
+/// Optimized loader — load from a file.
 bool LoadObjOpt(basic_attrib_t<> *attrib,
                 std::vector<basic_shape_t<>> *shapes,
                 std::vector<material_t> *materials,
@@ -4821,7 +4821,8 @@ static inline void opt_skip_space_and_cr(const char **token) {
 
 static inline int opt_until_space(const char *token) {
   const char *p = token;
-  while (p[0] != '\0' && p[0] != ' ' && p[0] != '\t' && p[0] != '\r') {
+  while (p[0] != '\0' && p[0] != ' ' && p[0] != '\t' && p[0] != '\r' &&
+         p[0] != '\n') {
     p++;
   }
   return static_cast<int>(p - token);
@@ -4859,37 +4860,46 @@ static bool opt_tryParseDouble(const char *s, const char *s_end,
   const char *curr = s;
   int read = 0;
   bool end_not_reached = false;
+  bool has_leading_decimal = false;
 
   if (*curr == '+' || *curr == '-') {
     sign = *curr;
     curr++;
+  }
+
+  if (curr == s_end) return false;
+
+  if (*curr == '.') {
+    has_leading_decimal = true;
   } else if (!TINYOBJ_OPT_IS_DIGIT(*curr)) {
     return false;
   }
 
   end_not_reached = (curr != s_end);
-  while (end_not_reached && TINYOBJ_OPT_IS_DIGIT(*curr)) {
-    mantissa *= 10;
-    mantissa += static_cast<int>(*curr - '0');
-    curr++;
-    read++;
-    end_not_reached = (curr != s_end);
+  if (!has_leading_decimal) {
+    while (end_not_reached && TINYOBJ_OPT_IS_DIGIT(*curr)) {
+      mantissa *= 10;
+      mantissa += static_cast<int>(*curr - '0');
+      curr++;
+      read++;
+      end_not_reached = (curr != s_end);
+    }
+    if (read == 0) return false;
   }
-  if (read == 0) return false;
   if (!end_not_reached) goto opt_assemble;
 
   if (*curr == '.') {
     curr++;
-    read = 1;
     end_not_reached = (curr != s_end);
+    double frac_scale = 0.1;
     while (end_not_reached && TINYOBJ_OPT_IS_DIGIT(*curr)) {
-      double frac_value = 1.0;
-      for (int f = 0; f < read; f++) frac_value *= 0.1;
-      mantissa += static_cast<int>(*curr - '0') * frac_value;
+      mantissa += static_cast<int>(*curr - '0') * frac_scale;
+      frac_scale *= 0.1;
       read++;
       curr++;
       end_not_reached = (curr != s_end);
     }
+    if (has_leading_decimal && read == 0) return false;
   } else if (*curr != 'e' && *curr != 'E') {
     goto opt_assemble;
   }
@@ -4958,7 +4968,7 @@ static opt_index_t opt_parseRawTriple(const char **token) {
   opt_index_t vi;
   vi.vertex_index = opt_my_atoi(*token);
   while (**token != '\0' && **token != '/' && **token != ' ' &&
-         **token != '\t' && **token != '\r') {
+         **token != '\t' && **token != '\r' && **token != '\n') {
     (*token)++;
   }
   if (**token != '/') return vi;
@@ -4968,7 +4978,7 @@ static opt_index_t opt_parseRawTriple(const char **token) {
     (*token)++;
     vi.normal_index = opt_my_atoi(*token);
     while (**token != '\0' && **token != '/' && **token != ' ' &&
-           **token != '\t' && **token != '\r') {
+           **token != '\t' && **token != '\r' && **token != '\n') {
       (*token)++;
     }
     return vi;
@@ -4976,14 +4986,14 @@ static opt_index_t opt_parseRawTriple(const char **token) {
 
   vi.texcoord_index = opt_my_atoi(*token);
   while (**token != '\0' && **token != '/' && **token != ' ' &&
-         **token != '\t' && **token != '\r') {
+         **token != '\t' && **token != '\r' && **token != '\n') {
     (*token)++;
   }
   if (**token != '/') return vi;
   (*token)++;
   vi.normal_index = opt_my_atoi(*token);
   while (**token != '\0' && **token != '/' && **token != ' ' &&
-         **token != '\t' && **token != '\r') {
+         **token != '\t' && **token != '\r' && **token != '\n') {
     (*token)++;
   }
   return vi;
@@ -5047,16 +5057,14 @@ struct OptCommandCount {
 
 static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
                           bool triangulate) {
-  char linebuf[4096];
-  size_t copy_len = (p_len < 4095) ? p_len : 4095;
-  std::memcpy(linebuf, p, copy_len);
-  linebuf[copy_len] = '\0';
-
-  const char *token = linebuf;
+  // Parse directly from the original buffer without copying.
+  // The caller guarantees that p[p_len] is '\n' (or a sentinel),
+  // so character-scanning helpers that stop on '\n' are safe.
+  const char *token = p;
   command->type = OPT_CMD_EMPTY;
   opt_skip_space(&token);
 
-  if (token[0] == '\0' || token[0] == '#') return false;
+  if (TINYOBJ_OPT_IS_NEW_LINE(token[0]) || token[0] == '#') return false;
 
   // vertex
   if (token[0] == 'v' && TINYOBJ_OPT_IS_SPACE(token[1])) {
@@ -5154,10 +5162,10 @@ static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
       TINYOBJ_OPT_IS_SPACE(token[6])) {
     token += 7;
     opt_skip_space(&token);
-    command->material_name = p + (token - linebuf);
+    command->material_name = token;
     command->material_name_len = static_cast<unsigned int>(
         opt_length_until_newline(token,
-                                p_len - static_cast<size_t>(token - linebuf)));
+                                p_len - static_cast<size_t>(token - p)));
     command->type = OPT_CMD_USEMTL;
     return true;
   }
@@ -5167,10 +5175,10 @@ static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
       TINYOBJ_OPT_IS_SPACE(token[6])) {
     token += 7;
     opt_skip_space(&token);
-    command->mtllib_name = p + (token - linebuf);
+    command->mtllib_name = token;
     command->mtllib_name_len = static_cast<unsigned int>(
         opt_length_until_newline(token,
-                                p_len - static_cast<size_t>(token - linebuf)));
+                                p_len - static_cast<size_t>(token - p)));
     command->type = OPT_CMD_MTLLIB;
     return true;
   }
@@ -5178,10 +5186,10 @@ static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
   // group
   if (token[0] == 'g' && TINYOBJ_OPT_IS_SPACE(token[1])) {
     token += 2;
-    command->group_name = p + (token - linebuf);
+    command->group_name = token;
     command->group_name_len = static_cast<unsigned int>(
         opt_length_until_newline(token,
-                                p_len - static_cast<size_t>(token - linebuf)));
+                                p_len - static_cast<size_t>(token - p)));
     command->type = OPT_CMD_G;
     return true;
   }
@@ -5189,10 +5197,10 @@ static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
   // object
   if (token[0] == 'o' && TINYOBJ_OPT_IS_SPACE(token[1])) {
     token += 2;
-    command->object_name = p + (token - linebuf);
+    command->object_name = token;
     command->object_name_len = static_cast<unsigned int>(
         opt_length_until_newline(token,
-                                p_len - static_cast<size_t>(token - linebuf)));
+                                p_len - static_cast<size_t>(token - p)));
     command->type = OPT_CMD_O;
     return true;
   }
@@ -5391,6 +5399,19 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
 
   if (buf_len < 1) return true;  // empty buffer is not an error
 
+  // Ensure buffer ends with a newline for safe tokenization (avoids
+  // one-byte over-read on the last line when parsing directly from the
+  // buffer without per-line copies).
+  const char *work_buf = buf;
+  size_t work_len = buf_len;
+  std::vector<char> buf_with_sentinel;
+  if (buf[buf_len - 1] != '\n') {
+    buf_with_sentinel.assign(buf, buf + buf_len);
+    buf_with_sentinel.push_back('\n');
+    work_buf = buf_with_sentinel.data();
+    work_len = buf_with_sentinel.size();
+  }
+
   // Determine thread count
   int num_threads = 1;
 #ifdef TINYOBJLOADER_USE_MULTITHREADING
@@ -5413,14 +5434,14 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
      defined(TINYOBJLOADER_SIMD_NEON))
   {
     std::vector<size_t> nl_positions;
-    nl_positions.reserve(buf_len / 64);
-    simd_find_newlines(buf, buf_len, nl_positions);
-    simd_build_line_infos(buf, buf_len, nl_positions, all_line_infos);
+    nl_positions.reserve(work_len / 64);
+    simd_find_newlines(work_buf, work_len, nl_positions);
+    simd_build_line_infos(work_buf, work_len, nl_positions, all_line_infos);
   }
 #else
   {
-    all_line_infos.reserve(buf_len / 64);
-    scalar_find_line_infos(buf, 0, buf_len, all_line_infos);
+    all_line_infos.reserve(work_len / 64);
+    scalar_find_line_infos(work_buf, 0, work_len, all_line_infos);
   }
 #endif
 
@@ -5453,7 +5474,7 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
         thread_commands[static_cast<size_t>(t)].reserve(end - start);
         for (size_t i = start; i < end; i++) {
           OptCommand cmd;
-          bool ok = opt_parseLine(&cmd, &buf[all_line_infos[i].pos],
+          bool ok = opt_parseLine(&cmd, &work_buf[all_line_infos[i].pos],
                                   all_line_infos[i].len, config.triangulate);
           if (ok) {
             if (cmd.type == OPT_CMD_V)
@@ -5492,7 +5513,7 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
     thread_commands[0].reserve(total_lines);
     for (size_t i = 0; i < total_lines; i++) {
       OptCommand cmd;
-      bool ok = opt_parseLine(&cmd, &buf[all_line_infos[i].pos],
+      bool ok = opt_parseLine(&cmd, &work_buf[all_line_infos[i].pos],
                               all_line_infos[i].len, config.triangulate);
       if (ok) {
         if (cmd.type == OPT_CMD_V)
