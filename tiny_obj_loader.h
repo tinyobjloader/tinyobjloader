@@ -5157,8 +5157,7 @@ static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
     command->material_name = p + (token - linebuf);
     command->material_name_len = static_cast<unsigned int>(
         opt_length_until_newline(token,
-                                p_len - static_cast<size_t>(token - linebuf)) +
-        1);
+                                p_len - static_cast<size_t>(token - linebuf)));
     command->type = OPT_CMD_USEMTL;
     return true;
   }
@@ -5171,8 +5170,7 @@ static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
     command->mtllib_name = p + (token - linebuf);
     command->mtllib_name_len = static_cast<unsigned int>(
         opt_length_until_newline(token,
-                                p_len - static_cast<size_t>(token - linebuf)) +
-        1);
+                                p_len - static_cast<size_t>(token - linebuf)));
     command->type = OPT_CMD_MTLLIB;
     return true;
   }
@@ -5183,8 +5181,7 @@ static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
     command->group_name = p + (token - linebuf);
     command->group_name_len = static_cast<unsigned int>(
         opt_length_until_newline(token,
-                                p_len - static_cast<size_t>(token - linebuf)) +
-        1);
+                                p_len - static_cast<size_t>(token - linebuf)));
     command->type = OPT_CMD_G;
     return true;
   }
@@ -5195,8 +5192,7 @@ static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
     command->object_name = p + (token - linebuf);
     command->object_name_len = static_cast<unsigned int>(
         opt_length_until_newline(token,
-                                p_len - static_cast<size_t>(token - linebuf)) +
-        1);
+                                p_len - static_cast<size_t>(token - linebuf)));
     command->type = OPT_CMD_O;
     return true;
   }

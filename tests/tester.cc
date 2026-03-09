@@ -2302,6 +2302,8 @@ main(
 #endif
 
 // ---- Tests for Optimized API (LoadObjOpt) ----
+// These tests require C++11 or later.
+#if __cplusplus >= 201103L || (defined(_MSC_VER) && _MSC_VER >= 1900)
 
 void test_loadobjopt_from_buffer() {
   // Simple triangle
@@ -2526,6 +2528,8 @@ void test_basic_attrib_with_arena() {
   TEST_CHECK(attrib.vertices[0] == 1.0f);
 }
 
+#endif  // C++11
+
 TEST_LIST = {
     {"cornell_box", test_cornell_box},
     {"catmark_torus_creases0", test_catmark_torus_creases0},
@@ -2614,6 +2618,7 @@ TEST_LIST = {
     {"test_parse_error_backward_compat", test_parse_error_backward_compat},
     {"test_split_string_preserves_non_escape_backslash",
      test_split_string_preserves_non_escape_backslash},
+#if __cplusplus >= 201103L || (defined(_MSC_VER) && _MSC_VER >= 1900)
     {"test_loadobjopt_from_buffer", test_loadobjopt_from_buffer},
     {"test_loadobjopt_from_file", test_loadobjopt_from_file},
     {"test_loadobjopt_quad_triangulation", test_loadobjopt_quad_triangulation},
@@ -2623,4 +2628,5 @@ TEST_LIST = {
     {"test_arena_allocator", test_arena_allocator},
     {"test_arena_adapter_with_vector", test_arena_adapter_with_vector},
     {"test_basic_attrib_with_arena", test_basic_attrib_with_arena},
+#endif
     {NULL, NULL}};
