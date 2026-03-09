@@ -5399,6 +5399,11 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
 
   if (buf_len < 1) return true;  // empty buffer is not an error
 
+  if (!buf) {
+    if (err) *err = "buf must not be null when buf_len > 0.";
+    return false;
+  }
+
   // Ensure buffer ends with a newline for safe tokenization (avoids
   // one-byte over-read on the last line when parsing directly from the
   // buffer without per-line copies).

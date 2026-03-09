@@ -2501,8 +2501,8 @@ void test_loadobjopt_leading_decimal_dot() {
 
   // v 1.0 .7 -.5234
   TEST_CHECK(std::abs(attrib.vertices[3] - 1.0f) < 1e-6f);
-  TEST_CHECK(std::abs(attrib.vertices[4] - 0.7f) < 1e-5f);
-  TEST_CHECK(std::abs(attrib.vertices[5] - (-0.5234f)) < 1e-4f);
+  TEST_CHECK(std::abs(attrib.vertices[4] - 0.7f) < 1e-6f);
+  TEST_CHECK(std::abs(attrib.vertices[5] - (-0.5234f)) < 1e-6f);
 }
 
 void test_loadobjopt_no_trailing_newline() {
