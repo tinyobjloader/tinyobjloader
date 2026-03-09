@@ -4844,7 +4844,7 @@ static inline int opt_my_atoi(const char *c) {
 
 static inline int opt_fixIndex(int idx, int n) {
   if (idx > 0) return idx - 1;
-  if (idx == 0) return 0;
+  if (idx == 0) return -1;
   return n + idx;
 }
 
