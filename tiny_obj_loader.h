@@ -9692,10 +9692,13 @@ static inline void opt_parseFloat2(real_t *x, real_t *y, const char **token) {
 
 struct opt_index_t {
   int vertex_index, texcoord_index, normal_index;
-  // Use INT_MIN as sentinel for "field not present" to distinguish from
-  // relative index -1 (which means "last element" in OBJ spec).
-  static const int kNotPresent = -2147483647 - 1;  // INT_MIN
-  opt_index_t() : vertex_index(kNotPresent), texcoord_index(kNotPresent), normal_index(kNotPresent) {}
+  // Sentinel for "field not present" to distinguish from OBJ relative index -1.
+  // Using expression form for C++11 static const initializer compatibility.
+  static const int kNotPresent = -2147483647 - 1;  // == std::numeric_limits<int>::min()
+  opt_index_t()
+      : vertex_index(kNotPresent),
+        texcoord_index(kNotPresent),
+        normal_index(kNotPresent) {}
   opt_index_t(int vi, int ti, int ni)
       : vertex_index(vi), texcoord_index(ti), normal_index(ni) {}
 };
@@ -9964,6 +9967,8 @@ static inline bool opt_is_line_ending(const char *p, size_t i, size_t end_i) {
 
 #ifdef TINYOBJLOADER_USE_SIMD
 
+// Include <intrin.h> for _BitScanForward on MSVC. Placed here (not at the top)
+// because it's only needed when TINYOBJLOADER_USE_SIMD is enabled.
 #if defined(_MSC_VER)
 #include <intrin.h>
 #endif
@@ -10221,7 +10226,11 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
       static_cast<size_t>(num_threads));
   // Per-thread mtllib tracking to avoid data races.
   // Each thread records the earliest mtllib it finds; we resolve after join.
-  struct MtllibInfo { int thread_id; int cmd_index; size_t line_index; };
+  struct MtllibInfo {
+    int thread_id;
+    int cmd_index;
+    size_t line_index;
+  };
   std::vector<MtllibInfo> thread_mtllib(static_cast<size_t>(num_threads),
                                         {-1, -1, 0});
 
