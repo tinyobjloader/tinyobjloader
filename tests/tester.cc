@@ -3367,8 +3367,8 @@ void test_loadobjopt_from_buffer() {
       "f 1/1/1 2/2/1 3/3/1\n";
   size_t obj_len = strlen(obj_text);
 
-  tinyobj::basic_attrib_t<> attrib;
-  std::vector<tinyobj::basic_shape_t<>> shapes;
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
   std::string warn, err;
 
@@ -3383,9 +3383,10 @@ void test_loadobjopt_from_buffer() {
   TEST_CHECK(attrib.vertices.size() == 9);  // 3 vertices * 3 coords
   TEST_CHECK(attrib.normals.size() == 3);   // 1 normal * 3 coords
   TEST_CHECK(attrib.texcoords.size() == 6); // 3 texcoords * 2 coords
-  TEST_CHECK(attrib.indices.size() == 3);   // 3 face indices
-  TEST_CHECK(attrib.face_num_verts.size() == 1);  // 1 face
-  TEST_CHECK(attrib.face_num_verts[0] == 3);      // triangle
+  TEST_CHECK(shapes.size() >= 1);
+  TEST_CHECK(shapes[0].mesh.indices.size() == 3);   // 3 face indices
+  TEST_CHECK(shapes[0].mesh.num_face_vertices.size() == 1);  // 1 face
+  TEST_CHECK(shapes[0].mesh.num_face_vertices[0] == 3);      // triangle
 
   // Check vertex values
   TEST_CHECK(attrib.vertices[0] == 0.0f);
@@ -3395,8 +3396,8 @@ void test_loadobjopt_from_buffer() {
 }
 
 void test_loadobjopt_from_file() {
-  tinyobj::basic_attrib_t<> attrib;
-  std::vector<tinyobj::basic_shape_t<>> shapes;
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
   std::string warn, err;
 
@@ -3435,8 +3436,8 @@ void test_loadobjopt_quad_triangulation() {
       "f 1 2 3 4\n";
   size_t obj_len = strlen(obj_text);
 
-  tinyobj::basic_attrib_t<> attrib;
-  std::vector<tinyobj::basic_shape_t<>> shapes;
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
   std::string warn, err;
 
@@ -3449,10 +3450,11 @@ void test_loadobjopt_quad_triangulation() {
   TEST_CHECK(ret == true);
   TEST_CHECK(attrib.vertices.size() == 12);  // 4 vertices * 3
   // Quad triangulated into 2 triangles = 6 indices
-  TEST_CHECK(attrib.indices.size() == 6);
-  TEST_CHECK(attrib.face_num_verts.size() == 2);
-  TEST_CHECK(attrib.face_num_verts[0] == 3);
-  TEST_CHECK(attrib.face_num_verts[1] == 3);
+  TEST_CHECK(shapes.size() >= 1);
+  TEST_CHECK(shapes[0].mesh.indices.size() == 6);
+  TEST_CHECK(shapes[0].mesh.num_face_vertices.size() == 2);
+  TEST_CHECK(shapes[0].mesh.num_face_vertices[0] == 3);
+  TEST_CHECK(shapes[0].mesh.num_face_vertices[1] == 3);
 }
 
 void test_loadobjopt_no_triangulation() {
@@ -3464,8 +3466,8 @@ void test_loadobjopt_no_triangulation() {
       "f 1 2 3 4\n";
   size_t obj_len = strlen(obj_text);
 
-  tinyobj::basic_attrib_t<> attrib;
-  std::vector<tinyobj::basic_shape_t<>> shapes;
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
   std::string warn, err;
 
@@ -3476,9 +3478,10 @@ void test_loadobjopt_no_triangulation() {
   bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
                                   obj_text, obj_len, config);
   TEST_CHECK(ret == true);
-  TEST_CHECK(attrib.indices.size() == 4);  // quad = 4 indices
-  TEST_CHECK(attrib.face_num_verts.size() == 1);
-  TEST_CHECK(attrib.face_num_verts[0] == 4);
+  TEST_CHECK(shapes.size() >= 1);
+  TEST_CHECK(shapes[0].mesh.indices.size() == 4);  // quad = 4 indices
+  TEST_CHECK(shapes[0].mesh.num_face_vertices.size() == 1);
+  TEST_CHECK(shapes[0].mesh.num_face_vertices[0] == 4);
 }
 
 void test_loadobjopt_multiple_groups() {
@@ -3495,8 +3498,8 @@ void test_loadobjopt_multiple_groups() {
       "f 4 5 6\n";
   size_t obj_len = strlen(obj_text);
 
-  tinyobj::basic_attrib_t<> attrib;
-  std::vector<tinyobj::basic_shape_t<>> shapes;
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
   std::string warn, err;
 
@@ -3510,8 +3513,8 @@ void test_loadobjopt_multiple_groups() {
 }
 
 void test_loadobjopt_empty_buffer() {
-  tinyobj::basic_attrib_t<> attrib;
-  std::vector<tinyobj::basic_shape_t<>> shapes;
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
   std::string warn, err;
 
@@ -3530,8 +3533,8 @@ void test_loadobjopt_leading_decimal_dot() {
       "f 1 2 3\n";
   size_t obj_len = strlen(obj_text);
 
-  tinyobj::basic_attrib_t<> attrib;
-  std::vector<tinyobj::basic_shape_t<>> shapes;
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
   std::string warn, err;
 
@@ -3563,8 +3566,8 @@ void test_loadobjopt_no_trailing_newline() {
       "f 1 2 3";  // no trailing newline
   size_t obj_len = strlen(obj_text);
 
-  tinyobj::basic_attrib_t<> attrib;
-  std::vector<tinyobj::basic_shape_t<>> shapes;
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
   std::string warn, err;
 
@@ -3575,7 +3578,8 @@ void test_loadobjopt_no_trailing_newline() {
                                   obj_text, obj_len, config);
   TEST_CHECK(ret == true);
   TEST_CHECK(attrib.vertices.size() == 9);  // 3 vertices * 3 coords
-  TEST_CHECK(attrib.indices.size() == 3);   // 3 face indices
+  TEST_CHECK(shapes.size() >= 1);
+  TEST_CHECK(shapes[0].mesh.indices.size() == 3);   // 3 face indices
 }
 
 void test_loadobjopt_face_missing_vt_vn() {
@@ -3589,8 +3593,8 @@ void test_loadobjopt_face_missing_vt_vn() {
       "f 1//1 2//1 3//1\n";  // vertex//normal (no texcoord)
   size_t obj_len = strlen(obj_text);
 
-  tinyobj::basic_attrib_t<> attrib;
-  std::vector<tinyobj::basic_shape_t<>> shapes;
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
   std::string warn, err;
 
@@ -3600,12 +3604,13 @@ void test_loadobjopt_face_missing_vt_vn() {
   bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
                                   obj_text, obj_len, config);
   TEST_CHECK(ret == true);
-  TEST_CHECK(attrib.indices.size() == 3);
+  TEST_CHECK(shapes.size() >= 1);
+  TEST_CHECK(shapes[0].mesh.indices.size() == 3);
 
   // texcoord_index should be -1 (not present), not a fixed-up relative index
-  for (size_t i = 0; i < attrib.indices.size(); i++) {
-    TEST_CHECK(attrib.indices[i].texcoord_index == -1);
-    TEST_CHECK(attrib.indices[i].normal_index == 0);  // mapped from 1-based
+  for (size_t i = 0; i < shapes[0].mesh.indices.size(); i++) {
+    TEST_CHECK(shapes[0].mesh.indices[i].texcoord_index == -1);
+    TEST_CHECK(shapes[0].mesh.indices[i].normal_index == 0);  // mapped from 1-based
   }
 
   // Also test "f 1 2 3" (vertex-only, no texcoord, no normal)
@@ -3616,18 +3621,19 @@ void test_loadobjopt_face_missing_vt_vn() {
       "f 1 2 3\n";
   size_t obj_len2 = strlen(obj_text2);
 
-  tinyobj::basic_attrib_t<> attrib2;
-  std::vector<tinyobj::basic_shape_t<>> shapes2;
+  tinyobj::attrib_t attrib2;
+  std::vector<tinyobj::shape_t> shapes2;
   std::vector<tinyobj::material_t> materials2;
   std::string warn2, err2;
 
   ret = tinyobj::LoadObjOpt(&attrib2, &shapes2, &materials2, &warn2, &err2,
                              obj_text2, obj_len2, config);
   TEST_CHECK(ret == true);
-  TEST_CHECK(attrib2.indices.size() == 3);
-  for (size_t i = 0; i < attrib2.indices.size(); i++) {
-    TEST_CHECK(attrib2.indices[i].texcoord_index == -1);
-    TEST_CHECK(attrib2.indices[i].normal_index == -1);
+  TEST_CHECK(shapes2.size() >= 1);
+  TEST_CHECK(shapes2[0].mesh.indices.size() == 3);
+  for (size_t i = 0; i < shapes2[0].mesh.indices.size(); i++) {
+    TEST_CHECK(shapes2[0].mesh.indices[i].texcoord_index == -1);
+    TEST_CHECK(shapes2[0].mesh.indices[i].normal_index == -1);
   }
 }
 
@@ -3640,8 +3646,8 @@ void test_loadobjopt_bare_cr_line_endings() {
       "f 1 2 3\r";
   size_t obj_len = strlen(obj_text);
 
-  tinyobj::basic_attrib_t<> attrib;
-  std::vector<tinyobj::basic_shape_t<>> shapes;
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
   std::string warn, err;
 
@@ -3652,7 +3658,8 @@ void test_loadobjopt_bare_cr_line_endings() {
                                   obj_text, obj_len, config);
   TEST_CHECK(ret == true);
   TEST_CHECK(attrib.vertices.size() == 9);  // 3 vertices * 3 coords
-  TEST_CHECK(attrib.indices.size() == 3);   // 3 face indices
+  TEST_CHECK(shapes.size() >= 1);
+  TEST_CHECK(shapes[0].mesh.indices.size() == 3);   // 3 face indices
 }
 
 void test_loadobjopt_degenerate_face() {
@@ -3665,8 +3672,8 @@ void test_loadobjopt_degenerate_face() {
       "f 1 2 3\n";      // valid triangle
   size_t obj_len = strlen(obj_text);
 
-  tinyobj::basic_attrib_t<> attrib;
-  std::vector<tinyobj::basic_shape_t<>> shapes;
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
   std::string warn, err;
 
@@ -3676,8 +3683,9 @@ void test_loadobjopt_degenerate_face() {
   bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
                                   obj_text, obj_len, config);
   TEST_CHECK(ret == true);
-  TEST_CHECK(attrib.indices.size() == 3);   // only the valid triangle
-  TEST_CHECK(attrib.face_num_verts.size() == 1);  // 1 face
+  TEST_CHECK(shapes.size() >= 1);
+  TEST_CHECK(shapes[0].mesh.indices.size() == 3);   // only the valid triangle
+  TEST_CHECK(shapes[0].mesh.num_face_vertices.size() == 1);  // 1 face
 }
 
 void test_loadobjopt_usemtl_multiple_faces() {
@@ -3694,8 +3702,8 @@ void test_loadobjopt_usemtl_multiple_faces() {
       "f 1 3 4\n";     // face 2 — should also have the material
   size_t obj_len = strlen(obj_text);
 
-  tinyobj::basic_attrib_t<> attrib;
-  std::vector<tinyobj::basic_shape_t<>> shapes;
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
   std::string warn, err;
 
@@ -3705,13 +3713,14 @@ void test_loadobjopt_usemtl_multiple_faces() {
   bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
                                   obj_text, obj_len, config);
   TEST_CHECK(ret == true);
-  TEST_CHECK(attrib.face_num_verts.size() == 3);  // 3 faces
-  TEST_CHECK(attrib.material_ids.size() == 3);
+  TEST_CHECK(shapes.size() >= 1);
+  TEST_CHECK(shapes[0].mesh.num_face_vertices.size() == 3);  // 3 faces
+  TEST_CHECK(shapes[0].mesh.material_ids.size() == 3);
 
   // All three faces should have the same material ID (-1 since no .mtl loaded)
   // The key test: material_ids[1] and [2] should NOT be different from [0]
-  TEST_CHECK(attrib.material_ids[0] == attrib.material_ids[1]);
-  TEST_CHECK(attrib.material_ids[1] == attrib.material_ids[2]);
+  TEST_CHECK(shapes[0].mesh.material_ids[0] == shapes[0].mesh.material_ids[1]);
+  TEST_CHECK(shapes[0].mesh.material_ids[1] == shapes[0].mesh.material_ids[2]);
 }
 
 void test_loadobjopt_crlf_line_endings() {
@@ -3723,8 +3732,8 @@ void test_loadobjopt_crlf_line_endings() {
       "f 1 2 3\r\n";
   size_t obj_len = strlen(obj_text);
 
-  tinyobj::basic_attrib_t<> attrib;
-  std::vector<tinyobj::basic_shape_t<>> shapes;
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
   std::string warn, err;
 
@@ -3735,63 +3744,8 @@ void test_loadobjopt_crlf_line_endings() {
                                   obj_text, obj_len, config);
   TEST_CHECK(ret == true);
   TEST_CHECK(attrib.vertices.size() == 9);  // 3 vertices * 3 coords
-  TEST_CHECK(attrib.indices.size() == 3);   // 3 face indices
-}
-
-void test_arena_allocator() {
-  tinyobj::ArenaAllocator arena(4096);
-
-  // Basic allocation
-  void *p1 = arena.allocate(100);
-  TEST_CHECK(p1 != nullptr);
-
-  void *p2 = arena.allocate(200);
-  TEST_CHECK(p2 != nullptr);
-  TEST_CHECK(p1 != p2);
-
-  // Aligned allocation
-  void *p3 = arena.allocate(64, 64);
-  TEST_CHECK(p3 != nullptr);
-  TEST_CHECK(reinterpret_cast<uintptr_t>(p3) % 64 == 0);
-
-  // Large allocation (exceeds default block)
-  void *p4 = arena.allocate(8192);
-  TEST_CHECK(p4 != nullptr);
-
-  // Reset and reuse
-  arena.reset();
-  void *p5 = arena.allocate(100);
-  TEST_CHECK(p5 != nullptr);
-}
-
-void test_arena_adapter_with_vector() {
-  tinyobj::ArenaAllocator arena(1024 * 1024);
-  tinyobj::arena_adapter<float> alloc(&arena);
-
-  // Use arena allocator with std::vector
-  std::vector<float, tinyobj::arena_adapter<float>> vec(alloc);
-  vec.reserve(100);
-  for (int i = 0; i < 100; i++) {
-    vec.push_back(static_cast<float>(i));
-  }
-
-  TEST_CHECK(vec.size() == 100);
-  TEST_CHECK(vec[0] == 0.0f);
-  TEST_CHECK(vec[99] == 99.0f);
-}
-
-void test_basic_attrib_with_arena() {
-  // Test basic_attrib_t with custom allocator
-  tinyobj::ArenaAllocator arena(1024 * 1024);
-  typedef tinyobj::arena_adapter<char> ArenaAlloc;
-
-  // Verify the template compiles and works
-  tinyobj::basic_attrib_t<ArenaAlloc> attrib;
-  attrib.vertices.push_back(1.0f);
-  attrib.vertices.push_back(2.0f);
-  attrib.vertices.push_back(3.0f);
-  TEST_CHECK(attrib.vertices.size() == 3);
-  TEST_CHECK(attrib.vertices[0] == 1.0f);
+  TEST_CHECK(shapes.size() >= 1);
+  TEST_CHECK(shapes[0].mesh.indices.size() == 3);   // 3 face indices
 }
 
 TEST_LIST = {
@@ -3902,9 +3856,6 @@ TEST_LIST = {
     {"test_loadobjopt_degenerate_face", test_loadobjopt_degenerate_face},
     {"test_loadobjopt_usemtl_multiple_faces", test_loadobjopt_usemtl_multiple_faces},
     {"test_loadobjopt_crlf_line_endings", test_loadobjopt_crlf_line_endings},
-    {"test_arena_allocator", test_arena_allocator},
-    {"test_arena_adapter_with_vector", test_arena_adapter_with_vector},
-    {"test_basic_attrib_with_arena", test_basic_attrib_with_arena},
     {"test_streamreader_eof_and_remaining",
      test_streamreader_eof_and_remaining},
     {"test_streamreader_skip_and_read", test_streamreader_skip_and_read},
