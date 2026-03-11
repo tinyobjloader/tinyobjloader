@@ -757,6 +757,9 @@ class arena_adapter {
 
 ///
 /// Template mesh type supporting custom allocators.
+/// Note: Alloc must be default-constructible (stateless). For stateful
+/// allocators like arena_adapter, construct vectors individually with
+/// an allocator instance.
 ///
 template <typename Alloc = std::allocator<char>>
 struct basic_mesh_t {
@@ -775,6 +778,8 @@ struct basic_mesh_t {
 
 ///
 /// Template shape type supporting custom allocators.
+/// `name` always uses the default allocator; only mesh buffers are
+/// allocator-aware.
 ///
 template <typename Alloc = std::allocator<char>>
 struct basic_shape_t {
@@ -785,6 +790,9 @@ struct basic_shape_t {
 ///
 /// Template attrib type supporting custom allocators.
 /// Flat arrays: vertices(xyz), normals(xyz), texcoords(uv).
+/// Note: Alloc must be default-constructible (stateless). For stateful
+/// allocators like arena_adapter, construct vectors individually with
+/// an allocator instance.
 ///
 template <typename Alloc = std::allocator<char>>
 struct basic_attrib_t {
@@ -9546,12 +9554,6 @@ static inline void opt_skip_space(const char **token) {
   }
 }
 
-static inline void opt_skip_space_and_cr(const char **token) {
-  while ((**token) == ' ' || (**token) == '\t' || (**token) == '\r') {
-    (*token)++;
-  }
-}
-
 static inline int opt_until_space(const char *token) {
   const char *p = token;
   while (p[0] != '\0' && p[0] != ' ' && p[0] != '\t' && p[0] != '\r' &&
@@ -9741,8 +9743,11 @@ static opt_index_t opt_parseRawTriple(const char **token) {
 static inline int opt_length_until_newline(const char *token, size_t n) {
   size_t len = 0;
   for (len = 0; len < n; len++) {
-    if (token[len] == '\n') break;
-    if (token[len] == '\r' && (len + 1 < n) && token[len + 1] != '\n') break;
+    if (token[len] == '\n' || token[len] == '\r') break;
+  }
+  // Trim trailing whitespace
+  while (len > 0 && (token[len - 1] == ' ' || token[len - 1] == '\t')) {
+    len--;
   }
   return static_cast<int>(len);
 }
@@ -9851,7 +9856,7 @@ static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
 
     while (!TINYOBJ_OPT_IS_NEW_LINE(token[0])) {
       opt_index_t vi = opt_parseRawTriple(&token);
-      opt_skip_space_and_cr(&token);
+      opt_skip_space(&token);
       if (face_count < 8) {
         face_buf[face_count++] = vi;
       } else {
@@ -9954,15 +9959,6 @@ static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
   return false;
 }
 
-static inline bool opt_is_line_ending(const char *p, size_t i, size_t end_i) {
-  if (p[i] == '\0') return true;
-  if (p[i] == '\n') return true;
-  if (p[i] == '\r') {
-    if (((i + 1) < end_i) && (p[i + 1] != '\n')) return true;
-  }
-  return false;
-}
-
 // ---- SIMD newline scanning ----
 
 #ifdef TINYOBJLOADER_USE_SIMD
@@ -9986,16 +9982,19 @@ static inline unsigned int tinyobj_ctz(unsigned int x) {
 
 #if defined(TINYOBJLOADER_SIMD_AVX2)
 
-/// AVX2-accelerated newline scanning — finds '\n' positions in a buffer.
+/// AVX2-accelerated line-ending scanning — finds '\n' and '\r' positions.
 static void simd_find_newlines(const char *buf, size_t len,
                                std::vector<size_t> &positions) {
   const __m256i nl = _mm256_set1_epi8('\n');
+  const __m256i cr = _mm256_set1_epi8('\r');
   size_t i = 0;
   for (; i + 32 <= len; i += 32) {
     __m256i chunk =
         _mm256_loadu_si256(reinterpret_cast<const __m256i *>(buf + i));
-    __m256i cmp = _mm256_cmpeq_epi8(chunk, nl);
-    unsigned int mask = static_cast<unsigned int>(_mm256_movemask_epi8(cmp));
+    __m256i cmp_nl = _mm256_cmpeq_epi8(chunk, nl);
+    __m256i cmp_cr = _mm256_cmpeq_epi8(chunk, cr);
+    __m256i combined = _mm256_or_si256(cmp_nl, cmp_cr);
+    unsigned int mask = static_cast<unsigned int>(_mm256_movemask_epi8(combined));
     while (mask) {
       unsigned int bit = tinyobj_ctz(mask);
       positions.push_back(i + bit);
@@ -10004,22 +10003,25 @@ static void simd_find_newlines(const char *buf, size_t len,
   }
   // Scalar tail
   for (; i < len; i++) {
-    if (buf[i] == '\n') positions.push_back(i);
+    if (buf[i] == '\n' || buf[i] == '\r') positions.push_back(i);
   }
 }
 
 #elif defined(TINYOBJLOADER_SIMD_SSE2)
 
-/// SSE2-accelerated newline scanning — finds '\n' positions in a buffer.
+/// SSE2-accelerated line-ending scanning — finds '\n' and '\r' positions.
 static void simd_find_newlines(const char *buf, size_t len,
                                std::vector<size_t> &positions) {
   const __m128i nl = _mm_set1_epi8('\n');
+  const __m128i cr = _mm_set1_epi8('\r');
   size_t i = 0;
   for (; i + 16 <= len; i += 16) {
     __m128i chunk =
         _mm_loadu_si128(reinterpret_cast<const __m128i *>(buf + i));
-    __m128i cmp = _mm_cmpeq_epi8(chunk, nl);
-    int mask = _mm_movemask_epi8(cmp);
+    __m128i cmp_nl = _mm_cmpeq_epi8(chunk, nl);
+    __m128i cmp_cr = _mm_cmpeq_epi8(chunk, cr);
+    __m128i combined = _mm_or_si128(cmp_nl, cmp_cr);
+    int mask = _mm_movemask_epi8(combined);
     while (mask) {
       int bit = static_cast<int>(tinyobj_ctz(static_cast<unsigned int>(mask)));
       positions.push_back(i + static_cast<size_t>(bit));
@@ -10028,38 +10030,40 @@ static void simd_find_newlines(const char *buf, size_t len,
   }
   // Scalar tail
   for (; i < len; i++) {
-    if (buf[i] == '\n') positions.push_back(i);
+    if (buf[i] == '\n' || buf[i] == '\r') positions.push_back(i);
   }
 }
 
 #elif defined(TINYOBJLOADER_SIMD_NEON)
 
-/// NEON-accelerated newline scanning — finds '\n' positions in a buffer.
+/// NEON-accelerated line-ending scanning — finds '\n' and '\r' positions.
 static void simd_find_newlines(const char *buf, size_t len,
                                std::vector<size_t> &positions) {
   const uint8x16_t nl = vdupq_n_u8('\n');
+  const uint8x16_t cr = vdupq_n_u8('\r');
   size_t i = 0;
   for (; i + 16 <= len; i += 16) {
     uint8x16_t chunk = vld1q_u8(reinterpret_cast<const uint8_t *>(buf + i));
-    uint8x16_t cmp = vceqq_u8(chunk, nl);
-    // Extract results byte-by-byte (NEON lacks movemask).
-    // We rotate the comparison result left by 1 each iteration,
-    // so lane 0 always holds the result for the current byte.
+    uint8x16_t cmp_nl = vceqq_u8(chunk, nl);
+    uint8x16_t cmp_cr = vceqq_u8(chunk, cr);
+    uint8x16_t combined = vorrq_u8(cmp_nl, cmp_cr);
     for (int j = 0; j < 16; j++) {
-      if (vgetq_lane_u8(cmp, 0) != 0) {
+      if (vgetq_lane_u8(combined, 0) != 0) {
         positions.push_back(i + static_cast<size_t>(j));
       }
-      cmp = vextq_u8(cmp, cmp, 1);  // Rotate
+      combined = vextq_u8(combined, combined, 1);
     }
   }
   for (; i < len; i++) {
-    if (buf[i] == '\n') positions.push_back(i);
+    if (buf[i] == '\n' || buf[i] == '\r') positions.push_back(i);
   }
 }
 
 #endif  // SIMD variant
 
-/// Build LineInfo array from SIMD-detected newline positions
+/// Build LineInfo array from SIMD-detected line-ending positions.
+/// The positions array may contain both '\r' and '\n' hits;
+/// consecutive \r\n pairs are collapsed into a single line boundary.
 static void simd_build_line_infos(const char *buf, size_t len,
                                   const std::vector<size_t> &nl_positions,
                                   std::vector<LineInfo> &out) {
@@ -10067,9 +10071,12 @@ static void simd_build_line_infos(const char *buf, size_t len,
   size_t prev = 0;
   for (size_t k = 0; k < nl_positions.size(); k++) {
     size_t pos = nl_positions[k];
+    // Skip the '\n' in a '\r\n' pair (the '\r' already created a boundary)
+    if (buf[pos] == '\n' && pos > 0 && buf[pos - 1] == '\r') {
+      prev = pos + 1;
+      continue;
+    }
     size_t line_len = pos - prev;
-    // Skip \r before \n
-    if (line_len > 0 && buf[prev + line_len - 1] == '\r') line_len--;
     if (line_len > 0) {
       LineInfo info;
       info.pos = prev;
@@ -10081,7 +10088,6 @@ static void simd_build_line_infos(const char *buf, size_t len,
   // Handle last line without trailing newline
   if (prev < len) {
     size_t line_len = len - prev;
-    if (line_len > 0 && buf[prev + line_len - 1] == '\r') line_len--;
     if (line_len > 0) {
       LineInfo info;
       info.pos = prev;
@@ -10134,13 +10140,13 @@ static void scalar_find_line_infos(const char *buf, size_t start, size_t end,
 
 }  // namespace opt_internal
 
-// ---- LoadObjOpt (buffer version) ----
-
-bool LoadObjOpt(basic_attrib_t<> *attrib,
+// Internal implementation with optional basedir for material path resolution
+static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
                 std::vector<basic_shape_t<>> *shapes,
                 std::vector<material_t> *materials,
                 std::string *warn, std::string *err,
                 const char *buf, size_t buf_len,
+                const std::string &mtl_basedir,
                 const OptLoadConfig &config) {
   using namespace opt_internal;
 
@@ -10343,7 +10349,13 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
              (mtl_filename.back() == '\r' || mtl_filename.back() == '\n'))
         mtl_filename.pop_back();
 
-      std::ifstream ifs(mtl_filename);
+      std::string mtl_filepath = mtl_basedir + mtl_filename;
+      std::ifstream ifs(mtl_filepath);
+      if (!ifs.good() && !mtl_basedir.empty()) {
+        // Fallback: try opening without basedir
+        ifs.clear();
+        ifs.open(mtl_filename);
+      }
       if (ifs.good()) {
         LoadMtl(&material_map, materials, &ifs, warn, err);
         ifs.close();
@@ -10385,6 +10397,7 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
   auto merge_thread = [&](size_t t) {
     size_t vc = v_off[t], nc = n_off[t], tc = t_off[t];
     size_t fc = f_off[t], fcc = face_off[t];
+    int current_mat_id = -1;
 
     for (size_t i = 0; i < thread_commands[t].size(); i++) {
       const OptCommand &cmd = thread_commands[t][i];
@@ -10428,32 +10441,19 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
           }
           for (size_t k = 0; k < cmd.f_num_verts.size(); k++) {
             attrib->face_num_verts[fcc + k] = cmd.f_num_verts[k];
+            attrib->material_ids[fcc + k] = current_mat_id;
           }
           fc += cmd.f.size();
           fcc += cmd.f_num_verts.size();
           break;
         case OPT_CMD_USEMTL:
-          if (cmd.material_name && cmd.material_name_len > 0 &&
-              fcc < num_indices) {
+          if (cmd.material_name && cmd.material_name_len > 0) {
             std::string mat_name(cmd.material_name, cmd.material_name_len);
             while (!mat_name.empty() &&
                    (mat_name.back() == '\r' || mat_name.back() == '\n'))
               mat_name.pop_back();
             auto it = material_map.find(mat_name);
-            int mat_id = (it != material_map.end()) ? it->second : -1;
-            // Assign to next face's material slots
-            // Look ahead for next face command
-            for (size_t ii = i + 1; ii < thread_commands[t].size(); ii++) {
-              if (thread_commands[t][ii].type == OPT_CMD_F) {
-                for (size_t k = 0;
-                     k < thread_commands[t][ii].f_num_verts.size(); k++) {
-                  if (fcc + k < num_indices) {
-                    attrib->material_ids[fcc + k] = mat_id;
-                  }
-                }
-                break;
-              }
-            }
+            current_mat_id = (it != material_map.end()) ? it->second : -1;
           }
           break;
         default:
@@ -10476,12 +10476,6 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
 #else
   for (size_t t = 0; t < num_t; t++) merge_thread(t);
 #endif
-
-  // Propagate material IDs forward
-  for (size_t i = 1; i < num_indices; i++) {
-    if (attrib->material_ids[i] == -1)
-      attrib->material_ids[i] = attrib->material_ids[i - 1];
-  }
 
   // ---- Phase 5: construct shapes ----
   {
@@ -10590,6 +10584,18 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
   return true;
 }
 
+// ---- LoadObjOpt (buffer version, public API) ----
+
+bool LoadObjOpt(basic_attrib_t<> *attrib,
+                std::vector<basic_shape_t<>> *shapes,
+                std::vector<material_t> *materials,
+                std::string *warn, std::string *err,
+                const char *buf, size_t buf_len,
+                const OptLoadConfig &config) {
+  return LoadObjOpt_internal(attrib, shapes, materials, warn, err,
+                             buf, buf_len, std::string(), config);
+}
+
 // ---- LoadObjOpt (file version) ----
 
 bool LoadObjOpt(basic_attrib_t<> *attrib,
@@ -10645,18 +10651,10 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
     if (baseDir[baseDir.length() - 1] != dirsep) baseDir += dirsep;
   }
 
-  // Parse the buffer. Material loading happens inside LoadObjOpt(buffer)
-  // using the mtllib path as-is. For proper base-dir resolution, the
-  // buffer-based loader would need the base directory. For now, we
-  // pre-scan for mtllib and load materials with the resolved path before
-  // calling the buffer-based loader, then pass material_map as context.
-  //
-  // However, since LoadObjOpt(buffer) has its own material loading path,
-  // we rely solely on the buffer-based loader here. Material loading and
-  // material ID assignment must remain within the same parsing path to
-  // keep results consistent.
-  bool ret = LoadObjOpt(attrib, shapes, materials, warn, err, buf.data(),
-                        static_cast<size_t>(fsize), config);
+  // Parse the buffer with baseDir for proper mtllib path resolution.
+  bool ret = LoadObjOpt_internal(attrib, shapes, materials, warn, err,
+                                 buf.data(), static_cast<size_t>(fsize),
+                                 baseDir, config);
 
   return ret;
 }

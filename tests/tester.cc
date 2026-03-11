@@ -3680,6 +3680,64 @@ void test_loadobjopt_degenerate_face() {
   TEST_CHECK(attrib.face_num_verts.size() == 1);  // 1 face
 }
 
+void test_loadobjopt_usemtl_multiple_faces() {
+  // Test that usemtl applies to ALL subsequent faces, not just the next one.
+  // Without material files loaded, material_ids should default to -1.
+  const char *obj_text =
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "v 1.0 1.0 0.0\n"
+      "usemtl test_material\n"
+      "f 1 2 3\n"      // face 0 — should have the material
+      "f 2 3 4\n"      // face 1 — should also have the material (not reset)
+      "f 1 3 4\n";     // face 2 — should also have the material
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.triangulate = true;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_text, obj_len, config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.face_num_verts.size() == 3);  // 3 faces
+  TEST_CHECK(attrib.material_ids.size() == 3);
+
+  // All three faces should have the same material ID (-1 since no .mtl loaded)
+  // The key test: material_ids[1] and [2] should NOT be different from [0]
+  TEST_CHECK(attrib.material_ids[0] == attrib.material_ids[1]);
+  TEST_CHECK(attrib.material_ids[1] == attrib.material_ids[2]);
+}
+
+void test_loadobjopt_crlf_line_endings() {
+  // Test OBJ buffer with Windows-style \r\n line endings
+  const char *obj_text =
+      "v 0.0 0.0 0.0\r\n"
+      "v 1.0 0.0 0.0\r\n"
+      "v 0.0 1.0 0.0\r\n"
+      "f 1 2 3\r\n";
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.triangulate = true;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_text, obj_len, config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 9);  // 3 vertices * 3 coords
+  TEST_CHECK(attrib.indices.size() == 3);   // 3 face indices
+}
+
 void test_arena_allocator() {
   tinyobj::ArenaAllocator arena(4096);
 
@@ -3842,6 +3900,8 @@ TEST_LIST = {
     {"test_loadobjopt_face_missing_vt_vn", test_loadobjopt_face_missing_vt_vn},
     {"test_loadobjopt_bare_cr_line_endings", test_loadobjopt_bare_cr_line_endings},
     {"test_loadobjopt_degenerate_face", test_loadobjopt_degenerate_face},
+    {"test_loadobjopt_usemtl_multiple_faces", test_loadobjopt_usemtl_multiple_faces},
+    {"test_loadobjopt_crlf_line_endings", test_loadobjopt_crlf_line_endings},
     {"test_arena_allocator", test_arena_allocator},
     {"test_arena_adapter_with_vector", test_arena_adapter_with_vector},
     {"test_basic_attrib_with_arena", test_basic_attrib_with_arena},
