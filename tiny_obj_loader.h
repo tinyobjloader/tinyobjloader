@@ -69,6 +69,8 @@ THE SOFTWARE.
 #include <vector>
 
 #include <cstdint>
+#include <memory>
+#include <type_traits>
 
 namespace tinyobj {
 
@@ -660,6 +662,157 @@ bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
 ///
 
 ///
+/// Arena-based memory allocator for reduced allocation overhead when
+/// loading huge meshes.  Memory is freed in bulk when the arena is
+/// destroyed or reset().  Individual deallocate() calls are no-ops.
+///
+class ArenaAllocator {
+ public:
+  explicit ArenaAllocator(size_t block_size = 1024 * 1024)
+      : head_(nullptr), default_block_size_(block_size) {}
+
+  ~ArenaAllocator() { destroy(); }
+
+  ArenaAllocator(const ArenaAllocator &) = delete;
+  ArenaAllocator &operator=(const ArenaAllocator &) = delete;
+
+  void *allocate(size_t bytes,
+                 size_t alignment = sizeof(void *));
+
+  /// Free all memory at once.
+  void reset();
+
+ private:
+  struct Block {
+    unsigned char *data;
+    size_t capacity;
+    size_t used;
+    Block *next;
+  };
+
+  Block *head_;
+  size_t default_block_size_;
+
+  Block *new_block(size_t min_bytes);
+  void destroy();
+};
+
+///
+/// STL-compatible allocator adapter backed by an ArenaAllocator.
+/// deallocate() is a no-op — memory is released when the arena is reset.
+///
+template <typename T>
+class arena_adapter {
+ public:
+  using value_type = T;
+  using pointer = T *;
+  using const_pointer = const T *;
+  using size_type = std::size_t;
+  using difference_type = std::ptrdiff_t;
+  using propagate_on_container_copy_assignment = std::true_type;
+  using propagate_on_container_move_assignment = std::true_type;
+  using propagate_on_container_swap = std::true_type;
+
+  explicit arena_adapter(ArenaAllocator *arena = nullptr) noexcept
+      : arena_(arena) {}
+
+  template <typename U>
+  arena_adapter(const arena_adapter<U> &other) noexcept
+      : arena_(other.arena()) {}
+
+  T *allocate(size_t n) {
+    if (arena_) {
+      return static_cast<T *>(arena_->allocate(n * sizeof(T), alignof(T)));
+    }
+    return static_cast<T *>(::operator new(n * sizeof(T)));
+  }
+
+  void deallocate(T *p, size_t) noexcept {
+    if (!arena_) {
+      ::operator delete(p);
+      return;
+    }
+    // Arena deallocation is a no-op; memory freed in bulk via reset().
+  }
+
+  ArenaAllocator *arena() const noexcept { return arena_; }
+
+  template <typename U>
+  bool operator==(const arena_adapter<U> &o) const noexcept {
+    return arena_ == o.arena();
+  }
+  template <typename U>
+  bool operator!=(const arena_adapter<U> &o) const noexcept {
+    return arena_ != o.arena();
+  }
+
+  template <typename U>
+  struct rebind {
+    using other = arena_adapter<U>;
+  };
+
+ private:
+  ArenaAllocator *arena_;
+};
+
+///
+/// Template mesh type supporting custom allocators.
+/// Note: Alloc must be default-constructible (stateless). For stateful
+/// allocators like arena_adapter, construct vectors individually with
+/// an allocator instance.
+///
+template <typename Alloc = std::allocator<char>>
+struct basic_mesh_t {
+  using index_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<index_t>;
+  using uint_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<unsigned int>;
+  using int_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<int>;
+
+  std::vector<index_t, index_alloc> indices;
+  std::vector<unsigned int, uint_alloc> num_face_vertices;
+  std::vector<int, int_alloc> material_ids;
+  std::vector<unsigned int, uint_alloc> smoothing_group_ids;
+};
+
+///
+/// Template shape type supporting custom allocators.
+/// `name` always uses the default allocator; only mesh buffers are
+/// allocator-aware.
+///
+template <typename Alloc = std::allocator<char>>
+struct basic_shape_t {
+  std::string name;
+  basic_mesh_t<Alloc> mesh;
+};
+
+///
+/// Template attrib type supporting custom allocators.
+/// Flat arrays: vertices(xyz), normals(xyz), texcoords(uv).
+/// Note: Alloc must be default-constructible (stateless). For stateful
+/// allocators like arena_adapter, construct vectors individually with
+/// an allocator instance.
+///
+template <typename Alloc = std::allocator<char>>
+struct basic_attrib_t {
+  using real_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<real_t>;
+  using int_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<int>;
+  using index_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<index_t>;
+
+  std::vector<real_t, real_alloc> vertices;   // xyz
+  std::vector<real_t, real_alloc> normals;    // xyz
+  std::vector<real_t, real_alloc> texcoords;  // uv
+  std::vector<real_t, real_alloc> colors;     // rgb (optional)
+  std::vector<index_t, index_alloc> indices;  // face indices
+  std::vector<int, int_alloc> face_num_verts; // verts per face
+  std::vector<int, int_alloc> material_ids;   // per-face material
+};
+
+///
 /// Configuration for the optimized loader.
 ///
 struct OptLoadConfig {
@@ -674,20 +827,18 @@ struct OptLoadConfig {
 };
 
 /// Optimized loader — parse from a raw memory buffer.
-/// Uses the same attrib_t / shape_t types as LoadObj().
 /// Supports multi-threading (TINYOBJLOADER_USE_MULTITHREADING) and
 /// SIMD line scanning (TINYOBJLOADER_USE_SIMD).
-bool LoadObjOpt(attrib_t *attrib,
-                std::vector<shape_t> *shapes,
+bool LoadObjOpt(basic_attrib_t<> *attrib,
+                std::vector<basic_shape_t<>> *shapes,
                 std::vector<material_t> *materials,
                 std::string *warn, std::string *err,
                 const char *buf, size_t buf_len,
                 const OptLoadConfig &config = OptLoadConfig());
 
 /// Optimized loader — load from a file.
-/// Uses the same attrib_t / shape_t types as LoadObj().
-bool LoadObjOpt(attrib_t *attrib,
-                std::vector<shape_t> *shapes,
+bool LoadObjOpt(basic_attrib_t<> *attrib,
+                std::vector<basic_shape_t<>> *shapes,
                 std::vector<material_t> *materials,
                 std::string *warn, std::string *err,
                 const char *filename,
@@ -9328,6 +9479,57 @@ bool ObjReader::ParseFromString(const std::string &obj_text,
 // ===========================================================================
 // Optimized API implementation (C++11+)
 // ===========================================================================
+// ---- ArenaAllocator implementation ----
+
+void *ArenaAllocator::allocate(size_t bytes, size_t alignment) {
+  if (bytes == 0) bytes = 1;
+
+  // Try to allocate from current block
+  if (head_) {
+    size_t space = head_->capacity - head_->used;
+    void *ptr = head_->data + head_->used;
+    if (std::align(alignment, bytes, ptr, space)) {
+      head_->used = static_cast<size_t>(static_cast<unsigned char *>(ptr) -
+                                        head_->data) +
+                    bytes;
+      return ptr;
+    }
+  }
+
+  // Need a new block
+  Block *b = new_block(bytes + alignment);
+  size_t space = b->capacity;
+  void *ptr = b->data;
+  std::align(alignment, bytes, ptr, space);
+  b->used =
+      static_cast<size_t>(static_cast<unsigned char *>(ptr) - b->data) + bytes;
+  return ptr;
+}
+
+void ArenaAllocator::reset() { destroy(); }
+
+ArenaAllocator::Block *ArenaAllocator::new_block(size_t min_bytes) {
+  size_t cap = (min_bytes > default_block_size_) ? min_bytes
+                                                 : default_block_size_;
+  Block *b = new Block;
+  b->data = new unsigned char[cap];
+  b->capacity = cap;
+  b->used = 0;
+  b->next = head_;
+  head_ = b;
+  return b;
+}
+
+void ArenaAllocator::destroy() {
+  Block *b = head_;
+  while (b) {
+    Block *next = b->next;
+    delete[] b->data;
+    delete b;
+    b = next;
+  }
+  head_ = nullptr;
+}
 
 // ---- Optimized parser internals ----
 
@@ -9939,8 +10141,8 @@ static void scalar_find_line_infos(const char *buf, size_t start, size_t end,
 }  // namespace opt_internal
 
 // Internal implementation with optional basedir for material path resolution
-static bool LoadObjOpt_internal(attrib_t *attrib,
-                std::vector<shape_t> *shapes,
+static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
+                std::vector<basic_shape_t<>> *shapes,
                 std::vector<material_t> *materials,
                 std::string *warn, std::string *err,
                 const char *buf, size_t buf_len,
@@ -9957,13 +10159,11 @@ static bool LoadObjOpt_internal(attrib_t *attrib,
   attrib->normals.clear();
   attrib->texcoords.clear();
   attrib->colors.clear();
+  attrib->indices.clear();
+  attrib->face_num_verts.clear();
+  attrib->material_ids.clear();
   shapes->clear();
   if (materials) materials->clear();
-
-  // Temporary flat arrays for face data (split into per-shape meshes later)
-  std::vector<index_t> all_indices;
-  std::vector<unsigned int> all_face_num_verts;
-  std::vector<int> all_material_ids;
 
   if (buf_len < 1) return true;  // empty buffer is not an error
 
@@ -10179,9 +10379,9 @@ static bool LoadObjOpt_internal(attrib_t *attrib,
   attrib->vertices.resize(num_v * 3);
   attrib->normals.resize(num_vn * 3);
   attrib->texcoords.resize(num_vt * 2);
-  all_indices.resize(num_f);
-  all_face_num_verts.resize(static_cast<size_t>(num_indices));
-  all_material_ids.resize(static_cast<size_t>(num_indices), -1);
+  attrib->indices.resize(num_f);
+  attrib->face_num_verts.resize(static_cast<size_t>(num_indices));
+  attrib->material_ids.resize(static_cast<size_t>(num_indices), -1);
 
   // Compute per-thread offsets
   std::vector<size_t> v_off(num_t), n_off(num_t), t_off(num_t), f_off(num_t),
@@ -10239,11 +10439,11 @@ static bool LoadObjOpt_internal(attrib_t *attrib,
               idx.normal_index =
                   opt_fixIndex(vi.normal_index, static_cast<int>(nc));
             }
-            all_indices[fc + k] = idx;
+            attrib->indices[fc + k] = idx;
           }
           for (size_t k = 0; k < cmd.f_num_verts.size(); k++) {
-            all_face_num_verts[fcc + k] = cmd.f_num_verts[k];
-            all_material_ids[fcc + k] = current_mat_id;
+            attrib->face_num_verts[fcc + k] = cmd.f_num_verts[k];
+            attrib->material_ids[fcc + k] = current_mat_id;
           }
           fc += cmd.f.size();
           fcc += cmd.f_num_verts.size();
@@ -10282,16 +10482,16 @@ static bool LoadObjOpt_internal(attrib_t *attrib,
   // ---- Phase 5: construct shapes ----
   {
     // Precompute prefix-sum of index offsets for O(1) slicing
-    const size_t total_faces = all_face_num_verts.size();
+    const size_t total_faces = attrib->face_num_verts.size();
     std::vector<size_t> idx_prefix(total_faces + 1);
     idx_prefix[0] = 0;
     for (size_t fi = 0; fi < total_faces; fi++) {
       idx_prefix[fi + 1] =
-          idx_prefix[fi] + static_cast<size_t>(all_face_num_verts[fi]);
+          idx_prefix[fi] + static_cast<size_t>(attrib->face_num_verts[fi]);
     }
 
     size_t face_count = 0;
-    shape_t shape;
+    basic_shape_t<> shape;
     size_t face_prev_offset = 0;
 
     for (size_t t = 0; t < num_t; t++) {
@@ -10315,38 +10515,38 @@ static bool LoadObjOpt_internal(attrib_t *attrib,
           } else {
             if (shapes->empty()) {
               // faces before first group/object
-              shape_t prev_shape;
+              basic_shape_t<> prev_shape;
               prev_shape.mesh.num_face_vertices.assign(
-                  all_face_num_verts.begin(),
-                  all_face_num_verts.begin() +
+                  attrib->face_num_verts.begin(),
+                  attrib->face_num_verts.begin() +
                       static_cast<std::ptrdiff_t>(face_count));
               prev_shape.mesh.indices.assign(
-                  all_indices.begin(),
-                  all_indices.begin() +
+                  attrib->indices.begin(),
+                  attrib->indices.begin() +
                       static_cast<std::ptrdiff_t>(idx_prefix[face_count]));
               prev_shape.mesh.material_ids.assign(
-                  all_material_ids.begin(),
-                  all_material_ids.begin() +
+                  attrib->material_ids.begin(),
+                  attrib->material_ids.begin() +
                       static_cast<std::ptrdiff_t>(face_count));
               shapes->push_back(std::move(prev_shape));
             } else if (face_count > face_prev_offset) {
               // push previous shape
-              shape_t prev_shape;
+              basic_shape_t<> prev_shape;
               prev_shape.name = shape.name;
               prev_shape.mesh.num_face_vertices.assign(
-                  all_face_num_verts.begin() +
+                  attrib->face_num_verts.begin() +
                       static_cast<std::ptrdiff_t>(face_prev_offset),
-                  all_face_num_verts.begin() +
+                  attrib->face_num_verts.begin() +
                       static_cast<std::ptrdiff_t>(face_count));
               prev_shape.mesh.indices.assign(
-                  all_indices.begin() +
+                  attrib->indices.begin() +
                       static_cast<std::ptrdiff_t>(idx_prefix[face_prev_offset]),
-                  all_indices.begin() +
+                  attrib->indices.begin() +
                       static_cast<std::ptrdiff_t>(idx_prefix[face_count]));
               prev_shape.mesh.material_ids.assign(
-                  all_material_ids.begin() +
+                  attrib->material_ids.begin() +
                       static_cast<std::ptrdiff_t>(face_prev_offset),
-                  all_material_ids.begin() +
+                  attrib->material_ids.begin() +
                       static_cast<std::ptrdiff_t>(face_count));
               shapes->push_back(std::move(prev_shape));
             }
@@ -10362,22 +10562,22 @@ static bool LoadObjOpt_internal(attrib_t *attrib,
 
     // Final shape
     if (face_count > face_prev_offset) {
-      shape_t final_shape;
+      basic_shape_t<> final_shape;
       final_shape.name = shape.name;
       final_shape.mesh.num_face_vertices.assign(
-          all_face_num_verts.begin() +
+          attrib->face_num_verts.begin() +
               static_cast<std::ptrdiff_t>(face_prev_offset),
-          all_face_num_verts.begin() +
+          attrib->face_num_verts.begin() +
               static_cast<std::ptrdiff_t>(face_count));
       final_shape.mesh.indices.assign(
-          all_indices.begin() +
+          attrib->indices.begin() +
               static_cast<std::ptrdiff_t>(idx_prefix[face_prev_offset]),
-          all_indices.begin() +
+          attrib->indices.begin() +
               static_cast<std::ptrdiff_t>(idx_prefix[face_count]));
       final_shape.mesh.material_ids.assign(
-          all_material_ids.begin() +
+          attrib->material_ids.begin() +
               static_cast<std::ptrdiff_t>(face_prev_offset),
-          all_material_ids.begin() +
+          attrib->material_ids.begin() +
               static_cast<std::ptrdiff_t>(face_count));
       shapes->push_back(std::move(final_shape));
     }
@@ -10388,8 +10588,8 @@ static bool LoadObjOpt_internal(attrib_t *attrib,
 
 // ---- LoadObjOpt (buffer version, public API) ----
 
-bool LoadObjOpt(attrib_t *attrib,
-                std::vector<shape_t> *shapes,
+bool LoadObjOpt(basic_attrib_t<> *attrib,
+                std::vector<basic_shape_t<>> *shapes,
                 std::vector<material_t> *materials,
                 std::string *warn, std::string *err,
                 const char *buf, size_t buf_len,
@@ -10400,8 +10600,8 @@ bool LoadObjOpt(attrib_t *attrib,
 
 // ---- LoadObjOpt (file version) ----
 
-bool LoadObjOpt(attrib_t *attrib,
-                std::vector<shape_t> *shapes,
+bool LoadObjOpt(basic_attrib_t<> *attrib,
+                std::vector<basic_shape_t<>> *shapes,
                 std::vector<material_t> *materials,
                 std::string *warn, std::string *err,
                 const char *filename,
