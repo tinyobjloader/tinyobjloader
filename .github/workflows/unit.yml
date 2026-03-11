@@ -19,4 +19,4 @@ jobs:
       - name: Run unit tests
         run: |
           cd tests
-          make && ./tester
+          make check

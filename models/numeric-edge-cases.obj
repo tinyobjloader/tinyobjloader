@@ -1,0 +1,64 @@
+# Numeric edge cases for fast_float migration testing
+# Each vertex exercises a different parsing path.
+
+# v0: basic integers and zero
+v 0 0 0
+
+# v1: simple decimals
+v 1.5 -2.25 3.125
+
+# v2: leading decimal dot (no integer part)
+v .5 -.75 .001
+
+# v3: trailing dot (no fractional part)
+v 1. -2. 100.
+
+# v4: scientific notation (lowercase e)
+v 1.5e2 -3.0e-4 7e10
+
+# v5: scientific notation (uppercase E)
+v 2.5E3 -1.0E-2 4E+5
+
+# v6: leading + sign
+v +1.0 +0.5 +100
+
+# v7: leading zeros
+v 007.5 -003.14 000.001
+
+# v8: very small subnormal-range value
+v 1e-300 -1e-300 5e-310
+
+# v9: very large value near overflow
+v 1.7976931348623157e+308 -1e+308 1e+307
+
+# v10: negative zero
+v -0 -0.0 -0.0e0
+
+# v11: exponent with leading zeros
+v 1.5e002 -3.0e+007 7e-003
+
+# v12: single digit values
+v 0 1 9
+
+# v13: mixed sign exponents
+v 1e+0 1e-0 -1e+0
+
+# v14: max precision decimal (many digits)
+v 3.141592653589793 2.718281828459045 1.4142135623730951
+
+# v15: one as exponent boundary
+v 1e1 1e-1 -1e1
+
+# Normals to test normal parsing path too
+vn 0.0 1.0 0.0
+vn -0.707107 0.0 0.707107
+vn 1e-5 -1e-5 0.99999
+
+# Texture coords with edge values
+vt 0.0 0.0
+vt 1.0 1.0
+vt 0.5 .5
+vt +0.25 +0.75
+
+f 1//1 2//1 3//1
+f 4//2 5//2 6//2

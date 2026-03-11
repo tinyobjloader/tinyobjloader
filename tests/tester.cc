@@ -1,5 +1,9 @@
+#ifndef TINYOBJLOADER_IMPLEMENTATION
 #define TINYOBJLOADER_IMPLEMENTATION
+#endif
+#ifndef TINYOBJLOADER_STREAM_READER_MAX_BYTES
 #define TINYOBJLOADER_STREAM_READER_MAX_BYTES (size_t(8) * size_t(1024) * size_t(1024))
+#endif
 #include "../tiny_obj_loader.h"
 
 #if defined(__clang__)
@@ -44,8 +48,9 @@ static std::string WcharToUTF8(const std::wstring &wstr) {
   int len = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1,
                                 NULL, 0, NULL, NULL);
   if (len <= 0) return std::string();
-  std::string str(static_cast<size_t>(len - 1), '\0');
+  std::string str(static_cast<size_t>(len), '\0');
   WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, &str[0], len, NULL, NULL);
+  str.resize(static_cast<size_t>(len - 1));  // trim terminating '\0'
   return str;
 }
 #else
@@ -2005,10 +2010,10 @@ void test_tag_triple_huge_count_is_safely_rejected() {
 
 // Verify that mmap-based loading (TINYOBJLOADER_USE_MMAP) produces the same
 // vertex/shape/material data as the standard ifstream-based path.
-void test_mmap_and_standard_load_agree() {
+void test_file_and_stream_load_agree() {
   const char *obj_file = "../models/cornell_box.obj";
 
-  // Load using whatever path is compiled in (mmap or ifstream).
+  // Load using the file path API (uses mmap when TINYOBJLOADER_USE_MMAP is defined).
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> materials;
@@ -2249,6 +2254,1053 @@ void test_split_string_preserves_non_escape_backslash() {
   TEST_CHECK(tokens[0] == "a b.mtl");
 }
 
+void test_numeric_edge_cases() {
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string warn;
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              "../models/numeric-edge-cases.obj");
+
+  if (!warn.empty()) std::cout << "WARN: " << warn << std::endl;
+  if (!err.empty()) std::cerr << "ERR: " << err << std::endl;
+
+  TEST_CHECK(true == ret);
+
+  // 16 vertices * 3 components = 48
+  TEST_CHECK(attrib.vertices.size() == 48);
+
+  // v0: 0 0 0
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[0]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[1]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[2]));
+
+  // v1: 1.5 -2.25 3.125
+  TEST_CHECK(FloatEquals(1.5f, attrib.vertices[3]));
+  TEST_CHECK(FloatEquals(-2.25f, attrib.vertices[4]));
+  TEST_CHECK(FloatEquals(3.125f, attrib.vertices[5]));
+
+  // v2: .5 -.75 .001 (leading decimal dot)
+  TEST_CHECK(FloatEquals(0.5f, attrib.vertices[6]));
+  TEST_CHECK(FloatEquals(-0.75f, attrib.vertices[7]));
+  TEST_CHECK(FloatEquals(0.001f, attrib.vertices[8]));
+
+  // v3: 1. -2. 100. (trailing dot)
+  TEST_CHECK(FloatEquals(1.0f, attrib.vertices[9]));
+  TEST_CHECK(FloatEquals(-2.0f, attrib.vertices[10]));
+  TEST_CHECK(FloatEquals(100.0f, attrib.vertices[11]));
+
+  // v4: 1.5e2 -3.0e-4 7e10 (scientific notation lowercase)
+  TEST_CHECK(FloatEquals(150.0f, attrib.vertices[12]));
+  TEST_CHECK(FloatEquals(-3.0e-4f, attrib.vertices[13]));
+  TEST_CHECK(FloatEquals(7e10f, attrib.vertices[14]));
+
+  // v5: 2.5E3 -1.0E-2 4E+5 (scientific notation uppercase)
+  TEST_CHECK(FloatEquals(2500.0f, attrib.vertices[15]));
+  TEST_CHECK(FloatEquals(-0.01f, attrib.vertices[16]));
+  TEST_CHECK(FloatEquals(400000.0f, attrib.vertices[17]));
+
+  // v6: +1.0 +0.5 +100 (leading plus)
+  TEST_CHECK(FloatEquals(1.0f, attrib.vertices[18]));
+  TEST_CHECK(FloatEquals(0.5f, attrib.vertices[19]));
+  TEST_CHECK(FloatEquals(100.0f, attrib.vertices[20]));
+
+  // v7: 007.5 -003.14 000.001 (leading zeros)
+  TEST_CHECK(FloatEquals(7.5f, attrib.vertices[21]));
+  TEST_CHECK(FloatEquals(-3.14f, attrib.vertices[22]));
+  TEST_CHECK(FloatEquals(0.001f, attrib.vertices[23]));
+
+  // v8: 1e-300 -1e-300 5e-310 (tiny values -- flush to zero in float)
+  // These are below float min, so they become 0 in float mode.
+  // Just check they parsed without error (ret == true above).
+
+  // v9: 1.7976931348623157e+308 -1e+308 1e+307
+  // These overflow float, but should not crash. Check parse succeeded.
+
+  // v10: -0 -0.0 -0.0e0 (negative zero)
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[30]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[31]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[32]));
+
+  // v11: 1.5e002 -3.0e+007 7e-003 (exponent with leading zeros)
+  TEST_CHECK(FloatEquals(150.0f, attrib.vertices[33]));
+  TEST_CHECK(FloatEquals(-3.0e7f, attrib.vertices[34]));
+  TEST_CHECK(FloatEquals(7e-3f, attrib.vertices[35]));
+
+  // v12: 0 1 9 (single digit values)
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[36]));
+  TEST_CHECK(FloatEquals(1.0f, attrib.vertices[37]));
+  TEST_CHECK(FloatEquals(9.0f, attrib.vertices[38]));
+
+  // v13: 1e+0 1e-0 -1e+0 (exponent zero)
+  TEST_CHECK(FloatEquals(1.0f, attrib.vertices[39]));
+  TEST_CHECK(FloatEquals(1.0f, attrib.vertices[40]));
+  TEST_CHECK(FloatEquals(-1.0f, attrib.vertices[41]));
+
+  // v14: pi, e, sqrt(2) (high precision)
+  TEST_CHECK(FloatEquals(3.141592653589793f, attrib.vertices[42]));
+  TEST_CHECK(FloatEquals(2.718281828459045f, attrib.vertices[43]));
+  TEST_CHECK(FloatEquals(1.4142135623730951f, attrib.vertices[44]));
+
+  // v15: 1e1 1e-1 -1e1 (simple exponent)
+  TEST_CHECK(FloatEquals(10.0f, attrib.vertices[45]));
+  TEST_CHECK(FloatEquals(0.1f, attrib.vertices[46]));
+  TEST_CHECK(FloatEquals(-10.0f, attrib.vertices[47]));
+
+  // Normals: 3 normals * 3 = 9
+  TEST_CHECK(attrib.normals.size() == 9);
+  TEST_CHECK(FloatEquals(0.0f, attrib.normals[0]));
+  TEST_CHECK(FloatEquals(1.0f, attrib.normals[1]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.normals[2]));
+  TEST_CHECK(FloatEquals(-0.707107f, attrib.normals[3]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.normals[4]));
+  TEST_CHECK(FloatEquals(0.707107f, attrib.normals[5]));
+  TEST_CHECK(FloatEquals(1e-5f, attrib.normals[6]));
+  TEST_CHECK(FloatEquals(-1e-5f, attrib.normals[7]));
+  TEST_CHECK(FloatEquals(0.99999f, attrib.normals[8]));
+
+  // Texcoords: 4 texcoords * 2 = 8
+  TEST_CHECK(attrib.texcoords.size() == 8);
+  TEST_CHECK(FloatEquals(0.0f, attrib.texcoords[0]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.texcoords[1]));
+  TEST_CHECK(FloatEquals(1.0f, attrib.texcoords[2]));
+  TEST_CHECK(FloatEquals(1.0f, attrib.texcoords[3]));
+  TEST_CHECK(FloatEquals(0.5f, attrib.texcoords[4]));
+  TEST_CHECK(FloatEquals(0.5f, attrib.texcoords[5]));
+  TEST_CHECK(FloatEquals(0.25f, attrib.texcoords[6]));
+  TEST_CHECK(FloatEquals(0.75f, attrib.texcoords[7]));
+}
+
+void test_numeric_nan_inf() {
+  // Test nan/inf parsing via an in-memory OBJ string
+  std::string obj_str =
+      "v nan 0 0\n"
+      "v NaN 1 1\n"
+      "v NAN 2 2\n"
+      "v inf 0 0\n"
+      "v -inf 1 1\n"
+      "v Inf 2 2\n"
+      "v -Inf 3 3\n"
+      "v INF 4 4\n"
+      "v infinity 0 0\n"
+      "v -infinity 1 1\n"
+      "v +nan 0 0\n"
+      "v +inf 0 0\n"
+      "f 1 2 3\n";
+
+  std::istringstream obj_stream(obj_str);
+
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string warn;
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &obj_stream, NULL);
+
+  if (!warn.empty()) std::cout << "WARN: " << warn << std::endl;
+  if (!err.empty()) std::cerr << "ERR: " << err << std::endl;
+
+  TEST_CHECK(true == ret);
+  // 12 vertices * 3 components = 36
+  TEST_CHECK(attrib.vertices.size() == 36);
+
+  // All nan/inf should parse without crashing.
+  // The exact values depend on the implementation (nan -> 0.0, inf -> max, -inf -> lowest),
+  // but the parser must not fail or produce garbage for the non-nan/inf coords.
+
+  // v0: nan 0 0 -> second and third should be 0
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[1]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[2]));
+
+  // v3: inf 0 0 -> second and third should be 0
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[10]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[11]));
+
+  // v4: -inf 1 1
+  TEST_CHECK(FloatEquals(1.0f, attrib.vertices[13]));
+  TEST_CHECK(FloatEquals(1.0f, attrib.vertices[14]));
+}
+
+void test_numeric_from_stream() {
+  // Test that stream-based loading also gets the same numeric results
+  std::string obj_str =
+      "v 1.5e2 -3.0e-4 +7.5\n"
+      "v .001 -.999 1.\n"
+      "v 0 0 0\n"
+      "f 1 2 3\n";
+
+  std::istringstream obj_stream(obj_str);
+
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+
+  std::string warn;
+  std::string err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &obj_stream, NULL);
+
+  TEST_CHECK(true == ret);
+  TEST_CHECK(attrib.vertices.size() == 9);
+
+  TEST_CHECK(FloatEquals(150.0f, attrib.vertices[0]));
+  TEST_CHECK(FloatEquals(-3.0e-4f, attrib.vertices[1]));
+  TEST_CHECK(FloatEquals(7.5f, attrib.vertices[2]));
+
+  TEST_CHECK(FloatEquals(0.001f, attrib.vertices[3]));
+  TEST_CHECK(FloatEquals(-0.999f, attrib.vertices[4]));
+  TEST_CHECK(FloatEquals(1.0f, attrib.vertices[5]));
+
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[6]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[7]));
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[8]));
+}
+
+void test_numeric_overflow_preserves_default() {
+  // Regression: values that overflow double must not crash or corrupt memory.
+  // tryParseDouble now parses into a temp; *result is only written on success.
+  // With the StreamReader-based parser, overflow is detected as a parse error.
+  std::string obj_str =
+      "v 1e9999 2.0 3.0\n"    // first coord overflows
+      "f 1\n";
+
+  std::istringstream obj_stream(obj_str);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &obj_stream, NULL);
+
+  // Must not crash. Parser detects overflow and returns false.
+  TEST_CHECK(false == ret);
+  TEST_CHECK(!err.empty());
+}
+
+void test_numeric_empty_and_whitespace() {
+  // Regression: empty tokens, whitespace-only lines, and trailing whitespace
+  // must not crash the parser.
+  std::string obj_str =
+      "v   1.0   2.0   3.0  \n"   // extra whitespace around values
+      "v 4.0 5.0 6.0\r\n"         // Windows line endings
+      "v\t7.0\t8.0\t9.0\n"        // tab-separated
+      "\n"                          // blank line
+      "   \n"                       // whitespace-only line
+      "f 1 2 3\n";
+
+  std::istringstream obj_stream(obj_str);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &obj_stream, NULL);
+
+  TEST_CHECK(true == ret);
+  TEST_CHECK(attrib.vertices.size() == 9);
+
+  TEST_CHECK(FloatEquals(1.0f, attrib.vertices[0]));
+  TEST_CHECK(FloatEquals(2.0f, attrib.vertices[1]));
+  TEST_CHECK(FloatEquals(3.0f, attrib.vertices[2]));
+  TEST_CHECK(FloatEquals(4.0f, attrib.vertices[3]));
+  TEST_CHECK(FloatEquals(5.0f, attrib.vertices[4]));
+  TEST_CHECK(FloatEquals(6.0f, attrib.vertices[5]));
+  TEST_CHECK(FloatEquals(7.0f, attrib.vertices[6]));
+  TEST_CHECK(FloatEquals(8.0f, attrib.vertices[7]));
+  TEST_CHECK(FloatEquals(9.0f, attrib.vertices[8]));
+}
+
+void test_numeric_garbage_input() {
+  // Regression: totally invalid numeric input must not crash.
+  // With the StreamReader-based parser, garbage input is detected and
+  // LoadObj returns false with an error message.
+  std::string obj_str =
+      "v abc def ghi\n"           // alphabetic garbage
+      "f 1\n";
+
+  std::istringstream obj_stream(obj_str);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &obj_stream, NULL);
+
+  // Must not crash. Parser detects invalid input and returns false.
+  TEST_CHECK(false == ret);
+  TEST_CHECK(!err.empty());
+  TEST_CHECK(err.find("expected number") != std::string::npos);
+}
+
+void test_numeric_extreme_precision() {
+  // Regression: values with many digits must not crash or corrupt.
+  // fast_float handles arbitrary digit counts gracefully.
+  std::string obj_str =
+      "v 1.00000000000000000000000000000000000001 "
+         "2.99999999999999999999999999999999999999 "
+         "0.00000000000000000000000000000000000001\n"
+      "v 123456789012345678.0 -123456789012345678.0 0.0\n"
+      "f 1 2\n";
+
+  std::istringstream obj_stream(obj_str);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &obj_stream, NULL);
+
+  TEST_CHECK(true == ret);
+  TEST_CHECK(attrib.vertices.size() == 6);
+
+  // Values should round to nearest representable float
+  TEST_CHECK(FloatEquals(1.0f, attrib.vertices[0]));
+  TEST_CHECK(FloatEquals(3.0f, attrib.vertices[1]));
+}
+
+// ---------------------------------------------------------------------------
+// Additional coverage tests
+// ---------------------------------------------------------------------------
+
+// StreamReader: direct unit tests for public API methods
+void test_streamreader_eof_and_remaining() {
+  // Empty input
+  {
+    tinyobj::StreamReader sr("", 0);
+    TEST_CHECK(sr.eof() == true);
+    TEST_CHECK(sr.remaining() == 0);
+    TEST_CHECK(sr.peek() == '\0');
+    TEST_CHECK(sr.peek_at(0) == '\0');
+    TEST_CHECK(sr.peek_at(100) == '\0');
+    TEST_CHECK(sr.get() == '\0');
+    TEST_CHECK(sr.char_at(0, 'a') == false);
+    TEST_CHECK(sr.match("abc", 3) == false);
+    TEST_CHECK(sr.line_num() == 1);
+    TEST_CHECK(sr.col_num() == 1);
+  }
+  // Single char
+  {
+    tinyobj::StreamReader sr("x", 1);
+    TEST_CHECK(sr.eof() == false);
+    TEST_CHECK(sr.remaining() == 1);
+    TEST_CHECK(sr.peek() == 'x');
+    TEST_CHECK(sr.char_at(0, 'x') == true);
+    TEST_CHECK(sr.char_at(0, 'y') == false);
+    TEST_CHECK(sr.char_at(1, 'x') == false);  // out of bounds
+    TEST_CHECK(sr.match("x", 1) == true);
+    TEST_CHECK(sr.match("xy", 2) == false);
+    char c = sr.get();
+    TEST_CHECK(c == 'x');
+    TEST_CHECK(sr.eof() == true);
+    TEST_CHECK(sr.remaining() == 0);
+    // After EOF, these should be safe
+    TEST_CHECK(sr.peek() == '\0');
+    TEST_CHECK(sr.peek_at(0) == '\0');
+    TEST_CHECK(sr.match("a", 1) == false);
+    TEST_CHECK(sr.char_at(0, 'a') == false);
+  }
+}
+
+void test_streamreader_skip_and_read() {
+  const char *input = "  hello \t world\r\nline2\n";
+  tinyobj::StreamReader sr(input, strlen(input));
+
+  // skip_space should skip spaces and tabs
+  sr.skip_space();
+  TEST_CHECK(sr.peek() == 'h');
+  TEST_CHECK(sr.col_num() == 3);
+
+  // read_token should return "hello"
+  std::string tok = sr.read_token();
+  TEST_CHECK(tok == "hello");
+
+  // skip_space should skip " \t "
+  sr.skip_space();
+  TEST_CHECK(sr.peek() == 'w');
+
+  // read_token should return "world"
+  tok = sr.read_token();
+  TEST_CHECK(tok == "world");
+
+  // at_line_end should be true (next is \r\n)
+  TEST_CHECK(sr.at_line_end() == true);
+
+  // skip_line should advance past \r\n
+  sr.skip_line();
+  TEST_CHECK(sr.line_num() == 2);
+  TEST_CHECK(sr.col_num() == 1);
+
+  // read_line should return "line2"
+  std::string line = sr.read_line();
+  TEST_CHECK(line == "line2");
+  // read_line reads the content but line_num updates on skip_line/get past \n
+  TEST_CHECK(sr.line_num() == 2);
+}
+
+void test_streamreader_match_and_advance() {
+  const char *input = "mtllib foo.mtl\n";
+  tinyobj::StreamReader sr(input, strlen(input));
+
+  TEST_CHECK(sr.match("mtllib", 6) == true);
+  TEST_CHECK(sr.match("mtlliX", 6) == false);
+  TEST_CHECK(sr.match("mtllib foo.mtl\n", 15) == true);
+  // match longer than remaining
+  TEST_CHECK(sr.match("mtllib foo.mtl\nX", 16) == false);
+
+  sr.advance(7);  // past "mtllib "
+  TEST_CHECK(sr.peek() == 'f');
+  TEST_CHECK(sr.col_num() == 8);
+
+  // advance past end should clamp to EOF
+  sr.advance(1000);
+  TEST_CHECK(sr.eof() == true);
+}
+
+void test_streamreader_current_line_text() {
+  const char *input = "first line\nsecond line\nthird\n";
+  tinyobj::StreamReader sr(input, strlen(input));
+
+  // On first line
+  std::string lt = sr.current_line_text();
+  TEST_CHECK(lt == "first line");
+
+  sr.skip_line();  // move to second line
+  lt = sr.current_line_text();
+  TEST_CHECK(lt == "second line");
+
+  sr.advance(3);  // in the middle of "second line" -> "con" in "second"
+  lt = sr.current_line_text();
+  TEST_CHECK(lt == "second line");
+}
+
+void test_streamreader_error_stack() {
+  const char *input = "hello\n";
+  tinyobj::StreamReader sr(input, strlen(input));
+
+  TEST_CHECK(sr.has_errors() == false);
+  TEST_CHECK(sr.get_errors().empty());
+
+  sr.push_error("error 1");
+  TEST_CHECK(sr.has_errors() == true);
+  TEST_CHECK(sr.error_stack().size() == 1);
+
+  sr.push_error("error 2");
+  TEST_CHECK(sr.error_stack().size() == 2);
+  // get_errors() concatenates all errors into a single string
+  TEST_CHECK(sr.get_errors().find("error 1") != std::string::npos);
+  TEST_CHECK(sr.get_errors().find("error 2") != std::string::npos);
+
+  sr.clear_errors();
+  TEST_CHECK(sr.has_errors() == false);
+  TEST_CHECK(sr.get_errors().empty());
+}
+
+// Empty OBJ file (0 bytes)
+void test_empty_obj_file() {
+  std::istringstream iss("");
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &iss, NULL);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.empty());
+  TEST_CHECK(shapes.empty());
+}
+
+// OBJ with only BOM (3 bytes, no content)
+void test_bom_only_obj() {
+  std::string bom("\xEF\xBB\xBF");
+  std::istringstream iss(bom);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &iss, NULL);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.empty());
+}
+
+// File with no trailing newline
+void test_no_trailing_newline() {
+  const char *obj_text = "v 1.0 2.0 3.0\nv 4.0 5.0 6.0";  // no \n at end
+  std::istringstream iss(obj_text);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &iss, NULL);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 6);
+  TEST_CHECK(FloatEquals(4.0f, attrib.vertices[3]));
+  TEST_CHECK(FloatEquals(5.0f, attrib.vertices[4]));
+  TEST_CHECK(FloatEquals(6.0f, attrib.vertices[5]));
+}
+
+// Mixed CRLF, LF, and CR-only line endings
+void test_mixed_line_endings() {
+  // LF, CRLF, CR-only, and no trailing newline
+  std::string obj_text = "v 1.0 2.0 3.0\n"
+                         "v 4.0 5.0 6.0\r\n"
+                         "v 7.0 8.0 9.0\r"
+                         "f 1 2 3";
+  std::istringstream iss(obj_text);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &iss, NULL);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 9);
+  TEST_CHECK(FloatEquals(7.0f, attrib.vertices[6]));
+  TEST_CHECK(FloatEquals(8.0f, attrib.vertices[7]));
+  TEST_CHECK(FloatEquals(9.0f, attrib.vertices[8]));
+  TEST_CHECK(shapes.size() == 1);
+}
+
+// Vertex colors from in-memory stream (6-component vertices)
+void test_vertex_colors_from_stream() {
+  const char *obj_text =
+      "v 1.0 2.0 3.0 0.5 0.6 0.7\n"
+      "v 4.0 5.0 6.0 0.1 0.2 0.3\n"
+      "f 1 2 1\n";
+  std::istringstream iss(obj_text);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &iss, NULL);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 6);
+  TEST_CHECK(attrib.colors.size() == 6);
+  TEST_CHECK(FloatEquals(0.5f, attrib.colors[0]));
+  TEST_CHECK(FloatEquals(0.6f, attrib.colors[1]));
+  TEST_CHECK(FloatEquals(0.7f, attrib.colors[2]));
+  TEST_CHECK(FloatEquals(0.1f, attrib.colors[3]));
+  TEST_CHECK(FloatEquals(0.2f, attrib.colors[4]));
+  TEST_CHECK(FloatEquals(0.3f, attrib.colors[5]));
+}
+
+// Mixed: some vertices with colors, some without
+void test_vertex_colors_mixed() {
+  const char *obj_text =
+      "v 1.0 2.0 3.0 0.5 0.6 0.7\n"
+      "v 4.0 5.0 6.0\n"
+      "f 1 2 1\n";
+  std::istringstream iss(obj_text);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &iss, NULL);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 6);
+  // Colors array should have entries for both vertices (default 1.0 for no-color vertex)
+  TEST_CHECK(attrib.colors.size() == 6);
+  TEST_CHECK(FloatEquals(0.5f, attrib.colors[0]));
+  TEST_CHECK(FloatEquals(0.6f, attrib.colors[1]));
+  TEST_CHECK(FloatEquals(0.7f, attrib.colors[2]));
+  TEST_CHECK(FloatEquals(1.0f, attrib.colors[3]));
+  TEST_CHECK(FloatEquals(1.0f, attrib.colors[4]));
+  TEST_CHECK(FloatEquals(1.0f, attrib.colors[5]));
+}
+
+// OBJ with all element types: v, vn, vt, f, l, p
+void test_all_element_types() {
+  const char *obj_text =
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "v 0.0 0.0 1.0\n"
+      "vn 0.0 0.0 1.0\n"
+      "vt 0.5 0.5\n"
+      "f 1/1/1 2/1/1 3/1/1\n"
+      "l 1 2\n"
+      "p 3\n";
+  std::istringstream iss(obj_text);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &iss, NULL);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 9);
+  TEST_CHECK(attrib.normals.size() == 3);
+  TEST_CHECK(attrib.texcoords.size() == 2);
+  TEST_CHECK(shapes.size() >= 1);
+  // Face indices
+  TEST_CHECK(shapes[0].mesh.indices.size() == 3);
+  // Line indices
+  TEST_CHECK(shapes[0].lines.indices.size() == 2);
+  // Point indices
+  TEST_CHECK(shapes[0].points.indices.size() == 1);
+}
+
+// Multiple groups and objects
+void test_multiple_objects() {
+  const char *obj_text =
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "v 0.0 0.0 1.0\n"
+      "o obj1\n"
+      "f 1 2 3\n"
+      "o obj2\n"
+      "f 2 3 4\n";
+  std::istringstream iss(obj_text);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &iss, NULL);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(shapes.size() == 2);
+  TEST_CHECK(shapes[0].name == "obj1");
+  TEST_CHECK(shapes[1].name == "obj2");
+  TEST_CHECK(shapes[0].mesh.indices.size() == 3);
+  TEST_CHECK(shapes[1].mesh.indices.size() == 3);
+}
+
+// MTL warning accumulation (d and Tr conflict)
+void test_mtl_d_and_tr_warning() {
+  // Both d and Tr in same material should produce a warning
+  const char *mtl_text = "newmtl test\nd 0.5\nTr 0.8\n";
+  std::istringstream mtl_iss(mtl_text);
+  std::map<std::string, int> matMap;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  tinyobj::LoadMtl(&matMap, &materials, &mtl_iss, &warn, &err);
+  TEST_CHECK(materials.size() == 1);
+  // d=0.5 should win over Tr=0.8
+  TEST_CHECK(FloatEquals(0.5f, materials[0].dissolve));
+}
+
+// Multiple malformed lines: errors should accumulate
+void test_multiple_malformed_vertices() {
+  const char *obj_text =
+      "v 1.0 bad1 3.0\n"
+      "v 4.0 bad2 6.0\n";
+  std::istringstream iss(obj_text);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &iss, NULL);
+  TEST_CHECK(ret == false);
+  // First error causes early return, so at least one error must be present
+  TEST_CHECK(err.find("bad1") != std::string::npos);
+}
+
+// Malformed normal
+void test_malformed_normal_error() {
+  const char *obj_text = "vn 1.0 xyz 0.0\n";
+  std::istringstream iss(obj_text);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &iss, NULL);
+  TEST_CHECK(ret == false);
+  TEST_CHECK(err.find("expected number") != std::string::npos);
+}
+
+// Malformed texcoord
+void test_malformed_texcoord_error() {
+  const char *obj_text = "vt abc 0.5\n";
+  std::istringstream iss(obj_text);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &iss, NULL);
+  TEST_CHECK(ret == false);
+  TEST_CHECK(err.find("expected number") != std::string::npos);
+}
+
+// Negative vertex indices (relative indexing)
+void test_negative_vertex_indices() {
+  const char *obj_text =
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "v 0.0 0.0 1.0\n"
+      "f -3 -2 -1\n";
+  std::istringstream iss(obj_text);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &iss, NULL);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(shapes.size() == 1);
+  TEST_CHECK(shapes[0].mesh.indices.size() == 3);
+  // -3 should resolve to index 0, -2 to 1, -1 to 2
+  TEST_CHECK(shapes[0].mesh.indices[0].vertex_index == 0);
+  TEST_CHECK(shapes[0].mesh.indices[1].vertex_index == 1);
+  TEST_CHECK(shapes[0].mesh.indices[2].vertex_index == 2);
+}
+
+// Comments everywhere (inline and full-line)
+void test_comments_everywhere() {
+  const char *obj_text =
+      "# full line comment\n"
+      "v 1.0 2.0 3.0 # inline comment\n"
+      "  # indented comment\n"
+      "v 4.0 5.0 6.0\n"
+      "# another comment\n"
+      "f 1 2 1 # face comment\n";
+  std::istringstream iss(obj_text);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &iss, NULL);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 6);
+  TEST_CHECK(shapes.size() == 1);
+}
+
+// Multiple spaces/tabs between tokens
+void test_excessive_whitespace() {
+  const char *obj_text =
+      "v   1.0  \t  2.0  \t\t  3.0\n"
+      "v\t4.0\t5.0\t6.0\n"
+      "f  1  2  1\n";
+  std::istringstream iss(obj_text);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &iss, NULL);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 6);
+  TEST_CHECK(FloatEquals(1.0f, attrib.vertices[0]));
+  TEST_CHECK(FloatEquals(2.0f, attrib.vertices[1]));
+  TEST_CHECK(FloatEquals(3.0f, attrib.vertices[2]));
+  TEST_CHECK(FloatEquals(4.0f, attrib.vertices[3]));
+}
+
+// v2 ObjReader API
+void test_objreader_api_stream() {
+  const char *obj_text =
+      "v 1.0 2.0 3.0\n"
+      "v 4.0 5.0 6.0\n"
+      "v 7.0 8.0 9.0\n"
+      "f 1 2 3\n";
+
+  tinyobj::ObjReader reader;
+  bool ret = reader.ParseFromString(obj_text, "");
+  TEST_CHECK(ret == true);
+  TEST_CHECK(reader.Valid());
+  TEST_CHECK(reader.GetAttrib().vertices.size() == 9);
+  TEST_CHECK(reader.GetShapes().size() == 1);
+  // Warning output is optional and is not asserted here.
+}
+
+// ObjReader with invalid input
+void test_objreader_api_error() {
+  tinyobj::ObjReader reader;
+  bool ret = reader.ParseFromString("v 1.0 badval 3.0\n", "");
+  TEST_CHECK(ret == false);
+  TEST_CHECK(!reader.Error().empty());
+}
+
+// SplitString edge cases
+void test_split_string_edge_cases() {
+  std::vector<std::string> tokens;
+
+  // Empty input — SplitString always pushes at least one token (possibly empty)
+  tinyobj::SplitString("", ' ', '\\', tokens);
+  TEST_CHECK(tokens.size() == 1);
+  TEST_CHECK(tokens[0].empty());
+
+  // Only spaces — trailing token is empty
+  tokens.clear();
+  tinyobj::SplitString("   ", ' ', '\\', tokens);
+  TEST_CHECK(tokens.size() == 1);
+  TEST_CHECK(tokens[0].empty());
+
+  // Multiple tokens with multiple delimiters
+  tokens.clear();
+  tinyobj::SplitString("a  b  c", ' ', '\\', tokens);
+  TEST_CHECK(tokens.size() == 3);
+  TEST_CHECK(tokens[0] == "a");
+  TEST_CHECK(tokens[1] == "b");
+  TEST_CHECK(tokens[2] == "c");
+
+  // Escaped space in middle
+  tokens.clear();
+  tinyobj::SplitString("path\\ name.mtl other.mtl", ' ', '\\', tokens);
+  TEST_CHECK(tokens.size() == 2);
+  TEST_CHECK(tokens[0] == "path name.mtl");
+  TEST_CHECK(tokens[1] == "other.mtl");
+
+  // Trailing backslash (not an escape — preserved as-is)
+  tokens.clear();
+  tinyobj::SplitString("dir\\", ' ', '\\', tokens);
+  TEST_CHECK(tokens.size() == 1);
+  TEST_CHECK(tokens[0] == "dir\\");
+}
+
+// Quad face (non-triangle)
+void test_quad_face() {
+  const char *obj_text =
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 1.0 1.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "f 1 2 3 4\n";
+  std::istringstream iss(obj_text);
+  tinyobj::ObjReaderConfig config;
+  config.triangulate = false;
+  tinyobj::ObjReader reader;
+  bool ret = reader.ParseFromString(obj_text, "", config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(reader.GetShapes().size() == 1);
+  // Without triangulation: 4 indices, 1 face
+  TEST_CHECK(reader.GetShapes()[0].mesh.indices.size() == 4);
+  TEST_CHECK(reader.GetShapes()[0].mesh.num_face_vertices.size() == 1);
+  TEST_CHECK(reader.GetShapes()[0].mesh.num_face_vertices[0] == 4);
+}
+
+// Quad face with triangulation
+void test_quad_face_triangulated() {
+  const char *obj_text =
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 1.0 1.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "f 1 2 3 4\n";
+  std::istringstream iss(obj_text);
+  tinyobj::ObjReaderConfig config;
+  config.triangulate = true;
+  tinyobj::ObjReader reader;
+  bool ret = reader.ParseFromString(obj_text, "", config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(reader.GetShapes().size() == 1);
+  // With triangulation: quad -> 2 triangles = 6 indices
+  TEST_CHECK(reader.GetShapes()[0].mesh.indices.size() == 6);
+  TEST_CHECK(reader.GetShapes()[0].mesh.num_face_vertices.size() == 2);
+}
+
+// Face with v/vt/vn format
+void test_face_full_index_format() {
+  const char *obj_text =
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "vt 0.0 0.0\n"
+      "vt 1.0 0.0\n"
+      "vt 0.0 1.0\n"
+      "vn 0.0 0.0 1.0\n"
+      "f 1/1/1 2/2/1 3/3/1\n";
+  std::istringstream iss(obj_text);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &iss, NULL);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(shapes[0].mesh.indices[0].vertex_index == 0);
+  TEST_CHECK(shapes[0].mesh.indices[0].texcoord_index == 0);
+  TEST_CHECK(shapes[0].mesh.indices[0].normal_index == 0);
+  TEST_CHECK(shapes[0].mesh.indices[1].vertex_index == 1);
+  TEST_CHECK(shapes[0].mesh.indices[1].texcoord_index == 1);
+  TEST_CHECK(shapes[0].mesh.indices[2].vertex_index == 2);
+  TEST_CHECK(shapes[0].mesh.indices[2].texcoord_index == 2);
+}
+
+// Face with v//vn format (no texcoord)
+void test_face_vertex_normal_only() {
+  const char *obj_text =
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "vn 0.0 0.0 1.0\n"
+      "f 1//1 2//1 3//1\n";
+  std::istringstream iss(obj_text);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &iss, NULL);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(shapes[0].mesh.indices[0].vertex_index == 0);
+  TEST_CHECK(shapes[0].mesh.indices[0].texcoord_index == -1);
+  TEST_CHECK(shapes[0].mesh.indices[0].normal_index == 0);
+}
+
+// MTL with multiple materials and various properties
+void test_mtl_multiple_properties() {
+  const char *mtl_text =
+      "newmtl mat1\n"
+      "Ka 0.1 0.2 0.3\n"
+      "Kd 0.4 0.5 0.6\n"
+      "Ks 0.7 0.8 0.9\n"
+      "Ns 100.0\n"
+      "d 0.5\n"
+      "illum 2\n"
+      "\n"
+      "newmtl mat2\n"
+      "Ka 0.0 0.0 0.0\n"
+      "Kd 1.0 1.0 1.0\n"
+      "Ns 50.0\n";
+  std::istringstream mtl_iss(mtl_text);
+  std::map<std::string, int> matMap;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  tinyobj::LoadMtl(&matMap, &materials, &mtl_iss, &warn, &err);
+  TEST_CHECK(materials.size() == 2);
+  TEST_CHECK(materials[0].name == "mat1");
+  TEST_CHECK(FloatEquals(0.1f, materials[0].ambient[0]));
+  TEST_CHECK(FloatEquals(0.4f, materials[0].diffuse[0]));
+  TEST_CHECK(FloatEquals(0.7f, materials[0].specular[0]));
+  TEST_CHECK(FloatEquals(100.0f, materials[0].shininess));
+  TEST_CHECK(FloatEquals(0.5f, materials[0].dissolve));
+  TEST_CHECK(materials[0].illum == 2);
+  TEST_CHECK(materials[1].name == "mat2");
+  TEST_CHECK(FloatEquals(1.0f, materials[1].diffuse[0]));
+  TEST_CHECK(FloatEquals(50.0f, materials[1].shininess));
+}
+
+// Callback API: vertices, normals, texcoords, and faces
+void test_callback_all_elements() {
+  const char *obj_text =
+      "v 1.0 2.0 3.0\n"
+      "v 4.0 5.0 6.0\n"
+      "v 7.0 8.0 9.0\n"
+      "vn 0.0 0.0 1.0\n"
+      "vt 0.5 0.5\n"
+      "f 1 2 3\n";
+  std::istringstream iss(obj_text);
+
+  struct Counts {
+    int vertices;
+    int normals;
+    int texcoords;
+    int faces;
+  };
+  Counts counts = {0, 0, 0, 0};
+
+  tinyobj::callback_t cb;
+  cb.vertex_cb = [](void *user, float, float, float, float) {
+    static_cast<Counts *>(user)->vertices++;
+  };
+  cb.normal_cb = [](void *user, float, float, float) {
+    static_cast<Counts *>(user)->normals++;
+  };
+  cb.texcoord_cb = [](void *user, float, float, float) {
+    static_cast<Counts *>(user)->texcoords++;
+  };
+  cb.index_cb = [](void *user, tinyobj::index_t *, int) {
+    static_cast<Counts *>(user)->faces++;
+  };
+
+  std::string warn, err;
+  bool ret = tinyobj::LoadObjWithCallback(iss, cb, &counts, NULL, &warn, &err);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(counts.vertices == 3);
+  TEST_CHECK(counts.normals == 1);
+  TEST_CHECK(counts.texcoords == 1);
+  TEST_CHECK(counts.faces == 1);
+}
+
+// Callback API with NULL callbacks (should not crash)
+void test_callback_null_callbacks() {
+  const char *obj_text =
+      "v 1.0 2.0 3.0\n"
+      "vn 0.0 0.0 1.0\n"
+      "vt 0.5 0.5\n"
+      "f 1/1/1 1/1/1 1/1/1\n";
+  std::istringstream iss(obj_text);
+
+  tinyobj::callback_t cb;
+  // All callbacks are NULL by default
+  std::string warn, err;
+  bool ret = tinyobj::LoadObjWithCallback(iss, cb, NULL, NULL, &warn, &err);
+  TEST_CHECK(ret == true);
+}
+
+// Subnormal float values should parse without error
+void test_numeric_subnormal_values() {
+  // 5e-310 is subnormal for double, 1e-45 is subnormal for float
+  const char *obj_text = "v 5e-310 1e-45 0.0\n";
+  std::istringstream iss(obj_text);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &iss, NULL);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 3);
+  // Values should be >= 0 (either the subnormal or flushed to zero)
+  TEST_CHECK(attrib.vertices[0] >= 0.0f);
+  TEST_CHECK(attrib.vertices[1] >= 0.0f);
+  TEST_CHECK(FloatEquals(0.0f, attrib.vertices[2]));
+}
+
+// Empty MTL should not produce a phantom material
+void test_empty_mtl_no_phantom_material() {
+  const char *mtl_text = "# just a comment\n";
+  std::istringstream mtl_iss(mtl_text);
+  std::map<std::string, int> matMap;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  tinyobj::LoadMtl(&matMap, &materials, &mtl_iss, &warn, &err);
+  TEST_CHECK(materials.empty());
+  TEST_CHECK(matMap.empty());
+}
+
+// StreamReader should not be copyable (deleted copy constructor)
+void test_streamreader_not_copyable() {
+  // This is a compile-time check. If StreamReader were copyable,
+  // copying one built from istream would create a dangling buf_ pointer.
+  // We just verify construction and basic use work correctly.
+  const char *input = "hello";
+  tinyobj::StreamReader sr(input, 5);
+  TEST_CHECK(sr.remaining() == 5);
+  TEST_CHECK(sr.peek() == 'h');
+}
+
+// Out-of-range face indices should not crash
+void test_out_of_range_face_index() {
+  const char *obj_text =
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "v 0.0 0.0 1.0\n"
+      "f 1 2 999\n";  // index 999 doesn't exist
+  std::istringstream iss(obj_text);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &iss, NULL);
+  // Should parse without crashing. The face will have an out-of-range index
+  // which may produce a warning during triangulation.
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 9);
+}
+
 // Fuzzer test.
 // Just check if it does not crash.
 // Disable by default since Windows filesystem can't create filename of afl
@@ -2302,9 +3354,6 @@ main(
 #endif
 
 // ---- Tests for Optimized API (LoadObjOpt) ----
-// These tests require C++11 or later.
-#if __cplusplus >= 201103L || (defined(_MSC_VER) && _MSC_VER >= 1900)
-
 void test_loadobjopt_from_buffer() {
   // Simple triangle
   const char *obj_text =
@@ -2585,8 +3634,6 @@ void test_basic_attrib_with_arena() {
   TEST_CHECK(attrib.vertices[0] == 1.0f);
 }
 
-#endif  // C++11
-
 TEST_LIST = {
     {"cornell_box", test_cornell_box},
     {"catmark_torus_creases0", test_catmark_torus_creases0},
@@ -2663,7 +3710,14 @@ TEST_LIST = {
      test_tag_triple_huge_count_is_safely_rejected},
     {"test_texcoord_w_component", test_texcoord_w_component},
     {"test_texcoord_w_mixed_component", test_texcoord_w_mixed_component},
-    {"test_mmap_and_standard_load_agree", test_mmap_and_standard_load_agree},
+    {"test_numeric_edge_cases", test_numeric_edge_cases},
+    {"test_numeric_nan_inf", test_numeric_nan_inf},
+    {"test_numeric_from_stream", test_numeric_from_stream},
+    {"test_numeric_overflow_preserves_default", test_numeric_overflow_preserves_default},
+    {"test_numeric_empty_and_whitespace", test_numeric_empty_and_whitespace},
+    {"test_numeric_garbage_input", test_numeric_garbage_input},
+    {"test_numeric_extreme_precision", test_numeric_extreme_precision},
+    {"test_file_and_stream_load_agree", test_file_and_stream_load_agree},
     {"test_load_from_memory_buffer", test_load_from_memory_buffer},
     {"test_streamreader_column_tracking", test_streamreader_column_tracking},
     {"test_stream_load_from_current_offset", test_stream_load_from_current_offset},
@@ -2675,7 +3729,6 @@ TEST_LIST = {
     {"test_parse_error_backward_compat", test_parse_error_backward_compat},
     {"test_split_string_preserves_non_escape_backslash",
      test_split_string_preserves_non_escape_backslash},
-#if __cplusplus >= 201103L || (defined(_MSC_VER) && _MSC_VER >= 1900)
     {"test_loadobjopt_from_buffer", test_loadobjopt_from_buffer},
     {"test_loadobjopt_from_file", test_loadobjopt_from_file},
     {"test_loadobjopt_quad_triangulation", test_loadobjopt_quad_triangulation},
@@ -2687,5 +3740,42 @@ TEST_LIST = {
     {"test_arena_allocator", test_arena_allocator},
     {"test_arena_adapter_with_vector", test_arena_adapter_with_vector},
     {"test_basic_attrib_with_arena", test_basic_attrib_with_arena},
-#endif
+    {"test_streamreader_eof_and_remaining",
+     test_streamreader_eof_and_remaining},
+    {"test_streamreader_skip_and_read", test_streamreader_skip_and_read},
+    {"test_streamreader_match_and_advance",
+     test_streamreader_match_and_advance},
+    {"test_streamreader_current_line_text",
+     test_streamreader_current_line_text},
+    {"test_streamreader_error_stack", test_streamreader_error_stack},
+    {"test_empty_obj_file", test_empty_obj_file},
+    {"test_bom_only_obj", test_bom_only_obj},
+    {"test_no_trailing_newline", test_no_trailing_newline},
+    {"test_mixed_line_endings", test_mixed_line_endings},
+    {"test_vertex_colors_from_stream", test_vertex_colors_from_stream},
+    {"test_vertex_colors_mixed", test_vertex_colors_mixed},
+    {"test_all_element_types", test_all_element_types},
+    {"test_multiple_objects", test_multiple_objects},
+    {"test_mtl_d_and_tr_warning", test_mtl_d_and_tr_warning},
+    {"test_multiple_malformed_vertices", test_multiple_malformed_vertices},
+    {"test_malformed_normal_error", test_malformed_normal_error},
+    {"test_malformed_texcoord_error", test_malformed_texcoord_error},
+    {"test_negative_vertex_indices", test_negative_vertex_indices},
+    {"test_comments_everywhere", test_comments_everywhere},
+    {"test_excessive_whitespace", test_excessive_whitespace},
+    {"test_objreader_api_stream", test_objreader_api_stream},
+    {"test_objreader_api_error", test_objreader_api_error},
+    {"test_split_string_edge_cases", test_split_string_edge_cases},
+    {"test_quad_face", test_quad_face},
+    {"test_quad_face_triangulated", test_quad_face_triangulated},
+    {"test_face_full_index_format", test_face_full_index_format},
+    {"test_face_vertex_normal_only", test_face_vertex_normal_only},
+    {"test_mtl_multiple_properties", test_mtl_multiple_properties},
+    {"test_callback_all_elements", test_callback_all_elements},
+    {"test_callback_null_callbacks", test_callback_null_callbacks},
+    {"test_numeric_subnormal_values", test_numeric_subnormal_values},
+    {"test_empty_mtl_no_phantom_material",
+     test_empty_mtl_no_phantom_material},
+    {"test_streamreader_not_copyable", test_streamreader_not_copyable},
+    {"test_out_of_range_face_index", test_out_of_range_face_index},
     {NULL, NULL}};

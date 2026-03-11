@@ -2,7 +2,7 @@
 
 [![PyPI version](https://badge.fury.io/py/tinyobjloader.svg)](https://badge.fury.io/py/tinyobjloader)
 
-Tiny but powerful single file wavefront obj loader written in C++03. No dependency except for C++ STL. It can parse over 10M polygons with moderate memory and time.
+Tiny but powerful single file wavefront obj loader written in C++11. No dependency except for C++ STL. It can parse over 10M polygons with moderate memory and time.
 
 `tinyobjloader` is good for embedding .obj loader to your (global illumination) renderer ;-)
 
@@ -26,7 +26,7 @@ Old version is available as `v0.9.x` branch https://github.com/syoyo/tinyobjload
 
 ## Requirements
 
-* C++03 compiler
+* C++11 compiler
 
 ### Old version
 
@@ -238,6 +238,22 @@ Note that when `triangulate` flag is true in `tinyobj::LoadObj()` argument, `num
 TinyObjLoader now use `real_t` for floating point data type.
 Default is `float(32bit)`.
 You can enable `double(64bit)` precision by using `TINYOBJLOADER_USE_DOUBLE` define.
+
+### High-performance float parsing (fast_float)
+
+By default, TinyObjLoader embeds [fast_float v8.0.2](https://github.com/fastfloat/fast_float)
+for ~3× faster, bit-exact ASCII-to-float conversion (equivalent to `strtod` but without locale overhead).
+
+To opt out and use the built-in hand-written parser instead, define:
+
+```c++
+#define TINYOBJLOADER_DISABLE_FAST_FLOAT
+#define TINYOBJLOADER_IMPLEMENTATION
+#include "tiny_obj_loader.h"
+```
+
+**Note:** If your project already includes `fast_float` under the `fast_float` namespace,
+defining `TINYOBJLOADER_DISABLE_FAST_FLOAT` avoids a redefinition conflict.
 
 ### Robust triangulation
 
