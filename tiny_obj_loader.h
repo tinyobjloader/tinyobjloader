@@ -10359,6 +10359,8 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
       if (ifs.good()) {
         LoadMtl(&material_map, materials, &ifs, warn, err);
         ifs.close();
+      } else if (warn) {
+        *warn += "Material file [" + mtl_filename + "] not found.\n";
       }
     }
   }
