@@ -3578,6 +3578,108 @@ void test_loadobjopt_no_trailing_newline() {
   TEST_CHECK(attrib.indices.size() == 3);   // 3 face indices
 }
 
+void test_loadobjopt_face_missing_vt_vn() {
+  // Test that missing vt/vn in face lines are correctly handled as -1
+  // (not misinterpreted as relative index -1).
+  const char *obj_text =
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "vn 0.0 0.0 1.0\n"
+      "f 1//1 2//1 3//1\n";  // vertex//normal (no texcoord)
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.triangulate = true;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_text, obj_len, config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.indices.size() == 3);
+
+  // texcoord_index should be -1 (not present), not a fixed-up relative index
+  for (size_t i = 0; i < attrib.indices.size(); i++) {
+    TEST_CHECK(attrib.indices[i].texcoord_index == -1);
+    TEST_CHECK(attrib.indices[i].normal_index == 0);  // mapped from 1-based
+  }
+
+  // Also test "f 1 2 3" (vertex-only, no texcoord, no normal)
+  const char *obj_text2 =
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "f 1 2 3\n";
+  size_t obj_len2 = strlen(obj_text2);
+
+  tinyobj::basic_attrib_t<> attrib2;
+  std::vector<tinyobj::basic_shape_t<>> shapes2;
+  std::vector<tinyobj::material_t> materials2;
+  std::string warn2, err2;
+
+  ret = tinyobj::LoadObjOpt(&attrib2, &shapes2, &materials2, &warn2, &err2,
+                             obj_text2, obj_len2, config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib2.indices.size() == 3);
+  for (size_t i = 0; i < attrib2.indices.size(); i++) {
+    TEST_CHECK(attrib2.indices[i].texcoord_index == -1);
+    TEST_CHECK(attrib2.indices[i].normal_index == -1);
+  }
+}
+
+void test_loadobjopt_bare_cr_line_endings() {
+  // Test OBJ buffer with bare \r line endings (old Mac style)
+  const char *obj_text =
+      "v 0.0 0.0 0.0\r"
+      "v 1.0 0.0 0.0\r"
+      "v 0.0 1.0 0.0\r"
+      "f 1 2 3\r";
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.triangulate = true;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_text, obj_len, config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 9);  // 3 vertices * 3 coords
+  TEST_CHECK(attrib.indices.size() == 3);   // 3 face indices
+}
+
+void test_loadobjopt_degenerate_face() {
+  // Test that faces with fewer than 3 vertices are skipped
+  const char *obj_text =
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "f 1 2\n"         // degenerate (2 vertices) — should be skipped
+      "f 1 2 3\n";      // valid triangle
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.triangulate = true;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_text, obj_len, config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.indices.size() == 3);   // only the valid triangle
+  TEST_CHECK(attrib.face_num_verts.size() == 1);  // 1 face
+}
+
 void test_arena_allocator() {
   tinyobj::ArenaAllocator arena(4096);
 
@@ -3737,6 +3839,9 @@ TEST_LIST = {
     {"test_loadobjopt_empty_buffer", test_loadobjopt_empty_buffer},
     {"test_loadobjopt_leading_decimal_dot", test_loadobjopt_leading_decimal_dot},
     {"test_loadobjopt_no_trailing_newline", test_loadobjopt_no_trailing_newline},
+    {"test_loadobjopt_face_missing_vt_vn", test_loadobjopt_face_missing_vt_vn},
+    {"test_loadobjopt_bare_cr_line_endings", test_loadobjopt_bare_cr_line_endings},
+    {"test_loadobjopt_degenerate_face", test_loadobjopt_degenerate_face},
     {"test_arena_allocator", test_arena_allocator},
     {"test_arena_adapter_with_vector", test_arena_adapter_with_vector},
     {"test_basic_attrib_with_arena", test_basic_attrib_with_arena},

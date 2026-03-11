@@ -813,7 +813,7 @@ struct OptLoadConfig {
   int num_threads;
 
   bool triangulate;  ///< Triangulate polygons (fan triangulation).
-  bool verbose;      ///< Print timing information to stdout.
+  bool verbose;      ///< Reserved for future use (currently has no effect).
 
   OptLoadConfig() : num_threads(-1), triangulate(true), verbose(false) {}
 };
@@ -9692,7 +9692,10 @@ static inline void opt_parseFloat2(real_t *x, real_t *y, const char **token) {
 
 struct opt_index_t {
   int vertex_index, texcoord_index, normal_index;
-  opt_index_t() : vertex_index(-1), texcoord_index(-1), normal_index(-1) {}
+  // Use INT_MIN as sentinel for "field not present" to distinguish from
+  // relative index -1 (which means "last element" in OBJ spec).
+  static const int kNotPresent = -2147483647 - 1;  // INT_MIN
+  opt_index_t() : vertex_index(kNotPresent), texcoord_index(kNotPresent), normal_index(kNotPresent) {}
   opt_index_t(int vi, int ti, int ni)
       : vertex_index(vi), texcoord_index(ti), normal_index(ni) {}
 };
@@ -9860,6 +9863,13 @@ static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
 
     command->type = OPT_CMD_F;
 
+    // Validate minimum vertex count
+    if (face_count < 3) {
+      // Degenerate face — skip (match legacy parser behavior)
+      command->type = OPT_CMD_EMPTY;
+      return false;
+    }
+
     if (triangulate) {
       opt_index_t i0 = (face_count <= 8) ? face_buf[0] : command->f[0];
       if (face_count <= 8) {
@@ -9953,6 +9963,10 @@ static inline bool opt_is_line_ending(const char *p, size_t i, size_t end_i) {
 // ---- SIMD newline scanning ----
 
 #ifdef TINYOBJLOADER_USE_SIMD
+
+#if defined(_MSC_VER)
+#include <intrin.h>
+#endif
 
 // Portable count-trailing-zeros for SIMD bitmask extraction
 static inline unsigned int tinyobj_ctz(unsigned int x) {
@@ -10074,26 +10088,36 @@ static void simd_build_line_infos(const char *buf, size_t len,
 
 #endif  // TINYOBJLOADER_USE_SIMD
 
-/// Scalar fallback newline scanning
+/// Scalar fallback newline scanning — handles \n, \r\n, and bare \r
 static void scalar_find_line_infos(const char *buf, size_t start, size_t end,
                                    std::vector<LineInfo> &out) {
   size_t prev = start;
   for (size_t i = start; i < end; i++) {
-    if (buf[i] == '\n') {
+    if (buf[i] == '\n' || buf[i] == '\r') {
       size_t line_len = i - prev;
-      if (line_len > 0 && buf[prev + line_len - 1] == '\r') line_len--;
-      if (line_len > 0) {
-        LineInfo info;
-        info.pos = prev;
-        info.len = line_len;
-        out.push_back(info);
+      // Skip \r in \r\n pair
+      if (buf[i] == '\r' && (i + 1 < end) && buf[i + 1] == '\n') {
+        if (line_len > 0) {
+          LineInfo info;
+          info.pos = prev;
+          info.len = line_len;
+          out.push_back(info);
+        }
+        i++;  // skip the \n in \r\n
+      } else {
+        // bare \n or bare \r
+        if (line_len > 0) {
+          LineInfo info;
+          info.pos = prev;
+          info.len = line_len;
+          out.push_back(info);
+        }
       }
       prev = i + 1;
     }
   }
   if (prev < end) {
     size_t line_len = end - prev;
-    if (line_len > 0 && buf[prev + line_len - 1] == '\r') line_len--;
     if (line_len > 0) {
       LineInfo info;
       info.pos = prev;
@@ -10195,7 +10219,11 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
       static_cast<size_t>(num_threads));
   std::vector<OptCommandCount> thread_counts(
       static_cast<size_t>(num_threads));
-  int mtllib_t = -1, mtllib_i = -1;
+  // Per-thread mtllib tracking to avoid data races.
+  // Each thread records the earliest mtllib it finds; we resolve after join.
+  struct MtllibInfo { int thread_id; int cmd_index; size_t line_index; };
+  std::vector<MtllibInfo> thread_mtllib(static_cast<size_t>(num_threads),
+                                        {-1, -1, 0});
 
   {
     size_t lines_per_thread = total_lines / static_cast<size_t>(num_threads);
@@ -10227,9 +10255,14 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
                   cmd.f_num_verts.size();
             }
             if (cmd.type == OPT_CMD_MTLLIB) {
-              mtllib_t = t;
-              mtllib_i =
-                  static_cast<int>(thread_commands[static_cast<size_t>(t)].size());
+              // Record per-thread (no data race — each thread writes its own slot)
+              MtllibInfo &info = thread_mtllib[static_cast<size_t>(t)];
+              if (info.thread_id < 0 || i < info.line_index) {
+                info.thread_id = t;
+                info.cmd_index =
+                    static_cast<int>(thread_commands[static_cast<size_t>(t)].size());
+                info.line_index = i;
+              }
             }
             thread_commands[static_cast<size_t>(t)].emplace_back(
                 std::move(cmd));
@@ -10238,6 +10271,20 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
       });
     }
     for (auto &w : workers) w.join();
+  }
+
+  // Resolve mtllib deterministically: pick the earliest line across all threads
+  int mtllib_t = -1, mtllib_i = -1;
+  {
+    size_t earliest_line = SIZE_MAX;
+    for (size_t t = 0; t < thread_mtllib.size(); t++) {
+      if (thread_mtllib[t].thread_id >= 0 &&
+          thread_mtllib[t].line_index < earliest_line) {
+        earliest_line = thread_mtllib[t].line_index;
+        mtllib_t = thread_mtllib[t].thread_id;
+        mtllib_i = thread_mtllib[t].cmd_index;
+      }
+    }
   }
 
 #else
@@ -10356,10 +10403,18 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
             index_t idx;
             idx.vertex_index =
                 opt_fixIndex(vi.vertex_index, static_cast<int>(vc));
-            idx.texcoord_index =
-                opt_fixIndex(vi.texcoord_index, static_cast<int>(tc));
-            idx.normal_index =
-                opt_fixIndex(vi.normal_index, static_cast<int>(nc));
+            if (vi.texcoord_index == opt_index_t::kNotPresent) {
+              idx.texcoord_index = -1;
+            } else {
+              idx.texcoord_index =
+                  opt_fixIndex(vi.texcoord_index, static_cast<int>(tc));
+            }
+            if (vi.normal_index == opt_index_t::kNotPresent) {
+              idx.normal_index = -1;
+            } else {
+              idx.normal_index =
+                  opt_fixIndex(vi.normal_index, static_cast<int>(nc));
+            }
             attrib->indices[fc + k] = idx;
           }
           for (size_t k = 0; k < cmd.f_num_verts.size(); k++) {
@@ -10376,7 +10431,7 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
                    (mat_name.back() == '\r' || mat_name.back() == '\n'))
               mat_name.pop_back();
             auto it = material_map.find(mat_name);
-            int mat_id = (it != material_map.end()) ? it->second : -2;
+            int mat_id = (it != material_map.end()) ? it->second : -1;
             // Assign to next face's material slots
             // Look ahead for next face command
             for (size_t ii = i + 1; ii < thread_commands[t].size(); ii++) {
@@ -10421,6 +10476,15 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
 
   // ---- Phase 5: construct shapes ----
   {
+    // Precompute prefix-sum of index offsets for O(1) slicing
+    const size_t total_faces = attrib->face_num_verts.size();
+    std::vector<size_t> idx_prefix(total_faces + 1);
+    idx_prefix[0] = 0;
+    for (size_t fi = 0; fi < total_faces; fi++) {
+      idx_prefix[fi + 1] =
+          idx_prefix[fi] + static_cast<size_t>(attrib->face_num_verts[fi]);
+    }
+
     size_t face_count = 0;
     basic_shape_t<> shape;
     size_t face_prev_offset = 0;
@@ -10451,15 +10515,10 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
                   attrib->face_num_verts.begin(),
                   attrib->face_num_verts.begin() +
                       static_cast<std::ptrdiff_t>(face_count));
-              // Copy corresponding indices
-              size_t idx_count = 0;
-              for (size_t fi = 0; fi < face_count; fi++)
-                idx_count +=
-                    static_cast<size_t>(attrib->face_num_verts[fi]);
               prev_shape.mesh.indices.assign(
                   attrib->indices.begin(),
                   attrib->indices.begin() +
-                      static_cast<std::ptrdiff_t>(idx_count));
+                      static_cast<std::ptrdiff_t>(idx_prefix[face_count]));
               prev_shape.mesh.material_ids.assign(
                   attrib->material_ids.begin(),
                   attrib->material_ids.begin() +
@@ -10469,14 +10528,6 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
               // push previous shape
               basic_shape_t<> prev_shape;
               prev_shape.name = shape.name;
-              size_t idx_start = 0;
-              for (size_t fi = 0; fi < face_prev_offset; fi++)
-                idx_start +=
-                    static_cast<size_t>(attrib->face_num_verts[fi]);
-              size_t idx_end = idx_start;
-              for (size_t fi = face_prev_offset; fi < face_count; fi++)
-                idx_end +=
-                    static_cast<size_t>(attrib->face_num_verts[fi]);
               prev_shape.mesh.num_face_vertices.assign(
                   attrib->face_num_verts.begin() +
                       static_cast<std::ptrdiff_t>(face_prev_offset),
@@ -10484,9 +10535,9 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
                       static_cast<std::ptrdiff_t>(face_count));
               prev_shape.mesh.indices.assign(
                   attrib->indices.begin() +
-                      static_cast<std::ptrdiff_t>(idx_start),
+                      static_cast<std::ptrdiff_t>(idx_prefix[face_prev_offset]),
                   attrib->indices.begin() +
-                      static_cast<std::ptrdiff_t>(idx_end));
+                      static_cast<std::ptrdiff_t>(idx_prefix[face_count]));
               prev_shape.mesh.material_ids.assign(
                   attrib->material_ids.begin() +
                       static_cast<std::ptrdiff_t>(face_prev_offset),
@@ -10508,20 +10559,16 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
     if (face_count > face_prev_offset) {
       basic_shape_t<> final_shape;
       final_shape.name = shape.name;
-      size_t idx_start = 0;
-      for (size_t fi = 0; fi < face_prev_offset; fi++)
-        idx_start += static_cast<size_t>(attrib->face_num_verts[fi]);
-      size_t idx_end = idx_start;
-      for (size_t fi = face_prev_offset; fi < face_count; fi++)
-        idx_end += static_cast<size_t>(attrib->face_num_verts[fi]);
       final_shape.mesh.num_face_vertices.assign(
           attrib->face_num_verts.begin() +
               static_cast<std::ptrdiff_t>(face_prev_offset),
           attrib->face_num_verts.begin() +
               static_cast<std::ptrdiff_t>(face_count));
       final_shape.mesh.indices.assign(
-          attrib->indices.begin() + static_cast<std::ptrdiff_t>(idx_start),
-          attrib->indices.begin() + static_cast<std::ptrdiff_t>(idx_end));
+          attrib->indices.begin() +
+              static_cast<std::ptrdiff_t>(idx_prefix[face_prev_offset]),
+          attrib->indices.begin() +
+              static_cast<std::ptrdiff_t>(idx_prefix[face_count]));
       final_shape.mesh.material_ids.assign(
           attrib->material_ids.begin() +
               static_cast<std::ptrdiff_t>(face_prev_offset),
@@ -10589,50 +10636,18 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
     if (baseDir[baseDir.length() - 1] != dirsep) baseDir += dirsep;
   }
 
-  // Parse the buffer; material loading happens inside LoadObjOpt(buffer).
-  // We need to set up the mtl base dir for internal material loading.
-  // For now, we directly parse the buffer and handle mtl path resolution
-  // by pre-scanning for mtllib and adjusting the buffer approach.
+  // Parse the buffer. Material loading happens inside LoadObjOpt(buffer)
+  // using the mtllib path as-is. For proper base-dir resolution, the
+  // buffer-based loader would need the base directory. For now, we
+  // pre-scan for mtllib and load materials with the resolved path before
+  // calling the buffer-based loader, then pass material_map as context.
   //
-  // The buffer-based LoadObjOpt loads mtllib files using the filename as-is.
-  // To support mtl_basedir, we use MaterialFileReader for proper path search.
+  // However, since LoadObjOpt(buffer) has its own material loading path,
+  // we rely solely on the buffer-based loader here. Material loading and
+  // material ID assignment must remain within the same parsing path to
+  // keep results consistent.
   bool ret = LoadObjOpt(attrib, shapes, materials, warn, err, buf.data(),
                         static_cast<size_t>(fsize), config);
-
-  // If materials weren't loaded by the buffer path (mtllib path may need
-  // base dir), try loading via MaterialFileReader as a fallback.
-  if (ret && materials && materials->empty()) {
-    // Scan buffer for mtllib directive
-    std::string mtl_filename;
-    const char *p = buf.data();
-    const char *end_p = p + fsize;
-    while (p < end_p) {
-      while (p < end_p && (*p == ' ' || *p == '\t')) p++;
-      if (p + 7 < end_p && std::strncmp(p, "mtllib", 6) == 0 &&
-          (p[6] == ' ' || p[6] == '\t')) {
-        p += 7;
-        while (p < end_p && (*p == ' ' || *p == '\t')) p++;
-        const char *name_start = p;
-        while (p < end_p && *p != '\n' && *p != '\r') p++;
-        mtl_filename.assign(name_start, p);
-        while (!mtl_filename.empty() &&
-               (mtl_filename.back() == ' ' || mtl_filename.back() == '\t'))
-          mtl_filename.pop_back();
-        break;
-      }
-      while (p < end_p && *p != '\n') p++;
-      if (p < end_p) p++;
-    }
-
-    if (!mtl_filename.empty() && !baseDir.empty()) {
-      std::map<std::string, int> matMap;
-      std::string mtl_path = baseDir + mtl_filename;
-      std::ifstream mtl_ifs(mtl_path);
-      if (mtl_ifs.good()) {
-        LoadMtl(&matMap, materials, &mtl_ifs, warn, err);
-      }
-    }
-  }
 
   return ret;
 }
