@@ -9765,12 +9765,17 @@ enum OptCommandType {
 };
 
 struct OptCommand {
+  static const unsigned int kInlineIndexCapacity = 24;
+
   real_t vx, vy, vz;
   real_t nx, ny, nz;
   real_t tx, ty;
 
-  std::vector<opt_index_t> f;
-  std::vector<int> f_num_verts;
+  opt_index_t f_inline[kInlineIndexCapacity];
+  unsigned int f_count;
+  unsigned int emitted_face_count;
+  unsigned int emitted_face_verts;
+  std::vector<opt_index_t> f_heap;
 
   const char *group_name;
   unsigned int group_name_len;
@@ -9787,11 +9792,16 @@ struct OptCommand {
       : vx(0), vy(0), vz(0),
         nx(0), ny(0), nz(0),
         tx(0), ty(0),
+        f_count(0), emitted_face_count(0), emitted_face_verts(0),
         group_name(nullptr), group_name_len(0),
         object_name(nullptr), object_name_len(0),
         material_name(nullptr), material_name_len(0),
         mtllib_name(nullptr), mtllib_name_len(0),
         type(OPT_CMD_EMPTY) {}
+
+  const opt_index_t *face_indices() const {
+    return f_heap.empty() ? f_inline : f_heap.data();
+  }
 };
 
 struct OptCommandCount {
@@ -9852,6 +9862,7 @@ static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
 
     // Collect face vertices (use small stack buffer for typical case)
     opt_index_t face_buf[8];
+    std::vector<opt_index_t> face_overflow;
     int face_count = 0;
 
     while (!TINYOBJ_OPT_IS_NEW_LINE(token[0])) {
@@ -9861,10 +9872,10 @@ static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
         face_buf[face_count++] = vi;
       } else {
         if (face_count == 8) {
-          command->f.reserve(16);
-          for (int k = 0; k < 8; k++) command->f.push_back(face_buf[k]);
+          face_overflow.reserve(16);
+          for (int k = 0; k < 8; k++) face_overflow.push_back(face_buf[k]);
         }
-        command->f.push_back(vi);
+        face_overflow.push_back(vi);
         face_count++;
       }
     }
@@ -9879,31 +9890,49 @@ static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
     }
 
     if (triangulate) {
-      opt_index_t i0 = (face_count <= 8) ? face_buf[0] : command->f[0];
+      command->emitted_face_count = static_cast<unsigned int>(face_count - 2);
+      command->emitted_face_verts = 3;
+      command->f_count = command->emitted_face_count * 3;
+
+      opt_index_t *dst = command->f_inline;
+      if (command->f_count > OptCommand::kInlineIndexCapacity) {
+        command->f_heap.resize(command->f_count);
+        dst = command->f_heap.data();
+      }
+
+      opt_index_t i0 = (face_count <= 8) ? face_buf[0] : face_overflow[0];
+      unsigned int out = 0;
       if (face_count <= 8) {
         for (int k = 2; k < face_count; k++) {
-          command->f.push_back(i0);
-          command->f.push_back(face_buf[k - 1]);
-          command->f.push_back(face_buf[k]);
-          command->f_num_verts.push_back(3);
+          dst[out++] = i0;
+          dst[out++] = face_buf[k - 1];
+          dst[out++] = face_buf[k];
         }
       } else {
-        std::vector<opt_index_t> orig;
-        orig.swap(command->f);
-        command->f.clear();
-        for (size_t k = 2; k < orig.size(); k++) {
-          command->f.push_back(i0);
-          command->f.push_back(orig[k - 1]);
-          command->f.push_back(orig[k]);
-          command->f_num_verts.push_back(3);
+        for (size_t k = 2; k < face_overflow.size(); k++) {
+          dst[out++] = i0;
+          dst[out++] = face_overflow[k - 1];
+          dst[out++] = face_overflow[k];
         }
       }
     } else {
-      if (face_count <= 8) {
-        for (int k = 0; k < face_count; k++)
-          command->f.push_back(face_buf[k]);
+      command->emitted_face_count = 1;
+      command->emitted_face_verts = static_cast<unsigned int>(face_count);
+      command->f_count = static_cast<unsigned int>(face_count);
+
+      opt_index_t *dst = command->f_inline;
+      if (command->f_count > OptCommand::kInlineIndexCapacity) {
+        command->f_heap.resize(command->f_count);
+        dst = command->f_heap.data();
       }
-      command->f_num_verts.push_back(face_count);
+
+      if (face_count <= 8) {
+        for (int k = 0; k < face_count; k++) dst[k] = face_buf[k];
+      } else {
+        for (size_t k = 0; k < face_overflow.size(); k++) {
+          dst[k] = face_overflow[k];
+        }
+      }
     }
     return true;
   }
@@ -10255,9 +10284,9 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
             else if (cmd.type == OPT_CMD_VT)
               thread_counts[static_cast<size_t>(t)].num_vt++;
             else if (cmd.type == OPT_CMD_F) {
-              thread_counts[static_cast<size_t>(t)].num_f += cmd.f.size();
+              thread_counts[static_cast<size_t>(t)].num_f += cmd.f_count;
               thread_counts[static_cast<size_t>(t)].num_indices +=
-                  cmd.f_num_verts.size();
+                  cmd.emitted_face_count;
             }
             thread_commands[static_cast<size_t>(t)].emplace_back(
                 std::move(cmd));
@@ -10288,8 +10317,8 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
         else if (cmd.type == OPT_CMD_VT)
           thread_counts[0].num_vt++;
         else if (cmd.type == OPT_CMD_F) {
-          thread_counts[0].num_f += cmd.f.size();
-          thread_counts[0].num_indices += cmd.f_num_verts.size();
+          thread_counts[0].num_f += cmd.f_count;
+          thread_counts[0].num_indices += cmd.emitted_face_count;
         }
         thread_commands[0].emplace_back(std::move(cmd));
       }
@@ -10450,8 +10479,8 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
           tc++;
           break;
         case OPT_CMD_F:
-          for (size_t k = 0; k < cmd.f.size(); k++) {
-            const opt_index_t &vi = cmd.f[k];
+          for (size_t k = 0; k < cmd.f_count; k++) {
+            const opt_index_t &vi = cmd.face_indices()[k];
             index_t idx;
             idx.vertex_index =
                 opt_fixIndex(vi.vertex_index, static_cast<int>(vc));
@@ -10469,12 +10498,13 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
             }
             attrib->indices[fc + k] = idx;
           }
-          for (size_t k = 0; k < cmd.f_num_verts.size(); k++) {
-            attrib->face_num_verts[fcc + k] = cmd.f_num_verts[k];
+          for (size_t k = 0; k < cmd.emitted_face_count; k++) {
+            attrib->face_num_verts[fcc + k] =
+                static_cast<int>(cmd.emitted_face_verts);
             attrib->material_ids[fcc + k] = current_mat_id;
           }
-          fc += cmd.f.size();
-          fcc += cmd.f_num_verts.size();
+          fc += cmd.f_count;
+          fcc += cmd.emitted_face_count;
           break;
         case OPT_CMD_USEMTL:
           current_mat_id = resolve_material_id(cmd);
@@ -10576,7 +10606,7 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
           }
         }
         if (thread_commands[t][i].type == OPT_CMD_F) {
-          face_count += thread_commands[t][i].f_num_verts.size();
+          face_count += thread_commands[t][i].emitted_face_count;
         }
       }
     }
@@ -10634,27 +10664,6 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
   }
 
   std::string filepath(filename);
-  std::ifstream ifs(filepath, std::ios::binary | std::ios::ate);
-  if (!ifs.is_open()) {
-    if (err) *err = "Cannot open file: " + filepath;
-    return false;
-  }
-
-  std::streamsize fsize = ifs.tellg();
-  ifs.seekg(0, std::ios::beg);
-
-  if (fsize <= 0) {
-    return LoadObjOpt_internal(attrib, shapes, materials, warn, err,
-                               "", static_cast<size_t>(0), std::string(),
-                               config);
-  }
-
-  std::vector<char> buf(static_cast<size_t>(fsize));
-  if (!ifs.read(buf.data(), fsize)) {
-    if (err) *err = "Failed to read file: " + filepath;
-    return false;
-  }
-  ifs.close();
 
   // Resolve material base directory
   std::string baseDir;
@@ -10676,12 +10685,46 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
     if (baseDir[baseDir.length() - 1] != dirsep) baseDir += dirsep;
   }
 
-  // Parse the buffer with baseDir for proper mtllib path resolution.
-  bool ret = LoadObjOpt_internal(attrib, shapes, materials, warn, err,
-                                 buf.data(), static_cast<size_t>(fsize),
-                                 baseDir, config);
+#ifdef TINYOBJLOADER_USE_MMAP
+  {
+    MappedFile mf;
+    if (mf.open(filepath.c_str())) {
+      return LoadObjOpt_internal(attrib, shapes, materials, warn, err,
+                                 mf.data, mf.size, baseDir, config);
+    }
+  }
+#endif
 
-  return ret;
+#ifdef _WIN32
+  std::ifstream ifs(LongPathW(UTF8ToWchar(filepath)).c_str(),
+                    std::ios::binary | std::ios::ate);
+#else
+  std::ifstream ifs(filepath.c_str(), std::ios::binary | std::ios::ate);
+#endif
+  if (!ifs.is_open()) {
+    if (err) *err = "Cannot open file: " + filepath;
+    return false;
+  }
+
+  std::streamsize fsize = ifs.tellg();
+  ifs.seekg(0, std::ios::beg);
+
+  if (fsize <= 0) {
+    return LoadObjOpt_internal(attrib, shapes, materials, warn, err,
+                               "", static_cast<size_t>(0), baseDir, config);
+  }
+
+  std::vector<char> buf(static_cast<size_t>(fsize));
+  if (!ifs.read(buf.data(), fsize)) {
+    if (err) *err = "Failed to read file: " + filepath;
+    return false;
+  }
+  ifs.close();
+
+  // Parse the in-memory file buffer with baseDir for mtllib resolution.
+  return LoadObjOpt_internal(attrib, shapes, materials, warn, err,
+                             buf.data(), static_cast<size_t>(fsize), baseDir,
+                             config);
 }
 
 #ifdef __clang__

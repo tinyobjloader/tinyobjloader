@@ -1,6 +1,7 @@
 # Experimental code for .obj loader.
 
 * Multi-threaded optimized parser : tinyobj_loader_opt.h
+* Streaming experimental parser : stream/stream_obj_loader.h
 
 ## Requirements
 
