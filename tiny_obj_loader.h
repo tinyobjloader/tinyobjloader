@@ -10230,16 +10230,6 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
       static_cast<size_t>(num_threads));
   std::vector<OptCommandCount> thread_counts(
       static_cast<size_t>(num_threads));
-  // Per-thread mtllib tracking to avoid data races.
-  // Each thread records the earliest mtllib it finds; we resolve after join.
-  struct MtllibInfo {
-    int thread_id;
-    int cmd_index;
-    size_t line_index;
-  };
-  std::vector<MtllibInfo> thread_mtllib(static_cast<size_t>(num_threads),
-                                        {-1, -1, 0});
-
   {
     size_t lines_per_thread = total_lines / static_cast<size_t>(num_threads);
     std::vector<std::thread> workers;
@@ -10269,16 +10259,6 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
               thread_counts[static_cast<size_t>(t)].num_indices +=
                   cmd.f_num_verts.size();
             }
-            if (cmd.type == OPT_CMD_MTLLIB) {
-              // Record per-thread (no data race — each thread writes its own slot)
-              MtllibInfo &info = thread_mtllib[static_cast<size_t>(t)];
-              if (info.thread_id < 0 || i < info.line_index) {
-                info.thread_id = t;
-                info.cmd_index =
-                    static_cast<int>(thread_commands[static_cast<size_t>(t)].size());
-                info.line_index = i;
-              }
-            }
             thread_commands[static_cast<size_t>(t)].emplace_back(
                 std::move(cmd));
           }
@@ -10288,26 +10268,11 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
     for (auto &w : workers) w.join();
   }
 
-  // Resolve mtllib deterministically: pick the earliest line across all threads
-  int mtllib_t = -1, mtllib_i = -1;
-  {
-    size_t earliest_line = SIZE_MAX;
-    for (size_t t = 0; t < thread_mtllib.size(); t++) {
-      if (thread_mtllib[t].thread_id >= 0 &&
-          thread_mtllib[t].line_index < earliest_line) {
-        earliest_line = thread_mtllib[t].line_index;
-        mtllib_t = thread_mtllib[t].thread_id;
-        mtllib_i = thread_mtllib[t].cmd_index;
-      }
-    }
-  }
-
 #else
   // Single-threaded path
   const int num_threads_actual = 1;
   std::vector<std::vector<OptCommand>> thread_commands(1);
   std::vector<OptCommandCount> thread_counts(1);
-  int mtllib_t = -1, mtllib_i = -1;
 
   {
     thread_commands[0].reserve(total_lines);
@@ -10326,10 +10291,6 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
           thread_counts[0].num_f += cmd.f.size();
           thread_counts[0].num_indices += cmd.f_num_verts.size();
         }
-        if (cmd.type == OPT_CMD_MTLLIB) {
-          mtllib_t = 0;
-          mtllib_i = static_cast<int>(thread_commands[0].size());
-        }
         thread_commands[0].emplace_back(std::move(cmd));
       }
     }
@@ -10339,28 +10300,67 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
 
   // ---- Phase 3: load materials ----
   std::map<std::string, int> material_map;
-  if (mtllib_t >= 0 && mtllib_i >= 0 && materials) {
-    const OptCommand &mtl_cmd =
-        thread_commands[static_cast<size_t>(mtllib_t)][static_cast<size_t>(
-            mtllib_i)];
-    if (mtl_cmd.mtllib_name && mtl_cmd.mtllib_name_len > 0) {
-      std::string mtl_filename(mtl_cmd.mtllib_name, mtl_cmd.mtllib_name_len);
-      while (!mtl_filename.empty() &&
-             (mtl_filename.back() == '\r' || mtl_filename.back() == '\n'))
-        mtl_filename.pop_back();
+  if (materials) {
+    MaterialFileReader mat_file_reader(mtl_basedir);
+    std::set<std::string> material_filenames;
 
-      std::string mtl_filepath = mtl_basedir + mtl_filename;
-      std::ifstream ifs(mtl_filepath);
-      if (!ifs.good() && !mtl_basedir.empty()) {
-        // Fallback: try opening without basedir
-        ifs.clear();
-        ifs.open(mtl_filename);
-      }
-      if (ifs.good()) {
-        LoadMtl(&material_map, materials, &ifs, warn, err);
-        ifs.close();
-      } else if (warn) {
-        *warn += "Material file [" + mtl_filename + "] not found.\n";
+    for (size_t t = 0; t < thread_commands.size(); t++) {
+      for (size_t i = 0; i < thread_commands[t].size(); i++) {
+        const OptCommand &mtl_cmd = thread_commands[t][i];
+        if (mtl_cmd.type != OPT_CMD_MTLLIB) {
+          continue;
+        }
+
+        std::string line_rest;
+        if (mtl_cmd.mtllib_name && mtl_cmd.mtllib_name_len > 0) {
+          line_rest.assign(mtl_cmd.mtllib_name, mtl_cmd.mtllib_name_len);
+        }
+
+        std::vector<std::string> filenames;
+        SplitString(line_rest, ' ', '\\', filenames);
+        RemoveEmptyTokens(&filenames);
+
+        if (filenames.empty()) {
+          if (warn) {
+            (*warn) +=
+                "Looks like empty filename for mtllib. Use default material.\n";
+          }
+          continue;
+        }
+
+        bool found = false;
+        for (size_t s = 0; s < filenames.size(); s++) {
+          if (material_filenames.count(filenames[s]) > 0) {
+            found = true;
+            continue;
+          }
+
+          std::string warn_mtl;
+          std::string err_mtl;
+          bool ok = mat_file_reader(filenames[s], materials, &material_map,
+                                    &warn_mtl, &err_mtl);
+
+          if (warn && (!warn_mtl.empty())) {
+            (*warn) += warn_mtl;
+          }
+
+          if (err && (!err_mtl.empty())) {
+            (*err) += err_mtl;
+          }
+
+          if (ok) {
+            found = true;
+            material_filenames.insert(filenames[s]);
+            break;
+          }
+        }
+
+        if (!found) {
+          if (warn) {
+            (*warn) +=
+                "Failed to load material file(s). Use default material.\n";
+          }
+        }
       }
     }
   }
@@ -10395,11 +10395,39 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
     face_off[t] = face_off[t - 1] + thread_counts[t - 1].num_indices;
   }
 
+  // Carry parser state that persists across lines, such as usemtl, across
+  // thread chunk boundaries before merging in parallel.
+  std::vector<int> initial_material_id(num_t, -1);
+  auto resolve_material_id = [&](const OptCommand &cmd) -> int {
+    if (!(cmd.material_name && cmd.material_name_len > 0)) {
+      return -1;
+    }
+
+    std::string mat_name(cmd.material_name, cmd.material_name_len);
+    while (!mat_name.empty() &&
+           (mat_name.back() == '\r' || mat_name.back() == '\n')) {
+      mat_name.pop_back();
+    }
+
+    std::map<std::string, int>::const_iterator it = material_map.find(mat_name);
+    return (it != material_map.end()) ? it->second : -1;
+  };
+
+  int running_material_id = -1;
+  for (size_t t = 0; t < num_t; t++) {
+    initial_material_id[t] = running_material_id;
+    for (size_t i = 0; i < thread_commands[t].size(); i++) {
+      if (thread_commands[t][i].type == OPT_CMD_USEMTL) {
+        running_material_id = resolve_material_id(thread_commands[t][i]);
+      }
+    }
+  }
+
   // Merge parsed data into final arrays
   auto merge_thread = [&](size_t t) {
     size_t vc = v_off[t], nc = n_off[t], tc = t_off[t];
     size_t fc = f_off[t], fcc = face_off[t];
-    int current_mat_id = -1;
+    int current_mat_id = initial_material_id[t];
 
     for (size_t i = 0; i < thread_commands[t].size(); i++) {
       const OptCommand &cmd = thread_commands[t][i];
@@ -10449,14 +10477,7 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
           fcc += cmd.f_num_verts.size();
           break;
         case OPT_CMD_USEMTL:
-          if (cmd.material_name && cmd.material_name_len > 0) {
-            std::string mat_name(cmd.material_name, cmd.material_name_len);
-            while (!mat_name.empty() &&
-                   (mat_name.back() == '\r' || mat_name.back() == '\n'))
-              mat_name.pop_back();
-            auto it = material_map.find(mat_name);
-            current_mat_id = (it != material_map.end()) ? it->second : -1;
-          }
+          current_mat_id = resolve_material_id(cmd);
           break;
         default:
           break;
@@ -10623,7 +10644,9 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
   ifs.seekg(0, std::ios::beg);
 
   if (fsize <= 0) {
-    return true;  // empty file
+    return LoadObjOpt_internal(attrib, shapes, materials, warn, err,
+                               "", static_cast<size_t>(0), std::string(),
+                               config);
   }
 
   std::vector<char> buf(static_cast<size_t>(fsize));

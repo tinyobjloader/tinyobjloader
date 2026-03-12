@@ -1,3 +1,6 @@
+#ifndef TINYOBJLOADER_USE_MULTITHREADING
+#define TINYOBJLOADER_USE_MULTITHREADING
+#endif
 #ifndef TINYOBJLOADER_IMPLEMENTATION
 #define TINYOBJLOADER_IMPLEMENTATION
 #endif
@@ -3794,6 +3797,8 @@ void test_basic_attrib_with_arena() {
   TEST_CHECK(attrib.vertices[0] == 1.0f);
 }
 
+#include "opt/loadobjopt_multithread.inc"
+
 TEST_LIST = {
     {"cornell_box", test_cornell_box},
     {"catmark_torus_creases0", test_catmark_torus_creases0},
@@ -3905,6 +3910,21 @@ TEST_LIST = {
     {"test_arena_allocator", test_arena_allocator},
     {"test_arena_adapter_with_vector", test_arena_adapter_with_vector},
     {"test_basic_attrib_with_arena", test_basic_attrib_with_arena},
+    {"test_loadobjopt_multithread_matches_single_thread",
+     test_loadobjopt_multithread_matches_single_thread},
+    {"test_loadobjopt_multithread_relative_indices_match_single_thread",
+     test_loadobjopt_multithread_relative_indices_match_single_thread},
+    {"test_loadobjopt_mtllib_multiple_filenames",
+     test_loadobjopt_mtllib_multiple_filenames},
+    {"test_loadobjopt_mtllib_repeated_lines",
+     test_loadobjopt_mtllib_repeated_lines},
+    {"test_loadobjopt_points_only_input", test_loadobjopt_points_only_input},
+    {"test_loadobjopt_faces_only_input", test_loadobjopt_faces_only_input},
+    {"test_loadobjopt_synthetic_benchmark", test_loadobjopt_synthetic_benchmark},
+    {"test_loadobjopt_matches_legacy_parser_triangle_soup",
+     test_loadobjopt_matches_legacy_parser_triangle_soup},
+    {"test_loadobjopt_matches_legacy_parser_mtllib_threaded",
+     test_loadobjopt_matches_legacy_parser_mtllib_threaded},
     {"test_streamreader_eof_and_remaining",
      test_streamreader_eof_and_remaining},
     {"test_streamreader_skip_and_read", test_streamreader_skip_and_read},
