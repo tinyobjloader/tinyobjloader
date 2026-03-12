@@ -27,10 +27,11 @@ class StreamHandler {
  public:
   virtual ~StreamHandler() {}
 
-  virtual void OnVertex(real_t x, real_t y, real_t z, bool has_color,
-                        real_t r, real_t g, real_t b) = 0;
+  virtual void OnVertex(real_t x, real_t y, real_t z, bool has_weight,
+                        real_t w, bool has_color, real_t r, real_t g,
+                        real_t b) = 0;
   virtual void OnNormal(real_t x, real_t y, real_t z) = 0;
-  virtual void OnTexcoord(real_t u, real_t v) = 0;
+  virtual void OnTexcoord(real_t u, real_t v, bool has_w, real_t w) = 0;
   virtual void OnFace(const index_t *indices, size_t num_indices) = 0;
   virtual void OnGroup(const std::string &name) = 0;
   virtual void OnObject(const std::string &name) = 0;

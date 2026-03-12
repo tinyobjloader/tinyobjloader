@@ -64,6 +64,7 @@ THE SOFTWARE.
 #ifndef TINY_OBJ_LOADER_H_
 #define TINY_OBJ_LOADER_H_
 
+#include <algorithm>
 #include <map>
 #include <string>
 #include <vector>
@@ -328,25 +329,114 @@ struct material_t {
 #endif
 };
 
-struct tag_t {
-  std::string name;
+template <typename Alloc = std::allocator<char>>
+struct basic_tag_t {
+  using allocator_type = Alloc;
+  using char_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<char>;
+  using string_type =
+      std::basic_string<char, std::char_traits<char>, char_alloc>;
+  using int_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<int>;
+  using real_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<real_t>;
+  using string_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<string_type>;
 
-  std::vector<int> intValues;
-  std::vector<real_t> floatValues;
-  std::vector<std::string> stringValues;
+  string_type name;
+  std::vector<int, int_alloc> intValues;
+  std::vector<real_t, real_alloc> floatValues;
+  std::vector<string_type, string_alloc> stringValues;
+
+  basic_tag_t()
+      : name(),
+        intValues(),
+        floatValues(),
+        stringValues() {}
+
+  explicit basic_tag_t(const allocator_type &alloc)
+      : name(char_alloc(alloc)),
+        intValues(int_alloc(alloc)),
+        floatValues(real_alloc(alloc)),
+        stringValues(string_alloc(alloc)) {}
+
+  template <typename OtherAlloc>
+  basic_tag_t(const basic_tag_t<OtherAlloc> &rhs) : name(rhs.name) {
+    intValues.assign(rhs.intValues.begin(), rhs.intValues.end());
+    floatValues.assign(rhs.floatValues.begin(), rhs.floatValues.end());
+    stringValues.assign(rhs.stringValues.begin(), rhs.stringValues.end());
+  }
+
+  template <typename OtherAlloc>
+  basic_tag_t(const basic_tag_t<OtherAlloc> &rhs, const allocator_type &alloc)
+      : name(rhs.name.begin(), rhs.name.end(), char_alloc(alloc)),
+        intValues(int_alloc(alloc)),
+        floatValues(real_alloc(alloc)),
+        stringValues(string_alloc(alloc)) {
+    intValues.assign(rhs.intValues.begin(), rhs.intValues.end());
+    floatValues.assign(rhs.floatValues.begin(), rhs.floatValues.end());
+    for (size_t i = 0; i < rhs.stringValues.size(); i++) {
+      stringValues.emplace_back(rhs.stringValues[i].begin(),
+                                rhs.stringValues[i].end(), char_alloc(alloc));
+    }
+  }
+
+  template <typename OtherAlloc>
+  basic_tag_t &operator=(const basic_tag_t<OtherAlloc> &rhs) {
+    name = rhs.name;
+    intValues.assign(rhs.intValues.begin(), rhs.intValues.end());
+    floatValues.assign(rhs.floatValues.begin(), rhs.floatValues.end());
+    stringValues.assign(rhs.stringValues.begin(), rhs.stringValues.end());
+    return *this;
+  }
 };
+
+using tag_t = basic_tag_t<>;
 
 struct joint_and_weight_t {
   int joint_id;
   real_t weight;
 };
 
-struct skin_weight_t {
+template <typename Alloc = std::allocator<char>>
+struct basic_skin_weight_t {
+  using allocator_type = Alloc;
+  using joint_weight_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<
+          joint_and_weight_t>;
+
   int vertex_id;  // Corresponding vertex index in `attrib_t::vertices`.
                   // Compared to `index_t`, this index must be positive and
                   // start with 0(does not allow relative indexing)
-  std::vector<joint_and_weight_t> weightValues;
+  std::vector<joint_and_weight_t, joint_weight_alloc> weightValues;
+
+  basic_skin_weight_t() : vertex_id(0) {}
+
+  explicit basic_skin_weight_t(const allocator_type &alloc)
+      : vertex_id(0), weightValues(joint_weight_alloc(alloc)) {}
+
+  template <typename OtherAlloc>
+  basic_skin_weight_t(const basic_skin_weight_t<OtherAlloc> &rhs)
+      : vertex_id(rhs.vertex_id) {
+    weightValues.assign(rhs.weightValues.begin(), rhs.weightValues.end());
+  }
+
+  template <typename OtherAlloc>
+  basic_skin_weight_t(const basic_skin_weight_t<OtherAlloc> &rhs,
+                      const allocator_type &alloc)
+      : vertex_id(rhs.vertex_id), weightValues(joint_weight_alloc(alloc)) {
+    weightValues.assign(rhs.weightValues.begin(), rhs.weightValues.end());
+  }
+
+  template <typename OtherAlloc>
+  basic_skin_weight_t &operator=(const basic_skin_weight_t<OtherAlloc> &rhs) {
+    vertex_id = rhs.vertex_id;
+    weightValues.assign(rhs.weightValues.begin(), rhs.weightValues.end());
+    return *this;
+  }
 };
+
+using skin_weight_t = basic_skin_weight_t<>;
 
 // Index struct to support different indices for vtx/normal/texcoord.
 // -1 means not used.
@@ -769,11 +859,34 @@ struct basic_mesh_t {
       typename std::allocator_traits<Alloc>::template rebind_alloc<unsigned int>;
   using int_alloc =
       typename std::allocator_traits<Alloc>::template rebind_alloc<int>;
+  using tag_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<
+          basic_tag_t<Alloc> >;
 
   std::vector<index_t, index_alloc> indices;
   std::vector<unsigned int, uint_alloc> num_face_vertices;
   std::vector<int, int_alloc> material_ids;
   std::vector<unsigned int, uint_alloc> smoothing_group_ids;
+  std::vector<basic_tag_t<Alloc>, tag_alloc> tags;
+};
+
+template <typename Alloc = std::allocator<char>>
+struct basic_lines_t {
+  using index_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<index_t>;
+  using int_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<int>;
+
+  std::vector<index_t, index_alloc> indices;
+  std::vector<int, int_alloc> num_line_vertices;
+};
+
+template <typename Alloc = std::allocator<char>>
+struct basic_points_t {
+  using index_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<index_t>;
+
+  std::vector<index_t, index_alloc> indices;
 };
 
 ///
@@ -785,6 +898,8 @@ template <typename Alloc = std::allocator<char>>
 struct basic_shape_t {
   std::string name;
   basic_mesh_t<Alloc> mesh;
+  basic_lines_t<Alloc> lines;
+  basic_points_t<Alloc> points;
 };
 
 ///
@@ -802,11 +917,17 @@ struct basic_attrib_t {
       typename std::allocator_traits<Alloc>::template rebind_alloc<int>;
   using index_alloc =
       typename std::allocator_traits<Alloc>::template rebind_alloc<index_t>;
+  using skin_weight_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<
+          basic_skin_weight_t<Alloc> >;
 
   std::vector<real_t, real_alloc> vertices;   // xyz
+  std::vector<real_t, real_alloc> vertex_weights;  // optional w for `v`
   std::vector<real_t, real_alloc> normals;    // xyz
   std::vector<real_t, real_alloc> texcoords;  // uv
+  std::vector<real_t, real_alloc> texcoord_ws;  // optional w for `vt`
   std::vector<real_t, real_alloc> colors;     // rgb (optional)
+  std::vector<basic_skin_weight_t<Alloc>, skin_weight_alloc> skin_weights;
   std::vector<index_t, index_alloc> indices;  // face indices
   std::vector<int, int_alloc> face_num_verts; // verts per face
   std::vector<int, int_alloc> material_ids;   // per-face material
@@ -9564,18 +9685,58 @@ static inline int opt_until_space(const char *token) {
 }
 
 static inline int opt_my_atoi(const char *c) {
-  int value = 0;
+  unsigned int value = 0;
   int sign = 1;
   if (*c == '+' || *c == '-') {
     if (*c == '-') sign = -1;
     c++;
   }
   while ((*c >= '0') && (*c <= '9')) {
-    value *= 10;
-    value += static_cast<int>(*c - '0');
+    const unsigned int digit = static_cast<unsigned int>(*c - '0');
+    const unsigned int limit = (sign < 0)
+                                   ? static_cast<unsigned int>(INT_MAX) + 1u
+                                   : static_cast<unsigned int>(INT_MAX);
+    if (value > (limit / 10u) ||
+        (value == (limit / 10u) && digit > (limit % 10u))) {
+      return (sign < 0) ? INT_MIN : INT_MAX;
+    }
+    value = value * 10u + digit;
     c++;
   }
-  return value * sign;
+  if (sign < 0) {
+    if (value == static_cast<unsigned int>(INT_MAX) + 1u) {
+      return INT_MIN;
+    }
+    return -static_cast<int>(value);
+  }
+  return static_cast<int>(value);
+}
+
+static inline const char *opt_find_index_token_end(const char *token) {
+  const char *end = token;
+  while (*end != '\0' && *end != '/' && *end != ' ' && *end != '\t' &&
+         *end != '\r' && *end != '\n') {
+    end++;
+  }
+  return end;
+}
+
+static inline bool opt_tryParseIndexToken(const char *token, const char *end,
+                                          int *value) {
+  if (!value || !token || !end || token >= end) return false;
+
+  const char *cursor = token;
+  if (*cursor == '+' || *cursor == '-') {
+    cursor++;
+  }
+  if (cursor >= end) return false;
+  while (cursor < end) {
+    if (!TINYOBJ_OPT_IS_DIGIT(*cursor)) return false;
+    cursor++;
+  }
+
+  *value = opt_my_atoi(token);
+  return true;
 }
 
 static inline int opt_fixIndex(int idx, int n) {
@@ -9705,39 +9866,49 @@ struct opt_index_t {
       : vertex_index(vi), texcoord_index(ti), normal_index(ni) {}
 };
 
-static opt_index_t opt_parseRawTriple(const char **token) {
+static bool opt_parseRawTriple(const char **token, opt_index_t *ret) {
+  if (!token || !ret) return false;
+
   opt_index_t vi;
-  vi.vertex_index = opt_my_atoi(*token);
-  while (**token != '\0' && **token != '/' && **token != ' ' &&
-         **token != '\t' && **token != '\r' && **token != '\n') {
-    (*token)++;
+  const char *segment_end = opt_find_index_token_end(*token);
+  if (!opt_tryParseIndexToken(*token, segment_end, &vi.vertex_index)) {
+    return false;
   }
-  if (**token != '/') return vi;
+  *token = segment_end;
+  if (**token != '/') {
+    *ret = vi;
+    return true;
+  }
   (*token)++;
 
   if (**token == '/') {
     (*token)++;
-    vi.normal_index = opt_my_atoi(*token);
-    while (**token != '\0' && **token != '/' && **token != ' ' &&
-           **token != '\t' && **token != '\r' && **token != '\n') {
-      (*token)++;
+    segment_end = opt_find_index_token_end(*token);
+    if (!opt_tryParseIndexToken(*token, segment_end, &vi.normal_index)) {
+      return false;
     }
-    return vi;
+    *token = segment_end;
+    *ret = vi;
+    return true;
   }
 
-  vi.texcoord_index = opt_my_atoi(*token);
-  while (**token != '\0' && **token != '/' && **token != ' ' &&
-         **token != '\t' && **token != '\r' && **token != '\n') {
-    (*token)++;
+  segment_end = opt_find_index_token_end(*token);
+  if (!opt_tryParseIndexToken(*token, segment_end, &vi.texcoord_index)) {
+    return false;
   }
-  if (**token != '/') return vi;
+  *token = segment_end;
+  if (**token != '/') {
+    *ret = vi;
+    return true;
+  }
   (*token)++;
-  vi.normal_index = opt_my_atoi(*token);
-  while (**token != '\0' && **token != '/' && **token != ' ' &&
-         **token != '\t' && **token != '\r' && **token != '\n') {
-    (*token)++;
+  segment_end = opt_find_index_token_end(*token);
+  if (!opt_tryParseIndexToken(*token, segment_end, &vi.normal_index)) {
+    return false;
   }
-  return vi;
+  *token = segment_end;
+  *ret = vi;
+  return true;
 }
 
 static inline int opt_length_until_newline(const char *token, size_t n) {
@@ -9752,6 +9923,58 @@ static inline int opt_length_until_newline(const char *token, size_t n) {
   return static_cast<int>(len);
 }
 
+static inline int opt_length_until_token_or_comment(const char *token, size_t n) {
+  size_t len = 0;
+  for (len = 0; len < n; len++) {
+    const char c = token[len];
+    if (c == '\n' || c == '\r' || c == ' ' || c == '\t') break;
+  }
+  return static_cast<int>(len);
+}
+
+static inline bool opt_tryParseFloatToken(real_t *out, const char **token) {
+  if (!out || !token) return false;
+  const char *cursor = *token;
+  opt_skip_space(&cursor);
+  if (TINYOBJ_OPT_IS_NEW_LINE(cursor[0]) || cursor[0] == '#' || cursor[0] == '\0') {
+    return false;
+  }
+  const char *end = cursor;
+  while (!TINYOBJ_OPT_IS_NEW_LINE(end[0]) && end[0] != '#' && end[0] != ' ' &&
+         end[0] != '\t' && end[0] != '\0') {
+    end++;
+  }
+  double val = 0.0;
+  if (!opt_tryParseDouble(cursor, end, &val)) {
+    return false;
+  }
+  *out = static_cast<real_t>(val);
+  *token = end;
+  return true;
+}
+
+static inline int opt_count_remaining_scalars(const char *token) {
+  int count = 0;
+  const char *cursor = token;
+  while (true) {
+    opt_skip_space(&cursor);
+    if (TINYOBJ_OPT_IS_NEW_LINE(cursor[0]) || cursor[0] == '#' ||
+        cursor[0] == '\0') {
+      break;
+    }
+    count++;
+    while (!TINYOBJ_OPT_IS_NEW_LINE(cursor[0]) && cursor[0] != '#' &&
+           cursor[0] != ' ' && cursor[0] != '\t' && cursor[0] != '\0') {
+      cursor++;
+    }
+  }
+  return count;
+}
+
+static inline bool opt_is_comment_start(const char *token) {
+  return token[0] == '#';
+}
+
 enum OptCommandType {
   OPT_CMD_EMPTY,
   OPT_CMD_V,
@@ -9761,18 +9984,24 @@ enum OptCommandType {
   OPT_CMD_G,
   OPT_CMD_O,
   OPT_CMD_USEMTL,
-  OPT_CMD_MTLLIB
+  OPT_CMD_MTLLIB,
+  OPT_CMD_S
 };
 
 struct OptCommand {
   static const unsigned int kInlineIndexCapacity = 24;
 
-  real_t vx, vy, vz;
+  real_t vx, vy, vz, vw;
+  real_t vc_r, vc_g, vc_b;
   real_t nx, ny, nz;
-  real_t tx, ty;
+  real_t tx, ty, tw;
+  bool has_vertex_weight;
+  bool has_vertex_color;
+  bool has_texcoord_w;
 
   opt_index_t f_inline[kInlineIndexCapacity];
   unsigned int f_count;
+  unsigned int face_vertex_count;
   unsigned int emitted_face_count;
   unsigned int emitted_face_verts;
   std::vector<opt_index_t> f_heap;
@@ -9785,18 +10014,24 @@ struct OptCommand {
   unsigned int material_name_len;
   const char *mtllib_name;
   unsigned int mtllib_name_len;
+  unsigned int smoothing_group_id;
 
   OptCommandType type;
 
   OptCommand()
-      : vx(0), vy(0), vz(0),
+      : vx(0), vy(0), vz(0), vw(1),
+        vc_r(1), vc_g(1), vc_b(1),
         nx(0), ny(0), nz(0),
-        tx(0), ty(0),
-        f_count(0), emitted_face_count(0), emitted_face_verts(0),
+        tx(0), ty(0), tw(0),
+        has_vertex_weight(false), has_vertex_color(false),
+        has_texcoord_w(false),
+        f_count(0), face_vertex_count(0), emitted_face_count(0),
+        emitted_face_verts(0),
         group_name(nullptr), group_name_len(0),
         object_name(nullptr), object_name_len(0),
         material_name(nullptr), material_name_len(0),
         mtllib_name(nullptr), mtllib_name_len(0),
+        smoothing_group_id(0),
         type(OPT_CMD_EMPTY) {}
 
   const opt_index_t *face_indices() const {
@@ -9809,11 +10044,193 @@ struct OptCommandCount {
   OptCommandCount() : num_v(0), num_vn(0), num_vt(0), num_f(0), num_indices(0) {}
 };
 
+static inline bool opt_is_valid_face_vertex(const std::vector<real_t> &vertices,
+                                            const index_t &idx) {
+  if (idx.vertex_index < 0) return false;
+  const size_t vi = static_cast<size_t>(idx.vertex_index);
+  return ((3 * vi + 2) < vertices.size());
+}
+
+static inline size_t opt_triangulate_face(const std::vector<real_t> &vertices,
+                                          const index_t *face,
+                                          size_t face_count,
+                                          index_t *dst) {
+  if (face_count < 3) return 0;
+  if (face_count == 3) {
+    dst[0] = face[0];
+    dst[1] = face[1];
+    dst[2] = face[2];
+    return 3;
+  }
+
+  for (size_t i = 0; i < face_count; i++) {
+    if (!opt_is_valid_face_vertex(vertices, face[i])) {
+      return 0;
+    }
+  }
+
+  if (face_count == 4) {
+    const size_t vi0 = static_cast<size_t>(face[0].vertex_index);
+    const size_t vi1 = static_cast<size_t>(face[1].vertex_index);
+    const size_t vi2 = static_cast<size_t>(face[2].vertex_index);
+    const size_t vi3 = static_cast<size_t>(face[3].vertex_index);
+
+    const real_t v0x = vertices[vi0 * 3 + 0];
+    const real_t v0y = vertices[vi0 * 3 + 1];
+    const real_t v0z = vertices[vi0 * 3 + 2];
+    const real_t v1x = vertices[vi1 * 3 + 0];
+    const real_t v1y = vertices[vi1 * 3 + 1];
+    const real_t v1z = vertices[vi1 * 3 + 2];
+    const real_t v2x = vertices[vi2 * 3 + 0];
+    const real_t v2y = vertices[vi2 * 3 + 1];
+    const real_t v2z = vertices[vi2 * 3 + 2];
+    const real_t v3x = vertices[vi3 * 3 + 0];
+    const real_t v3y = vertices[vi3 * 3 + 1];
+    const real_t v3z = vertices[vi3 * 3 + 2];
+
+    const real_t e02x = v2x - v0x;
+    const real_t e02y = v2y - v0y;
+    const real_t e02z = v2z - v0z;
+    const real_t e13x = v3x - v1x;
+    const real_t e13y = v3y - v1y;
+    const real_t e13z = v3z - v1z;
+    const real_t sqr02 = e02x * e02x + e02y * e02y + e02z * e02z;
+    const real_t sqr13 = e13x * e13x + e13y * e13y + e13z * e13z;
+
+    if (sqr02 < sqr13) {
+      dst[0] = face[0];
+      dst[1] = face[1];
+      dst[2] = face[2];
+      dst[3] = face[0];
+      dst[4] = face[2];
+      dst[5] = face[3];
+    } else {
+      dst[0] = face[0];
+      dst[1] = face[1];
+      dst[2] = face[3];
+      dst[3] = face[1];
+      dst[4] = face[2];
+      dst[5] = face[3];
+    }
+    return 6;
+  }
+
+  std::vector<index_t> remaining(face, face + face_count);
+  size_t axes[2] = {1, 2};
+  for (size_t k = 0; k < face_count; ++k) {
+    const size_t vi0 = static_cast<size_t>(face[(k + 0) % face_count].vertex_index);
+    const size_t vi1 = static_cast<size_t>(face[(k + 1) % face_count].vertex_index);
+    const size_t vi2 = static_cast<size_t>(face[(k + 2) % face_count].vertex_index);
+    const real_t v0x = vertices[vi0 * 3 + 0];
+    const real_t v0y = vertices[vi0 * 3 + 1];
+    const real_t v0z = vertices[vi0 * 3 + 2];
+    const real_t v1x = vertices[vi1 * 3 + 0];
+    const real_t v1y = vertices[vi1 * 3 + 1];
+    const real_t v1z = vertices[vi1 * 3 + 2];
+    const real_t v2x = vertices[vi2 * 3 + 0];
+    const real_t v2y = vertices[vi2 * 3 + 1];
+    const real_t v2z = vertices[vi2 * 3 + 2];
+    const real_t e0x = v1x - v0x;
+    const real_t e0y = v1y - v0y;
+    const real_t e0z = v1z - v0z;
+    const real_t e1x = v2x - v1x;
+    const real_t e1y = v2y - v1y;
+    const real_t e1z = v2z - v1z;
+    const real_t cx = std::fabs(e0y * e1z - e0z * e1y);
+    const real_t cy = std::fabs(e0z * e1x - e0x * e1z);
+    const real_t cz = std::fabs(e0x * e1y - e0y * e1x);
+    const real_t epsilon = std::numeric_limits<real_t>::epsilon();
+    if (cx > epsilon || cy > epsilon || cz > epsilon) {
+      if (!(cx > cy && cx > cz)) {
+        axes[0] = 0;
+        if (cz > cx && cz > cy) {
+          axes[1] = 1;
+        }
+      }
+      break;
+    }
+  }
+
+  size_t out = 0;
+  size_t guess_vert = 0;
+  size_t remaining_iterations = remaining.size();
+  size_t previous_remaining_vertices = remaining.size();
+  while (remaining.size() > 3 && remaining_iterations > 0) {
+    const size_t npolys = remaining.size();
+    if (guess_vert >= npolys) {
+      guess_vert -= npolys;
+    }
+
+    if (previous_remaining_vertices != npolys) {
+      previous_remaining_vertices = npolys;
+      remaining_iterations = npolys;
+    } else {
+      remaining_iterations--;
+    }
+
+    index_t ind[3];
+    real_t vx[3];
+    real_t vy[3];
+    for (size_t k = 0; k < 3; k++) {
+      ind[k] = remaining[(guess_vert + k) % npolys];
+      const size_t vi = static_cast<size_t>(ind[k].vertex_index);
+      vx[k] = vertices[vi * 3 + axes[0]];
+      vy[k] = vertices[vi * 3 + axes[1]];
+    }
+
+    const real_t e0x = vx[1] - vx[0];
+    const real_t e0y = vy[1] - vy[0];
+    const real_t e1x = vx[2] - vx[1];
+    const real_t e1y = vy[2] - vy[1];
+    const real_t cross_val = e0x * e1y - e0y * e1x;
+    const real_t area =
+        (vx[0] * vy[1] - vy[0] * vx[1]) * static_cast<real_t>(0.5);
+    if (cross_val * area < static_cast<real_t>(0.0)) {
+      guess_vert += 1;
+      continue;
+    }
+
+    bool overlap = false;
+    for (size_t other_vert = 3; other_vert < npolys; ++other_vert) {
+      const size_t idx = (guess_vert + other_vert) % npolys;
+      const size_t ovi = static_cast<size_t>(remaining[idx].vertex_index);
+      const real_t tx = vertices[ovi * 3 + axes[0]];
+      const real_t ty = vertices[ovi * 3 + axes[1]];
+      if (pnpoly(3, vx, vy, tx, ty)) {
+        overlap = true;
+        break;
+      }
+    }
+
+    if (overlap) {
+      guess_vert += 1;
+      continue;
+    }
+
+    dst[out++] = ind[0];
+    dst[out++] = ind[1];
+    dst[out++] = ind[2];
+    remaining.erase(remaining.begin() +
+                    static_cast<std::ptrdiff_t>((guess_vert + 1) % npolys));
+  }
+
+  if (remaining.size() == 3) {
+    dst[out++] = remaining[0];
+    dst[out++] = remaining[1];
+    dst[out++] = remaining[2];
+  }
+
+  return out;
+}
+
 static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
-                          bool triangulate) {
+                          bool triangulate, bool *parse_error,
+                          std::string *parse_error_message) {
   // Parse directly from the original buffer without copying.
   // The caller guarantees that p[p_len] is '\n' (or a sentinel),
   // so character-scanning helpers that stop on '\n' are safe.
+  if (parse_error) *parse_error = false;
+  if (parse_error_message) parse_error_message->clear();
   const char *token = p;
   command->type = OPT_CMD_EMPTY;
   opt_skip_space(&token);
@@ -9824,7 +10241,42 @@ static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
   if (token[0] == 'v' && TINYOBJ_OPT_IS_SPACE(token[1])) {
     token += 2;
     real_t x = 0, y = 0, z = 0;
-    opt_parseFloat3(&x, &y, &z, &token);
+    real_t r = real_t(1.0), g = real_t(1.0), b = real_t(1.0);
+    real_t w = real_t(1.0);
+    if (!opt_tryParseFloatToken(&x, &token) ||
+        !opt_tryParseFloatToken(&y, &token) ||
+        !opt_tryParseFloatToken(&z, &token)) {
+      if (parse_error) *parse_error = true;
+      if (parse_error_message) *parse_error_message = "failed to parse `v' line";
+      return false;
+    }
+    const char *extra_token = token;
+    opt_skip_space(&extra_token);
+    const int extra_components = opt_count_remaining_scalars(extra_token);
+    if (extra_components == 1) {
+      const char *weight_cursor = extra_token;
+      if (opt_tryParseFloatToken(&w, &weight_cursor)) {
+        command->has_vertex_weight = true;
+        command->vw = w;
+      }
+    } else if (extra_components >= 3) {
+      real_t maybe_r = r, maybe_g = g, maybe_b = b;
+      const char *color_cursor = extra_token;
+      if (opt_tryParseFloatToken(&maybe_r, &color_cursor)) {
+        const char *after_r = color_cursor;
+        if (opt_tryParseFloatToken(&maybe_g, &color_cursor) &&
+            opt_tryParseFloatToken(&maybe_b, &color_cursor)) {
+          command->has_vertex_weight = true;
+          command->vw = maybe_r;
+          command->has_vertex_color = true;
+          command->vc_r = maybe_r;
+          command->vc_g = maybe_g;
+          command->vc_b = maybe_b;
+        } else {
+          color_cursor = after_r;
+        }
+      }
+    }
     command->vx = x;
     command->vy = y;
     command->vz = z;
@@ -9836,7 +10288,13 @@ static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
   if (token[0] == 'v' && token[1] == 'n' && TINYOBJ_OPT_IS_SPACE(token[2])) {
     token += 3;
     real_t x = 0, y = 0, z = 0;
-    opt_parseFloat3(&x, &y, &z, &token);
+    if (!opt_tryParseFloatToken(&x, &token) ||
+        !opt_tryParseFloatToken(&y, &token) ||
+        !opt_tryParseFloatToken(&z, &token)) {
+      if (parse_error) *parse_error = true;
+      if (parse_error_message) *parse_error_message = "failed to parse `vn' line";
+      return false;
+    }
     command->nx = x;
     command->ny = y;
     command->nz = z;
@@ -9847,8 +10305,23 @@ static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
   // texcoord
   if (token[0] == 'v' && token[1] == 't' && TINYOBJ_OPT_IS_SPACE(token[2])) {
     token += 3;
-    real_t x = 0, y = 0;
-    opt_parseFloat2(&x, &y, &token);
+    real_t x = 0, y = 0, w = 0;
+    if (!opt_tryParseFloatToken(&x, &token)) {
+      if (parse_error) *parse_error = true;
+      if (parse_error_message) *parse_error_message = "failed to parse `vt' line";
+      return false;
+    }
+    const char *y_token = token;
+    if (opt_tryParseFloatToken(&y, &y_token)) {
+      token = y_token;
+    }
+    const char *extra_token = token;
+    opt_skip_space(&extra_token);
+    if (!TINYOBJ_OPT_IS_NEW_LINE(extra_token[0]) && extra_token[0] != '#' &&
+        opt_tryParseFloatToken(&w, &extra_token)) {
+      command->has_texcoord_w = true;
+      command->tw = w;
+    }
     command->tx = x;
     command->ty = y;
     command->type = OPT_CMD_VT;
@@ -9865,8 +10338,15 @@ static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
     std::vector<opt_index_t> face_overflow;
     int face_count = 0;
 
-    while (!TINYOBJ_OPT_IS_NEW_LINE(token[0])) {
-      opt_index_t vi = opt_parseRawTriple(&token);
+    while (!TINYOBJ_OPT_IS_NEW_LINE(token[0]) && !opt_is_comment_start(token)) {
+      opt_index_t vi;
+      if (!opt_parseRawTriple(&token, &vi)) {
+        if (parse_error) *parse_error = true;
+        if (parse_error_message) {
+          *parse_error_message = "failed to parse `f' line (invalid vertex index)";
+        }
+        return false;
+      }
       opt_skip_space(&token);
       if (face_count < 8) {
         face_buf[face_count++] = vi;
@@ -9880,7 +10360,8 @@ static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
       }
     }
 
-    command->type = OPT_CMD_F;
+      command->type = OPT_CMD_F;
+      command->face_vertex_count = static_cast<unsigned int>(face_count);
 
     // Validate minimum vertex count
     if (face_count < 3) {
@@ -9889,36 +10370,26 @@ static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
       return false;
     }
 
-    if (triangulate) {
-      command->emitted_face_count = static_cast<unsigned int>(face_count - 2);
-      command->emitted_face_verts = 3;
-      command->f_count = command->emitted_face_count * 3;
+      if (triangulate) {
+        command->emitted_face_count = static_cast<unsigned int>(face_count - 2);
+        command->emitted_face_verts = 3;
+        command->f_count = command->emitted_face_count * 3;
 
       opt_index_t *dst = command->f_inline;
-      if (command->f_count > OptCommand::kInlineIndexCapacity) {
-        command->f_heap.resize(command->f_count);
+      if (command->face_vertex_count > OptCommand::kInlineIndexCapacity) {
+        command->f_heap.resize(command->face_vertex_count);
         dst = command->f_heap.data();
       }
-
-      opt_index_t i0 = (face_count <= 8) ? face_buf[0] : face_overflow[0];
-      unsigned int out = 0;
       if (face_count <= 8) {
-        for (int k = 2; k < face_count; k++) {
-          dst[out++] = i0;
-          dst[out++] = face_buf[k - 1];
-          dst[out++] = face_buf[k];
-        }
+        for (int k = 0; k < face_count; k++) dst[k] = face_buf[k];
       } else {
-        for (size_t k = 2; k < face_overflow.size(); k++) {
-          dst[out++] = i0;
-          dst[out++] = face_overflow[k - 1];
-          dst[out++] = face_overflow[k];
-        }
+        for (size_t k = 0; k < face_overflow.size(); k++) dst[k] = face_overflow[k];
       }
     } else {
       command->emitted_face_count = 1;
       command->emitted_face_verts = static_cast<unsigned int>(face_count);
       command->f_count = static_cast<unsigned int>(face_count);
+      command->face_vertex_count = static_cast<unsigned int>(face_count);
 
       opt_index_t *dst = command->f_inline;
       if (command->f_count > OptCommand::kInlineIndexCapacity) {
@@ -9944,7 +10415,7 @@ static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
     opt_skip_space(&token);
     command->material_name = token;
     command->material_name_len = static_cast<unsigned int>(
-        opt_length_until_newline(token,
+        opt_length_until_token_or_comment(token,
                                 p_len - static_cast<size_t>(token - p)));
     command->type = OPT_CMD_USEMTL;
     return true;
@@ -9982,6 +10453,24 @@ static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
         opt_length_until_newline(token,
                                 p_len - static_cast<size_t>(token - p)));
     command->type = OPT_CMD_O;
+    return true;
+  }
+
+  // smoothing group
+  if (token[0] == 's' && TINYOBJ_OPT_IS_SPACE(token[1])) {
+    token += 2;
+    opt_skip_space(&token);
+    if (TINYOBJ_OPT_IS_NEW_LINE(token[0]) || token[0] == '\r') {
+      command->smoothing_group_id = 0;
+    } else if (token[0] == 'o' && token[1] == 'f' && token[2] == 'f' &&
+               (TINYOBJ_OPT_IS_NEW_LINE(token[3]) || token[3] == '\0' ||
+                token[3] == ' ' || token[3] == '\t' || token[3] == '\r')) {
+      command->smoothing_group_id = 0;
+    } else {
+      const int sm = opt_my_atoi(token);
+      command->smoothing_group_id = (sm > 0) ? static_cast<unsigned int>(sm) : 0;
+    }
+    command->type = OPT_CMD_S;
     return true;
   }
 
@@ -10167,6 +10656,89 @@ static void scalar_find_line_infos(const char *buf, size_t start, size_t end,
   }
 }
 
+template <typename DstVec, typename SrcVec>
+static void opt_assign_vector(DstVec *dst, const SrcVec &src) {
+  if (!dst) return;
+  dst->assign(src.begin(), src.end());
+}
+
+static void ConvertLegacyShapeToBasic(const shape_t &src, basic_shape_t<> *dst) {
+  if (!dst) return;
+  dst->name = src.name;
+  opt_assign_vector(&dst->mesh.indices, src.mesh.indices);
+  opt_assign_vector(&dst->mesh.num_face_vertices, src.mesh.num_face_vertices);
+  opt_assign_vector(&dst->mesh.material_ids, src.mesh.material_ids);
+  opt_assign_vector(&dst->mesh.smoothing_group_ids,
+                    src.mesh.smoothing_group_ids);
+  dst->mesh.tags = src.mesh.tags;
+  opt_assign_vector(&dst->lines.indices, src.lines.indices);
+  opt_assign_vector(&dst->lines.num_line_vertices, src.lines.num_line_vertices);
+  opt_assign_vector(&dst->points.indices, src.points.indices);
+}
+
+static void ConvertLegacyResultToBasic(
+    const attrib_t &src_attrib, const std::vector<shape_t> &src_shapes,
+    const std::vector<material_t> &src_materials, basic_attrib_t<> *dst_attrib,
+    std::vector<basic_shape_t<> > *dst_shapes,
+    std::vector<material_t> *dst_materials) {
+  if (dst_attrib) {
+    opt_assign_vector(&dst_attrib->vertices, src_attrib.vertices);
+    opt_assign_vector(&dst_attrib->vertex_weights, src_attrib.vertex_weights);
+    opt_assign_vector(&dst_attrib->normals, src_attrib.normals);
+    opt_assign_vector(&dst_attrib->texcoords, src_attrib.texcoords);
+    opt_assign_vector(&dst_attrib->texcoord_ws, src_attrib.texcoord_ws);
+    opt_assign_vector(&dst_attrib->colors, src_attrib.colors);
+    dst_attrib->skin_weights = src_attrib.skin_weights;
+    dst_attrib->indices.clear();
+    dst_attrib->face_num_verts.clear();
+    dst_attrib->material_ids.clear();
+    for (size_t si = 0; si < src_shapes.size(); si++) {
+      const mesh_t &mesh = src_shapes[si].mesh;
+      dst_attrib->indices.insert(dst_attrib->indices.end(), mesh.indices.begin(),
+                                 mesh.indices.end());
+      dst_attrib->face_num_verts.insert(dst_attrib->face_num_verts.end(),
+                                        mesh.num_face_vertices.begin(),
+                                        mesh.num_face_vertices.end());
+      dst_attrib->material_ids.insert(dst_attrib->material_ids.end(),
+                                      mesh.material_ids.begin(),
+                                      mesh.material_ids.end());
+    }
+  }
+
+  if (dst_shapes) {
+    dst_shapes->clear();
+    dst_shapes->resize(src_shapes.size());
+    for (size_t i = 0; i < src_shapes.size(); i++) {
+      ConvertLegacyShapeToBasic(src_shapes[i], &(*dst_shapes)[i]);
+    }
+  }
+
+  if (dst_materials) {
+    (*dst_materials) = src_materials;
+  }
+}
+
+static bool opt_requires_legacy_fallback(const char *p, size_t len) {
+  if (!p || len == 0) return false;
+  while (len > 0 && (*p == ' ' || *p == '\t')) {
+    p++;
+    len--;
+  }
+  if (len == 0 || *p == '#' || *p == '\r' || *p == '\n') return false;
+
+  if (len >= 3 && p[0] == 'v' && p[1] == 'w' &&
+      (p[2] == ' ' || p[2] == '\t')) {
+    return true;
+  }
+  if (len >= 2 &&
+      ((p[0] == 'l' && (p[1] == ' ' || p[1] == '\t')) ||
+       (p[0] == 'p' && (p[1] == ' ' || p[1] == '\t')) ||
+       (p[0] == 't' && (p[1] == ' ' || p[1] == '\t')))) {
+    return true;
+  }
+  return false;
+}
+
 }  // namespace opt_internal
 
 // Internal implementation with optional basedir for material path resolution
@@ -10185,9 +10757,12 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
   }
 
   attrib->vertices.clear();
+  attrib->vertex_weights.clear();
   attrib->normals.clear();
   attrib->texcoords.clear();
+  attrib->texcoord_ws.clear();
   attrib->colors.clear();
+  attrib->skin_weights.clear();
   attrib->indices.clear();
   attrib->face_num_verts.clear();
   attrib->material_ids.clear();
@@ -10250,6 +10825,30 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
   const size_t total_lines = all_line_infos.size();
   if (total_lines == 0) return true;
 
+  for (size_t i = 0; i < total_lines; i++) {
+    const LineInfo &line = all_line_infos[i];
+    if (!opt_requires_legacy_fallback(&work_buf[line.pos], line.len)) {
+      continue;
+    }
+
+    std::string input(buf, buf + buf_len);
+    std::istringstream iss(input);
+    attrib_t legacy_attrib;
+    std::vector<shape_t> legacy_shapes;
+    std::vector<material_t> legacy_materials;
+    MaterialFileReader mat_reader(mtl_basedir);
+    MaterialReader *reader = materials ? static_cast<MaterialReader *>(&mat_reader)
+                                       : NULL;
+    const bool ok = LoadObj(&legacy_attrib, &legacy_shapes, &legacy_materials,
+                            warn, err, &iss, reader, config.triangulate, false);
+    if (!ok) {
+      return false;
+    }
+    ConvertLegacyResultToBasic(legacy_attrib, legacy_shapes, legacy_materials,
+                               attrib, shapes, materials);
+    return true;
+  }
+
   // ---- Phase 2: parse lines ----
   //   Single-threaded or multi-threaded depending on compile option.
 
@@ -10259,6 +10858,8 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
       static_cast<size_t>(num_threads));
   std::vector<OptCommandCount> thread_counts(
       static_cast<size_t>(num_threads));
+  std::vector<size_t> thread_error_lines(static_cast<size_t>(num_threads), 0);
+  std::vector<std::string> thread_error_messages(static_cast<size_t>(num_threads));
   {
     size_t lines_per_thread = total_lines / static_cast<size_t>(num_threads);
     std::vector<std::thread> workers;
@@ -10274,8 +10875,16 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
         thread_commands[static_cast<size_t>(t)].reserve(end - start);
         for (size_t i = start; i < end; i++) {
           OptCommand cmd;
+          bool parse_error = false;
+          std::string parse_error_message;
           bool ok = opt_parseLine(&cmd, &work_buf[all_line_infos[i].pos],
-                                  all_line_infos[i].len, config.triangulate);
+                                  all_line_infos[i].len, config.triangulate,
+                                  &parse_error, &parse_error_message);
+          if (parse_error) {
+            thread_error_lines[static_cast<size_t>(t)] = i + 1;
+            thread_error_messages[static_cast<size_t>(t)] = parse_error_message;
+            break;
+          }
           if (ok) {
             if (cmd.type == OPT_CMD_V)
               thread_counts[static_cast<size_t>(t)].num_v++;
@@ -10302,13 +10911,23 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
   const int num_threads_actual = 1;
   std::vector<std::vector<OptCommand>> thread_commands(1);
   std::vector<OptCommandCount> thread_counts(1);
+  std::vector<size_t> thread_error_lines(1, 0);
+  std::vector<std::string> thread_error_messages(1);
 
   {
     thread_commands[0].reserve(total_lines);
     for (size_t i = 0; i < total_lines; i++) {
       OptCommand cmd;
+      bool parse_error = false;
+      std::string parse_error_message;
       bool ok = opt_parseLine(&cmd, &work_buf[all_line_infos[i].pos],
-                              all_line_infos[i].len, config.triangulate);
+                              all_line_infos[i].len, config.triangulate,
+                              &parse_error, &parse_error_message);
+      if (parse_error) {
+        thread_error_lines[0] = i + 1;
+        thread_error_messages[0] = parse_error_message;
+        break;
+      }
       if (ok) {
         if (cmd.type == OPT_CMD_V)
           thread_counts[0].num_v++;
@@ -10326,6 +10945,25 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
   }
   (void)num_threads_actual;
 #endif
+
+  size_t first_error_line = 0;
+  std::string first_error_message;
+  for (size_t t = 0; t < thread_error_lines.size(); t++) {
+    if (thread_error_lines[t] == 0) continue;
+    if (first_error_line == 0 || thread_error_lines[t] < first_error_line) {
+      first_error_line = thread_error_lines[t];
+      first_error_message = thread_error_messages[t];
+    }
+  }
+  if (first_error_line != 0) {
+    if (err) {
+      std::stringstream ss;
+      ss << "Failed parse `f' line(line " << first_error_line << "). "
+         << first_error_message << "\n";
+      (*err) = ss.str();
+    }
+    return false;
+  }
 
   // ---- Phase 3: load materials ----
   std::map<std::string, int> material_map;
@@ -10406,11 +11044,18 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
   }
 
   attrib->vertices.resize(num_v * 3);
+  attrib->vertex_weights.resize(num_v, real_t(1.0));
   attrib->normals.resize(num_vn * 3);
   attrib->texcoords.resize(num_vt * 2);
+  attrib->texcoord_ws.resize(num_vt, real_t(0.0));
+  std::vector<unsigned int> all_smoothing_group_ids(
+      static_cast<size_t>(num_indices), 0);
   attrib->indices.resize(num_f);
   attrib->face_num_verts.resize(static_cast<size_t>(num_indices));
   attrib->material_ids.resize(static_cast<size_t>(num_indices), -1);
+  std::vector<unsigned char> thread_saw_any_vertex_color(num_t, 0);
+  std::vector<unsigned char> thread_missing_vertex_color(num_t, 0);
+  std::vector<real_t> all_colors(num_v * 3, real_t(1.0));
 
   // Compute per-thread offsets
   std::vector<size_t> v_off(num_t), n_off(num_t), t_off(num_t), f_off(num_t),
@@ -10427,6 +11072,7 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
   // Carry parser state that persists across lines, such as usemtl, across
   // thread chunk boundaries before merging in parallel.
   std::vector<int> initial_material_id(num_t, -1);
+  std::vector<unsigned int> initial_smoothing_group_id(num_t, 0);
   auto resolve_material_id = [&](const OptCommand &cmd) -> int {
     if (!(cmd.material_name && cmd.material_name_len > 0)) {
       return -1;
@@ -10443,20 +11089,31 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
   };
 
   int running_material_id = -1;
+  unsigned int running_smoothing_group_id = 0;
   for (size_t t = 0; t < num_t; t++) {
     initial_material_id[t] = running_material_id;
+    initial_smoothing_group_id[t] = running_smoothing_group_id;
     for (size_t i = 0; i < thread_commands[t].size(); i++) {
       if (thread_commands[t][i].type == OPT_CMD_USEMTL) {
         running_material_id = resolve_material_id(thread_commands[t][i]);
+      } else if (thread_commands[t][i].type == OPT_CMD_S) {
+        running_smoothing_group_id = thread_commands[t][i].smoothing_group_id;
       }
     }
   }
 
   // Merge parsed data into final arrays
+  std::vector<std::vector<unsigned int> > command_written_faces(num_t);
+  for (size_t t = 0; t < num_t; t++) {
+    command_written_faces[t].assign(thread_commands[t].size(), 0);
+  }
+  std::vector<size_t> written_index_counts(num_t, 0);
+  std::vector<size_t> written_face_counts(num_t, 0);
   auto merge_thread = [&](size_t t) {
     size_t vc = v_off[t], nc = n_off[t], tc = t_off[t];
     size_t fc = f_off[t], fcc = face_off[t];
     int current_mat_id = initial_material_id[t];
+    unsigned int current_smoothing_id = initial_smoothing_group_id[t];
 
     for (size_t i = 0; i < thread_commands[t].size(); i++) {
       const OptCommand &cmd = thread_commands[t][i];
@@ -10465,6 +11122,16 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
           attrib->vertices[3 * vc + 0] = cmd.vx;
           attrib->vertices[3 * vc + 1] = cmd.vy;
           attrib->vertices[3 * vc + 2] = cmd.vz;
+          attrib->vertex_weights[vc] =
+              cmd.has_vertex_weight ? cmd.vw : real_t(1.0);
+          if (cmd.has_vertex_color) {
+            all_colors[3 * vc + 0] = cmd.vc_r;
+            all_colors[3 * vc + 1] = cmd.vc_g;
+            all_colors[3 * vc + 2] = cmd.vc_b;
+            thread_saw_any_vertex_color[t] = 1;
+          } else {
+            thread_missing_vertex_color[t] = 1;
+          }
           vc++;
           break;
         case OPT_CMD_VN:
@@ -10476,10 +11143,12 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
         case OPT_CMD_VT:
           attrib->texcoords[2 * tc + 0] = cmd.tx;
           attrib->texcoords[2 * tc + 1] = cmd.ty;
+          attrib->texcoord_ws[tc] = cmd.has_texcoord_w ? cmd.tw : real_t(0.0);
           tc++;
           break;
-        case OPT_CMD_F:
-          for (size_t k = 0; k < cmd.f_count; k++) {
+        case OPT_CMD_F: {
+          std::vector<index_t> resolved_face(cmd.face_vertex_count);
+          for (size_t k = 0; k < cmd.face_vertex_count; k++) {
             const opt_index_t &vi = cmd.face_indices()[k];
             index_t idx;
             idx.vertex_index =
@@ -10496,23 +11165,47 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
               idx.normal_index =
                   opt_fixIndex(vi.normal_index, static_cast<int>(nc));
             }
-            attrib->indices[fc + k] = idx;
+            resolved_face[k] = idx;
           }
-          for (size_t k = 0; k < cmd.emitted_face_count; k++) {
-            attrib->face_num_verts[fcc + k] =
-                static_cast<int>(cmd.emitted_face_verts);
+          size_t written_index_count = 0;
+          size_t written_face_count = 0;
+          if (config.triangulate) {
+            written_index_count = opt_triangulate_face(
+                attrib->vertices, resolved_face.data(), resolved_face.size(),
+                &attrib->indices[fc]);
+            written_face_count = written_index_count / 3;
+          } else {
+            written_index_count = resolved_face.size();
+            written_face_count = 1;
+            for (size_t k = 0; k < resolved_face.size(); k++) {
+              attrib->indices[fc + k] = resolved_face[k];
+            }
+          }
+          for (size_t k = 0; k < written_face_count; k++) {
+            attrib->face_num_verts[fcc + k] = config.triangulate
+                                                  ? 3
+                                                  : static_cast<int>(cmd.emitted_face_verts);
             attrib->material_ids[fcc + k] = current_mat_id;
+            all_smoothing_group_ids[fcc + k] = current_smoothing_id;
           }
-          fc += cmd.f_count;
-          fcc += cmd.emitted_face_count;
+          command_written_faces[t][i] =
+              static_cast<unsigned int>(written_face_count);
+          fc += written_index_count;
+          fcc += written_face_count;
           break;
+        }
         case OPT_CMD_USEMTL:
           current_mat_id = resolve_material_id(cmd);
+          break;
+        case OPT_CMD_S:
+          current_smoothing_id = cmd.smoothing_group_id;
           break;
         default:
           break;
       }
     }
+    written_index_counts[t] = fc - f_off[t];
+    written_face_counts[t] = fcc - face_off[t];
   };
 
 #ifdef TINYOBJLOADER_USE_MULTITHREADING
@@ -10529,6 +11222,32 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
 #else
   for (size_t t = 0; t < num_t; t++) merge_thread(t);
 #endif
+
+  bool saw_any_vertex_color = false;
+  bool saw_missing_vertex_color = false;
+  for (size_t t = 0; t < num_t; t++) {
+    saw_any_vertex_color =
+        saw_any_vertex_color || (thread_saw_any_vertex_color[t] != 0);
+    saw_missing_vertex_color =
+        saw_missing_vertex_color || (thread_missing_vertex_color[t] != 0);
+  }
+
+  if (saw_any_vertex_color && !saw_missing_vertex_color) {
+    attrib->colors.swap(all_colors);
+  } else {
+    attrib->colors.clear();
+  }
+
+  size_t actual_num_indices = 0;
+  size_t actual_num_faces = 0;
+  for (size_t t = 0; t < num_t; t++) {
+    actual_num_indices += written_index_counts[t];
+    actual_num_faces += written_face_counts[t];
+  }
+  attrib->indices.resize(actual_num_indices);
+  attrib->face_num_verts.resize(actual_num_faces);
+  attrib->material_ids.resize(actual_num_faces);
+  all_smoothing_group_ids.resize(actual_num_faces);
 
   // ---- Phase 5: construct shapes ----
   {
@@ -10579,6 +11298,10 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
                   attrib->material_ids.begin(),
                   attrib->material_ids.begin() +
                       static_cast<std::ptrdiff_t>(face_count));
+              prev_shape.mesh.smoothing_group_ids.assign(
+                  all_smoothing_group_ids.begin(),
+                  all_smoothing_group_ids.begin() +
+                      static_cast<std::ptrdiff_t>(face_count));
               shapes->push_back(std::move(prev_shape));
             } else if (face_count > face_prev_offset) {
               // push previous shape
@@ -10599,6 +11322,11 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
                       static_cast<std::ptrdiff_t>(face_prev_offset),
                   attrib->material_ids.begin() +
                       static_cast<std::ptrdiff_t>(face_count));
+              prev_shape.mesh.smoothing_group_ids.assign(
+                  all_smoothing_group_ids.begin() +
+                      static_cast<std::ptrdiff_t>(face_prev_offset),
+                  all_smoothing_group_ids.begin() +
+                      static_cast<std::ptrdiff_t>(face_count));
               shapes->push_back(std::move(prev_shape));
             }
             shape.name = name;
@@ -10606,7 +11334,7 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
           }
         }
         if (thread_commands[t][i].type == OPT_CMD_F) {
-          face_count += thread_commands[t][i].emitted_face_count;
+          face_count += command_written_faces[t][i];
         }
       }
     }
@@ -10629,6 +11357,11 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
           attrib->material_ids.begin() +
               static_cast<std::ptrdiff_t>(face_prev_offset),
           attrib->material_ids.begin() +
+              static_cast<std::ptrdiff_t>(face_count));
+      final_shape.mesh.smoothing_group_ids.assign(
+          all_smoothing_group_ids.begin() +
+              static_cast<std::ptrdiff_t>(face_prev_offset),
+          all_smoothing_group_ids.begin() +
               static_cast<std::ptrdiff_t>(face_count));
       shapes->push_back(std::move(final_shape));
     }

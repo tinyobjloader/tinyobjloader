@@ -39,6 +39,35 @@
 #include <sstream>
 #include <string>
 
+namespace tinyobj {
+namespace experimental_stream {
+struct StreamLoadConfig {
+  bool triangulate;
+  bool default_vcols_fallback;
+  int num_threads;
+  size_t chunk_line_count;
+
+  StreamLoadConfig()
+      : triangulate(true),
+        default_vcols_fallback(false),
+        num_threads(1),
+        chunk_line_count(4096) {}
+};
+
+bool LoadObjStreamExperimental(
+    attrib_t *attrib, std::vector<shape_t> *shapes,
+    std::vector<material_t> *materials, std::string *warn, std::string *err,
+    std::istream *input, MaterialReader *readMatFn,
+    const StreamLoadConfig &config = StreamLoadConfig());
+
+bool LoadObjStreamExperimental(
+    attrib_t *attrib, std::vector<shape_t> *shapes,
+    std::vector<material_t> *materials, std::string *warn, std::string *err,
+    const char *filename, const char *mtl_basedir,
+    const StreamLoadConfig &config = StreamLoadConfig());
+}  // namespace experimental_stream
+}  // namespace tinyobj
+
 #ifdef _WIN32
 #include <direct.h>    // _mkdir
 #include <windows.h>   // GetTempPathW, CreateDirectoryW, RegOpenKeyExA
@@ -3788,13 +3817,35 @@ void test_basic_attrib_with_arena() {
   tinyobj::ArenaAllocator arena(1024 * 1024);
   typedef tinyobj::arena_adapter<char> ArenaAlloc;
 
+  TEST_CHECK((std::uses_allocator<tinyobj::basic_tag_t<ArenaAlloc>, ArenaAlloc>::value));
+  TEST_CHECK((std::uses_allocator<tinyobj::basic_skin_weight_t<ArenaAlloc>,
+                                  ArenaAlloc>::value));
+
   // Verify the template compiles and works
   tinyobj::basic_attrib_t<ArenaAlloc> attrib;
   attrib.vertices.push_back(1.0f);
   attrib.vertices.push_back(2.0f);
   attrib.vertices.push_back(3.0f);
+  tinyobj::basic_skin_weight_t<ArenaAlloc> sw;
+  sw.vertex_id = 0;
+  tinyobj::joint_and_weight_t jw;
+  jw.joint_id = 1;
+  jw.weight = 0.75f;
+  sw.weightValues.push_back(jw);
+  attrib.skin_weights.push_back(sw);
+
+  tinyobj::basic_mesh_t<ArenaAlloc> mesh;
+  tinyobj::basic_tag_t<ArenaAlloc> tag;
+  tag.name = "crease";
+  tag.intValues.push_back(1);
+  tag.floatValues.push_back(0.5f);
+  tag.stringValues.push_back("hard");
+  mesh.tags.push_back(tag);
+
   TEST_CHECK(attrib.vertices.size() == 3);
   TEST_CHECK(attrib.vertices[0] == 1.0f);
+  TEST_CHECK(attrib.skin_weights.size() == 1);
+  TEST_CHECK(mesh.tags.size() == 1);
 }
 
 #include "opt/loadobjopt_multithread.inc"
@@ -3925,6 +3976,52 @@ TEST_LIST = {
      test_loadobjopt_matches_legacy_parser_triangle_soup},
     {"test_loadobjopt_matches_legacy_parser_mtllib_threaded",
      test_loadobjopt_matches_legacy_parser_mtllib_threaded},
+    {"test_loadobjopt_matches_legacy_parser_colors_smoothing_and_comments",
+     test_loadobjopt_matches_legacy_parser_colors_smoothing_and_comments},
+    {"test_loadobjopt_mixed_vertex_colors_drop_like_legacy",
+     test_loadobjopt_mixed_vertex_colors_drop_like_legacy},
+    {"test_stream_loader_mixed_vertex_colors_drop_like_legacy",
+     test_stream_loader_mixed_vertex_colors_drop_like_legacy},
+    {"test_stream_loader_mixed_vertex_colors_backfill",
+     test_stream_loader_mixed_vertex_colors_backfill},
+    {"test_stream_loader_mtllib_escaped_spaces",
+     test_stream_loader_mtllib_escaped_spaces},
+    {"test_stream_loader_clears_outputs_on_failure",
+     test_stream_loader_clears_outputs_on_failure},
+    {"test_loadobjopt_face_comment_matches_legacy",
+     test_loadobjopt_face_comment_matches_legacy},
+    {"test_loadobjopt_concave_polygon_matches_legacy",
+     test_loadobjopt_concave_polygon_matches_legacy},
+    {"test_stream_loader_concave_polygon_matches_legacy",
+     test_stream_loader_concave_polygon_matches_legacy},
+    {"test_loadobjopt_invalid_polygon_matches_legacy",
+     test_loadobjopt_invalid_polygon_matches_legacy},
+    {"test_stream_loader_hash_in_names",
+     test_stream_loader_hash_in_names},
+    {"test_loadobjopt_hash_in_usemtl_matches_legacy",
+     test_loadobjopt_hash_in_usemtl_matches_legacy},
+    {"test_loadobjopt_invalid_face_token_matches_legacy_error",
+     test_loadobjopt_invalid_face_token_matches_legacy_error},
+    {"test_stream_loader_texcoord_w",
+     test_stream_loader_texcoord_w},
+    {"test_stream_loader_vertex_weight",
+     test_stream_loader_vertex_weight},
+    {"test_stream_loader_colored_vertex_weight",
+     test_stream_loader_colored_vertex_weight},
+    {"test_loadobjopt_matches_legacy_extended_features",
+     test_loadobjopt_matches_legacy_extended_features},
+    {"test_loadobjopt_vertex_weight_and_texcoord_w_match_legacy",
+     test_loadobjopt_vertex_weight_and_texcoord_w_match_legacy},
+    {"test_loadobjopt_single_component_texcoord_matches_legacy",
+     test_loadobjopt_single_component_texcoord_matches_legacy},
+    {"test_stream_loader_single_component_texcoord_matches_legacy",
+     test_stream_loader_single_component_texcoord_matches_legacy},
+    {"test_stream_loader_embedded_carriage_return_matches_legacy",
+     test_stream_loader_embedded_carriage_return_matches_legacy},
+    {"test_stream_loader_embedded_nul_empty_shape_matches_legacy",
+     test_stream_loader_embedded_nul_empty_shape_matches_legacy},
+    {"test_stream_loader_object_only_matches_legacy",
+     test_stream_loader_object_only_matches_legacy},
     {"test_streamreader_eof_and_remaining",
      test_streamreader_eof_and_remaining},
     {"test_streamreader_skip_and_read", test_streamreader_skip_and_read},

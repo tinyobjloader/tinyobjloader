@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cctype>
 #include <cerrno>
+#include <cmath>
 #include <cstdlib>
 #include <fstream>
 #include <limits>
@@ -39,8 +40,12 @@ enum ParsedEventType {
 struct ParsedEvent {
   ParsedEventType type;
   real_t x, y, z;
+  real_t vertex_weight;
   real_t r, g, b;
+  real_t w;
+  bool has_vertex_weight;
   bool has_color;
+  bool has_texcoord_w;
   std::vector<RawIndex> face;
   std::vector<std::string> filenames;
   std::string text;
@@ -51,10 +56,14 @@ struct ParsedEvent {
         x(real_t(0)),
         y(real_t(0)),
         z(real_t(0)),
+        vertex_weight(real_t(1)),
         r(real_t(1)),
         g(real_t(1)),
         b(real_t(1)),
+        w(real_t(0)),
+        has_vertex_weight(false),
         has_color(false),
+        has_texcoord_w(false),
         smoothing_group_id(0) {}
 };
 
@@ -77,14 +86,6 @@ static std::string Trim(const std::string &s) {
   }
 
   return s.substr(begin, end - begin);
-}
-
-static std::string StripComment(const std::string &s) {
-  size_t pos = s.find('#');
-  if (pos == std::string::npos) {
-    return s;
-  }
-  return s.substr(0, pos);
 }
 
 static bool ParseRealToken(const std::string &token, real_t *value) {
@@ -119,10 +120,198 @@ static bool ParseIntToken(const std::string &token, int *value) {
   return true;
 }
 
+template <typename T>
+static int PointInPolygon(int nvert, T *vertx, T *verty, T testx, T testy) {
+  int c = 0;
+  for (int i = 0, j = nvert - 1; i < nvert; j = i++) {
+    if (((verty[i] > testy) != (verty[j] > testy)) &&
+        (testx < (vertx[j] - vertx[i]) * (testy - verty[i]) /
+                         (verty[j] - verty[i]) +
+                     vertx[i])) {
+      c = !c;
+    }
+  }
+  return c;
+}
+
 static int FixIndex(int idx, int n) {
   if (idx > 0) return idx - 1;
   if (idx == 0) return -1;
   return n + idx;
+}
+
+static bool IsValidFaceVertex(const std::vector<real_t> &vertices,
+                              const index_t &idx) {
+  if (idx.vertex_index < 0) return false;
+  const size_t vi = static_cast<size_t>(idx.vertex_index);
+  return ((3 * vi + 2) < vertices.size());
+}
+
+static size_t TriangulateFaceLikeLegacy(const std::vector<real_t> &vertices,
+                                        const index_t *face, size_t face_count,
+                                        index_t *dst) {
+  if (face_count < 3) return 0;
+  if (face_count == 3) {
+    dst[0] = face[0];
+    dst[1] = face[1];
+    dst[2] = face[2];
+    return 3;
+  }
+
+  for (size_t i = 0; i < face_count; i++) {
+    if (!IsValidFaceVertex(vertices, face[i])) {
+      return 0;
+    }
+  }
+
+  if (face_count == 4) {
+    const size_t vi0 = static_cast<size_t>(face[0].vertex_index);
+    const size_t vi1 = static_cast<size_t>(face[1].vertex_index);
+    const size_t vi2 = static_cast<size_t>(face[2].vertex_index);
+    const size_t vi3 = static_cast<size_t>(face[3].vertex_index);
+    const real_t v0x = vertices[vi0 * 3 + 0];
+    const real_t v0y = vertices[vi0 * 3 + 1];
+    const real_t v0z = vertices[vi0 * 3 + 2];
+    const real_t v1x = vertices[vi1 * 3 + 0];
+    const real_t v1y = vertices[vi1 * 3 + 1];
+    const real_t v1z = vertices[vi1 * 3 + 2];
+    const real_t v2x = vertices[vi2 * 3 + 0];
+    const real_t v2y = vertices[vi2 * 3 + 1];
+    const real_t v2z = vertices[vi2 * 3 + 2];
+    const real_t v3x = vertices[vi3 * 3 + 0];
+    const real_t v3y = vertices[vi3 * 3 + 1];
+    const real_t v3z = vertices[vi3 * 3 + 2];
+    const real_t e02x = v2x - v0x;
+    const real_t e02y = v2y - v0y;
+    const real_t e02z = v2z - v0z;
+    const real_t e13x = v3x - v1x;
+    const real_t e13y = v3y - v1y;
+    const real_t e13z = v3z - v1z;
+    const real_t sqr02 = e02x * e02x + e02y * e02y + e02z * e02z;
+    const real_t sqr13 = e13x * e13x + e13y * e13y + e13z * e13z;
+    if (sqr02 < sqr13) {
+      dst[0] = face[0];
+      dst[1] = face[1];
+      dst[2] = face[2];
+      dst[3] = face[0];
+      dst[4] = face[2];
+      dst[5] = face[3];
+    } else {
+      dst[0] = face[0];
+      dst[1] = face[1];
+      dst[2] = face[3];
+      dst[3] = face[1];
+      dst[4] = face[2];
+      dst[5] = face[3];
+    }
+    return 6;
+  }
+
+  std::vector<index_t> remaining(face, face + face_count);
+  size_t axes[2] = {1, 2};
+  for (size_t k = 0; k < face_count; ++k) {
+    const size_t vi0 = static_cast<size_t>(face[(k + 0) % face_count].vertex_index);
+    const size_t vi1 = static_cast<size_t>(face[(k + 1) % face_count].vertex_index);
+    const size_t vi2 = static_cast<size_t>(face[(k + 2) % face_count].vertex_index);
+    const real_t v0x = vertices[vi0 * 3 + 0];
+    const real_t v0y = vertices[vi0 * 3 + 1];
+    const real_t v0z = vertices[vi0 * 3 + 2];
+    const real_t v1x = vertices[vi1 * 3 + 0];
+    const real_t v1y = vertices[vi1 * 3 + 1];
+    const real_t v1z = vertices[vi1 * 3 + 2];
+    const real_t v2x = vertices[vi2 * 3 + 0];
+    const real_t v2y = vertices[vi2 * 3 + 1];
+    const real_t v2z = vertices[vi2 * 3 + 2];
+    const real_t e0x = v1x - v0x;
+    const real_t e0y = v1y - v0y;
+    const real_t e0z = v1z - v0z;
+    const real_t e1x = v2x - v1x;
+    const real_t e1y = v2y - v1y;
+    const real_t e1z = v2z - v1z;
+    const real_t cx = std::fabs(e0y * e1z - e0z * e1y);
+    const real_t cy = std::fabs(e0z * e1x - e0x * e1z);
+    const real_t cz = std::fabs(e0x * e1y - e0y * e1x);
+    const real_t epsilon = std::numeric_limits<real_t>::epsilon();
+    if (cx > epsilon || cy > epsilon || cz > epsilon) {
+      if (!(cx > cy && cx > cz)) {
+        axes[0] = 0;
+        if (cz > cx && cz > cy) {
+          axes[1] = 1;
+        }
+      }
+      break;
+    }
+  }
+
+  size_t out = 0;
+  size_t guess_vert = 0;
+  size_t remaining_iterations = remaining.size();
+  size_t previous_remaining_vertices = remaining.size();
+  while (remaining.size() > 3 && remaining_iterations > 0) {
+    const size_t npolys = remaining.size();
+    if (guess_vert >= npolys) {
+      guess_vert -= npolys;
+    }
+    if (previous_remaining_vertices != npolys) {
+      previous_remaining_vertices = npolys;
+      remaining_iterations = npolys;
+    } else {
+      remaining_iterations--;
+    }
+
+    index_t ind[3];
+    real_t vx[3];
+    real_t vy[3];
+    for (size_t k = 0; k < 3; k++) {
+      ind[k] = remaining[(guess_vert + k) % npolys];
+      const size_t vi = static_cast<size_t>(ind[k].vertex_index);
+      vx[k] = vertices[vi * 3 + axes[0]];
+      vy[k] = vertices[vi * 3 + axes[1]];
+    }
+
+    const real_t e0x = vx[1] - vx[0];
+    const real_t e0y = vy[1] - vy[0];
+    const real_t e1x = vx[2] - vx[1];
+    const real_t e1y = vy[2] - vy[1];
+    const real_t cross_val = e0x * e1y - e0y * e1x;
+    const real_t area =
+        (vx[0] * vy[1] - vy[0] * vx[1]) * static_cast<real_t>(0.5);
+    if (cross_val * area < static_cast<real_t>(0.0)) {
+      guess_vert += 1;
+      continue;
+    }
+
+    bool overlap = false;
+    for (size_t other_vert = 3; other_vert < npolys; ++other_vert) {
+      const size_t idx = (guess_vert + other_vert) % npolys;
+      const size_t ovi = static_cast<size_t>(remaining[idx].vertex_index);
+      const real_t tx = vertices[ovi * 3 + axes[0]];
+      const real_t ty = vertices[ovi * 3 + axes[1]];
+      if (PointInPolygon(3, vx, vy, tx, ty)) {
+        overlap = true;
+        break;
+      }
+    }
+
+    if (overlap) {
+      guess_vert += 1;
+      continue;
+    }
+
+    dst[out++] = ind[0];
+    dst[out++] = ind[1];
+    dst[out++] = ind[2];
+    remaining.erase(remaining.begin() +
+                    static_cast<std::ptrdiff_t>((guess_vert + 1) % npolys));
+  }
+
+  if (remaining.size() == 3) {
+    dst[out++] = remaining[0];
+    dst[out++] = remaining[1];
+    dst[out++] = remaining[2];
+  }
+
+  return out;
 }
 
 static bool ParseRawTripleToken(const std::string &token, RawIndex *out) {
@@ -168,10 +357,33 @@ static void SplitFilenames(const std::string &s,
                            std::vector<std::string> *filenames) {
   if (!filenames) return;
   filenames->clear();
-
-  std::istringstream iss(s);
   std::string token;
-  while (iss >> token) {
+  token.reserve(s.size());
+  bool escaped = false;
+  for (size_t i = 0; i < s.size(); i++) {
+    const char c = s[i];
+    if (escaped) {
+      token.push_back(c);
+      escaped = false;
+      continue;
+    }
+    if (c == '\\') {
+      escaped = true;
+      continue;
+    }
+    if (c == ' ' || c == '\t') {
+      if (!token.empty()) {
+        filenames->push_back(token);
+        token.clear();
+      }
+      continue;
+    }
+    token.push_back(c);
+  }
+  if (escaped) {
+    token.push_back('\\');
+  }
+  if (!token.empty()) {
     filenames->push_back(token);
   }
 }
@@ -191,7 +403,9 @@ class MeshBuilderHandler : public StreamHandler {
         config_(config),
         current_material_id_(-1),
         current_smoothing_group_id_(0),
-        saw_explicit_color_(false) {
+        saw_explicit_color_(false),
+        saw_missing_color_(false),
+        current_shape_from_group_(false) {
     assert(attrib_);
     assert(shapes_);
     attrib_->vertices.clear();
@@ -207,27 +421,40 @@ class MeshBuilderHandler : public StreamHandler {
 
   void Finish() {
     FlushShape();
+    if (!config_.default_vcols_fallback && saw_explicit_color_ &&
+        saw_missing_color_) {
+      attrib_->colors.clear();
+    }
     if (config_.default_vcols_fallback && !saw_explicit_color_ &&
         attrib_->colors.empty() && !attrib_->vertices.empty()) {
       attrib_->colors.assign(attrib_->vertices.size(), real_t(1.0));
     }
   }
 
-  virtual void OnVertex(real_t x, real_t y, real_t z, bool has_color, real_t r,
-                        real_t g, real_t b) {
+  virtual void OnVertex(real_t x, real_t y, real_t z, bool has_weight, real_t w,
+                        bool has_color, real_t r, real_t g, real_t b) {
     attrib_->vertices.push_back(x);
     attrib_->vertices.push_back(y);
     attrib_->vertices.push_back(z);
+    attrib_->vertex_weights.push_back(has_weight ? w : real_t(1.0));
 
     if (has_color) {
+      if (!saw_explicit_color_ && attrib_->colors.empty() &&
+          attrib_->vertices.size() > 3) {
+        const size_t prior_vertex_count = attrib_->vertices.size() / 3 - 1;
+        attrib_->colors.assign(prior_vertex_count * 3, real_t(1.0));
+      }
       saw_explicit_color_ = true;
       attrib_->colors.push_back(r);
       attrib_->colors.push_back(g);
       attrib_->colors.push_back(b);
     } else if (saw_explicit_color_) {
+      saw_missing_color_ = true;
       attrib_->colors.push_back(real_t(1.0));
       attrib_->colors.push_back(real_t(1.0));
       attrib_->colors.push_back(real_t(1.0));
+    } else {
+      saw_missing_color_ = true;
     }
   }
 
@@ -237,9 +464,10 @@ class MeshBuilderHandler : public StreamHandler {
     attrib_->normals.push_back(z);
   }
 
-  virtual void OnTexcoord(real_t u, real_t v) {
+  virtual void OnTexcoord(real_t u, real_t v, bool has_w, real_t w) {
     attrib_->texcoords.push_back(u);
     attrib_->texcoords.push_back(v);
+    attrib_->texcoord_ws.push_back(has_w ? w : real_t(0.0));
   }
 
   virtual void OnFace(const index_t *indices, size_t num_indices) {
@@ -254,11 +482,11 @@ class MeshBuilderHandler : public StreamHandler {
   }
 
   virtual void OnGroup(const std::string &name) {
-    SwitchShape(name);
+    SwitchShape(name, true);
   }
 
   virtual void OnObject(const std::string &name) {
-    SwitchShape(name);
+    SwitchShape(name, false);
   }
 
   virtual void OnUsemtl(const std::string &name) {
@@ -320,21 +548,23 @@ class MeshBuilderHandler : public StreamHandler {
   }
 
  private:
-  void SwitchShape(const std::string &name) {
+  void SwitchShape(const std::string &name, bool from_group) {
     if (!current_shape_.mesh.indices.empty()) {
       FlushShape();
     }
     current_shape_.name = name;
+    current_shape_from_group_ = from_group;
   }
 
   void FlushShape() {
-    if (current_shape_.mesh.indices.empty()) {
+    if (current_shape_.mesh.indices.empty() && !current_shape_from_group_) {
       return;
     }
 
     shapes_->push_back(current_shape_);
     current_shape_ = shape_t();
     current_shape_.name.clear();
+    current_shape_from_group_ = false;
   }
 
   attrib_t *attrib_;
@@ -351,11 +581,23 @@ class MeshBuilderHandler : public StreamHandler {
   int current_material_id_;
   unsigned int current_smoothing_group_id_;
   bool saw_explicit_color_;
+  bool saw_missing_color_;
+  bool current_shape_from_group_;
 };
 
 static bool ParseLineToEvent(size_t line_num, const std::string &line,
                              ParsedChunk *chunk) {
-  std::string work = Trim(StripComment(line));
+  std::string work = line;
+  const size_t nul_pos = work.find('\0');
+  if (nul_pos != std::string::npos) {
+    work.resize(nul_pos);
+  }
+  work = Trim(work);
+  for (size_t i = 0; i < work.size(); i++) {
+    if (work[i] == '\r') {
+      work[i] = ' ';
+    }
+  }
   if (work.empty()) {
     return true;
   }
@@ -363,6 +605,9 @@ static bool ParseLineToEvent(size_t line_num, const std::string &line,
   std::istringstream iss(work);
   std::string tag;
   iss >> tag;
+  if (!tag.empty() && tag[0] == '#') {
+    return true;
+  }
 
   ParsedEvent event;
 
@@ -385,10 +630,28 @@ static bool ParseLineToEvent(size_t line_num, const std::string &line,
       return false;
     }
 
-    if (tokens.size() >= 6) {
-      event.has_color = ParseRealToken(tokens[3], &event.r) &&
-                        ParseRealToken(tokens[4], &event.g) &&
-                        ParseRealToken(tokens[5], &event.b);
+    if (tokens.size() == 4) {
+      event.has_vertex_weight = true;
+      if (!ParseRealToken(tokens[3], &event.vertex_weight)) {
+        chunk->err = "line " + std::to_string(line_num) +
+                     ": malformed vertex record\n";
+        return false;
+      }
+    } else if (tokens.size() >= 6) {
+      event.has_vertex_weight = true;
+      if (!ParseRealToken(tokens[3], &event.vertex_weight)) {
+        chunk->err = "line " + std::to_string(line_num) +
+                     ": malformed vertex record\n";
+        return false;
+      }
+      event.has_color = true;
+      event.r = event.vertex_weight;
+      if (!ParseRealToken(tokens[4], &event.g) ||
+          !ParseRealToken(tokens[5], &event.b)) {
+        chunk->err = "line " + std::to_string(line_num) +
+                     ": malformed vertex record\n";
+        return false;
+      }
     }
 
     chunk->events.push_back(event);
@@ -414,17 +677,39 @@ static bool ParseLineToEvent(size_t line_num, const std::string &line,
   }
 
   if (tag == "vt") {
-    std::string su, sv;
-    if (!(iss >> su >> sv)) {
+    std::string su, sv, sw;
+    if (!(iss >> su)) {
       chunk->err = "line " + std::to_string(line_num) +
                    ": malformed texcoord record\n";
       return false;
     }
     event.type = EVENT_TEXCOORD;
-    if (!ParseRealToken(su, &event.x) || !ParseRealToken(sv, &event.y)) {
+    event.y = real_t(0.0);
+    if (!ParseRealToken(su, &event.x)) {
       chunk->err = "line " + std::to_string(line_num) +
                    ": malformed texcoord record\n";
       return false;
+    }
+    if (iss >> sv) {
+      if (sv[0] == '#') {
+        chunk->events.push_back(event);
+        return true;
+      }
+      if (!ParseRealToken(sv, &event.y)) {
+        chunk->err = "line " + std::to_string(line_num) +
+                     ": malformed texcoord record\n";
+        return false;
+      }
+    }
+    if (iss >> sw) {
+      if (sw[0] != '#') {
+        event.has_texcoord_w = true;
+        if (!ParseRealToken(sw, &event.w)) {
+          chunk->err = "line " + std::to_string(line_num) +
+                       ": malformed texcoord record\n";
+          return false;
+        }
+      }
     }
     chunk->events.push_back(event);
     return true;
@@ -434,6 +719,9 @@ static bool ParseLineToEvent(size_t line_num, const std::string &line,
     event.type = EVENT_FACE;
     std::string tok;
     while (iss >> tok) {
+      if (!tok.empty() && tok[0] == '#') {
+        break;
+      }
       RawIndex idx;
       if (!ParseRawTripleToken(tok, &idx)) {
         chunk->err = "line " + std::to_string(line_num) +
@@ -506,13 +794,20 @@ static bool ParseLineToEvent(size_t line_num, const std::string &line,
 static bool ReplayChunk(const ParsedChunk &chunk, StreamHandler *handler,
                         std::string *warn, int *num_vertices,
                         int *num_normals, int *num_texcoords,
+                        std::vector<real_t> *vertex_positions,
                         const StreamLoadConfig &config) {
   for (size_t i = 0; i < chunk.events.size(); i++) {
     const ParsedEvent &event = chunk.events[i];
     switch (event.type) {
       case EVENT_VERTEX:
-        handler->OnVertex(event.x, event.y, event.z, event.has_color, event.r,
+        handler->OnVertex(event.x, event.y, event.z, event.has_vertex_weight,
+                          event.vertex_weight, event.has_color, event.r,
                           event.g, event.b);
+        if (vertex_positions) {
+          vertex_positions->push_back(event.x);
+          vertex_positions->push_back(event.y);
+          vertex_positions->push_back(event.z);
+        }
         (*num_vertices)++;
         break;
       case EVENT_NORMAL:
@@ -520,7 +815,7 @@ static bool ReplayChunk(const ParsedChunk &chunk, StreamHandler *handler,
         (*num_normals)++;
         break;
       case EVENT_TEXCOORD:
-        handler->OnTexcoord(event.x, event.y);
+        handler->OnTexcoord(event.x, event.y, event.has_texcoord_w, event.w);
         (*num_texcoords)++;
         break;
       case EVENT_FACE:
@@ -543,12 +838,11 @@ static bool ReplayChunk(const ParsedChunk &chunk, StreamHandler *handler,
           }
 
           if (config.triangulate && face.size() > 3) {
-            index_t tri[3];
-            tri[0] = face[0];
-            for (size_t k = 2; k < face.size(); k++) {
-              tri[1] = face[k - 1];
-              tri[2] = face[k];
-              handler->OnFace(tri, 3);
+            std::vector<index_t> tris((face.size() - 2) * 3);
+            const size_t tri_count = TriangulateFaceLikeLegacy(
+                *vertex_positions, face.data(), face.size(), tris.data());
+            for (size_t k = 0; k + 2 < tri_count; k += 3) {
+              handler->OnFace(&tris[k], 3);
             }
           } else {
             handler->OnFace(face.data(), face.size());
@@ -598,6 +892,7 @@ bool ParseObjStream(std::istream *input, StreamHandler *handler,
   int num_vertices = 0;
   int num_normals = 0;
   int num_texcoords = 0;
+  std::vector<real_t> vertex_positions;
 
   int num_threads = config.num_threads;
   if (num_threads < 1) {
@@ -674,7 +969,7 @@ bool ParseObjStream(std::istream *input, StreamHandler *handler,
 
     for (size_t c = 0; c < chunks.size(); c++) {
       ReplayChunk(chunks[c], handler, warn, &num_vertices, &num_normals,
-                  &num_texcoords, config);
+                  &num_texcoords, &vertex_positions, config);
     }
   }
 
@@ -696,6 +991,18 @@ bool LoadObjStreamExperimental(
   MeshBuilderHandler builder(attrib, shapes, materials, readMatFn, warn, err,
                              config);
   bool ok = ParseObjStream(input, &builder, warn, err, config);
+  if (!ok) {
+    attrib->vertices.clear();
+    attrib->vertex_weights.clear();
+    attrib->normals.clear();
+    attrib->texcoords.clear();
+    attrib->texcoord_ws.clear();
+    attrib->colors.clear();
+    attrib->skin_weights.clear();
+    shapes->clear();
+    if (materials) materials->clear();
+    return false;
+  }
   builder.Finish();
   return ok;
 }

@@ -4,6 +4,11 @@
 
     $ make check
 
+Additional fuzz targets:
+
+    $ make obj-fuzz
+    $ make llvm-fuzz
+
 ## Use ninja + kuroga
 
 Assume
@@ -34,4 +39,3 @@ Or on msys2 bash,
     $ cmd //c vcbuild.bat
 
  
-
