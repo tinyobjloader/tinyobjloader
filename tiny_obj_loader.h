@@ -11380,14 +11380,8 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
   std::vector<int> thread_greatest_v_idx(num_t, -1);
   std::vector<int> thread_greatest_vn_idx(num_t, -1);
   std::vector<int> thread_greatest_vt_idx(num_t, -1);
-  auto merge_thread = [&](size_t t) {
+  auto merge_vertex_thread = [&](size_t t) {
     size_t vc = v_off[t], nc = n_off[t], tc = t_off[t];
-    size_t fc = f_off[t], fcc = face_off[t];
-    int current_mat_id = initial_material_id[t];
-    unsigned int current_smoothing_id = initial_smoothing_group_id[t];
-    int greatest_v_idx = -1;
-    int greatest_vn_idx = -1;
-    int greatest_vt_idx = -1;
 
     for (size_t i = 0; i < thread_commands[t].size(); i++) {
       const OptCommand &cmd = thread_commands[t][i];
@@ -11418,6 +11412,32 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
           attrib->texcoords[2 * tc + 0] = cmd.tx;
           attrib->texcoords[2 * tc + 1] = cmd.ty;
           attrib->texcoord_ws[tc] = cmd.has_texcoord_w ? cmd.tw : real_t(0.0);
+          tc++;
+          break;
+        default:
+          break;
+      }
+    }
+  };
+  auto merge_thread = [&](size_t t) {
+    size_t vc = v_off[t], nc = n_off[t], tc = t_off[t];
+    size_t fc = f_off[t], fcc = face_off[t];
+    int current_mat_id = initial_material_id[t];
+    unsigned int current_smoothing_id = initial_smoothing_group_id[t];
+    int greatest_v_idx = -1;
+    int greatest_vn_idx = -1;
+    int greatest_vt_idx = -1;
+
+    for (size_t i = 0; i < thread_commands[t].size(); i++) {
+      const OptCommand &cmd = thread_commands[t][i];
+      switch (cmd.type) {
+        case OPT_CMD_V:
+          vc++;
+          break;
+        case OPT_CMD_VN:
+          nc++;
+          break;
+        case OPT_CMD_VT:
           tc++;
           break;
         case OPT_CMD_F: {
@@ -11519,13 +11539,20 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
     std::vector<std::thread> workers;
     workers.reserve(num_t);
     for (size_t t = 0; t < num_t; t++) {
+      workers.emplace_back([&, t]() { merge_vertex_thread(t); });
+    }
+    for (auto &w : workers) w.join();
+    workers.clear();
+    for (size_t t = 0; t < num_t; t++) {
       workers.emplace_back([&, t]() { merge_thread(t); });
     }
     for (auto &w : workers) w.join();
   } else {
+    for (size_t t = 0; t < num_t; t++) merge_vertex_thread(t);
     for (size_t t = 0; t < num_t; t++) merge_thread(t);
   }
 #else
+  for (size_t t = 0; t < num_t; t++) merge_vertex_thread(t);
   for (size_t t = 0; t < num_t; t++) merge_thread(t);
 #endif
 

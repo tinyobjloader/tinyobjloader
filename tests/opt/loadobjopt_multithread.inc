@@ -868,24 +868,40 @@ void test_loadobjopt_mtllib_repeated_lines() {
 void test_loadobjopt_points_only_input() {
   const std::string obj_text = opt_test::BuildPointsOnlyObj(256);
 
-  tinyobj::basic_attrib_t<> attrib;
-  std::vector<tinyobj::basic_shape_t<>> shapes;
-  std::vector<tinyobj::material_t> materials;
-  std::string warn, err;
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn,
+                                    &legacy_err, &legacy_stream, NULL, true,
+                                    false);
+  if (!legacy_ok && !legacy_err.empty()) {
+    std::cerr << "Legacy LoadObj failed: " << legacy_err << "\n";
+  }
+  TEST_CHECK(legacy_ok == true);
+
+  tinyobj::basic_attrib_t<> opt_attrib;
+  std::vector<tinyobj::basic_shape_t<>> opt_shapes;
+  std::vector<tinyobj::material_t> opt_materials;
+  std::string opt_warn, opt_err;
 
   tinyobj::OptLoadConfig config;
   config.num_threads = 4;
   config.triangulate = true;
 
-  bool ok = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
-                                obj_text.c_str(), obj_text.size(), config);
+  bool ok = tinyobj::LoadObjOpt(&opt_attrib, &opt_shapes, &opt_materials,
+                                &opt_warn, &opt_err, obj_text.c_str(),
+                                obj_text.size(), config);
 
   TEST_CHECK(ok == true);
-  TEST_CHECK(err.empty());
-  TEST_CHECK(attrib.vertices.size() == 256 * 3);
-  TEST_CHECK(attrib.indices.empty());
-  TEST_CHECK(attrib.face_num_verts.empty());
-  TEST_CHECK(shapes.empty());
+  TEST_CHECK(opt_err.empty());
+  TEST_CHECK(legacy_warn == opt_warn);
+  TEST_CHECK(opt_test::LegacyAttribEqualsOpt(legacy_attrib, legacy_shapes, opt_attrib));
+  TEST_CHECK(opt_test::LegacyShapesEqualOpt(legacy_shapes, opt_shapes));
+  TEST_CHECK(opt_materials.size() == legacy_materials.size());
 }
 
 void test_loadobjopt_faces_only_input() {
