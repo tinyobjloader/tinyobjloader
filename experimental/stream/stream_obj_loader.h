@@ -33,15 +33,22 @@ class StreamHandler {
   virtual void OnNormal(real_t x, real_t y, real_t z) = 0;
   virtual void OnTexcoord(real_t u, real_t v, bool has_w, real_t w) = 0;
   virtual void OnFace(const index_t *indices, size_t num_indices) = 0;
+  virtual void OnDegenerateFace() {}
   virtual void OnGroup(const std::string &name) = 0;
   virtual void OnObject(const std::string &name) = 0;
   virtual void OnUsemtl(const std::string &name) = 0;
   virtual void OnMtllib(const std::vector<std::string> &filenames) = 0;
+  virtual void OnMtllibWithLine(const std::vector<std::string> &filenames,
+                                size_t line_num) {
+    (void)line_num;
+    OnMtllib(filenames);
+  }
   virtual void OnSmoothingGroup(unsigned int smoothing_group_id) = 0;
 };
 
 bool ParseObjStream(std::istream *input, StreamHandler *handler,
                     std::string *warn, std::string *err,
+                    const std::string &source_name,
                     const StreamLoadConfig &config = StreamLoadConfig());
 
 bool LoadObjStreamExperimental(

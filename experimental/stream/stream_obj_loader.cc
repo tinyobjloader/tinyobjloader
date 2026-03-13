@@ -20,8 +20,15 @@ struct RawIndex {
   int vertex_index;
   int texcoord_index;
   int normal_index;
+  bool has_texcoord_index;
+  bool has_normal_index;
 
-  RawIndex() : vertex_index(0), texcoord_index(0), normal_index(0) {}
+  RawIndex()
+      : vertex_index(0),
+        texcoord_index(0),
+        normal_index(0),
+        has_texcoord_index(false),
+        has_normal_index(false) {}
 };
 
 enum ParsedEventType {
@@ -39,6 +46,7 @@ enum ParsedEventType {
 
 struct ParsedEvent {
   ParsedEventType type;
+  size_t line_num;
   real_t x, y, z;
   real_t vertex_weight;
   real_t r, g, b;
@@ -53,6 +61,7 @@ struct ParsedEvent {
 
   ParsedEvent()
       : type(EVENT_WARNING),
+        line_num(0),
         x(real_t(0)),
         y(real_t(0)),
         z(real_t(0)),
@@ -86,6 +95,15 @@ static std::string Trim(const std::string &s) {
   }
 
   return s.substr(begin, end - begin);
+}
+
+static std::string TrimLeading(const std::string &s) {
+  size_t begin = 0;
+  while (begin < s.size() &&
+         (s[begin] == ' ' || s[begin] == '\t' || s[begin] == '\r')) {
+    begin++;
+  }
+  return s.substr(begin);
 }
 
 static bool ParseRealToken(const std::string &token, real_t *value) {
@@ -134,10 +152,69 @@ static int PointInPolygon(int nvert, T *vertx, T *verty, T testx, T testy) {
   return c;
 }
 
-static int FixIndex(int idx, int n) {
-  if (idx > 0) return idx - 1;
-  if (idx == 0) return -1;
-  return n + idx;
+static void AppendZeroIndexWarning(std::string *warn,
+                                   const std::string &source_name,
+                                   size_t line_num) {
+  if (!warn) return;
+
+  std::stringstream ss;
+  ss << source_name << ":" << line_num
+     << ": warning: zero value index found (will have a value of -1 for "
+        "normal and tex indices)\n";
+  (*warn) += ss.str();
+}
+
+static bool ResolveIndexLikeLegacy(int idx, int n, int *ret, bool allow_zero,
+                                   const std::string &source_name,
+                                   size_t line_num, std::string *warn) {
+  if (!ret) return false;
+  if (idx > 0) {
+    (*ret) = idx - 1;
+    return true;
+  }
+  if (idx == 0) {
+    AppendZeroIndexWarning(warn, source_name, line_num);
+    (*ret) = -1;
+    return allow_zero;
+  }
+
+  (*ret) = n + idx;
+  return ((*ret) >= 0);
+}
+
+static void UpdateGreatestIndex(int idx, int *greatest) {
+  if (!greatest) return;
+  if (idx > *greatest) {
+    *greatest = idx;
+  }
+}
+
+static void AppendOutOfBoundsWarnings(std::string *warn,
+                                      int greatest_v_idx,
+                                      int greatest_vn_idx,
+                                      int greatest_vt_idx,
+                                      int num_vertices,
+                                      int num_normals,
+                                      int num_texcoords,
+                                      size_t line_num) {
+  if (!warn) return;
+
+  if (greatest_v_idx >= num_vertices) {
+    std::stringstream ss;
+    ss << "Vertex indices out of bounds (line " << line_num << ".)\n\n";
+    (*warn) += ss.str();
+  }
+  if (greatest_vn_idx >= num_normals) {
+    std::stringstream ss;
+    ss << "Vertex normal indices out of bounds (line " << line_num << ".)\n\n";
+    (*warn) += ss.str();
+  }
+  if (greatest_vt_idx >= num_texcoords) {
+    std::stringstream ss;
+    ss << "Vertex texcoord indices out of bounds (line " << line_num
+       << ".)\n\n";
+    (*warn) += ss.str();
+  }
 }
 
 static bool IsValidFaceVertex(const std::vector<real_t> &vertices,
@@ -334,6 +411,7 @@ static bool ParseRawTripleToken(const std::string &token, RawIndex *out) {
   if (second == std::string::npos) {
     std::string vt_str = token.substr(first + 1);
     if (!vt_str.empty()) {
+      out->has_texcoord_index = true;
       if (!ParseIntToken(vt_str, &out->texcoord_index)) return false;
     }
     return true;
@@ -343,10 +421,12 @@ static bool ParseRawTripleToken(const std::string &token, RawIndex *out) {
   std::string vn_str = token.substr(second + 1);
 
   if (!vt_str.empty()) {
+    out->has_texcoord_index = true;
     if (!ParseIntToken(vt_str, &out->texcoord_index)) return false;
   }
 
   if (!vn_str.empty()) {
+    out->has_normal_index = true;
     if (!ParseIntToken(vn_str, &out->normal_index)) return false;
   }
 
@@ -388,6 +468,21 @@ static void SplitFilenames(const std::string &s,
   }
 }
 
+static std::string ParseLegacyGroupName(std::istringstream *iss) {
+  std::string name;
+  std::string token;
+  while ((*iss) >> token) {
+    if (!token.empty() && token[0] == '#') {
+      break;
+    }
+    if (!name.empty()) {
+      name.push_back(' ');
+    }
+    name += token;
+  }
+  return name;
+}
+
 class MeshBuilderHandler : public StreamHandler {
  public:
   MeshBuilderHandler(attrib_t *attrib, std::vector<shape_t> *shapes,
@@ -405,7 +500,9 @@ class MeshBuilderHandler : public StreamHandler {
         current_smoothing_group_id_(0),
         saw_explicit_color_(false),
         saw_missing_color_(false),
-        current_shape_from_group_(false) {
+        current_shape_from_group_(false),
+        current_shape_has_face_record_(false),
+        current_shape_degenerate_face_count_(0) {
     assert(attrib_);
     assert(shapes_);
     attrib_->vertices.clear();
@@ -420,7 +517,7 @@ class MeshBuilderHandler : public StreamHandler {
   }
 
   void Finish() {
-    FlushShape();
+    FlushShape(true);
     if (!config_.default_vcols_fallback && saw_explicit_color_ &&
         saw_missing_color_) {
       attrib_->colors.clear();
@@ -471,6 +568,7 @@ class MeshBuilderHandler : public StreamHandler {
   }
 
   virtual void OnFace(const index_t *indices, size_t num_indices) {
+    current_shape_has_face_record_ = true;
     for (size_t i = 0; i < num_indices; i++) {
       current_shape_.mesh.indices.push_back(indices[i]);
     }
@@ -479,6 +577,11 @@ class MeshBuilderHandler : public StreamHandler {
     current_shape_.mesh.material_ids.push_back(current_material_id_);
     current_shape_.mesh.smoothing_group_ids.push_back(
         current_smoothing_group_id_);
+  }
+
+  virtual void OnDegenerateFace() {
+    current_shape_has_face_record_ = true;
+    current_shape_degenerate_face_count_++;
   }
 
   virtual void OnGroup(const std::string &name) {
@@ -503,12 +606,34 @@ class MeshBuilderHandler : public StreamHandler {
   }
 
   virtual void OnMtllib(const std::vector<std::string> &filenames) {
-    if (!material_reader_ || !materials_) return;
+    HandleMtllib(filenames, 0);
+  }
+
+  virtual void OnMtllibWithLine(const std::vector<std::string> &filenames,
+                                size_t line_num) {
+    HandleMtllib(filenames, line_num);
+  }
+
+  private:
+  void HandleMtllib(const std::vector<std::string> &filenames,
+                    size_t line_num) {
+    if (!material_reader_) return;
+
+    std::vector<material_t> *material_dst =
+        materials_ ? materials_ : &scratch_materials_;
 
     if (filenames.empty()) {
       if (warn_) {
-        (*warn_) +=
-            "Looks like empty filename for mtllib. Use default material.\n";
+        if (line_num != 0) {
+          std::stringstream ss;
+          ss << "Looks like empty filename for mtllib. Use default material "
+                "(line "
+             << line_num << ".)\n";
+          (*warn_) += ss.str();
+        } else {
+          (*warn_) +=
+              "Looks like empty filename for mtllib. Use default material.\n";
+        }
       }
       return;
     }
@@ -522,7 +647,7 @@ class MeshBuilderHandler : public StreamHandler {
 
       std::string warn_mtl;
       std::string err_mtl;
-      bool ok = (*material_reader_)(filenames[i], materials_, &material_map_,
+      bool ok = (*material_reader_)(filenames[i], material_dst, &material_map_,
                                     &warn_mtl, &err_mtl);
       if (warn_ && !warn_mtl.empty()) {
         (*warn_) += warn_mtl;
@@ -543,21 +668,34 @@ class MeshBuilderHandler : public StreamHandler {
     }
   }
 
+ public:
   virtual void OnSmoothingGroup(unsigned int smoothing_group_id) {
     current_smoothing_group_id_ = smoothing_group_id;
   }
 
  private:
   void SwitchShape(const std::string &name, bool from_group) {
-    if (!current_shape_.mesh.indices.empty()) {
-      FlushShape();
+    if (!current_shape_.mesh.indices.empty() || current_shape_has_face_record_) {
+      FlushShape(false);
+    } else {
+      current_shape_ = shape_t();
+      current_shape_has_face_record_ = false;
+      current_shape_degenerate_face_count_ = 0;
     }
     current_shape_.name = name;
     current_shape_from_group_ = from_group;
   }
 
-  void FlushShape() {
-    if (current_shape_.mesh.indices.empty() && !current_shape_from_group_) {
+  void FlushShape(bool at_eof) {
+    EmitDegenerateFaceWarnings();
+
+    if (current_shape_.mesh.indices.empty() &&
+        !(at_eof && current_shape_has_face_record_)) {
+      current_shape_has_face_record_ = false;
+      current_shape_degenerate_face_count_ = 0;
+      if (at_eof) {
+        current_shape_from_group_ = false;
+      }
       return;
     }
 
@@ -565,11 +703,26 @@ class MeshBuilderHandler : public StreamHandler {
     current_shape_ = shape_t();
     current_shape_.name.clear();
     current_shape_from_group_ = false;
+    current_shape_has_face_record_ = false;
+    current_shape_degenerate_face_count_ = 0;
+  }
+
+  void EmitDegenerateFaceWarnings() {
+    if (!warn_) {
+      current_shape_degenerate_face_count_ = 0;
+      return;
+    }
+
+    for (size_t i = 0; i < current_shape_degenerate_face_count_; i++) {
+      (*warn_) += "Degenerated face found\n.";
+    }
+    current_shape_degenerate_face_count_ = 0;
   }
 
   attrib_t *attrib_;
   std::vector<shape_t> *shapes_;
   std::vector<material_t> *materials_;
+  std::vector<material_t> scratch_materials_;
   MaterialReader *material_reader_;
   std::string *warn_;
   std::string *err_;
@@ -583,6 +736,8 @@ class MeshBuilderHandler : public StreamHandler {
   bool saw_explicit_color_;
   bool saw_missing_color_;
   bool current_shape_from_group_;
+  bool current_shape_has_face_record_;
+  size_t current_shape_degenerate_face_count_;
 };
 
 static bool ParseLineToEvent(size_t line_num, const std::string &line,
@@ -592,16 +747,16 @@ static bool ParseLineToEvent(size_t line_num, const std::string &line,
   if (nul_pos != std::string::npos) {
     work.resize(nul_pos);
   }
-  work = Trim(work);
   for (size_t i = 0; i < work.size(); i++) {
     if (work[i] == '\r') {
       work[i] = ' ';
     }
   }
-  if (work.empty()) {
+  if (Trim(work).empty()) {
     return true;
   }
 
+  work = TrimLeading(work);
   std::istringstream iss(work);
   std::string tag;
   iss >> tag;
@@ -610,11 +765,17 @@ static bool ParseLineToEvent(size_t line_num, const std::string &line,
   }
 
   ParsedEvent event;
+  event.line_num = line_num;
 
   if (tag == "v") {
     std::vector<std::string> tokens;
     std::string token;
-    while (iss >> token) tokens.push_back(token);
+    while (iss >> token) {
+      if (!token.empty() && token[0] == '#') {
+        break;
+      }
+      tokens.push_back(token);
+    }
     if (tokens.size() < 3) {
       chunk->err = "line " + std::to_string(line_num) +
                    ": malformed vertex record\n";
@@ -630,27 +791,29 @@ static bool ParseLineToEvent(size_t line_num, const std::string &line,
       return false;
     }
 
-    if (tokens.size() == 4) {
-      event.has_vertex_weight = true;
-      if (!ParseRealToken(tokens[3], &event.vertex_weight)) {
-        chunk->err = "line " + std::to_string(line_num) +
-                     ": malformed vertex record\n";
-        return false;
-      }
-    } else if (tokens.size() >= 6) {
-      event.has_vertex_weight = true;
-      if (!ParseRealToken(tokens[3], &event.vertex_weight)) {
-        chunk->err = "line " + std::to_string(line_num) +
-                     ": malformed vertex record\n";
-        return false;
-      }
-      event.has_color = true;
-      event.r = event.vertex_weight;
-      if (!ParseRealToken(tokens[4], &event.g) ||
-          !ParseRealToken(tokens[5], &event.b)) {
-        chunk->err = "line " + std::to_string(line_num) +
-                     ": malformed vertex record\n";
-        return false;
+    if (tokens.size() >= 4) {
+      real_t maybe_r = real_t(1.0);
+      if (ParseRealToken(tokens[3], &maybe_r)) {
+        if (tokens.size() == 4) {
+          event.has_vertex_weight = true;
+          event.vertex_weight = maybe_r;
+        } else {
+          real_t maybe_g = real_t(1.0);
+          if (!ParseRealToken(tokens[4], &maybe_g)) {
+            event.has_vertex_weight = true;
+            event.vertex_weight = maybe_r;
+          } else if (tokens.size() >= 6) {
+            real_t maybe_b = real_t(1.0);
+            if (ParseRealToken(tokens[5], &maybe_b)) {
+              event.has_vertex_weight = true;
+              event.vertex_weight = maybe_r;
+              event.has_color = true;
+              event.r = maybe_r;
+              event.g = maybe_g;
+              event.b = maybe_b;
+            }
+          }
+        }
       }
     }
 
@@ -736,16 +899,24 @@ static bool ParseLineToEvent(size_t line_num, const std::string &line,
 
   if (tag == "g") {
     event.type = EVENT_GROUP;
-    std::getline(iss, event.text);
-    event.text = Trim(event.text);
+    event.text = ParseLegacyGroupName(&iss);
     chunk->events.push_back(event);
+    if (event.text.empty()) {
+      ParsedEvent warn_event;
+      warn_event.type = EVENT_WARNING;
+      warn_event.text = "Empty group name. line: " + std::to_string(line_num) +
+                        "\n";
+      chunk->events.push_back(warn_event);
+    }
     return true;
   }
 
   if (tag == "o") {
     event.type = EVENT_OBJECT;
+    if (iss.peek() == ' ' || iss.peek() == '\t') {
+      iss.get();
+    }
     std::getline(iss, event.text);
-    event.text = Trim(event.text);
     chunk->events.push_back(event);
     return true;
   }
@@ -792,9 +963,12 @@ static bool ParseLineToEvent(size_t line_num, const std::string &line,
 }
 
 static bool ReplayChunk(const ParsedChunk &chunk, StreamHandler *handler,
-                        std::string *warn, int *num_vertices,
-                        int *num_normals, int *num_texcoords,
+                        std::string *warn, std::string *err,
+                        int *num_vertices, int *num_normals,
+                        int *num_texcoords, int *greatest_v_idx,
+                        int *greatest_vn_idx, int *greatest_vt_idx,
                         std::vector<real_t> *vertex_positions,
+                        const std::string &source_name,
                         const StreamLoadConfig &config) {
   for (size_t i = 0; i < chunk.events.size(); i++) {
     const ParsedEvent &event = chunk.events[i];
@@ -820,21 +994,59 @@ static bool ReplayChunk(const ParsedChunk &chunk, StreamHandler *handler,
         break;
       case EVENT_FACE:
         if (event.face.size() < 3) {
+          handler->OnDegenerateFace();
           break;
         }
         {
           std::vector<index_t> face(event.face.size());
           for (size_t k = 0; k < event.face.size(); k++) {
-            face[k].vertex_index =
-                FixIndex(event.face[k].vertex_index, *num_vertices);
-            face[k].texcoord_index = (event.face[k].texcoord_index == 0)
-                                         ? -1
-                                         : FixIndex(event.face[k].texcoord_index,
-                                                    *num_texcoords);
-            face[k].normal_index = (event.face[k].normal_index == 0)
-                                       ? -1
-                                       : FixIndex(event.face[k].normal_index,
-                                                  *num_normals);
+            if (!ResolveIndexLikeLegacy(event.face[k].vertex_index,
+                                        *num_vertices, &face[k].vertex_index,
+                                        false, source_name, event.line_num,
+                                        warn)) {
+              if (err) {
+                (*err) += "line " + std::to_string(event.line_num) +
+                          ": malformed face record\n";
+              }
+              return false;
+            }
+            UpdateGreatestIndex(face[k].vertex_index, greatest_v_idx);
+
+            if (event.face[k].has_texcoord_index) {
+              if (!ResolveIndexLikeLegacy(event.face[k].texcoord_index,
+                                          *num_texcoords,
+                                          &face[k].texcoord_index, true,
+                                          source_name, event.line_num, warn)) {
+                if (err) {
+                  (*err) += "line " + std::to_string(event.line_num) +
+                            ": malformed face record\n";
+                }
+                return false;
+              }
+              if (face[k].texcoord_index >= 0) {
+                UpdateGreatestIndex(face[k].texcoord_index, greatest_vt_idx);
+              }
+            } else {
+              face[k].texcoord_index = -1;
+            }
+
+            if (event.face[k].has_normal_index) {
+              if (!ResolveIndexLikeLegacy(event.face[k].normal_index,
+                                          *num_normals, &face[k].normal_index,
+                                          true, source_name, event.line_num,
+                                          warn)) {
+                if (err) {
+                  (*err) += "line " + std::to_string(event.line_num) +
+                            ": malformed face record\n";
+                }
+                return false;
+              }
+              if (face[k].normal_index >= 0) {
+                UpdateGreatestIndex(face[k].normal_index, greatest_vn_idx);
+              }
+            } else {
+              face[k].normal_index = -1;
+            }
           }
 
           if (config.triangulate && face.size() > 3) {
@@ -859,7 +1071,7 @@ static bool ReplayChunk(const ParsedChunk &chunk, StreamHandler *handler,
         handler->OnUsemtl(event.text);
         break;
       case EVENT_MTLLIB:
-        handler->OnMtllib(event.filenames);
+        handler->OnMtllibWithLine(event.filenames, event.line_num);
         break;
       case EVENT_SMOOTHING:
         handler->OnSmoothingGroup(event.smoothing_group_id);
@@ -879,6 +1091,7 @@ static bool ReplayChunk(const ParsedChunk &chunk, StreamHandler *handler,
 
 bool ParseObjStream(std::istream *input, StreamHandler *handler,
                     std::string *warn, std::string *err,
+                    const std::string &source_name,
                     const StreamLoadConfig &config) {
   if (!input || !handler) {
     if (err) {
@@ -892,6 +1105,9 @@ bool ParseObjStream(std::istream *input, StreamHandler *handler,
   int num_vertices = 0;
   int num_normals = 0;
   int num_texcoords = 0;
+  int greatest_v_idx = -1;
+  int greatest_vn_idx = -1;
+  int greatest_vt_idx = -1;
   std::vector<real_t> vertex_positions;
 
   int num_threads = config.num_threads;
@@ -931,14 +1147,13 @@ bool ParseObjStream(std::istream *input, StreamHandler *handler,
     }
 
     std::vector<ParsedChunk> chunks(chunk_inputs.size());
+    size_t error_chunk_index = chunks.size();
     if (chunk_inputs.size() == 1) {
       for (size_t i = 0; i < chunk_inputs[0].size(); i++) {
         if (!ParseLineToEvent(chunk_inputs[0][i].first, chunk_inputs[0][i].second,
                               &chunks[0])) {
-          if (err) {
-            (*err) += chunks[0].err;
-          }
-          return false;
+          error_chunk_index = 0;
+          break;
         }
       }
     } else {
@@ -959,20 +1174,35 @@ bool ParseObjStream(std::istream *input, StreamHandler *handler,
       }
       for (size_t c = 0; c < chunks.size(); c++) {
         if (!chunks[c].err.empty()) {
-          if (err) {
-            (*err) += chunks[c].err;
-          }
-          return false;
+          error_chunk_index = c;
+          break;
         }
       }
     }
 
-    for (size_t c = 0; c < chunks.size(); c++) {
-      ReplayChunk(chunks[c], handler, warn, &num_vertices, &num_normals,
-                  &num_texcoords, &vertex_positions, config);
+    const size_t replay_chunk_count =
+        (error_chunk_index < chunks.size()) ? (error_chunk_index + 1)
+                                            : chunks.size();
+    for (size_t c = 0; c < replay_chunk_count; c++) {
+      if (!ReplayChunk(chunks[c], handler, warn, err, &num_vertices,
+                       &num_normals, &num_texcoords, &greatest_v_idx,
+                       &greatest_vn_idx, &greatest_vt_idx, &vertex_positions,
+                       source_name, config)) {
+        return false;
+      }
+    }
+
+    if (error_chunk_index < chunks.size()) {
+      if (err) {
+        (*err) += chunks[error_chunk_index].err;
+      }
+      return false;
     }
   }
 
+  AppendOutOfBoundsWarnings(warn, greatest_v_idx, greatest_vn_idx,
+                            greatest_vt_idx, num_vertices, num_normals,
+                            num_texcoords, line_num + 1);
   return true;
 }
 
@@ -990,7 +1220,7 @@ bool LoadObjStreamExperimental(
 
   MeshBuilderHandler builder(attrib, shapes, materials, readMatFn, warn, err,
                              config);
-  bool ok = ParseObjStream(input, &builder, warn, err, config);
+  bool ok = ParseObjStream(input, &builder, warn, err, "<stream>", config);
   if (!ok) {
     attrib->vertices.clear();
     attrib->vertex_weights.clear();
@@ -1039,8 +1269,31 @@ bool LoadObjStreamExperimental(
   }
 
   MaterialFileReader mat_reader(base_dir);
-  return LoadObjStreamExperimental(attrib, shapes, materials, warn, err, &ifs,
-                                   &mat_reader, config);
+  if (!attrib || !shapes) {
+    if (err) {
+      (*err) += "attrib and shapes must not be null.\n";
+    }
+    return false;
+  }
+
+  MeshBuilderHandler builder(attrib, shapes, materials, &mat_reader, warn, err,
+                             config);
+  bool ok = ParseObjStream(&ifs, &builder, warn, err, filename, config);
+  if (!ok) {
+    attrib->vertices.clear();
+    attrib->vertex_weights.clear();
+    attrib->normals.clear();
+    attrib->texcoords.clear();
+    attrib->texcoord_ws.clear();
+    attrib->colors.clear();
+    attrib->skin_weights.clear();
+    shapes->clear();
+    if (materials) materials->clear();
+    return false;
+  }
+
+  builder.Finish();
+  return true;
 }
 
 }  // namespace experimental_stream

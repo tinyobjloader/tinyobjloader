@@ -406,6 +406,98 @@ static std::string BuildObjectOnlyObj() {
   return "o seedo\n";
 }
 
+static std::string BuildGroupOnlyObj() {
+  return "g group_only\n";
+}
+
+static std::string BuildDegenerateFaceOnlyObj() {
+  return
+      "o obj\n"
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "f 1 2\n";
+}
+
+static std::string BuildDegenerateFaceThenMissingUsemtlObj() {
+  return
+      "g grp\n"
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "f 1 2\n"
+      "usemtl missing\n";
+}
+
+static std::string BuildDegenerateFaceThenInvalidFaceObj() {
+  return
+      "g grp\n"
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "f 1 2\n"
+      "f 1 bad 3\n";
+}
+
+static std::string BuildInitialNamedShapeThenBoundaryObj() {
+  return
+      "o root_object\n"
+      "g first_group\n"
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "v 0.0 0.0 1.0\n"
+      "f 1 2 3\n"
+      "g second_group\n"
+      "f 1 3 4\n";
+}
+
+static std::string BuildInvalidRelativeVertexIndexObj() {
+  return
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "f -4 -3 -2\n";
+}
+
+static std::string BuildInvalidRelativeTexcoordNormalIndexObj() {
+  return
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "vt 0.0 0.0\n"
+      "vt 1.0 0.0\n"
+      "vt 0.0 1.0\n"
+      "vn 0.0 0.0 1.0\n"
+      "f 1/-4/-2 2/2/1 3/3/1\n";
+}
+
+static std::string BuildAcceptedOutOfBoundsFaceObj() {
+  return
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "vt 0.0 0.0\n"
+      "vn 0.0 0.0 1.0\n"
+      "f 4/2/2 1/1/1 2/1/1\n";
+}
+
+static std::string BuildZeroVertexIndexThenMissingMaterialObj() {
+  return
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "f 0 1 2\n"
+      "usemtl later_missing\n";
+}
+
+static std::string BuildZeroTexcoordNormalIndexObj() {
+  return
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "vt 0.0 0.0\n"
+      "vn 0.0 0.0 1.0\n"
+      "f 1/0/0 2/1/1 3/1/1\n";
+}
+
 static size_t ParseBenchmarkTriCount() {
   const char *env = std::getenv("TINYOBJ_OPT_BENCH_TRIS");
   if (!env || env[0] == '\0') {
@@ -541,6 +633,72 @@ static std::string BuildInvalidPolygonObj() {
   os << "v 0.0 1.0 0.0\n";
   os << "f 1 2 3 4 5\n";
   return os.str();
+}
+
+static std::string BuildUsemtlBeforeMtllibObj() {
+  return
+      "usemtl mat_early\n"
+      "mtllib mats.mtl\n"
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "f 1 2 3\n";
+}
+
+static std::string BuildGroupCommentObj() {
+  return
+      "g foo # trailing comment should be ignored\n"
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "f 1 2 3\n";
+}
+
+static std::string BuildWeightedVertexCommentObj() {
+  return
+      "v 0.0 0.0 0.0 0.5 # trailing comment must be ignored\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "f 1 2 3\n";
+}
+
+static std::string BuildEmptyGroupObj() {
+  return
+      "g   # empty group should warn and reset the current group\n"
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "f 1 2 3\n";
+}
+
+static std::string BuildOptionalVertexFallbackObj() {
+  return
+      "v 0.0 0.0 0.0 foo\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "f 1 2 3\n";
+}
+
+static std::string BuildObjectSpacingObj() {
+  return
+      "o   foo  \n"
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "f 1 2 3\n";
+}
+
+static std::string BuildEmptyMtllibObj() {
+  return
+      "mtllib    \n"
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "f 1 2 3\n";
+}
+
+static std::string BuildInvalidVertexRecordObj() {
+  return "v a 0.0 0.0\n";
 }
 
 }  // namespace opt_test
@@ -1336,6 +1494,93 @@ void test_loadobjopt_hash_in_usemtl_matches_legacy() {
   TEST_CHECK(opt_test::LegacyShapesEqualOpt(legacy_shapes, opt_shapes));
 }
 
+void test_loadobjopt_usemtl_before_mtllib_matches_legacy() {
+#ifdef _WIN32
+  std::string test_dir;
+  wchar_t wtmpbuf[MAX_PATH];
+  GetTempPathW(MAX_PATH, wtmpbuf);
+  test_dir = WcharToUTF8(wtmpbuf) + "tinyobj_opt_usemtl_before_mtllib\\";
+#else
+  std::string test_dir = "/tmp/tinyobj_opt_usemtl_before_mtllib/";
+#endif
+
+  RemoveTestDir(test_dir);
+  TEST_CHECK(MakeDir(test_dir));
+
+  const std::string obj_path = test_dir + "scene.obj";
+  const std::string mtl_path = test_dir + "mats.mtl";
+  const std::string obj_text = opt_test::BuildUsemtlBeforeMtllibObj();
+  const std::string mtl_text =
+      "newmtl mat_early\n"
+      "Kd 1.0 0.0 0.0\n";
+
+  TEST_CHECK(opt_test::WriteTextFile(obj_path, obj_text));
+  TEST_CHECK(opt_test::WriteTextFile(mtl_path, mtl_text));
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn, &legacy_err,
+                                    obj_path.c_str(), test_dir.c_str(), true,
+                                    false);
+
+  tinyobj::basic_attrib_t<> opt_attrib;
+  std::vector<tinyobj::basic_shape_t<>> opt_shapes;
+  std::vector<tinyobj::material_t> opt_materials;
+  std::string opt_warn, opt_err;
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 2;
+  config.triangulate = true;
+  bool opt_ok = tinyobj::LoadObjOpt(&opt_attrib, &opt_shapes, &opt_materials,
+                                    &opt_warn, &opt_err, obj_path.c_str(),
+                                    test_dir.c_str(), config);
+
+  RemoveTestDir(test_dir);
+
+  TEST_CHECK(legacy_ok == true);
+  TEST_CHECK(opt_ok == true);
+  TEST_CHECK(legacy_warn == opt_warn);
+  TEST_CHECK(legacy_err == opt_err);
+  TEST_CHECK(opt_test::LegacyMaterialsEqualOpt(legacy_materials, opt_materials));
+  TEST_CHECK(opt_test::LegacyAttribEqualsOpt(legacy_attrib, legacy_shapes,
+                                             opt_attrib));
+  TEST_CHECK(opt_test::LegacyShapesEqualOpt(legacy_shapes, opt_shapes));
+}
+
+void test_loadobjopt_group_comment_matches_legacy() {
+  const std::string obj_text = opt_test::BuildGroupCommentObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn, &legacy_err,
+                                    &legacy_stream, NULL, true, false);
+
+  tinyobj::basic_attrib_t<> opt_attrib;
+  std::vector<tinyobj::basic_shape_t<>> opt_shapes;
+  std::vector<tinyobj::material_t> opt_materials;
+  std::string opt_warn, opt_err;
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 2;
+  config.triangulate = true;
+  bool opt_ok = tinyobj::LoadObjOpt(&opt_attrib, &opt_shapes, &opt_materials,
+                                    &opt_warn, &opt_err, obj_text.c_str(),
+                                    obj_text.size(), config);
+
+  TEST_CHECK(legacy_ok == true);
+  TEST_CHECK(opt_ok == true);
+  TEST_CHECK(legacy_warn == opt_warn);
+  TEST_CHECK(legacy_err == opt_err);
+  TEST_CHECK(opt_test::LegacyAttribEqualsOpt(legacy_attrib, legacy_shapes,
+                                             opt_attrib));
+  TEST_CHECK(opt_test::LegacyShapesEqualOpt(legacy_shapes, opt_shapes));
+}
+
 void test_loadobjopt_invalid_face_token_matches_legacy_error() {
   const std::string obj_text = opt_test::BuildInvalidFaceTokenObj();
 
@@ -1459,6 +1704,551 @@ void test_stream_loader_colored_vertex_weight() {
   TEST_CHECK(legacy_err == stream_err);
   TEST_CHECK(legacy_attrib.vertex_weights == stream_attrib.vertex_weights);
   TEST_CHECK(legacy_attrib.colors == stream_attrib.colors);
+}
+
+void test_stream_loader_group_comment_matches_legacy() {
+  const std::string obj_text = opt_test::BuildGroupCommentObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn, &legacy_err,
+                                    &legacy_stream, NULL, true, false);
+
+  tinyobj::attrib_t stream_attrib;
+  std::vector<tinyobj::shape_t> stream_shapes;
+  std::vector<tinyobj::material_t> stream_materials;
+  std::string stream_warn, stream_err;
+  std::istringstream stream(obj_text);
+  tinyobj::experimental_stream::StreamLoadConfig config;
+  bool stream_ok = tinyobj::experimental_stream::LoadObjStreamExperimental(
+      &stream_attrib, &stream_shapes, &stream_materials, &stream_warn,
+      &stream_err, &stream, NULL, config);
+
+  TEST_CHECK(legacy_ok == true);
+  TEST_CHECK(stream_ok == true);
+  TEST_CHECK(legacy_warn == stream_warn);
+  TEST_CHECK(legacy_err == stream_err);
+  TEST_CHECK(legacy_attrib.vertices == stream_attrib.vertices);
+  TEST_CHECK(legacy_shapes.size() == stream_shapes.size());
+  TEST_CHECK(legacy_shapes[0].name == stream_shapes[0].name);
+  TEST_CHECK(legacy_shapes[0].mesh.num_face_vertices ==
+             stream_shapes[0].mesh.num_face_vertices);
+}
+
+void test_stream_loader_weighted_vertex_comment_matches_legacy() {
+  const std::string obj_text = opt_test::BuildWeightedVertexCommentObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn, &legacy_err,
+                                    &legacy_stream, NULL, true, false);
+
+  tinyobj::attrib_t stream_attrib;
+  std::vector<tinyobj::shape_t> stream_shapes;
+  std::vector<tinyobj::material_t> stream_materials;
+  std::string stream_warn, stream_err;
+  std::istringstream stream(obj_text);
+  tinyobj::experimental_stream::StreamLoadConfig config;
+  bool stream_ok = tinyobj::experimental_stream::LoadObjStreamExperimental(
+      &stream_attrib, &stream_shapes, &stream_materials, &stream_warn,
+      &stream_err, &stream, NULL, config);
+
+  TEST_CHECK(legacy_ok == true);
+  TEST_CHECK(stream_ok == true);
+  TEST_CHECK(legacy_warn == stream_warn);
+  TEST_CHECK(legacy_err == stream_err);
+  TEST_CHECK(legacy_attrib.vertices == stream_attrib.vertices);
+  TEST_CHECK(legacy_attrib.vertex_weights == stream_attrib.vertex_weights);
+  TEST_CHECK(legacy_shapes.size() == stream_shapes.size());
+  TEST_CHECK(legacy_shapes[0].mesh.num_face_vertices ==
+             stream_shapes[0].mesh.num_face_vertices);
+}
+
+void test_loadobjopt_mtllib_warning_preserved_on_parse_error() {
+#ifdef _WIN32
+  std::string test_dir;
+  wchar_t wtmpbuf[MAX_PATH];
+  GetTempPathW(MAX_PATH, wtmpbuf);
+  test_dir = WcharToUTF8(wtmpbuf) + "tinyobj_opt_mtllib_warn_error\\";
+#else
+  std::string test_dir = "/tmp/tinyobj_opt_mtllib_warn_error/";
+#endif
+
+  RemoveTestDir(test_dir);
+  TEST_CHECK(MakeDir(test_dir));
+
+  const std::string obj_path = test_dir + "scene.obj";
+  const std::string obj_text =
+      "mtllib missing.mtl\n"
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "f 1 bad 3\n";
+
+  TEST_CHECK(opt_test::WriteTextFile(obj_path, obj_text));
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn, &legacy_err,
+                                    obj_path.c_str(), test_dir.c_str(), true,
+                                    false);
+
+  tinyobj::basic_attrib_t<> opt_attrib;
+  std::vector<tinyobj::basic_shape_t<>> opt_shapes;
+  std::vector<tinyobj::material_t> opt_materials;
+  std::string opt_warn, opt_err;
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 2;
+  config.triangulate = true;
+  bool opt_ok = tinyobj::LoadObjOpt(&opt_attrib, &opt_shapes, &opt_materials,
+                                    &opt_warn, &opt_err, obj_path.c_str(),
+                                    test_dir.c_str(), config);
+
+  RemoveTestDir(test_dir);
+
+  TEST_CHECK(legacy_ok == false);
+  TEST_CHECK(opt_ok == false);
+  TEST_CHECK(legacy_warn.find("Material file [ missing.mtl ]") !=
+             std::string::npos);
+  TEST_CHECK(legacy_warn.find(
+                 "Failed to load material file(s). Use default material.") !=
+             std::string::npos);
+  TEST_CHECK(opt_warn.find("Material file [ missing.mtl ]") !=
+             std::string::npos);
+  TEST_CHECK(opt_warn.find(
+                 "Failed to load material file(s). Use default material.") !=
+             std::string::npos);
+  TEST_CHECK(opt_err.find("failed to parse `f' line (invalid vertex index)") !=
+             std::string::npos);
+}
+
+void test_loadobjopt_empty_group_warning_matches_legacy() {
+  const std::string obj_text = opt_test::BuildEmptyGroupObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn, &legacy_err,
+                                    &legacy_stream, NULL, true, false);
+
+  tinyobj::basic_attrib_t<> opt_attrib;
+  std::vector<tinyobj::basic_shape_t<>> opt_shapes;
+  std::vector<tinyobj::material_t> opt_materials;
+  std::string opt_warn, opt_err;
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 2;
+  config.triangulate = true;
+  bool opt_ok = tinyobj::LoadObjOpt(&opt_attrib, &opt_shapes, &opt_materials,
+                                    &opt_warn, &opt_err, obj_text.c_str(),
+                                    obj_text.size(), config);
+
+  TEST_CHECK(legacy_ok == true);
+  TEST_CHECK(opt_ok == true);
+  TEST_CHECK(legacy_warn == opt_warn);
+  TEST_CHECK(legacy_err == opt_err);
+  TEST_CHECK(opt_test::LegacyAttribEqualsOpt(legacy_attrib, legacy_shapes,
+                                             opt_attrib));
+  TEST_CHECK(opt_test::LegacyShapesEqualOpt(legacy_shapes, opt_shapes));
+}
+
+void test_stream_loader_empty_group_warning_matches_legacy() {
+  const std::string obj_text = opt_test::BuildEmptyGroupObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn, &legacy_err,
+                                    &legacy_stream, NULL, true, false);
+
+  tinyobj::attrib_t stream_attrib;
+  std::vector<tinyobj::shape_t> stream_shapes;
+  std::vector<tinyobj::material_t> stream_materials;
+  std::string stream_warn, stream_err;
+  std::istringstream stream(obj_text);
+  tinyobj::experimental_stream::StreamLoadConfig config;
+  bool stream_ok = tinyobj::experimental_stream::LoadObjStreamExperimental(
+      &stream_attrib, &stream_shapes, &stream_materials, &stream_warn,
+      &stream_err, &stream, NULL, config);
+
+  TEST_CHECK(legacy_ok == true);
+  TEST_CHECK(stream_ok == true);
+  TEST_CHECK(legacy_warn == stream_warn);
+  TEST_CHECK(legacy_err == stream_err);
+  TEST_CHECK(legacy_attrib.vertices == stream_attrib.vertices);
+  TEST_CHECK(legacy_shapes.size() == stream_shapes.size());
+  TEST_CHECK(legacy_shapes[0].name == stream_shapes[0].name);
+  TEST_CHECK(legacy_shapes[0].mesh.num_face_vertices ==
+             stream_shapes[0].mesh.num_face_vertices);
+}
+
+void test_stream_loader_optional_vertex_token_matches_legacy() {
+  const std::string obj_text = opt_test::BuildOptionalVertexFallbackObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn, &legacy_err,
+                                    &legacy_stream, NULL, true, false);
+
+  tinyobj::attrib_t stream_attrib;
+  std::vector<tinyobj::shape_t> stream_shapes;
+  std::vector<tinyobj::material_t> stream_materials;
+  std::string stream_warn, stream_err;
+  std::istringstream stream(obj_text);
+  tinyobj::experimental_stream::StreamLoadConfig config;
+  bool stream_ok = tinyobj::experimental_stream::LoadObjStreamExperimental(
+      &stream_attrib, &stream_shapes, &stream_materials, &stream_warn,
+      &stream_err, &stream, NULL, config);
+
+  TEST_CHECK(legacy_ok == true);
+  TEST_CHECK(stream_ok == true);
+  TEST_CHECK(legacy_warn == stream_warn);
+  TEST_CHECK(legacy_err == stream_err);
+  TEST_CHECK(legacy_attrib.vertices == stream_attrib.vertices);
+  TEST_CHECK(legacy_attrib.vertex_weights == stream_attrib.vertex_weights);
+  TEST_CHECK(legacy_attrib.colors == stream_attrib.colors);
+  TEST_CHECK(legacy_shapes.size() == stream_shapes.size());
+  TEST_CHECK(legacy_shapes[0].mesh.indices.size() ==
+             stream_shapes[0].mesh.indices.size());
+  TEST_CHECK(legacy_shapes[0].mesh.num_face_vertices ==
+             stream_shapes[0].mesh.num_face_vertices);
+}
+
+void test_loadobjopt_buffer_ignores_mtllib_like_legacy_stream() {
+  const std::string obj_text =
+      "mtllib missing.mtl\n"
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "f 1 2 3\n";
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn,
+                                    &legacy_err, &legacy_stream, NULL, true,
+                                    false);
+
+  tinyobj::basic_attrib_t<> opt_attrib;
+  std::vector<tinyobj::basic_shape_t<>> opt_shapes;
+  std::vector<tinyobj::material_t> opt_materials;
+  std::string opt_warn, opt_err;
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 2;
+  config.triangulate = true;
+  bool opt_ok = tinyobj::LoadObjOpt(&opt_attrib, &opt_shapes, &opt_materials,
+                                    &opt_warn, &opt_err, obj_text.c_str(),
+                                    obj_text.size(), config);
+
+  TEST_CHECK(legacy_ok == true);
+  TEST_CHECK(opt_ok == true);
+  TEST_CHECK(legacy_warn == opt_warn);
+  TEST_CHECK(legacy_err == opt_err);
+  TEST_CHECK(opt_test::LegacyAttribEqualsOpt(legacy_attrib, legacy_shapes,
+                                             opt_attrib));
+  TEST_CHECK(opt_test::LegacyShapesEqualOpt(legacy_shapes, opt_shapes));
+}
+
+void test_loadobjopt_parse_error_reports_record_type() {
+  const std::string obj_text = opt_test::BuildInvalidVertexRecordObj();
+
+  tinyobj::basic_attrib_t<> opt_attrib;
+  std::vector<tinyobj::basic_shape_t<>> opt_shapes;
+  std::vector<tinyobj::material_t> opt_materials;
+  std::string opt_warn, opt_err;
+  tinyobj::OptLoadConfig config;
+  bool opt_ok = tinyobj::LoadObjOpt(&opt_attrib, &opt_shapes, &opt_materials,
+                                    &opt_warn, &opt_err, obj_text.c_str(),
+                                    obj_text.size(), config);
+
+  TEST_CHECK(opt_ok == false);
+  TEST_CHECK(opt_warn.empty());
+  TEST_CHECK(opt_err.find("failed to parse `v' line") != std::string::npos);
+  TEST_CHECK(opt_err.find("Failed parse `f' line") == std::string::npos);
+}
+
+void test_stream_loader_object_spacing_matches_legacy() {
+  const std::string obj_text = opt_test::BuildObjectSpacingObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn,
+                                    &legacy_err, &legacy_stream, NULL, true,
+                                    false);
+
+  tinyobj::attrib_t stream_attrib;
+  std::vector<tinyobj::shape_t> stream_shapes;
+  std::vector<tinyobj::material_t> stream_materials;
+  std::string stream_warn, stream_err;
+  std::istringstream stream(obj_text);
+  tinyobj::experimental_stream::StreamLoadConfig config;
+  bool stream_ok = tinyobj::experimental_stream::LoadObjStreamExperimental(
+      &stream_attrib, &stream_shapes, &stream_materials, &stream_warn,
+      &stream_err, &stream, NULL, config);
+
+  TEST_CHECK(legacy_ok == true);
+  TEST_CHECK(stream_ok == true);
+  TEST_CHECK(legacy_warn == stream_warn);
+  TEST_CHECK(legacy_err == stream_err);
+  TEST_CHECK(legacy_shapes.size() == stream_shapes.size());
+  TEST_CHECK(legacy_shapes[0].name == stream_shapes[0].name);
+  TEST_CHECK(legacy_shapes[0].mesh.indices.size() ==
+             stream_shapes[0].mesh.indices.size());
+}
+
+void test_loadobjopt_object_spacing_matches_legacy() {
+  const std::string obj_text = opt_test::BuildObjectSpacingObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn,
+                                    &legacy_err, &legacy_stream, NULL, true,
+                                    false);
+
+  tinyobj::basic_attrib_t<> opt_attrib;
+  std::vector<tinyobj::basic_shape_t<>> opt_shapes;
+  std::vector<tinyobj::material_t> opt_materials;
+  std::string opt_warn, opt_err;
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 2;
+  config.triangulate = true;
+  bool opt_ok = tinyobj::LoadObjOpt(&opt_attrib, &opt_shapes, &opt_materials,
+                                    &opt_warn, &opt_err, obj_text.c_str(),
+                                    obj_text.size(), config);
+
+  TEST_CHECK(legacy_ok == true);
+  TEST_CHECK(opt_ok == true);
+  TEST_CHECK(legacy_warn == opt_warn);
+  TEST_CHECK(legacy_err == opt_err);
+  TEST_CHECK(opt_test::LegacyAttribEqualsOpt(legacy_attrib, legacy_shapes,
+                                             opt_attrib));
+  TEST_CHECK(opt_test::LegacyShapesEqualOpt(legacy_shapes, opt_shapes));
+}
+
+void test_loadobjopt_empty_mtllib_warning_matches_legacy_file() {
+#ifdef _WIN32
+  std::string test_dir;
+  wchar_t wtmpbuf[MAX_PATH];
+  GetTempPathW(MAX_PATH, wtmpbuf);
+  test_dir = WcharToUTF8(wtmpbuf) + "tinyobj_opt_empty_mtllib_warn\\";
+#else
+  std::string test_dir = "/tmp/tinyobj_opt_empty_mtllib_warn/";
+#endif
+
+  RemoveTestDir(test_dir);
+  TEST_CHECK(MakeDir(test_dir));
+
+  const std::string obj_path = test_dir + "scene.obj";
+  const std::string obj_text = opt_test::BuildEmptyMtllibObj();
+  TEST_CHECK(opt_test::WriteTextFile(obj_path, obj_text));
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn,
+                                    &legacy_err, obj_path.c_str(),
+                                    test_dir.c_str(), true, false);
+
+  tinyobj::basic_attrib_t<> opt_attrib;
+  std::vector<tinyobj::basic_shape_t<>> opt_shapes;
+  std::vector<tinyobj::material_t> opt_materials;
+  std::string opt_warn, opt_err;
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 2;
+  config.triangulate = true;
+  bool opt_ok = tinyobj::LoadObjOpt(&opt_attrib, &opt_shapes, &opt_materials,
+                                    &opt_warn, &opt_err, obj_path.c_str(),
+                                    test_dir.c_str(), config);
+
+  RemoveTestDir(test_dir);
+
+  TEST_CHECK(legacy_ok == true);
+  TEST_CHECK(opt_ok == true);
+  TEST_CHECK(legacy_warn == opt_warn);
+  TEST_CHECK(legacy_err == opt_err);
+  TEST_CHECK(opt_test::LegacyAttribEqualsOpt(legacy_attrib, legacy_shapes,
+                                             opt_attrib));
+  TEST_CHECK(opt_test::LegacyShapesEqualOpt(legacy_shapes, opt_shapes));
+}
+
+void test_stream_loader_empty_mtllib_warning_matches_legacy() {
+  const std::string obj_text = opt_test::BuildEmptyMtllibObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  tinyobj::MaterialFileReader legacy_reader((std::string()));
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn,
+                                    &legacy_err, &legacy_stream,
+                                    &legacy_reader, true, false);
+
+  tinyobj::attrib_t stream_attrib;
+  std::vector<tinyobj::shape_t> stream_shapes;
+  std::vector<tinyobj::material_t> stream_materials;
+  std::string stream_warn, stream_err;
+  std::istringstream stream(obj_text);
+  tinyobj::MaterialFileReader stream_reader((std::string()));
+  tinyobj::experimental_stream::StreamLoadConfig config;
+  bool stream_ok = tinyobj::experimental_stream::LoadObjStreamExperimental(
+      &stream_attrib, &stream_shapes, &stream_materials, &stream_warn,
+      &stream_err, &stream, &stream_reader, config);
+
+  TEST_CHECK(legacy_ok == true);
+  TEST_CHECK(stream_ok == true);
+  TEST_CHECK(legacy_warn == stream_warn);
+  TEST_CHECK(legacy_err == stream_err);
+  TEST_CHECK(legacy_shapes.size() == stream_shapes.size());
+  TEST_CHECK(legacy_shapes[0].mesh.indices.size() ==
+             stream_shapes[0].mesh.indices.size());
+}
+
+void test_stream_loader_warnings_preserved_on_parse_error() {
+  const std::string obj_text =
+      "mtllib missing.mtl\n"
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "f 1 bad 3\n";
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  tinyobj::MaterialFileReader legacy_reader((std::string()));
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn,
+                                    &legacy_err, &legacy_stream,
+                                    &legacy_reader, true, false);
+
+  tinyobj::attrib_t stream_attrib;
+  std::vector<tinyobj::shape_t> stream_shapes;
+  std::vector<tinyobj::material_t> stream_materials;
+  std::string stream_warn, stream_err;
+  std::istringstream stream(obj_text);
+  tinyobj::MaterialFileReader stream_reader((std::string()));
+  tinyobj::experimental_stream::StreamLoadConfig config;
+  config.num_threads = 1;
+  config.chunk_line_count = 64;
+  bool stream_ok = tinyobj::experimental_stream::LoadObjStreamExperimental(
+      &stream_attrib, &stream_shapes, &stream_materials, &stream_warn,
+      &stream_err, &stream, &stream_reader, config);
+
+  TEST_CHECK(legacy_ok == false);
+  TEST_CHECK(stream_ok == false);
+  TEST_CHECK(legacy_warn.find("Material file [ missing.mtl ]") !=
+             std::string::npos);
+  TEST_CHECK(legacy_warn.find(
+                 "Failed to load material file(s). Use default material.") !=
+             std::string::npos);
+  TEST_CHECK(stream_warn.find("Material file [ missing.mtl ]") !=
+             std::string::npos);
+  TEST_CHECK(stream_warn.find(
+                 "Failed to load material file(s). Use default material.") !=
+             std::string::npos);
+  TEST_CHECK(stream_err.find("malformed face record") != std::string::npos);
+}
+
+void test_stream_loader_material_resolution_without_material_output() {
+#ifdef _WIN32
+  std::string test_dir;
+  wchar_t wtmpbuf[MAX_PATH];
+  GetTempPathW(MAX_PATH, wtmpbuf);
+  test_dir = WcharToUTF8(wtmpbuf) + "tinyobj_stream_null_materials\\";
+#else
+  std::string test_dir = "/tmp/tinyobj_stream_null_materials/";
+#endif
+
+  RemoveTestDir(test_dir);
+  TEST_CHECK(MakeDir(test_dir));
+
+  const std::string obj_path = test_dir + "scene.obj";
+  const std::string mtl_path = test_dir + "mats.mtl";
+  const std::string obj_text =
+      "mtllib mats.mtl\n"
+      "usemtl mat1\n"
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "f 1 2 3\n";
+  const std::string mtl_text =
+      "newmtl mat1\n"
+      "Kd 1.0 0.0 0.0\n";
+
+  TEST_CHECK(opt_test::WriteTextFile(obj_path, obj_text));
+  TEST_CHECK(opt_test::WriteTextFile(mtl_path, mtl_text));
+
+  tinyobj::attrib_t with_material_attrib;
+  std::vector<tinyobj::shape_t> with_material_shapes;
+  std::vector<tinyobj::material_t> with_materials;
+  std::string with_warn, with_err;
+  tinyobj::experimental_stream::StreamLoadConfig config;
+  bool with_ok = tinyobj::experimental_stream::LoadObjStreamExperimental(
+      &with_material_attrib, &with_material_shapes, &with_materials,
+      &with_warn, &with_err, obj_path.c_str(), test_dir.c_str(), config);
+
+  tinyobj::attrib_t without_material_attrib;
+  std::vector<tinyobj::shape_t> without_material_shapes;
+  std::string without_warn, without_err;
+  bool without_ok = tinyobj::experimental_stream::LoadObjStreamExperimental(
+      &without_material_attrib, &without_material_shapes, NULL,
+      &without_warn, &without_err, obj_path.c_str(), test_dir.c_str(), config);
+
+  RemoveTestDir(test_dir);
+
+  TEST_CHECK(with_ok == true);
+  TEST_CHECK(without_ok == true);
+  TEST_CHECK(with_warn == without_warn);
+  TEST_CHECK(with_err == without_err);
+  TEST_CHECK(with_materials.size() == 1);
+  TEST_CHECK(with_material_shapes.size() == without_material_shapes.size());
+  TEST_CHECK(with_material_shapes[0].name == without_material_shapes[0].name);
+  TEST_CHECK(with_material_shapes[0].mesh.indices.size() ==
+             without_material_shapes[0].mesh.indices.size());
+  for (size_t i = 0; i < with_material_shapes[0].mesh.indices.size(); i++) {
+    TEST_CHECK(opt_test::IndexEquals(with_material_shapes[0].mesh.indices[i],
+                                     without_material_shapes[0].mesh.indices[i]));
+  }
+  TEST_CHECK(with_material_shapes[0].mesh.material_ids ==
+             without_material_shapes[0].mesh.material_ids);
+  TEST_CHECK(without_material_shapes[0].mesh.material_ids.size() == 1);
+  TEST_CHECK(without_material_shapes[0].mesh.material_ids[0] == 0);
 }
 
 void test_loadobjopt_matches_legacy_extended_features() {
@@ -1672,4 +2462,566 @@ void test_stream_loader_object_only_matches_legacy() {
   TEST_CHECK(legacy_ok == true);
   TEST_CHECK(stream_ok == true);
   TEST_CHECK(legacy_shapes.size() == stream_shapes.size());
+}
+
+void test_stream_loader_group_only_matches_legacy() {
+  const std::string obj_text = opt_test::BuildGroupOnlyObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn, &legacy_err,
+                                    &legacy_stream, NULL, true, false);
+
+  tinyobj::attrib_t stream_attrib;
+  std::vector<tinyobj::shape_t> stream_shapes;
+  std::vector<tinyobj::material_t> stream_materials;
+  std::string stream_warn, stream_err;
+  std::istringstream stream(obj_text);
+  tinyobj::experimental_stream::StreamLoadConfig config;
+  bool stream_ok = tinyobj::experimental_stream::LoadObjStreamExperimental(
+      &stream_attrib, &stream_shapes, &stream_materials, &stream_warn,
+      &stream_err, &stream, NULL, config);
+
+  TEST_CHECK(legacy_ok == true);
+  TEST_CHECK(stream_ok == true);
+  TEST_CHECK(legacy_warn == stream_warn);
+  TEST_CHECK(legacy_err == stream_err);
+  TEST_CHECK(legacy_shapes.size() == stream_shapes.size());
+}
+
+void test_stream_loader_degenerate_face_matches_legacy() {
+  const std::string obj_text = opt_test::BuildDegenerateFaceOnlyObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn, &legacy_err,
+                                    &legacy_stream, NULL, false, false);
+
+  tinyobj::attrib_t stream_attrib;
+  std::vector<tinyobj::shape_t> stream_shapes;
+  std::vector<tinyobj::material_t> stream_materials;
+  std::string stream_warn, stream_err;
+  std::istringstream stream(obj_text);
+  tinyobj::experimental_stream::StreamLoadConfig config;
+  config.triangulate = false;
+  bool stream_ok = tinyobj::experimental_stream::LoadObjStreamExperimental(
+      &stream_attrib, &stream_shapes, &stream_materials, &stream_warn,
+      &stream_err, &stream, NULL, config);
+
+  TEST_CHECK(legacy_ok == true);
+  TEST_CHECK(stream_ok == true);
+  TEST_CHECK(legacy_warn == stream_warn);
+  TEST_CHECK(legacy_err == stream_err);
+  TEST_CHECK(legacy_shapes.size() == stream_shapes.size());
+  if (legacy_shapes.size() == stream_shapes.size() && !legacy_shapes.empty()) {
+    TEST_CHECK(legacy_shapes[0].name == stream_shapes[0].name);
+    TEST_CHECK(legacy_shapes[0].mesh.num_face_vertices ==
+               stream_shapes[0].mesh.num_face_vertices);
+    TEST_CHECK(legacy_shapes[0].mesh.material_ids ==
+               stream_shapes[0].mesh.material_ids);
+    TEST_CHECK(legacy_shapes[0].mesh.smoothing_group_ids ==
+               stream_shapes[0].mesh.smoothing_group_ids);
+    TEST_CHECK(legacy_shapes[0].mesh.indices.size() ==
+               stream_shapes[0].mesh.indices.size());
+    for (size_t i = 0; i < legacy_shapes[0].mesh.indices.size(); i++) {
+      TEST_CHECK(opt_test::IndexEquals(legacy_shapes[0].mesh.indices[i],
+                                       stream_shapes[0].mesh.indices[i]));
+    }
+  }
+}
+
+void test_loadobjopt_degenerate_face_matches_legacy() {
+  const std::string obj_text = opt_test::BuildDegenerateFaceOnlyObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn, &legacy_err,
+                                    &legacy_stream, NULL, false, false);
+
+  tinyobj::basic_attrib_t<> opt_attrib;
+  std::vector<tinyobj::basic_shape_t<>> opt_shapes;
+  std::vector<tinyobj::material_t> opt_materials;
+  std::string opt_warn, opt_err;
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 2;
+  config.triangulate = false;
+  bool opt_ok = tinyobj::LoadObjOpt(&opt_attrib, &opt_shapes, &opt_materials,
+                                    &opt_warn, &opt_err, obj_text.c_str(),
+                                    obj_text.size(), config);
+
+  TEST_CHECK(legacy_ok == true);
+  TEST_CHECK(opt_ok == true);
+  TEST_CHECK(legacy_warn == opt_warn);
+  TEST_CHECK(legacy_err == opt_err);
+  TEST_CHECK(opt_test::LegacyAttribEqualsOpt(legacy_attrib, legacy_shapes,
+                                             opt_attrib));
+  TEST_CHECK(opt_test::LegacyShapesEqualOpt(legacy_shapes, opt_shapes));
+}
+
+void test_stream_loader_degenerate_face_warning_order_matches_legacy() {
+  const std::string obj_text = opt_test::BuildDegenerateFaceThenMissingUsemtlObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn, &legacy_err,
+                                    &legacy_stream, NULL, false, false);
+
+  tinyobj::attrib_t stream_attrib;
+  std::vector<tinyobj::shape_t> stream_shapes;
+  std::vector<tinyobj::material_t> stream_materials;
+  std::string stream_warn, stream_err;
+  std::istringstream stream(obj_text);
+  tinyobj::experimental_stream::StreamLoadConfig config;
+  config.triangulate = false;
+  bool stream_ok = tinyobj::experimental_stream::LoadObjStreamExperimental(
+      &stream_attrib, &stream_shapes, &stream_materials, &stream_warn,
+      &stream_err, &stream, NULL, config);
+
+  TEST_CHECK(legacy_ok == true);
+  TEST_CHECK(stream_ok == true);
+  TEST_CHECK(legacy_warn == stream_warn);
+  TEST_CHECK(legacy_err == stream_err);
+}
+
+void test_stream_loader_degenerate_face_warning_suppressed_on_parse_error() {
+  const std::string obj_text = opt_test::BuildDegenerateFaceThenInvalidFaceObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn, &legacy_err,
+                                    &legacy_stream, NULL, false, false);
+
+  tinyobj::attrib_t stream_attrib;
+  std::vector<tinyobj::shape_t> stream_shapes;
+  std::vector<tinyobj::material_t> stream_materials;
+  std::string stream_warn, stream_err;
+  std::istringstream stream(obj_text);
+  tinyobj::experimental_stream::StreamLoadConfig config;
+  config.triangulate = false;
+  bool stream_ok = tinyobj::experimental_stream::LoadObjStreamExperimental(
+      &stream_attrib, &stream_shapes, &stream_materials, &stream_warn,
+      &stream_err, &stream, NULL, config);
+
+  TEST_CHECK(legacy_ok == false);
+  TEST_CHECK(stream_ok == false);
+  TEST_CHECK(legacy_warn.find("Degenerated face found") == std::string::npos);
+  TEST_CHECK(stream_warn.find("Degenerated face found") == std::string::npos);
+}
+
+void test_loadobjopt_degenerate_face_warning_order_matches_legacy() {
+  const std::string obj_text = opt_test::BuildDegenerateFaceThenMissingUsemtlObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn, &legacy_err,
+                                    &legacy_stream, NULL, false, false);
+
+  tinyobj::basic_attrib_t<> opt_attrib;
+  std::vector<tinyobj::basic_shape_t<>> opt_shapes;
+  std::vector<tinyobj::material_t> opt_materials;
+  std::string opt_warn, opt_err;
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 2;
+  config.triangulate = false;
+  bool opt_ok = tinyobj::LoadObjOpt(&opt_attrib, &opt_shapes, &opt_materials,
+                                    &opt_warn, &opt_err, obj_text.c_str(),
+                                    obj_text.size(), config);
+
+  TEST_CHECK(legacy_ok == true);
+  TEST_CHECK(opt_ok == true);
+  TEST_CHECK(legacy_warn == opt_warn);
+}
+
+void test_loadobjopt_degenerate_face_warning_suppressed_on_parse_error() {
+  const std::string obj_text = opt_test::BuildDegenerateFaceThenInvalidFaceObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn, &legacy_err,
+                                    &legacy_stream, NULL, false, false);
+
+  tinyobj::basic_attrib_t<> opt_attrib;
+  std::vector<tinyobj::basic_shape_t<>> opt_shapes;
+  std::vector<tinyobj::material_t> opt_materials;
+  std::string opt_warn, opt_err;
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 2;
+  config.triangulate = false;
+  bool opt_ok = tinyobj::LoadObjOpt(&opt_attrib, &opt_shapes, &opt_materials,
+                                    &opt_warn, &opt_err, obj_text.c_str(),
+                                    obj_text.size(), config);
+
+  TEST_CHECK(legacy_ok == false);
+  TEST_CHECK(opt_ok == false);
+  TEST_CHECK(legacy_warn.find("Degenerated face found") == std::string::npos);
+  TEST_CHECK(opt_warn.find("Degenerated face found") == std::string::npos);
+}
+
+void test_loadobjopt_initial_named_shape_matches_legacy() {
+  const std::string obj_text = opt_test::BuildInitialNamedShapeThenBoundaryObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn, &legacy_err,
+                                    &legacy_stream, NULL, true, false);
+
+  tinyobj::basic_attrib_t<> opt_attrib;
+  std::vector<tinyobj::basic_shape_t<>> opt_shapes;
+  std::vector<tinyobj::material_t> opt_materials;
+  std::string opt_warn, opt_err;
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 2;
+  config.triangulate = true;
+  bool opt_ok = tinyobj::LoadObjOpt(&opt_attrib, &opt_shapes, &opt_materials,
+                                    &opt_warn, &opt_err, obj_text.c_str(),
+                                    obj_text.size(), config);
+
+  TEST_CHECK(legacy_ok == true);
+  TEST_CHECK(opt_ok == true);
+  TEST_CHECK(legacy_warn == opt_warn);
+  TEST_CHECK(legacy_err == opt_err);
+  TEST_CHECK(opt_test::LegacyAttribEqualsOpt(legacy_attrib, legacy_shapes,
+                                             opt_attrib));
+  TEST_CHECK(opt_test::LegacyShapesEqualOpt(legacy_shapes, opt_shapes));
+}
+
+void test_loadobjopt_invalid_relative_vertex_index_matches_legacy_error() {
+  const std::string obj_text = opt_test::BuildInvalidRelativeVertexIndexObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn, &legacy_err,
+                                    &legacy_stream, NULL, true, false);
+
+  tinyobj::basic_attrib_t<> opt_attrib;
+  std::vector<tinyobj::basic_shape_t<>> opt_shapes;
+  std::vector<tinyobj::material_t> opt_materials;
+  std::string opt_warn, opt_err;
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 2;
+  config.triangulate = true;
+  bool opt_ok = tinyobj::LoadObjOpt(&opt_attrib, &opt_shapes, &opt_materials,
+                                    &opt_warn, &opt_err, obj_text.c_str(),
+                                    obj_text.size(), config);
+
+  TEST_CHECK(legacy_ok == false);
+  TEST_CHECK(opt_ok == false);
+  TEST_CHECK(opt_err.find("failed to parse `f' line (invalid vertex index)") !=
+             std::string::npos);
+}
+
+void test_loadobjopt_invalid_relative_texcoord_normal_index_matches_legacy_error() {
+  const std::string obj_text =
+      opt_test::BuildInvalidRelativeTexcoordNormalIndexObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn, &legacy_err,
+                                    &legacy_stream, NULL, true, false);
+
+  tinyobj::basic_attrib_t<> opt_attrib;
+  std::vector<tinyobj::basic_shape_t<>> opt_shapes;
+  std::vector<tinyobj::material_t> opt_materials;
+  std::string opt_warn, opt_err;
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 2;
+  config.triangulate = true;
+  bool opt_ok = tinyobj::LoadObjOpt(&opt_attrib, &opt_shapes, &opt_materials,
+                                    &opt_warn, &opt_err, obj_text.c_str(),
+                                    obj_text.size(), config);
+
+  TEST_CHECK(legacy_ok == false);
+  TEST_CHECK(opt_ok == false);
+  TEST_CHECK(opt_err.find("failed to parse `f' line (invalid vertex index)") !=
+             std::string::npos);
+}
+
+void test_stream_loader_invalid_relative_vertex_index_matches_legacy_error() {
+  const std::string obj_text = opt_test::BuildInvalidRelativeVertexIndexObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn, &legacy_err,
+                                    &legacy_stream, NULL, true, false);
+
+  tinyobj::attrib_t stream_attrib;
+  std::vector<tinyobj::shape_t> stream_shapes;
+  std::vector<tinyobj::material_t> stream_materials;
+  std::string stream_warn, stream_err;
+  std::istringstream stream(obj_text);
+  tinyobj::experimental_stream::StreamLoadConfig config;
+  bool stream_ok = tinyobj::experimental_stream::LoadObjStreamExperimental(
+      &stream_attrib, &stream_shapes, &stream_materials, &stream_warn,
+      &stream_err, &stream, NULL, config);
+
+  TEST_CHECK(legacy_ok == false);
+  TEST_CHECK(stream_ok == false);
+  TEST_CHECK(stream_err.find("malformed face record") != std::string::npos);
+}
+
+void test_stream_loader_invalid_relative_texcoord_normal_index_matches_legacy_error() {
+  const std::string obj_text =
+      opt_test::BuildInvalidRelativeTexcoordNormalIndexObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn, &legacy_err,
+                                    &legacy_stream, NULL, true, false);
+
+  tinyobj::attrib_t stream_attrib;
+  std::vector<tinyobj::shape_t> stream_shapes;
+  std::vector<tinyobj::material_t> stream_materials;
+  std::string stream_warn, stream_err;
+  std::istringstream stream(obj_text);
+  tinyobj::experimental_stream::StreamLoadConfig config;
+  bool stream_ok = tinyobj::experimental_stream::LoadObjStreamExperimental(
+      &stream_attrib, &stream_shapes, &stream_materials, &stream_warn,
+      &stream_err, &stream, NULL, config);
+
+  TEST_CHECK(legacy_ok == false);
+  TEST_CHECK(stream_ok == false);
+  TEST_CHECK(stream_err.find("malformed face record") != std::string::npos);
+}
+
+void test_loadobjopt_out_of_bounds_warning_matches_legacy() {
+  const std::string obj_text = opt_test::BuildAcceptedOutOfBoundsFaceObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn, &legacy_err,
+                                    &legacy_stream, NULL, true, false);
+
+  tinyobj::basic_attrib_t<> opt_attrib;
+  std::vector<tinyobj::basic_shape_t<>> opt_shapes;
+  std::vector<tinyobj::material_t> opt_materials;
+  std::string opt_warn, opt_err;
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 2;
+  config.triangulate = true;
+  bool opt_ok = tinyobj::LoadObjOpt(&opt_attrib, &opt_shapes, &opt_materials,
+                                    &opt_warn, &opt_err, obj_text.c_str(),
+                                    obj_text.size(), config);
+
+  TEST_CHECK(legacy_ok == true);
+  TEST_CHECK(opt_ok == true);
+  TEST_CHECK(legacy_warn == opt_warn);
+  TEST_CHECK(legacy_err == opt_err);
+}
+
+void test_stream_loader_out_of_bounds_warning_matches_legacy() {
+  const std::string obj_text = opt_test::BuildAcceptedOutOfBoundsFaceObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn, &legacy_err,
+                                    &legacy_stream, NULL, true, false);
+
+  tinyobj::attrib_t stream_attrib;
+  std::vector<tinyobj::shape_t> stream_shapes;
+  std::vector<tinyobj::material_t> stream_materials;
+  std::string stream_warn, stream_err;
+  std::istringstream stream(obj_text);
+  tinyobj::experimental_stream::StreamLoadConfig config;
+  bool stream_ok = tinyobj::experimental_stream::LoadObjStreamExperimental(
+      &stream_attrib, &stream_shapes, &stream_materials, &stream_warn,
+      &stream_err, &stream, NULL, config);
+
+  TEST_CHECK(legacy_ok == true);
+  TEST_CHECK(stream_ok == true);
+  TEST_CHECK(legacy_warn == stream_warn);
+  TEST_CHECK(legacy_err == stream_err);
+}
+
+void test_loadobjopt_zero_vertex_index_warning_matches_legacy() {
+  const std::string obj_text =
+      opt_test::BuildZeroVertexIndexThenMissingMaterialObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn,
+                                    &legacy_err, &legacy_stream, NULL, true,
+                                    false);
+
+  tinyobj::basic_attrib_t<> opt_attrib;
+  std::vector<tinyobj::basic_shape_t<>> opt_shapes;
+  std::vector<tinyobj::material_t> opt_materials;
+  std::string opt_warn, opt_err;
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 2;
+  config.triangulate = true;
+  bool opt_ok = tinyobj::LoadObjOpt(&opt_attrib, &opt_shapes, &opt_materials,
+                                    &opt_warn, &opt_err, obj_text.c_str(),
+                                    obj_text.size(), config);
+
+  TEST_CHECK(legacy_ok == false);
+  TEST_CHECK(opt_ok == false);
+  TEST_CHECK(legacy_warn == opt_warn);
+  TEST_CHECK(opt_warn.find("material [ 'later_missing' ] not found in .mtl") ==
+             std::string::npos);
+  TEST_CHECK(opt_err.find("failed to parse `f' line (invalid vertex index)") !=
+             std::string::npos);
+}
+
+void test_stream_loader_zero_vertex_index_warning_matches_legacy() {
+  const std::string obj_text =
+      opt_test::BuildZeroVertexIndexThenMissingMaterialObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn,
+                                    &legacy_err, &legacy_stream, NULL, true,
+                                    false);
+
+  tinyobj::attrib_t stream_attrib;
+  std::vector<tinyobj::shape_t> stream_shapes;
+  std::vector<tinyobj::material_t> stream_materials;
+  std::string stream_warn, stream_err;
+  std::istringstream stream(obj_text);
+  tinyobj::experimental_stream::StreamLoadConfig config;
+  bool stream_ok = tinyobj::experimental_stream::LoadObjStreamExperimental(
+      &stream_attrib, &stream_shapes, &stream_materials, &stream_warn,
+      &stream_err, &stream, NULL, config);
+
+  TEST_CHECK(legacy_ok == false);
+  TEST_CHECK(stream_ok == false);
+  TEST_CHECK(legacy_warn == stream_warn);
+  TEST_CHECK(stream_warn.find("material [ 'later_missing' ] not found in .mtl") ==
+             std::string::npos);
+  TEST_CHECK(stream_err.find("malformed face record") != std::string::npos);
+}
+
+void test_loadobjopt_zero_texcoord_normal_indices_match_legacy() {
+  const std::string obj_text = opt_test::BuildZeroTexcoordNormalIndexObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn,
+                                    &legacy_err, &legacy_stream, NULL, true,
+                                    false);
+
+  tinyobj::basic_attrib_t<> opt_attrib;
+  std::vector<tinyobj::basic_shape_t<>> opt_shapes;
+  std::vector<tinyobj::material_t> opt_materials;
+  std::string opt_warn, opt_err;
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 2;
+  config.triangulate = true;
+  bool opt_ok = tinyobj::LoadObjOpt(&opt_attrib, &opt_shapes, &opt_materials,
+                                    &opt_warn, &opt_err, obj_text.c_str(),
+                                    obj_text.size(), config);
+
+  TEST_CHECK(legacy_ok == true);
+  TEST_CHECK(opt_ok == true);
+  TEST_CHECK(legacy_warn == opt_warn);
+  TEST_CHECK(legacy_err == opt_err);
+  TEST_CHECK(opt_test::LegacyAttribEqualsOpt(legacy_attrib, legacy_shapes,
+                                             opt_attrib));
+  TEST_CHECK(opt_test::LegacyShapesEqualOpt(legacy_shapes, opt_shapes));
+}
+
+void test_stream_loader_zero_texcoord_normal_indices_match_legacy() {
+  const std::string obj_text = opt_test::BuildZeroTexcoordNormalIndexObj();
+
+  tinyobj::attrib_t legacy_attrib;
+  std::vector<tinyobj::shape_t> legacy_shapes;
+  std::vector<tinyobj::material_t> legacy_materials;
+  std::string legacy_warn, legacy_err;
+  std::istringstream legacy_stream(obj_text);
+  bool legacy_ok = tinyobj::LoadObj(&legacy_attrib, &legacy_shapes,
+                                    &legacy_materials, &legacy_warn,
+                                    &legacy_err, &legacy_stream, NULL, true,
+                                    false);
+
+  tinyobj::attrib_t stream_attrib;
+  std::vector<tinyobj::shape_t> stream_shapes;
+  std::vector<tinyobj::material_t> stream_materials;
+  std::string stream_warn, stream_err;
+  std::istringstream stream(obj_text);
+  tinyobj::experimental_stream::StreamLoadConfig config;
+  bool stream_ok = tinyobj::experimental_stream::LoadObjStreamExperimental(
+      &stream_attrib, &stream_shapes, &stream_materials, &stream_warn,
+      &stream_err, &stream, NULL, config);
+
+  TEST_CHECK(legacy_ok == true);
+  TEST_CHECK(stream_ok == true);
+  TEST_CHECK(legacy_warn == stream_warn);
+  TEST_CHECK(legacy_err == stream_err);
+  TEST_CHECK(legacy_attrib.vertices == stream_attrib.vertices);
+  TEST_CHECK(legacy_attrib.normals == stream_attrib.normals);
+  TEST_CHECK(legacy_attrib.texcoords == stream_attrib.texcoords);
+  TEST_CHECK(legacy_shapes.size() == stream_shapes.size());
+  TEST_CHECK(legacy_shapes[0].mesh.indices.size() ==
+             stream_shapes[0].mesh.indices.size());
+  for (size_t i = 0; i < legacy_shapes[0].mesh.indices.size(); i++) {
+    TEST_CHECK(opt_test::IndexEquals(legacy_shapes[0].mesh.indices[i],
+                                     stream_shapes[0].mesh.indices[i]));
+  }
 }
