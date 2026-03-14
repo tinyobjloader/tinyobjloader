@@ -81,5 +81,19 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   (void)opt_shapes;
   (void)opt_materials;
 
+  // Exercise LoadObjOptTyped (TypedArray/arena path)
+  {
+    std::string typed_warn;
+    std::string typed_err;
+    tinyobj::OptLoadConfig typed_config;
+    typed_config.triangulate = true;
+    typed_config.num_threads = 1;
+    // Toggle cache based on input byte to exercise both paths
+    typed_config.float_cache = (size > 5) ? ((data[5] & 1u) != 0u) : false;
+    tinyobj::OptResult typed_result = tinyobj::LoadObjOptTyped(
+        obj_text.data(), obj_text.size(), &typed_warn, &typed_err, typed_config);
+    (void)typed_result;
+  }
+
   return 0;
 }

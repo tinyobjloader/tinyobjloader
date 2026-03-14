@@ -374,6 +374,19 @@ int main(int argc, char **argv) {
       std::cerr << generated.obj_text << "\n";
       return 1;
     }
+
+    // Exercise LoadObjOptTyped (TypedArray/arena path) — crash/ASAN check
+    {
+      std::string typed_warn, typed_err;
+      tinyobj::OptLoadConfig typed_config;
+      typed_config.triangulate = true;
+      typed_config.num_threads = 1;
+      typed_config.float_cache = (iter & 1u) != 0u;  // alternate cache on/off
+      tinyobj::OptResult typed_result = tinyobj::LoadObjOptTyped(
+          generated.obj_text.data(), generated.obj_text.size(),
+          &typed_warn, &typed_err, typed_config);
+      (void)typed_result;
+    }
   }
 
   std::cout << "obj_fuzz: completed " << options.iterations
