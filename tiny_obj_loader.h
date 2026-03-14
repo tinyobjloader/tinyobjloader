@@ -1005,6 +1005,10 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
 ///
 template <typename T>
 class TypedArray {
+  static_assert(std::is_trivially_copyable<T>::value,
+                "TypedArray<T> requires T to be trivially copyable "
+                "(uses memset for initialization).");
+
  public:
   TypedArray() : data_(nullptr), size_(0) {}
 
@@ -1022,7 +1026,7 @@ class TypedArray {
   const T *end() const { return data_ + size_; }
 
   /// Allocate `count` elements from `arena`.  Previous contents are abandoned.
-  /// Elements are default-initialized (zero for POD).
+  /// Elements are zero-initialized via memset (T must be trivially copyable).
   void allocate(ArenaAllocator &arena, size_t count) {
     if (count == 0) {
       data_ = nullptr;
@@ -1032,12 +1036,11 @@ class TypedArray {
     void *p = arena.allocate(count * sizeof(T), alignof(T));
     data_ = static_cast<T *>(p);
     size_ = count;
-    // Zero-initialize for POD types; no-op semantics for non-POD
-    // (caller must construct if needed).
     std::memset(data_, 0, count * sizeof(T));
   }
 
-  /// Wrap an existing arena-allocated pointer.
+  /// Wrap an existing arena-allocated pointer.  Caller must ensure ptr
+  /// points into a live arena and count is within bounds.
   void set(T *ptr, size_t count) {
     data_ = ptr;
     size_ = count;
@@ -1111,6 +1114,7 @@ struct OptResult {
         shapes(std::move(o.shapes)),
         materials(std::move(o.materials)),
         valid(o.valid) {
+    o.attrib = OptAttrib();  // clear dangling pointers
     o.valid = false;
   }
 
@@ -1121,6 +1125,7 @@ struct OptResult {
       shapes = std::move(o.shapes);
       materials = std::move(o.materials);
       valid = o.valid;
+      o.attrib = OptAttrib();
       o.valid = false;
     }
     return *this;
@@ -11351,9 +11356,9 @@ class OptFloatCache {
   static const int kAlphabetSize = 15;
 
   explicit OptFloatCache(int max_nodes = 1024, bool fp32_keys = true)
-      : max_nodes_(max_nodes),
+      : max_nodes_(max_nodes > 65535 ? 65535 : max_nodes),
         max_key_len_(fp32_keys ? kFp32MaxKeyLen : kRealMaxKeyLen) {
-    nodes_.reserve(static_cast<size_t>(max_nodes));
+    nodes_.reserve(static_cast<size_t>(max_nodes_));
     nodes_.resize(1);
     std::memset(&nodes_[0], 0, sizeof(Node));
   }
@@ -11821,7 +11826,6 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
   }
   if (num_threads > kOptMaxThreads) num_threads = kOptMaxThreads;
 #else
-  (void)config;
 #endif
 
   // ---- Phase 1: find line boundaries ----
@@ -11892,9 +11896,11 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
         td.faces.reserve(est_lines / 3);
         td.seq.reserve(est_lines / 3);
         OptFloatCache *tc = nullptr;
+#ifndef TINYOBJLOADER_DISABLE_FAST_FLOAT
         OptFloatCache thread_cache(config.float_cache_max_nodes,
                                    config.fp32_cache);
         if (config.float_cache) tc = &thread_cache;
+#endif
         for (size_t i = start; i < end; i++) {
           opt_parseLineToThreadData(td, &work_buf[all_line_infos[i].pos],
                                      all_line_infos[i].len, config.triangulate,
@@ -11914,9 +11920,11 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
     td.faces.reserve(total_lines / 3);
     td.seq.reserve(total_lines / 3);
     OptFloatCache *tc = nullptr;
+#ifndef TINYOBJLOADER_DISABLE_FAST_FLOAT
     OptFloatCache thread_cache(config.float_cache_max_nodes,
                                config.fp32_cache);
     if (config.float_cache) tc = &thread_cache;
+#endif
     for (size_t i = 0; i < total_lines; i++) {
       opt_parseLineToThreadData(td, &work_buf[all_line_infos[i].pos],
                                  all_line_infos[i].len, config.triangulate,
@@ -12175,13 +12183,15 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
   }
 
   // ---- Phase 4: merge results ----
-  size_t num_v = 0, num_vn = 0, num_vt = 0, num_f = 0, num_indices = 0;
+  size_t num_v = 0, num_vn = 0, num_vt = 0;
+  size_t total_idx = 0;   // total index_t entries across all faces
+  size_t total_faces = 0; // total emitted faces
   for (size_t t = 0; t < num_t; t++) {
     num_v += thread_data[t].num_v;
     num_vn += thread_data[t].num_vn;
     num_vt += thread_data[t].num_vt;
-    num_f += thread_data[t].num_f_indices;
-    num_indices += thread_data[t].num_f_faces;
+    total_idx += thread_data[t].num_f_indices;
+    total_faces += thread_data[t].num_f_faces;
   }
 
   attrib->vertices.resize(num_v * 3);
@@ -12190,10 +12200,10 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
   attrib->texcoords.resize(num_vt * 2);
   attrib->texcoord_ws.resize(num_vt, real_t(0.0));
   std::vector<unsigned int> all_smoothing_group_ids(
-      static_cast<size_t>(num_indices), 0);
-  attrib->indices.resize(num_f);
-  attrib->face_num_verts.resize(static_cast<size_t>(num_indices));
-  attrib->material_ids.resize(static_cast<size_t>(num_indices), -1);
+      static_cast<size_t>(total_faces), 0);
+  attrib->indices.resize(total_idx);
+  attrib->face_num_verts.resize(static_cast<size_t>(total_faces));
+  attrib->material_ids.resize(static_cast<size_t>(total_faces), -1);
   std::vector<unsigned char> thread_saw_any_vertex_color(num_t, 0);
   std::vector<unsigned char> thread_missing_vertex_color(num_t, 0);
   std::vector<real_t> all_colors(num_v * 3, real_t(1.0));
@@ -12752,7 +12762,6 @@ static bool LoadObjOptTyped_internal(OptResult *result,
   }
   if (num_threads > kOptMaxThreads) num_threads = kOptMaxThreads;
 #else
-  (void)config;
 #endif
 
   // ---- Phase 1: find line boundaries ----
@@ -12816,6 +12825,24 @@ static bool LoadObjOptTyped_internal(OptResult *result,
     TINYOBJ_COPY_VEC_TO_ARENA_(attrib.face_num_verts, tmp_attrib.face_num_verts);
     TINYOBJ_COPY_VEC_TO_ARENA_(attrib.material_ids, tmp_attrib.material_ids);
 #undef TINYOBJ_COPY_VEC_TO_ARENA_
+    // Flatten per-shape smoothing_group_ids into attrib
+    {
+      size_t total_sg = 0;
+      for (size_t si = 0; si < tmp_shapes.size(); si++)
+        total_sg += tmp_shapes[si].mesh.smoothing_group_ids.size();
+      if (total_sg > 0) {
+        attrib.smoothing_group_ids.allocate(arena, total_sg);
+        size_t off = 0;
+        for (size_t si = 0; si < tmp_shapes.size(); si++) {
+          const auto &sg = tmp_shapes[si].mesh.smoothing_group_ids;
+          if (!sg.empty()) {
+            std::memcpy(&attrib.smoothing_group_ids[off], sg.data(),
+                        sg.size() * sizeof(sg[0]));
+            off += sg.size();
+          }
+        }
+      }
+    }
     result->shapes.clear();
     size_t idx_off = 0, face_off = 0;
     for (size_t si = 0; si < tmp_shapes.size(); si++) {
@@ -12857,9 +12884,11 @@ static bool LoadObjOptTyped_internal(OptResult *result,
         td.faces.reserve(est_lines / 3);
         td.seq.reserve(est_lines / 3);
         OptFloatCache *tc = nullptr;
+#ifndef TINYOBJLOADER_DISABLE_FAST_FLOAT
         OptFloatCache thread_cache(config.float_cache_max_nodes,
                                    config.fp32_cache);
         if (config.float_cache) tc = &thread_cache;
+#endif
         for (size_t i = start; i < end; i++) {
           opt_parseLineToThreadData(td, &work_buf[all_line_infos[i].pos],
                                      all_line_infos[i].len, config.triangulate,
@@ -12877,9 +12906,11 @@ static bool LoadObjOptTyped_internal(OptResult *result,
     td.faces.reserve(total_lines / 3);
     td.seq.reserve(total_lines / 3);
     OptFloatCache *tc = nullptr;
+#ifndef TINYOBJLOADER_DISABLE_FAST_FLOAT
     OptFloatCache thread_cache(config.float_cache_max_nodes,
                                config.fp32_cache);
     if (config.float_cache) tc = &thread_cache;
+#endif
     for (size_t i = 0; i < total_lines; i++) {
       opt_parseLineToThreadData(td, &work_buf[all_line_infos[i].pos],
                                  all_line_infos[i].len, config.triangulate,
@@ -13082,13 +13113,15 @@ static bool LoadObjOptTyped_internal(OptResult *result,
   }
 
   // ---- Phase 4: allocate arena arrays and merge ----
-  size_t num_v = 0, num_vn = 0, num_vt = 0, num_f = 0, num_indices = 0;
+  size_t num_v = 0, num_vn = 0, num_vt = 0;
+  size_t total_idx = 0;   // total index_t entries across all faces
+  size_t total_faces = 0; // total emitted faces
   for (size_t t = 0; t < num_t; t++) {
     num_v += thread_data[t].num_v;
     num_vn += thread_data[t].num_vn;
     num_vt += thread_data[t].num_vt;
-    num_f += thread_data[t].num_f_indices;
-    num_indices += thread_data[t].num_f_faces;
+    total_idx += thread_data[t].num_f_indices;
+    total_faces += thread_data[t].num_f_faces;
   }
 
   // Determine which optional arrays are needed
@@ -13105,7 +13138,6 @@ static bool LoadObjOptTyped_internal(OptResult *result,
   attrib.vertices.allocate(arena, num_v * 3);
   if (any_weight) {
     attrib.vertex_weights.allocate(arena, num_v);
-    // Fill with default weight 1.0
     for (size_t i = 0; i < num_v; i++)
       attrib.vertex_weights[i] = real_t(1.0);
   }
@@ -13114,17 +13146,16 @@ static bool LoadObjOptTyped_internal(OptResult *result,
   if (any_texcoord_w) {
     attrib.texcoord_ws.allocate(arena, num_vt);
   }
-  attrib.indices.allocate(arena, num_f);
-  attrib.face_num_verts.allocate(arena, num_indices);
-  attrib.material_ids.allocate(arena, num_indices);
-  // Fill material_ids with -1
-  for (size_t i = 0; i < num_indices; i++)
+  attrib.indices.allocate(arena, total_idx);
+  attrib.face_num_verts.allocate(arena, total_faces);
+  attrib.material_ids.allocate(arena, total_faces);
+  for (size_t i = 0; i < total_faces; i++)
     attrib.material_ids[i] = -1;
 
   // Smoothing group ids — only if any smoothing commands seen
   TypedArray<unsigned int> all_smoothing_group_ids;
   if (any_smoothing) {
-    all_smoothing_group_ids.allocate(arena, num_indices);
+    all_smoothing_group_ids.allocate(arena, total_faces);
   }
 
   // Colors — allocate temp only if any vertex has color
