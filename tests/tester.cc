@@ -3848,6 +3848,185 @@ void test_basic_attrib_with_arena() {
   TEST_CHECK(mesh.tags.size() == 1);
 }
 
+// ---- Tests for TypedArray-based LoadObjOptTyped API ----
+
+void test_loadobjopt_typed_from_buffer() {
+  const char *obj_text =
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "vn 0.0 0.0 1.0\n"
+      "vt 0.0 0.0\n"
+      "vt 1.0 0.0\n"
+      "vt 0.0 1.0\n"
+      "f 1/1/1 2/2/1 3/3/1\n";
+  size_t obj_len = strlen(obj_text);
+
+  std::string warn, err;
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 1;
+  config.triangulate = true;
+
+  tinyobj::OptResult result =
+      tinyobj::LoadObjOptTyped(obj_text, obj_len, &warn, &err, config);
+  if (!err.empty()) std::cerr << "ERR: " << err << "\n";
+  TEST_CHECK(result.valid == true);
+  TEST_CHECK(result.attrib.vertices.size() == 9);
+  TEST_CHECK(result.attrib.normals.size() == 3);
+  TEST_CHECK(result.attrib.texcoords.size() == 6);
+  TEST_CHECK(result.attrib.indices.size() == 3);
+  TEST_CHECK(result.attrib.face_num_verts.size() == 1);
+  TEST_CHECK(result.attrib.face_num_verts[0] == 3);
+
+  // Check vertex values
+  TEST_CHECK(result.attrib.vertices[0] == 0.0f);
+  TEST_CHECK(result.attrib.vertices[3] == 1.0f);
+
+  // Check shape ranges (should be 1 shape)
+  TEST_CHECK(result.shapes.size() == 1);
+  TEST_CHECK(result.shapes[0].face_offset == 0);
+  TEST_CHECK(result.shapes[0].face_count == 1);
+  TEST_CHECK(result.shapes[0].index_offset == 0);
+  TEST_CHECK(result.shapes[0].index_count == 3);
+}
+
+void test_loadobjopt_typed_multiple_groups() {
+  const char *obj_text =
+      "v 0 0 0\nv 1 0 0\nv 0 1 0\nv 1 1 0\nv 2 0 0\nv 2 1 0\n"
+      "g group1\n"
+      "f 1 2 3\n"
+      "g group2\n"
+      "f 4 5 6\n";
+  size_t obj_len = strlen(obj_text);
+
+  std::string warn, err;
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 1;
+  config.triangulate = true;
+
+  tinyobj::OptResult result =
+      tinyobj::LoadObjOptTyped(obj_text, obj_len, &warn, &err, config);
+  TEST_CHECK(result.valid == true);
+  TEST_CHECK(result.shapes.size() == 2);
+  TEST_CHECK(result.shapes[0].name == "group1");
+  TEST_CHECK(result.shapes[0].face_count == 1);
+  TEST_CHECK(result.shapes[0].index_count == 3);
+  TEST_CHECK(result.shapes[1].name == "group2");
+  TEST_CHECK(result.shapes[1].face_count == 1);
+  TEST_CHECK(result.shapes[1].index_count == 3);
+
+  // Shape ranges point into the flat attrib arrays
+  TEST_CHECK(result.shapes[0].face_offset == 0);
+  TEST_CHECK(result.shapes[1].face_offset == 1);
+  TEST_CHECK(result.shapes[0].index_offset == 0);
+  TEST_CHECK(result.shapes[1].index_offset == 3);
+}
+
+void test_loadobjopt_typed_optional_arrays_lazy() {
+  // No vertex colors, no weights, no texcoord_w — these should be empty
+  const char *obj_text =
+      "v 0 0 0\nv 1 0 0\nv 0 1 0\n"
+      "f 1 2 3\n";
+  size_t obj_len = strlen(obj_text);
+
+  std::string warn, err;
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 1;
+  config.triangulate = true;
+
+  tinyobj::OptResult result =
+      tinyobj::LoadObjOptTyped(obj_text, obj_len, &warn, &err, config);
+  TEST_CHECK(result.valid == true);
+  TEST_CHECK(result.attrib.vertices.size() == 9);
+  // Optional arrays should be empty (lazy allocation)
+  TEST_CHECK(result.attrib.vertex_weights.empty());
+  TEST_CHECK(result.attrib.texcoord_ws.empty());
+  TEST_CHECK(result.attrib.colors.empty());
+  TEST_CHECK(result.attrib.smoothing_group_ids.empty());
+}
+
+void test_loadobjopt_typed_matches_loadobjopt() {
+  // Compare results between LoadObjOpt and LoadObjOptTyped
+  const char *obj_text =
+      "v 0 0 0\nv 1 0 0\nv 0 1 0\nv 1 1 0\n"
+      "vn 0 0 1\n"
+      "vt 0 0\nvt 1 0\nvt 0 1\nvt 1 1\n"
+      "g quad\n"
+      "f 1/1/1 2/2/1 4/4/1 3/3/1\n";
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 1;
+  config.triangulate = true;
+
+  // LoadObjOpt path
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn1, err1;
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn1, &err1,
+                                  obj_text, obj_len, config);
+  TEST_CHECK(ret == true);
+
+  // LoadObjOptTyped path
+  std::string warn2, err2;
+  tinyobj::OptResult result =
+      tinyobj::LoadObjOptTyped(obj_text, obj_len, &warn2, &err2, config);
+  TEST_CHECK(result.valid == true);
+
+  // Compare attrib sizes
+  TEST_CHECK(result.attrib.vertices.size() == attrib.vertices.size());
+  TEST_CHECK(result.attrib.normals.size() == attrib.normals.size());
+  TEST_CHECK(result.attrib.texcoords.size() == attrib.texcoords.size());
+  TEST_CHECK(result.attrib.indices.size() == attrib.indices.size());
+  TEST_CHECK(result.attrib.face_num_verts.size() == attrib.face_num_verts.size());
+
+  // Compare vertex data
+  for (size_t i = 0; i < attrib.vertices.size(); i++) {
+    TEST_CHECK(result.attrib.vertices[i] == attrib.vertices[i]);
+  }
+  // Compare indices
+  for (size_t i = 0; i < attrib.indices.size(); i++) {
+    TEST_CHECK(result.attrib.indices[i].vertex_index == attrib.indices[i].vertex_index);
+    TEST_CHECK(result.attrib.indices[i].texcoord_index == attrib.indices[i].texcoord_index);
+    TEST_CHECK(result.attrib.indices[i].normal_index == attrib.indices[i].normal_index);
+  }
+}
+
+void test_loadobjopt_typed_empty_buffer() {
+  std::string warn, err;
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 1;
+
+  tinyobj::OptResult result =
+      tinyobj::LoadObjOptTyped("", 0, &warn, &err, config);
+  TEST_CHECK(result.valid == true);
+  TEST_CHECK(result.attrib.vertices.empty());
+  TEST_CHECK(result.attrib.indices.empty());
+}
+
+void test_loadobjopt_typed_move_semantics() {
+  const char *obj_text =
+      "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
+  size_t obj_len = strlen(obj_text);
+
+  std::string warn, err;
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 1;
+  config.triangulate = true;
+
+  tinyobj::OptResult result =
+      tinyobj::LoadObjOptTyped(obj_text, obj_len, &warn, &err, config);
+  TEST_CHECK(result.valid == true);
+  const float *verts_ptr = result.attrib.vertices.data();
+
+  // Move to new result
+  tinyobj::OptResult result2 = std::move(result);
+  TEST_CHECK(result2.valid == true);
+  TEST_CHECK(result2.attrib.vertices.data() == verts_ptr);  // same pointer
+  TEST_CHECK(result2.attrib.vertices.size() == 9);
+}
+
 #include "opt/loadobjopt_multithread.inc"
 
 TEST_LIST = {
@@ -4128,4 +4307,10 @@ TEST_LIST = {
      test_empty_mtl_no_phantom_material},
     {"test_streamreader_not_copyable", test_streamreader_not_copyable},
     {"test_out_of_range_face_index", test_out_of_range_face_index},
+    {"test_loadobjopt_typed_from_buffer", test_loadobjopt_typed_from_buffer},
+    {"test_loadobjopt_typed_multiple_groups", test_loadobjopt_typed_multiple_groups},
+    {"test_loadobjopt_typed_optional_arrays_lazy", test_loadobjopt_typed_optional_arrays_lazy},
+    {"test_loadobjopt_typed_matches_loadobjopt", test_loadobjopt_typed_matches_loadobjopt},
+    {"test_loadobjopt_typed_empty_buffer", test_loadobjopt_typed_empty_buffer},
+    {"test_loadobjopt_typed_move_semantics", test_loadobjopt_typed_move_semantics},
     {NULL, NULL}};

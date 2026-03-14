@@ -70,6 +70,7 @@ THE SOFTWARE.
 #include <vector>
 
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <type_traits>
 
@@ -766,6 +767,20 @@ class ArenaAllocator {
   ArenaAllocator(const ArenaAllocator &) = delete;
   ArenaAllocator &operator=(const ArenaAllocator &) = delete;
 
+  ArenaAllocator(ArenaAllocator &&o) noexcept
+      : head_(o.head_), default_block_size_(o.default_block_size_) {
+    o.head_ = nullptr;
+  }
+  ArenaAllocator &operator=(ArenaAllocator &&o) noexcept {
+    if (this != &o) {
+      destroy();
+      head_ = o.head_;
+      default_block_size_ = o.default_block_size_;
+      o.head_ = nullptr;
+    }
+    return *this;
+  }
+
   void *allocate(size_t bytes,
                  size_t alignment = sizeof(void *));
 
@@ -944,7 +959,23 @@ struct OptLoadConfig {
   bool triangulate;  ///< Triangulate polygons (fan triangulation).
   bool verbose;      ///< Reserved for future use (currently has no effect).
 
-  OptLoadConfig() : num_threads(-1), triangulate(true), verbose(false) {}
+  /// Enable trie-based float string → value cache.
+  /// Speeds up files with many repeated coordinate values (e.g. "0.0", "1.0").
+  bool float_cache;
+
+  /// Maximum trie nodes per thread (controls cache memory).
+  /// Each node is ~36 bytes, so 1024 nodes ≈ 36 KB (fits in L1 cache).
+  int float_cache_max_nodes;
+
+  /// Use fp32-length keys for the float cache (max 8 chars).
+  /// When true, only tokens up to `float::digits10 + 2` characters are cached.
+  /// When false, uses `real_t::digits10 + 2` (longer keys, fewer hits).
+  /// Has no effect when float_cache is false.
+  bool fp32_cache;
+
+  OptLoadConfig()
+      : num_threads(-1), triangulate(true), verbose(false),
+        float_cache(false), float_cache_max_nodes(1024), fp32_cache(true) {}
 };
 
 /// Optimized loader — parse from a raw memory buffer.
@@ -965,6 +996,151 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
                 const char *filename,
                 const char *mtl_basedir = nullptr,
                 const OptLoadConfig &config = OptLoadConfig());
+
+// ---- TypedArray-based zero-copy API for maximum efficiency ----
+
+///
+/// Non-owning, contiguous array view allocated from an ArenaAllocator.
+/// No capacity tracking, no realloc.  Lifetime is tied to the arena.
+///
+template <typename T>
+class TypedArray {
+ public:
+  TypedArray() : data_(nullptr), size_(0) {}
+
+  T *data() { return data_; }
+  const T *data() const { return data_; }
+  size_t size() const { return size_; }
+  bool empty() const { return size_ == 0; }
+
+  T &operator[](size_t i) { return data_[i]; }
+  const T &operator[](size_t i) const { return data_[i]; }
+
+  T *begin() { return data_; }
+  T *end() { return data_ + size_; }
+  const T *begin() const { return data_; }
+  const T *end() const { return data_ + size_; }
+
+  /// Allocate `count` elements from `arena`.  Previous contents are abandoned.
+  /// Elements are default-initialized (zero for POD).
+  void allocate(ArenaAllocator &arena, size_t count) {
+    if (count == 0) {
+      data_ = nullptr;
+      size_ = 0;
+      return;
+    }
+    void *p = arena.allocate(count * sizeof(T), alignof(T));
+    data_ = static_cast<T *>(p);
+    size_ = count;
+    // Zero-initialize for POD types; no-op semantics for non-POD
+    // (caller must construct if needed).
+    std::memset(data_, 0, count * sizeof(T));
+  }
+
+  /// Wrap an existing arena-allocated pointer.
+  void set(T *ptr, size_t count) {
+    data_ = ptr;
+    size_ = count;
+  }
+
+  /// Shrink the logical size (no memory freed — arena owns it).
+  void truncate(size_t new_size) {
+    if (new_size < size_) size_ = new_size;
+  }
+
+  void clear() {
+    data_ = nullptr;
+    size_ = 0;
+  }
+
+ private:
+  T *data_;
+  size_t size_;
+};
+
+///
+/// A shape expressed as a range into the flat attrib arrays.
+/// No owned memory — just offsets + counts.
+///
+struct OptShapeRange {
+  std::string name;
+  size_t face_offset;       ///< Start index into OptAttrib::face_num_verts / material_ids
+  size_t face_count;        ///< Number of faces in this shape
+  size_t index_offset;      ///< Start index into OptAttrib::indices
+  size_t index_count;       ///< Number of index_t entries for this shape
+
+  OptShapeRange()
+      : face_offset(0), face_count(0), index_offset(0), index_count(0) {}
+};
+
+///
+/// Flat attribute storage using TypedArray (arena-backed).
+/// All arrays are allocated from the OptResult's arena.
+///
+struct OptAttrib {
+  TypedArray<real_t> vertices;        ///< xyz, length = num_vertices * 3
+  TypedArray<real_t> vertex_weights;  ///< w per vertex (empty if none present)
+  TypedArray<real_t> normals;         ///< xyz, length = num_normals * 3
+  TypedArray<real_t> texcoords;       ///< uv, length = num_texcoords * 2
+  TypedArray<real_t> texcoord_ws;     ///< w per texcoord (empty if none)
+  TypedArray<real_t> colors;          ///< rgb per vertex (empty if none)
+
+  TypedArray<index_t> indices;        ///< flattened face indices
+  TypedArray<int> face_num_verts;     ///< vertices per face
+  TypedArray<int> material_ids;       ///< per-face material id
+  TypedArray<unsigned int> smoothing_group_ids; ///< per-face smoothing group
+};
+
+///
+/// Complete result from the TypedArray-based optimized loader.
+/// Owns the ArenaAllocator — all TypedArray pointers are valid as long
+/// as this object is alive.  Move-only.
+///
+struct OptResult {
+  ArenaAllocator arena;
+  OptAttrib attrib;
+  std::vector<OptShapeRange> shapes;  ///< views into attrib arrays
+  std::vector<material_t> materials;
+  bool valid;
+
+  OptResult() : arena(4 * 1024 * 1024), valid(false) {}
+
+  OptResult(OptResult &&o) noexcept
+      : arena(std::move(o.arena)),
+        attrib(o.attrib),
+        shapes(std::move(o.shapes)),
+        materials(std::move(o.materials)),
+        valid(o.valid) {
+    o.valid = false;
+  }
+
+  OptResult &operator=(OptResult &&o) noexcept {
+    if (this != &o) {
+      arena = std::move(o.arena);
+      attrib = o.attrib;
+      shapes = std::move(o.shapes);
+      materials = std::move(o.materials);
+      valid = o.valid;
+      o.valid = false;
+    }
+    return *this;
+  }
+
+  OptResult(const OptResult &) = delete;
+  OptResult &operator=(const OptResult &) = delete;
+};
+
+/// TypedArray-based optimized loader — parse from a raw memory buffer.
+/// Returns OptResult that owns all allocated memory via its arena.
+OptResult LoadObjOptTyped(const char *buf, size_t buf_len,
+                          std::string *warn, std::string *err,
+                          const OptLoadConfig &config = OptLoadConfig());
+
+/// TypedArray-based optimized loader — load from a file.
+OptResult LoadObjOptTyped(const char *filename,
+                          std::string *warn, std::string *err,
+                          const char *mtl_basedir = nullptr,
+                          const OptLoadConfig &config = OptLoadConfig());
 
 /// =<<========== Optimized API =============================================
 
@@ -9832,6 +10008,35 @@ static bool opt_tryParseDouble(const char *s, const char *s_end,
                                double *result) {
   if (s >= s_end) return false;
 
+#ifndef TINYOBJLOADER_DISABLE_FAST_FLOAT
+  // Use the already-embedded fast_float for high-performance parsing.
+  // Handle nan/inf with OBJ-compatible replacement values first.
+  {
+    const char *p = s;
+    if (p < s_end && (*p == '+' || *p == '-')) ++p;
+    if (p < s_end) {
+      char fc = *p;
+      if (fc >= 'A' && fc <= 'Z') fc += 32;
+      if (fc == 'n' || fc == 'i') {
+        const char *end_ptr;
+        if (detail_fp::tryParseNanInf(s, s_end, result, &end_ptr)) {
+          return true;
+        }
+      }
+    }
+  }
+
+  double tmp;
+  auto r = fast_float::from_chars(s, s_end, tmp,
+      fast_float::chars_format::general |
+      fast_float::chars_format::allow_leading_plus);
+  if (r.ec == tinyobj_ff::ff_errc::ok) {
+    *result = tmp;
+    return true;
+  }
+  return false;
+#else
+  // Fallback: hand-written float parser
   double mantissa = 0.0;
   int exponent = 0;
   char sign = '+';
@@ -9912,6 +10117,7 @@ opt_assemble:
             (exponent ? std::ldexp(mantissa * std::pow(5.0, exponent), exponent)
                       : mantissa);
   return true;
+#endif  // TINYOBJLOADER_DISABLE_FAST_FLOAT
 }
 
 static inline real_t opt_parseFloat(const char **token) {
@@ -10053,6 +10259,20 @@ static inline bool opt_tryParseFloatToken(real_t *out, const char **token) {
          end[0] != '\t' && end[0] != '\0') {
     end++;
   }
+#ifndef TINYOBJLOADER_DISABLE_FAST_FLOAT
+  // Parse directly to real_t (float or double) via fast_float — avoids
+  // the double→float conversion and is ~3-4x faster than the hand-rolled parser.
+  real_t tmp;
+  auto r = fast_float::from_chars(cursor, end, tmp,
+      fast_float::chars_format::general |
+      fast_float::chars_format::allow_leading_plus);
+  if (r.ec == tinyobj_ff::ff_errc::ok) {
+    *out = tmp;
+    *token = end;
+    return true;
+  }
+  return false;
+#else
   double val = 0.0;
   if (!opt_tryParseDouble(cursor, end, &val)) {
     return false;
@@ -10060,6 +10280,7 @@ static inline bool opt_tryParseFloatToken(real_t *out, const char **token) {
   *out = static_cast<real_t>(val);
   *token = end;
   return true;
+#endif
 }
 
 static inline int opt_count_remaining_scalars(const char *token) {
@@ -10159,6 +10380,99 @@ struct OptCommand {
 struct OptCommandCount {
   size_t num_v, num_vn, num_vt, num_f, num_indices;
   OptCommandCount() : num_v(0), num_vn(0), num_vt(0), num_f(0), num_indices(0) {}
+};
+
+// Compact face command — replaces OptCommand for 'f' lines
+struct OptFaceCmd {
+  static const unsigned int kInlineCap = 4;
+  opt_index_t f_inline[kInlineCap];  // 48 bytes (covers tri + quad)
+  std::vector<opt_index_t> f_heap;   // overflow for >4 vertex faces
+  uint32_t face_vertex_count;
+  uint32_t emitted_face_count;
+  uint32_t emitted_face_verts;
+  uint32_t f_count;
+  uint32_t source_line;
+  uint32_t v_count_before;   // running v count when face was parsed (within thread)
+  uint32_t vn_count_before;
+  uint32_t vt_count_before;
+  bool degenerate;
+
+  const opt_index_t *face_indices() const {
+    return f_heap.empty() ? f_inline : f_heap.data();
+  }
+
+  OptFaceCmd()
+      : face_vertex_count(0), emitted_face_count(0), emitted_face_verts(0),
+        f_count(0), source_line(0), v_count_before(0), vn_count_before(0),
+        vt_count_before(0), degenerate(false) {}
+};
+
+// Meta command — for g, o, usemtl, mtllib, s lines
+struct OptMetaCmd {
+  OptCommandType type;
+  uint32_t source_line;
+  const char *str_ptr;
+  uint32_t str_len;
+  std::string str_storage;
+  bool group_name_empty;
+  int resolved_material_id;
+  uint32_t smoothing_group_id;
+
+  OptMetaCmd()
+      : type(OPT_CMD_EMPTY), source_line(0), str_ptr(NULL), str_len(0),
+        group_name_empty(false), resolved_material_id(-1),
+        smoothing_group_id(0) {}
+};
+
+// Sequence entry — ordering of faces and meta commands within a thread
+struct OptSeqEntry {
+  enum Kind : unsigned char { SEQ_FACE = 0, SEQ_META = 1 };
+  Kind kind;
+  uint32_t index;
+};
+
+// Per-thread parsed data — replaces vector<OptCommand>
+struct OptThreadData {
+  // Vertex positions: 3 floats per vertex, contiguous
+  std::vector<real_t> v_pos;
+  // Vertex weights: 1 per vertex, lazily allocated (only if any has weight)
+  std::vector<real_t> v_weight;
+  // Vertex colors: 3 per vertex, lazily allocated
+  std::vector<real_t> v_color;
+
+  // Normal data: 3 floats per normal
+  std::vector<real_t> vn_data;
+
+  // Texcoord data: 2 floats per texcoord
+  std::vector<real_t> vt_data;
+  // Texcoord w: 1 per texcoord, lazily allocated
+  std::vector<real_t> vt_w;
+
+  // Non-vertex commands
+  std::vector<OptFaceCmd> faces;
+  std::vector<OptMetaCmd> metas;
+  std::vector<OptSeqEntry> seq;
+
+  // Counts
+  size_t num_v, num_vn, num_vt;
+  size_t num_f_indices;   // total index_t entries for faces
+  size_t num_f_faces;     // total emitted faces
+
+  // Flags
+  bool saw_any_color, saw_missing_color;
+  bool saw_any_weight;
+  bool saw_any_texcoord_w;
+  bool saw_any_smoothing;
+
+  // Error tracking
+  size_t error_line;
+  std::string error_message;
+
+  OptThreadData()
+      : num_v(0), num_vn(0), num_vt(0), num_f_indices(0), num_f_faces(0),
+        saw_any_color(false), saw_missing_color(false),
+        saw_any_weight(false), saw_any_texcoord_w(false),
+        saw_any_smoothing(false), error_line(0) {}
 };
 
 static inline bool opt_is_valid_face_vertex(const std::vector<real_t> &vertices,
@@ -10337,6 +10651,126 @@ static inline size_t opt_triangulate_face(const std::vector<real_t> &vertices,
     dst[out++] = remaining[2];
   }
 
+  return out;
+}
+
+// Pointer+size overloads for TypedArray-based API
+static inline bool opt_is_valid_face_vertex(const real_t * /*vertices*/,
+                                            size_t vertices_size,
+                                            const index_t &idx) {
+  if (idx.vertex_index < 0) return false;
+  const size_t vi = static_cast<size_t>(idx.vertex_index);
+  return ((3 * vi + 2) < vertices_size);
+}
+
+static inline size_t opt_triangulate_face(const real_t *vertices,
+                                          size_t vertices_size,
+                                          const index_t *face,
+                                          size_t face_count,
+                                          index_t *dst) {
+  if (face_count < 3) return 0;
+  if (face_count == 3) {
+    dst[0] = face[0]; dst[1] = face[1]; dst[2] = face[2];
+    return 3;
+  }
+
+  for (size_t i = 0; i < face_count; i++) {
+    if (!opt_is_valid_face_vertex(vertices, vertices_size, face[i])) return 0;
+  }
+
+  if (face_count == 4) {
+    const size_t vi0 = static_cast<size_t>(face[0].vertex_index);
+    const size_t vi1 = static_cast<size_t>(face[1].vertex_index);
+    const size_t vi2 = static_cast<size_t>(face[2].vertex_index);
+    const size_t vi3 = static_cast<size_t>(face[3].vertex_index);
+    const real_t e02x = vertices[vi2*3+0] - vertices[vi0*3+0];
+    const real_t e02y = vertices[vi2*3+1] - vertices[vi0*3+1];
+    const real_t e02z = vertices[vi2*3+2] - vertices[vi0*3+2];
+    const real_t e13x = vertices[vi3*3+0] - vertices[vi1*3+0];
+    const real_t e13y = vertices[vi3*3+1] - vertices[vi1*3+1];
+    const real_t e13z = vertices[vi3*3+2] - vertices[vi1*3+2];
+    const real_t sqr02 = e02x*e02x + e02y*e02y + e02z*e02z;
+    const real_t sqr13 = e13x*e13x + e13y*e13y + e13z*e13z;
+    if (sqr02 < sqr13) {
+      dst[0]=face[0]; dst[1]=face[1]; dst[2]=face[2];
+      dst[3]=face[0]; dst[4]=face[2]; dst[5]=face[3];
+    } else {
+      dst[0]=face[0]; dst[1]=face[1]; dst[2]=face[3];
+      dst[3]=face[1]; dst[4]=face[2]; dst[5]=face[3];
+    }
+    return 6;
+  }
+
+  // General polygon — ear clipping
+  std::vector<index_t> remaining(face, face + face_count);
+  size_t axes[2] = {1, 2};
+  for (size_t k = 0; k < face_count; ++k) {
+    const size_t vi0 = static_cast<size_t>(face[(k+0)%face_count].vertex_index);
+    const size_t vi1 = static_cast<size_t>(face[(k+1)%face_count].vertex_index);
+    const size_t vi2 = static_cast<size_t>(face[(k+2)%face_count].vertex_index);
+    const real_t e0x = vertices[vi1*3+0]-vertices[vi0*3+0];
+    const real_t e0y = vertices[vi1*3+1]-vertices[vi0*3+1];
+    const real_t e0z = vertices[vi1*3+2]-vertices[vi0*3+2];
+    const real_t e1x = vertices[vi2*3+0]-vertices[vi1*3+0];
+    const real_t e1y = vertices[vi2*3+1]-vertices[vi1*3+1];
+    const real_t e1z = vertices[vi2*3+2]-vertices[vi1*3+2];
+    const real_t cx = std::fabs(e0y*e1z - e0z*e1y);
+    const real_t cy = std::fabs(e0z*e1x - e0x*e1z);
+    const real_t cz = std::fabs(e0x*e1y - e0y*e1x);
+    const real_t epsilon = std::numeric_limits<real_t>::epsilon();
+    if (cx > epsilon || cy > epsilon || cz > epsilon) {
+      if (!(cx > cy && cx > cz)) {
+        axes[0] = 0;
+        if (cz > cx && cz > cy) axes[1] = 1;
+      }
+      break;
+    }
+  }
+
+  size_t out = 0;
+  size_t guess_vert = 0;
+  size_t remaining_iterations = remaining.size();
+  size_t previous_remaining_vertices = remaining.size();
+  while (remaining.size() > 3 && remaining_iterations > 0) {
+    const size_t npolys = remaining.size();
+    if (guess_vert >= npolys) guess_vert -= npolys;
+    if (previous_remaining_vertices != npolys) {
+      previous_remaining_vertices = npolys;
+      remaining_iterations = npolys;
+    } else {
+      remaining_iterations--;
+    }
+    index_t ind[3];
+    real_t vx[3], vy[3];
+    for (size_t k = 0; k < 3; k++) {
+      ind[k] = remaining[(guess_vert + k) % npolys];
+      const size_t vi = static_cast<size_t>(ind[k].vertex_index);
+      vx[k] = vertices[vi*3+axes[0]];
+      vy[k] = vertices[vi*3+axes[1]];
+    }
+    const real_t e0x_ = vx[1]-vx[0], e0y_ = vy[1]-vy[0];
+    const real_t e1x_ = vx[2]-vx[1], e1y_ = vy[2]-vy[1];
+    const real_t cross_val = e0x_*e1y_ - e0y_*e1x_;
+    const real_t area = (vx[0]*vy[1] - vy[0]*vx[1]) * static_cast<real_t>(0.5);
+    if (cross_val * area < static_cast<real_t>(0.0)) {
+      guess_vert += 1; continue;
+    }
+    bool overlap = false;
+    for (size_t other_vert = 3; other_vert < npolys; ++other_vert) {
+      const size_t idx = (guess_vert + other_vert) % npolys;
+      const size_t ovi = static_cast<size_t>(remaining[idx].vertex_index);
+      const real_t ptx = vertices[ovi*3+axes[0]];
+      const real_t pty = vertices[ovi*3+axes[1]];
+      if (pnpoly(3, vx, vy, ptx, pty)) { overlap = true; break; }
+    }
+    if (overlap) { guess_vert += 1; continue; }
+    dst[out++] = ind[0]; dst[out++] = ind[1]; dst[out++] = ind[2];
+    remaining.erase(remaining.begin() +
+                    static_cast<std::ptrdiff_t>((guess_vert + 1) % npolys));
+  }
+  if (remaining.size() == 3) {
+    dst[out++] = remaining[0]; dst[out++] = remaining[1]; dst[out++] = remaining[2];
+  }
   return out;
 }
 
@@ -10866,6 +11300,464 @@ static bool opt_requires_legacy_fallback(const char *p, size_t len) {
   return false;
 }
 
+/// Check if the first non-whitespace token on a line (starting at p, length
+/// rem) requires the legacy parser.
+static inline bool opt_line_start_is_legacy(const char *p, size_t rem) {
+  while (rem > 0 && (*p == ' ' || *p == '\t')) { p++; rem--; }
+  if (rem >= 3 && p[0] == 'v' && p[1] == 'w' &&
+      (p[2] == ' ' || p[2] == '\t'))
+    return true;
+  if (rem >= 2 &&
+      ((p[0] == 'l' || p[0] == 'p' || p[0] == 't') &&
+       (p[1] == ' ' || p[1] == '\t')))
+    return true;
+  return false;
+}
+
+/// Fast whole-buffer scan for legacy-only tokens (vw, l, p, t at line start).
+/// Uses memchr for SIMD-accelerated newline finding.
+static bool opt_buffer_requires_legacy_fallback(const char *buf, size_t len) {
+  if (!buf || len == 0) return false;
+  // Check at start of buffer
+  if (opt_line_start_is_legacy(buf, len)) return true;
+  // Use memchr to jump between newlines (glibc memchr is SIMD-optimized)
+  const char *p = buf;
+  size_t remaining = len;
+  for (;;) {
+    const char *nl = static_cast<const char *>(
+        std::memchr(p, '\n', remaining));
+    if (!nl) break;
+    size_t offset = static_cast<size_t>(nl - buf) + 1;
+    if (offset >= len) break;
+    if (opt_line_start_is_legacy(buf + offset, len - offset)) return true;
+    p = buf + offset;
+    remaining = len - offset;
+  }
+  return false;
+}
+
+///
+/// Trie-based string → float cache for repeated OBJ coordinate values.
+/// Caches short float tokens (up to kMaxKeyLen chars) in a compact trie.
+/// Alphabet: '0'-'9', '+', '-', '.', 'e', 'E' (15 chars).
+/// Thread-local — each thread gets its own cache instance.
+///
+class OptFloatCache {
+ public:
+  static const int kFp32MaxKeyLen =
+      std::numeric_limits<float>::digits10 + 2;  // 8
+  static const int kRealMaxKeyLen =
+      std::numeric_limits<real_t>::digits10 + 2;
+  static const int kAlphabetSize = 15;
+
+  explicit OptFloatCache(int max_nodes = 1024, bool fp32_keys = true)
+      : max_nodes_(max_nodes),
+        max_key_len_(fp32_keys ? kFp32MaxKeyLen : kRealMaxKeyLen) {
+    nodes_.reserve(static_cast<size_t>(max_nodes));
+    nodes_.resize(1);
+    std::memset(&nodes_[0], 0, sizeof(Node));
+  }
+
+  static inline int char_index(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    switch (c) {
+      case '+': return 10;
+      case '-': return 11;
+      case '.': return 12;
+      case 'e': return 13;
+      case 'E': return 14;
+    }
+    return -1;
+  }
+
+  /// Try cache lookup.  Returns true + sets *out on hit.
+  inline bool lookup(const char *key, int key_len, real_t *out) const {
+    if (key_len <= 0 || key_len > max_key_len_) return false;
+    int node = 0;
+    for (int i = 0; i < key_len; i++) {
+      int ci = char_index(key[i]);
+      if (ci < 0) return false;
+      int child = nodes_[static_cast<size_t>(node)]
+                      .children[static_cast<size_t>(ci)];
+      if (child == 0) return false;
+      node = child;
+    }
+    const Node &n = nodes_[static_cast<size_t>(node)];
+    if (!n.has_value) return false;
+    *out = n.value;
+    return true;
+  }
+
+  /// Insert parsed value.  Returns false if full or key too long.
+  inline bool insert(const char *key, int key_len, real_t value) {
+    if (key_len <= 0 || key_len > max_key_len_) return false;
+    int node = 0;
+    for (int i = 0; i < key_len; i++) {
+      int ci = char_index(key[i]);
+      if (ci < 0) return false;
+      uint16_t child = nodes_[static_cast<size_t>(node)]
+                           .children[static_cast<size_t>(ci)];
+      if (child == 0) {
+        if (static_cast<int>(nodes_.size()) >= max_nodes_) return false;
+        child = static_cast<uint16_t>(nodes_.size());
+        // Write back BEFORE push_back (push_back may realloc)
+        nodes_[static_cast<size_t>(node)]
+            .children[static_cast<size_t>(ci)] = child;
+        Node new_node;
+        std::memset(&new_node, 0, sizeof(Node));
+        nodes_.push_back(new_node);
+      }
+      node = static_cast<int>(child);
+    }
+    Node &n = nodes_[static_cast<size_t>(node)];
+    n.value = value;
+    n.has_value = true;
+    return true;
+  }
+
+  int max_key_len() const { return max_key_len_; }
+
+ private:
+  struct Node {
+    uint16_t children[kAlphabetSize];  // 30 bytes
+    real_t value;                      // 4 or 8 bytes
+    bool has_value;                    // 1 byte
+  };
+  std::vector<Node> nodes_;
+  int max_nodes_;
+  int max_key_len_;
+};
+
+// Fast inline float parse: skip whitespace, call fast_float with line_end,
+// advance cursor.  No token-end pre-scan.  Returns false if no float found.
+// When cache is non-null, checks/populates the trie cache for short tokens.
+#ifndef TINYOBJLOADER_DISABLE_FAST_FLOAT
+static inline bool opt_fast_parse_float(real_t *out, const char **cursor,
+                                        const char *line_end,
+                                        OptFloatCache *cache = nullptr) {
+  const char *p = *cursor;
+  while (p < line_end && (*p == ' ' || *p == '\t')) p++;
+  if (p >= line_end || *p == '\n' || *p == '\r' || *p == '#') return false;
+
+  // --- Cache fast path: scan up to max_key_len chars for trie lookup ---
+  if (cache) {
+    const char *tok_start = p;
+    const char *kp = p;
+    int klen = 0;
+    int mkl = cache->max_key_len();
+    while (klen < mkl && kp < line_end) {
+      char c = *kp;
+      if (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '#' ||
+          c == '\0')
+        break;
+      if (OptFloatCache::char_index(c) < 0) break;
+      klen++;
+      kp++;
+    }
+    // Token is cacheable if it ended at a delimiter (not mid-token)
+    bool at_delim = (kp >= line_end || *kp == ' ' || *kp == '\t' ||
+                     *kp == '\n' || *kp == '\r' || *kp == '#' || *kp == '\0');
+    if (klen > 0 && at_delim) {
+      real_t cached;
+      if (cache->lookup(tok_start, klen, &cached)) {
+        *out = cached;
+        *cursor = kp;
+        return true;
+      }
+      // Cache miss — parse normally, then insert
+      real_t tmp;
+      auto r = fast_float::from_chars(tok_start, line_end, tmp,
+          fast_float::chars_format::general |
+          fast_float::chars_format::allow_leading_plus);
+      if (r.ec != tinyobj_ff::ff_errc::ok) return false;
+      *out = tmp;
+      *cursor = r.ptr;
+      cache->insert(tok_start, klen, tmp);
+      return true;
+    }
+    // Token too long or has non-float chars — fall through to uncached parse
+  }
+
+  // --- Uncached parse ---
+  real_t tmp;
+  auto r = fast_float::from_chars(p, line_end, tmp,
+      fast_float::chars_format::general |
+      fast_float::chars_format::allow_leading_plus);
+  if (r.ec != tinyobj_ff::ff_errc::ok) return false;
+  *out = tmp;
+  *cursor = r.ptr;
+  return true;
+}
+#endif
+
+// Parse a single line and store into compact per-type thread data.
+// Fast path: v/vn/vt lines are parsed directly using fast_float with line_end,
+// bypassing OptCommand entirely.  Face/meta lines fall back to opt_parseLine.
+static void opt_parseLineToThreadData(
+    OptThreadData &td, const char *line_ptr, size_t line_len,
+    bool triangulate, size_t line_number,
+    OptFloatCache *cache = nullptr) {
+  const char *token = line_ptr;
+  while (*token == ' ' || *token == '\t') token++;
+  if (*token == '\n' || *token == '\r' || *token == '#' || *token == '\0')
+    return;
+
+#ifndef TINYOBJLOADER_DISABLE_FAST_FLOAT
+  const char *line_end = line_ptr + line_len;
+
+  // ---- Fast path: vertex position (v x y z [w] [r g b]) ----
+  if (token[0] == 'v' && (token[1] == ' ' || token[1] == '\t')) {
+    const char *cur = token + 2;
+    real_t x, y, z;
+    if (!opt_fast_parse_float(&x, &cur, line_end, cache) ||
+        !opt_fast_parse_float(&y, &cur, line_end, cache) ||
+        !opt_fast_parse_float(&z, &cur, line_end, cache)) {
+      td.error_line = line_number;
+      td.error_message = "failed to parse `v' line";
+      return;
+    }
+    // Write xyz (batch: resize + direct write)
+    size_t off = td.v_pos.size();
+    td.v_pos.resize(off + 3);
+    td.v_pos[off] = x; td.v_pos[off+1] = y; td.v_pos[off+2] = z;
+
+    // Check for extra components (weight / color)
+    real_t extra[4];
+    int nextra = 0;
+    while (nextra < 4 && opt_fast_parse_float(&extra[nextra], &cur, line_end, cache))
+      nextra++;
+
+    if (nextra == 1) {
+      // weight only
+      if (!td.saw_any_weight) {
+        td.saw_any_weight = true;
+        td.v_weight.resize(td.num_v, real_t(1.0));
+      }
+      td.v_weight.push_back(extra[0]);
+    } else if (nextra >= 3) {
+      // weight (=first extra) + color (r,g,b)
+      if (!td.saw_any_weight) {
+        td.saw_any_weight = true;
+        td.v_weight.resize(td.num_v, real_t(1.0));
+      }
+      td.v_weight.push_back(extra[0]);
+      if (!td.saw_any_color) {
+        td.saw_any_color = true;
+        td.v_color.resize(td.num_v * 3, real_t(1.0));
+      }
+      size_t coff = td.v_color.size();
+      td.v_color.resize(coff + 3);
+      td.v_color[coff] = extra[0];
+      td.v_color[coff+1] = extra[1];
+      td.v_color[coff+2] = extra[2];
+    } else {
+      // no extras
+      if (td.saw_any_weight) td.v_weight.push_back(real_t(1.0));
+      td.saw_missing_color = true;
+      if (td.saw_any_color) {
+        size_t coff = td.v_color.size();
+        td.v_color.resize(coff + 3);
+        td.v_color[coff] = real_t(1.0);
+        td.v_color[coff+1] = real_t(1.0);
+        td.v_color[coff+2] = real_t(1.0);
+      }
+    }
+    if (nextra < 3) {
+      td.saw_missing_color = true;
+    }
+    td.num_v++;
+    return;
+  }
+
+  // ---- Fast path: normal (vn x y z) ----
+  if (token[0] == 'v' && token[1] == 'n' &&
+      (token[2] == ' ' || token[2] == '\t')) {
+    const char *cur = token + 3;
+    real_t x, y, z;
+    if (!opt_fast_parse_float(&x, &cur, line_end, cache) ||
+        !opt_fast_parse_float(&y, &cur, line_end, cache) ||
+        !opt_fast_parse_float(&z, &cur, line_end, cache)) {
+      td.error_line = line_number;
+      td.error_message = "failed to parse `vn' line";
+      return;
+    }
+    size_t off = td.vn_data.size();
+    td.vn_data.resize(off + 3);
+    td.vn_data[off] = x; td.vn_data[off+1] = y; td.vn_data[off+2] = z;
+    td.num_vn++;
+    return;
+  }
+
+  // ---- Fast path: texcoord (vt u [v [w]]) ----
+  if (token[0] == 'v' && token[1] == 't' &&
+      (token[2] == ' ' || token[2] == '\t')) {
+    const char *cur = token + 3;
+    real_t u = 0, v = 0;
+    if (!opt_fast_parse_float(&u, &cur, line_end, cache)) {
+      td.error_line = line_number;
+      td.error_message = "failed to parse `vt' line";
+      return;
+    }
+    opt_fast_parse_float(&v, &cur, line_end, cache);  // v is optional
+    real_t w = 0;
+    bool has_w = opt_fast_parse_float(&w, &cur, line_end, cache);
+
+    size_t off = td.vt_data.size();
+    td.vt_data.resize(off + 2);
+    td.vt_data[off] = u; td.vt_data[off+1] = v;
+    if (has_w) {
+      if (!td.saw_any_texcoord_w) {
+        td.saw_any_texcoord_w = true;
+        td.vt_w.resize(td.num_vt, real_t(0.0));
+      }
+      td.vt_w.push_back(w);
+    } else if (td.saw_any_texcoord_w) {
+      td.vt_w.push_back(real_t(0.0));
+    }
+    td.num_vt++;
+    return;
+  }
+#endif  // TINYOBJLOADER_DISABLE_FAST_FLOAT
+
+  // ---- Slow path: face / meta commands via opt_parseLine ----
+  OptCommand cmd;
+  bool parse_error = false;
+  bool ok = opt_parseLine(&cmd, line_ptr, line_len, triangulate,
+                           &parse_error, nullptr);
+  if (parse_error) {
+    td.error_line = line_number;
+    std::string msg;
+    opt_parseLine(&cmd, line_ptr, line_len, triangulate, nullptr, &msg);
+    td.error_message = msg;
+    return;
+  }
+  if (!ok) return;
+
+  switch (cmd.type) {
+#ifdef TINYOBJLOADER_DISABLE_FAST_FLOAT
+    // When fast_float is disabled, v/vn/vt fall through to here
+    case OPT_CMD_V: {
+      size_t off = td.v_pos.size();
+      td.v_pos.resize(off + 3);
+      td.v_pos[off] = cmd.vx; td.v_pos[off+1] = cmd.vy; td.v_pos[off+2] = cmd.vz;
+      if (cmd.has_vertex_weight) {
+        if (!td.saw_any_weight) {
+          td.saw_any_weight = true;
+          td.v_weight.resize(td.num_v, real_t(1.0));
+        }
+        td.v_weight.push_back(cmd.vw);
+      } else if (td.saw_any_weight) {
+        td.v_weight.push_back(real_t(1.0));
+      }
+      if (cmd.has_vertex_color) {
+        if (!td.saw_any_color) {
+          td.saw_any_color = true;
+          td.v_color.resize(td.num_v * 3, real_t(1.0));
+        }
+        td.v_color.push_back(cmd.vc_r);
+        td.v_color.push_back(cmd.vc_g);
+        td.v_color.push_back(cmd.vc_b);
+      } else {
+        td.saw_missing_color = true;
+        if (td.saw_any_color) {
+          td.v_color.push_back(real_t(1.0));
+          td.v_color.push_back(real_t(1.0));
+          td.v_color.push_back(real_t(1.0));
+        }
+      }
+      td.num_v++;
+      break;
+    }
+    case OPT_CMD_VN: {
+      size_t off = td.vn_data.size();
+      td.vn_data.resize(off + 3);
+      td.vn_data[off] = cmd.nx; td.vn_data[off+1] = cmd.ny; td.vn_data[off+2] = cmd.nz;
+      td.num_vn++;
+      break;
+    }
+    case OPT_CMD_VT: {
+      size_t off = td.vt_data.size();
+      td.vt_data.resize(off + 2);
+      td.vt_data[off] = cmd.tx; td.vt_data[off+1] = cmd.ty;
+      if (cmd.has_texcoord_w) {
+        if (!td.saw_any_texcoord_w) {
+          td.saw_any_texcoord_w = true;
+          td.vt_w.resize(td.num_vt, real_t(0.0));
+        }
+        td.vt_w.push_back(cmd.tw);
+      } else if (td.saw_any_texcoord_w) {
+        td.vt_w.push_back(real_t(0.0));
+      }
+      td.num_vt++;
+      break;
+    }
+#endif  // TINYOBJLOADER_DISABLE_FAST_FLOAT
+    case OPT_CMD_F: {
+      OptFaceCmd fc;
+      fc.face_vertex_count = cmd.face_vertex_count;
+      fc.emitted_face_count = cmd.emitted_face_count;
+      fc.emitted_face_verts = cmd.emitted_face_verts;
+      fc.f_count = cmd.f_count;
+      fc.degenerate = cmd.degenerate_face;
+      fc.source_line = static_cast<uint32_t>(line_number);
+      fc.v_count_before = static_cast<uint32_t>(td.num_v);
+      fc.vn_count_before = static_cast<uint32_t>(td.num_vn);
+      fc.vt_count_before = static_cast<uint32_t>(td.num_vt);
+      if (!cmd.f_heap.empty()) {
+        fc.f_heap = std::move(cmd.f_heap);
+      } else if (cmd.face_vertex_count <= OptFaceCmd::kInlineCap) {
+        for (uint32_t k = 0; k < cmd.face_vertex_count; k++)
+          fc.f_inline[k] = cmd.f_inline[k];
+      } else {
+        fc.f_heap.assign(cmd.f_inline, cmd.f_inline + cmd.face_vertex_count);
+      }
+      td.num_f_indices += fc.f_count;
+      td.num_f_faces += fc.emitted_face_count;
+      OptSeqEntry se;
+      se.kind = OptSeqEntry::SEQ_FACE;
+      se.index = static_cast<uint32_t>(td.faces.size());
+      td.seq.push_back(se);
+      td.faces.push_back(std::move(fc));
+      break;
+    }
+    case OPT_CMD_G:
+    case OPT_CMD_O:
+    case OPT_CMD_USEMTL:
+    case OPT_CMD_MTLLIB:
+    case OPT_CMD_S: {
+      OptMetaCmd mc;
+      mc.type = cmd.type;
+      mc.source_line = static_cast<uint32_t>(line_number);
+      if (cmd.type == OPT_CMD_G) {
+        mc.str_storage = cmd.group_name_storage;
+        mc.str_ptr = cmd.group_name;
+        mc.str_len = cmd.group_name_len;
+        mc.group_name_empty = cmd.group_name_empty;
+      } else if (cmd.type == OPT_CMD_O) {
+        mc.str_ptr = cmd.object_name;
+        mc.str_len = cmd.object_name_len;
+      } else if (cmd.type == OPT_CMD_USEMTL) {
+        mc.str_ptr = cmd.material_name;
+        mc.str_len = cmd.material_name_len;
+      } else if (cmd.type == OPT_CMD_MTLLIB) {
+        mc.str_ptr = cmd.mtllib_name;
+        mc.str_len = cmd.mtllib_name_len;
+      } else if (cmd.type == OPT_CMD_S) {
+        mc.smoothing_group_id = cmd.smoothing_group_id;
+        td.saw_any_smoothing = true;
+      }
+      OptSeqEntry se;
+      se.kind = OptSeqEntry::SEQ_META;
+      se.index = static_cast<uint32_t>(td.metas.size());
+      td.seq.push_back(se);
+      td.metas.push_back(std::move(mc));
+      break;
+    }
+    default:
+      break;
+  }
+}
+
 }  // namespace opt_internal
 
 // Internal implementation with optional basedir for material path resolution
@@ -10954,12 +11846,8 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
   const size_t total_lines = all_line_infos.size();
   if (total_lines == 0) return true;
 
-  for (size_t i = 0; i < total_lines; i++) {
-    const LineInfo &line = all_line_infos[i];
-    if (!opt_requires_legacy_fallback(&work_buf[line.pos], line.len)) {
-      continue;
-    }
-
+  // Fast buffer-level check for legacy-only tokens (replaces per-line scan)
+  if (opt_buffer_requires_legacy_fallback(work_buf, work_len)) {
     std::string input(buf, buf + buf_len);
     std::istringstream iss(input);
     attrib_t legacy_attrib;
@@ -10978,21 +11866,18 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
     return true;
   }
 
-  // ---- Phase 2: parse lines ----
+  // ---- Phase 2: parse lines (compact storage) ----
   //   Single-threaded or multi-threaded depending on compile option.
+
+  const size_t num_t = static_cast<size_t>(num_threads);
+  std::vector<OptThreadData> thread_data(num_t);
 
 #ifdef TINYOBJLOADER_USE_MULTITHREADING
   // Multi-threaded path
-  std::vector<std::vector<OptCommand>> thread_commands(
-      static_cast<size_t>(num_threads));
-  std::vector<OptCommandCount> thread_counts(
-      static_cast<size_t>(num_threads));
-  std::vector<size_t> thread_error_lines(static_cast<size_t>(num_threads), 0);
-  std::vector<std::string> thread_error_messages(static_cast<size_t>(num_threads));
   {
-    size_t lines_per_thread = total_lines / static_cast<size_t>(num_threads);
+    size_t lines_per_thread = total_lines / num_t;
     std::vector<std::thread> workers;
-    workers.reserve(static_cast<size_t>(num_threads));
+    workers.reserve(num_t);
 
     for (int t = 0; t < num_threads; t++) {
       size_t start = static_cast<size_t>(t) * lines_per_thread;
@@ -11001,35 +11886,20 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
                        : (static_cast<size_t>(t) + 1) * lines_per_thread;
 
       workers.emplace_back([&, t, start, end]() {
-        thread_commands[static_cast<size_t>(t)].reserve(end - start);
+        OptThreadData &td = thread_data[static_cast<size_t>(t)];
+        size_t est_lines = end - start;
+        td.v_pos.reserve(est_lines * 2);
+        td.faces.reserve(est_lines / 3);
+        td.seq.reserve(est_lines / 3);
+        OptFloatCache *tc = nullptr;
+        OptFloatCache thread_cache(config.float_cache_max_nodes,
+                                   config.fp32_cache);
+        if (config.float_cache) tc = &thread_cache;
         for (size_t i = start; i < end; i++) {
-          OptCommand cmd;
-          bool parse_error = false;
-          std::string parse_error_message;
-          bool ok = opt_parseLine(&cmd, &work_buf[all_line_infos[i].pos],
-                                  all_line_infos[i].len, config.triangulate,
-                                  &parse_error, &parse_error_message);
-          if (parse_error) {
-            thread_error_lines[static_cast<size_t>(t)] = i + 1;
-            thread_error_messages[static_cast<size_t>(t)] = parse_error_message;
-            break;
-          }
-          if (ok) {
-            cmd.source_line = i + 1;
-            if (cmd.type == OPT_CMD_V)
-              thread_counts[static_cast<size_t>(t)].num_v++;
-            else if (cmd.type == OPT_CMD_VN)
-              thread_counts[static_cast<size_t>(t)].num_vn++;
-            else if (cmd.type == OPT_CMD_VT)
-              thread_counts[static_cast<size_t>(t)].num_vt++;
-            else if (cmd.type == OPT_CMD_F) {
-              thread_counts[static_cast<size_t>(t)].num_f += cmd.f_count;
-              thread_counts[static_cast<size_t>(t)].num_indices +=
-                  cmd.emitted_face_count;
-            }
-            thread_commands[static_cast<size_t>(t)].emplace_back(
-                std::move(cmd));
-          }
+          opt_parseLineToThreadData(td, &work_buf[all_line_infos[i].pos],
+                                     all_line_infos[i].len, config.triangulate,
+                                     i + 1, tc);
+          if (td.error_line != 0) break;
         }
       });
     }
@@ -11038,58 +11908,46 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
 
 #else
   // Single-threaded path
-  const int num_threads_actual = 1;
-  std::vector<std::vector<OptCommand>> thread_commands(1);
-  std::vector<OptCommandCount> thread_counts(1);
-  std::vector<size_t> thread_error_lines(1, 0);
-  std::vector<std::string> thread_error_messages(1);
-
   {
-    thread_commands[0].reserve(total_lines);
+    OptThreadData &td = thread_data[0];
+    td.v_pos.reserve(total_lines * 2);
+    td.faces.reserve(total_lines / 3);
+    td.seq.reserve(total_lines / 3);
+    OptFloatCache *tc = nullptr;
+    OptFloatCache thread_cache(config.float_cache_max_nodes,
+                               config.fp32_cache);
+    if (config.float_cache) tc = &thread_cache;
     for (size_t i = 0; i < total_lines; i++) {
-      OptCommand cmd;
-      bool parse_error = false;
-      std::string parse_error_message;
-      bool ok = opt_parseLine(&cmd, &work_buf[all_line_infos[i].pos],
-                              all_line_infos[i].len, config.triangulate,
-                              &parse_error, &parse_error_message);
-      if (parse_error) {
-        thread_error_lines[0] = i + 1;
-        thread_error_messages[0] = parse_error_message;
-        break;
-      }
-      if (ok) {
-        cmd.source_line = i + 1;
-        if (cmd.type == OPT_CMD_V)
-          thread_counts[0].num_v++;
-        else if (cmd.type == OPT_CMD_VN)
-          thread_counts[0].num_vn++;
-        else if (cmd.type == OPT_CMD_VT)
-          thread_counts[0].num_vt++;
-        else if (cmd.type == OPT_CMD_F) {
-          thread_counts[0].num_f += cmd.f_count;
-          thread_counts[0].num_indices += cmd.emitted_face_count;
-        }
-        thread_commands[0].emplace_back(std::move(cmd));
-      }
+      opt_parseLineToThreadData(td, &work_buf[all_line_infos[i].pos],
+                                 all_line_infos[i].len, config.triangulate,
+                                 i + 1, tc);
+      if (td.error_line != 0) break;
     }
   }
-  (void)num_threads_actual;
 #endif
 
   size_t first_error_line = 0;
   std::string first_error_message;
-  for (size_t t = 0; t < thread_error_lines.size(); t++) {
-    if (thread_error_lines[t] == 0) continue;
-    if (first_error_line == 0 || thread_error_lines[t] < first_error_line) {
-      first_error_line = thread_error_lines[t];
-      first_error_message = thread_error_messages[t];
+  for (size_t t = 0; t < num_t; t++) {
+    if (thread_data[t].error_line == 0) continue;
+    if (first_error_line == 0 || thread_data[t].error_line < first_error_line) {
+      first_error_line = thread_data[t].error_line;
+      first_error_message = thread_data[t].error_message;
     }
   }
 
   // ---- Phase 3: process sequential material state ----
+  // Compute v/vn/vt prefix sums across threads
+  std::vector<size_t> v_prefix(num_t), vn_prefix(num_t), vt_prefix(num_t);
+  v_prefix[0] = vn_prefix[0] = vt_prefix[0] = 0;
+  for (size_t t = 1; t < num_t; t++) {
+    v_prefix[t] = v_prefix[t - 1] + thread_data[t - 1].num_v;
+    vn_prefix[t] = vn_prefix[t - 1] + thread_data[t - 1].num_vn;
+    vt_prefix[t] = vt_prefix[t - 1] + thread_data[t - 1].num_vt;
+  }
+
   std::map<std::string, int> material_map;
-  std::vector<int> initial_material_id(thread_commands.size(), -1);
+  std::vector<int> initial_material_id(num_t, -1);
   size_t eof_pending_degenerate_faces = 0;
   size_t phase3_error_line = 0;
   std::string phase3_error_message;
@@ -11100,70 +11958,42 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
     std::vector<material_t> *material_dst = materials ? materials : &temp_materials;
     int running_material_id = -1;
     size_t pending_degenerate_faces = 0;
-    int running_v_count = 0;
-    int running_vn_count = 0;
-    int running_vt_count = 0;
-
-    for (size_t t = 0; t < thread_commands.size(); t++) {
+    for (size_t t = 0; t < num_t; t++) {
       if (phase3_error_line != 0) {
         break;
       }
 
       initial_material_id[t] = running_material_id;
+      const OptThreadData &td = thread_data[t];
 
-      for (size_t i = 0; i < thread_commands[t].size(); i++) {
-        OptCommand &cmd = thread_commands[t][i];
-        if (first_error_line != 0 && cmd.source_line >= first_error_line) {
-          continue;
-        }
+      for (size_t si = 0; si < td.seq.size(); si++) {
+        const OptSeqEntry &entry = td.seq[si];
 
-        if (cmd.type == OPT_CMD_V) {
-          running_v_count++;
-          continue;
-        }
+        if (entry.kind == OptSeqEntry::SEQ_FACE) {
+          const OptFaceCmd &face = td.faces[entry.index];
 
-        if (cmd.type == OPT_CMD_VN) {
-          running_vn_count++;
-          continue;
-        }
+          // Compute running counts from prefix sums + per-face stored counts
+          int rv = static_cast<int>(v_prefix[t] + face.v_count_before);
+          int rvn = static_cast<int>(vn_prefix[t] + face.vn_count_before);
+          int rvt = static_cast<int>(vt_prefix[t] + face.vt_count_before);
 
-        if (cmd.type == OPT_CMD_VT) {
-          running_vt_count++;
-          continue;
-        }
-
-        if (cmd.type == OPT_CMD_G || cmd.type == OPT_CMD_O) {
-          for (size_t deg = 0; deg < pending_degenerate_faces; deg++) {
-            if (warn) {
-              (*warn) += "Degenerated face found\n.";
-            }
+          if (first_error_line != 0 && face.source_line >= first_error_line) {
+            continue;
           }
-          pending_degenerate_faces = 0;
-        }
 
-        if (cmd.type == OPT_CMD_G && cmd.group_name_empty) {
-          if (warn) {
-            std::stringstream ss;
-            ss << "Empty group name. line: " << cmd.source_line << "\n";
-            (*warn) += ss.str();
+          if (face.degenerate) {
+            pending_degenerate_faces++;
+            continue;
           }
-          continue;
-        }
 
-        if (cmd.type == OPT_CMD_F && cmd.degenerate_face) {
-          pending_degenerate_faces++;
-          continue;
-        }
-
-        if (cmd.type == OPT_CMD_F) {
-          for (size_t k = 0; k < cmd.face_vertex_count; k++) {
-            const opt_index_t &raw = cmd.face_indices()[k];
+          for (size_t k = 0; k < face.face_vertex_count; k++) {
+            const opt_index_t &raw = face.face_indices()[k];
             int resolved_idx = -1;
 
             if (!opt_validateAndResolveFaceIndexLikeLegacy(
-                    raw.vertex_index, running_v_count, false, source_name,
-                    cmd.source_line, warn, &resolved_idx)) {
-              phase3_error_line = cmd.source_line;
+                    raw.vertex_index, rv, false, source_name,
+                    face.source_line, warn, &resolved_idx)) {
+              phase3_error_line = face.source_line;
               phase3_error_message =
                   "failed to parse `f' line (invalid vertex index)";
               break;
@@ -11171,9 +12001,9 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
 
             if (raw.texcoord_index != opt_index_t::kNotPresent) {
               if (!opt_validateAndResolveFaceIndexLikeLegacy(
-                      raw.texcoord_index, running_vt_count, true, source_name,
-                      cmd.source_line, warn, &resolved_idx)) {
-                phase3_error_line = cmd.source_line;
+                      raw.texcoord_index, rvt, true, source_name,
+                      face.source_line, warn, &resolved_idx)) {
+                phase3_error_line = face.source_line;
                 phase3_error_message =
                     "failed to parse `f' line (invalid vertex index)";
                 break;
@@ -11182,9 +12012,9 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
 
             if (raw.normal_index != opt_index_t::kNotPresent) {
               if (!opt_validateAndResolveFaceIndexLikeLegacy(
-                      raw.normal_index, running_vn_count, true, source_name,
-                      cmd.source_line, warn, &resolved_idx)) {
-                phase3_error_line = cmd.source_line;
+                      raw.normal_index, rvn, true, source_name,
+                      face.source_line, warn, &resolved_idx)) {
+                phase3_error_line = face.source_line;
                 phase3_error_message =
                     "failed to parse `f' line (invalid vertex index)";
                 break;
@@ -11199,14 +12029,39 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
           continue;
         }
 
-        if (cmd.type == OPT_CMD_MTLLIB) {
+        // SEQ_META
+        OptMetaCmd &meta = thread_data[t].metas[entry.index];
+
+        if (first_error_line != 0 && meta.source_line >= first_error_line) {
+          continue;
+        }
+
+        if (meta.type == OPT_CMD_G || meta.type == OPT_CMD_O) {
+          for (size_t deg = 0; deg < pending_degenerate_faces; deg++) {
+            if (warn) {
+              (*warn) += "Degenerated face found\n.";
+            }
+          }
+          pending_degenerate_faces = 0;
+        }
+
+        if (meta.type == OPT_CMD_G && meta.group_name_empty) {
+          if (warn) {
+            std::stringstream ss;
+            ss << "Empty group name. line: " << meta.source_line << "\n";
+            (*warn) += ss.str();
+          }
+          continue;
+        }
+
+        if (meta.type == OPT_CMD_MTLLIB) {
           if (!enable_mtllib_loading) {
             continue;
           }
 
           std::string line_rest;
-          if (cmd.mtllib_name && cmd.mtllib_name_len > 0) {
-            line_rest.assign(cmd.mtllib_name, cmd.mtllib_name_len);
+          if (meta.str_ptr && meta.str_len > 0) {
+            line_rest.assign(meta.str_ptr, meta.str_len);
           }
 
           std::vector<std::string> filenames;
@@ -11218,7 +12073,7 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
               std::stringstream ss;
               ss << "Looks like empty filename for mtllib. Use default "
                     "material (line "
-                 << cmd.source_line << ".)\n";
+                 << meta.source_line << ".)\n";
               (*warn) += ss.str();
             }
             continue;
@@ -11260,10 +12115,10 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
           continue;
         }
 
-        if (cmd.type == OPT_CMD_USEMTL) {
+        if (meta.type == OPT_CMD_USEMTL) {
           std::string mat_name;
-          if (cmd.material_name && cmd.material_name_len > 0) {
-            mat_name.assign(cmd.material_name, cmd.material_name_len);
+          if (meta.str_ptr && meta.str_len > 0) {
+            mat_name.assign(meta.str_ptr, meta.str_len);
           }
           while (!mat_name.empty() &&
                  (mat_name.back() == '\r' || mat_name.back() == '\n')) {
@@ -11272,17 +12127,18 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
 
           std::map<std::string, int>::const_iterator it = material_map.find(mat_name);
           if (it != material_map.end()) {
-            cmd.resolved_material_id = it->second;
+            meta.resolved_material_id = it->second;
           } else {
-            cmd.resolved_material_id = -1;
+            meta.resolved_material_id = -1;
             if (warn) {
               (*warn) += "material [ '" + mat_name + "' ] not found in .mtl\n";
             }
           }
-          running_material_id = cmd.resolved_material_id;
+          running_material_id = meta.resolved_material_id;
           continue;
         }
       }
+
     }
 
     if (first_error_line == 0) {
@@ -11320,13 +12176,12 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
 
   // ---- Phase 4: merge results ----
   size_t num_v = 0, num_vn = 0, num_vt = 0, num_f = 0, num_indices = 0;
-  const size_t num_t = thread_commands.size();
   for (size_t t = 0; t < num_t; t++) {
-    num_v += thread_counts[t].num_v;
-    num_vn += thread_counts[t].num_vn;
-    num_vt += thread_counts[t].num_vt;
-    num_f += thread_counts[t].num_f;
-    num_indices += thread_counts[t].num_indices;
+    num_v += thread_data[t].num_v;
+    num_vn += thread_data[t].num_vn;
+    num_vt += thread_data[t].num_vt;
+    num_f += thread_data[t].num_f_indices;
+    num_indices += thread_data[t].num_f_faces;
   }
 
   attrib->vertices.resize(num_v * 3);
@@ -11348,11 +12203,11 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
       face_off(num_t);
   v_off[0] = n_off[0] = t_off[0] = f_off[0] = face_off[0] = 0;
   for (size_t t = 1; t < num_t; t++) {
-    v_off[t] = v_off[t - 1] + thread_counts[t - 1].num_v;
-    n_off[t] = n_off[t - 1] + thread_counts[t - 1].num_vn;
-    t_off[t] = t_off[t - 1] + thread_counts[t - 1].num_vt;
-    f_off[t] = f_off[t - 1] + thread_counts[t - 1].num_f;
-    face_off[t] = face_off[t - 1] + thread_counts[t - 1].num_indices;
+    v_off[t] = v_off[t - 1] + thread_data[t - 1].num_v;
+    n_off[t] = n_off[t - 1] + thread_data[t - 1].num_vn;
+    t_off[t] = t_off[t - 1] + thread_data[t - 1].num_vt;
+    f_off[t] = f_off[t - 1] + thread_data[t - 1].num_f_indices;
+    face_off[t] = face_off[t - 1] + thread_data[t - 1].num_f_faces;
   }
 
   // Carry parser state that persists across lines, such as smoothing groups,
@@ -11361,9 +12216,9 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
   unsigned int running_smoothing_group_id = 0;
   for (size_t t = 0; t < num_t; t++) {
     initial_smoothing_group_id[t] = running_smoothing_group_id;
-    for (size_t i = 0; i < thread_commands[t].size(); i++) {
-      if (thread_commands[t][i].type == OPT_CMD_S) {
-        running_smoothing_group_id = thread_commands[t][i].smoothing_group_id;
+    for (size_t mi = 0; mi < thread_data[t].metas.size(); mi++) {
+      if (thread_data[t].metas[mi].type == OPT_CMD_S) {
+        running_smoothing_group_id = thread_data[t].metas[mi].smoothing_group_id;
       }
     }
   }
@@ -11371,7 +12226,7 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
   // Merge parsed data into final arrays
   std::vector<std::vector<unsigned int> > command_written_faces(num_t);
   for (size_t t = 0; t < num_t; t++) {
-    command_written_faces[t].assign(thread_commands[t].size(), 0);
+    command_written_faces[t].assign(thread_data[t].faces.size(), 0);
   }
   std::vector<size_t> written_index_counts(num_t, 0);
   std::vector<size_t> written_face_counts(num_t, 0);
@@ -11381,46 +12236,43 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
   std::vector<int> thread_greatest_vn_idx(num_t, -1);
   std::vector<int> thread_greatest_vt_idx(num_t, -1);
   auto merge_vertex_thread = [&](size_t t) {
-    size_t vc = v_off[t], nc = n_off[t], tc = t_off[t];
-
-    for (size_t i = 0; i < thread_commands[t].size(); i++) {
-      const OptCommand &cmd = thread_commands[t][i];
-      switch (cmd.type) {
-        case OPT_CMD_V:
-          attrib->vertices[3 * vc + 0] = cmd.vx;
-          attrib->vertices[3 * vc + 1] = cmd.vy;
-          attrib->vertices[3 * vc + 2] = cmd.vz;
-          attrib->vertex_weights[vc] =
-              cmd.has_vertex_weight ? cmd.vw : real_t(1.0);
-          if (cmd.has_vertex_color) {
-            all_colors[3 * vc + 0] = cmd.vc_r;
-            all_colors[3 * vc + 1] = cmd.vc_g;
-            all_colors[3 * vc + 2] = cmd.vc_b;
-            thread_saw_any_vertex_color[t] = 1;
-          } else {
-            thread_missing_vertex_color[t] = 1;
-          }
-          vc++;
-          break;
-        case OPT_CMD_VN:
-          attrib->normals[3 * nc + 0] = cmd.nx;
-          attrib->normals[3 * nc + 1] = cmd.ny;
-          attrib->normals[3 * nc + 2] = cmd.nz;
-          nc++;
-          break;
-        case OPT_CMD_VT:
-          attrib->texcoords[2 * tc + 0] = cmd.tx;
-          attrib->texcoords[2 * tc + 1] = cmd.ty;
-          attrib->texcoord_ws[tc] = cmd.has_texcoord_w ? cmd.tw : real_t(0.0);
-          tc++;
-          break;
-        default:
-          break;
-      }
+    const OptThreadData &td = thread_data[t];
+    // Bulk copy positions
+    if (!td.v_pos.empty()) {
+      std::memcpy(&attrib->vertices[v_off[t] * 3], td.v_pos.data(),
+                  td.v_pos.size() * sizeof(real_t));
+    }
+    // Copy weights
+    if (td.saw_any_weight) {
+      for (size_t i = 0; i < td.num_v; i++)
+        attrib->vertex_weights[v_off[t] + i] = td.v_weight[i];
+    }
+    // Copy colors
+    if (td.saw_any_color) {
+      std::memcpy(&all_colors[v_off[t] * 3], td.v_color.data(),
+                  td.v_color.size() * sizeof(real_t));
+      thread_saw_any_vertex_color[t] = 1;
+      if (td.saw_missing_color) thread_missing_vertex_color[t] = 1;
+    } else if (td.saw_missing_color) {
+      thread_missing_vertex_color[t] = 1;
+    }
+    // Bulk copy normals
+    if (!td.vn_data.empty()) {
+      std::memcpy(&attrib->normals[n_off[t] * 3], td.vn_data.data(),
+                  td.vn_data.size() * sizeof(real_t));
+    }
+    // Bulk copy texcoords
+    if (!td.vt_data.empty()) {
+      std::memcpy(&attrib->texcoords[t_off[t] * 2], td.vt_data.data(),
+                  td.vt_data.size() * sizeof(real_t));
+    }
+    if (td.saw_any_texcoord_w) {
+      for (size_t i = 0; i < td.num_vt; i++)
+        attrib->texcoord_ws[t_off[t] + i] = td.vt_w[i];
     }
   };
   auto merge_thread = [&](size_t t) {
-    size_t vc = v_off[t], nc = n_off[t], tc = t_off[t];
+    const OptThreadData &td = thread_data[t];
     size_t fc = f_off[t], fcc = face_off[t];
     int current_mat_id = initial_material_id[t];
     unsigned int current_smoothing_id = initial_smoothing_group_id[t];
@@ -11428,104 +12280,97 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
     int greatest_vn_idx = -1;
     int greatest_vt_idx = -1;
 
-    for (size_t i = 0; i < thread_commands[t].size(); i++) {
-      const OptCommand &cmd = thread_commands[t][i];
-      switch (cmd.type) {
-        case OPT_CMD_V:
-          vc++;
-          break;
-        case OPT_CMD_VN:
-          nc++;
-          break;
-        case OPT_CMD_VT:
-          tc++;
-          break;
-        case OPT_CMD_F: {
-          if (cmd.degenerate_face) {
-            command_written_faces[t][i] = 0;
-            break;
-          }
-          std::vector<index_t> resolved_face(cmd.face_vertex_count);
-          for (size_t k = 0; k < cmd.face_vertex_count; k++) {
-            const opt_index_t &vi = cmd.face_indices()[k];
-            index_t idx;
-            if (!opt_resolveIndexLikeLegacy(vi.vertex_index,
-                                            static_cast<int>(vc),
-                                            &idx.vertex_index, false)) {
-              merge_error_lines[t] = cmd.source_line;
-              merge_error_messages[t] =
-                  "failed to parse `f' line (invalid vertex index)";
-              return;
-            }
-            opt_updateGreatestIndex(idx.vertex_index, &greatest_v_idx);
-            if (vi.texcoord_index == opt_index_t::kNotPresent) {
-              idx.texcoord_index = -1;
-            } else {
-              if (!opt_resolveIndexLikeLegacy(vi.texcoord_index,
-                                              static_cast<int>(tc),
-                                              &idx.texcoord_index, true)) {
-                merge_error_lines[t] = cmd.source_line;
-                merge_error_messages[t] =
-                    "failed to parse `f' line (invalid vertex index)";
-                return;
-              }
-              if (idx.texcoord_index >= 0) {
-                opt_updateGreatestIndex(idx.texcoord_index, &greatest_vt_idx);
-              }
-            }
-            if (vi.normal_index == opt_index_t::kNotPresent) {
-              idx.normal_index = -1;
-            } else {
-              if (!opt_resolveIndexLikeLegacy(vi.normal_index,
-                                              static_cast<int>(nc),
-                                              &idx.normal_index, true)) {
-                merge_error_lines[t] = cmd.source_line;
-                merge_error_messages[t] =
-                    "failed to parse `f' line (invalid vertex index)";
-                return;
-              }
-              if (idx.normal_index >= 0) {
-                opt_updateGreatestIndex(idx.normal_index, &greatest_vn_idx);
-              }
-            }
-            resolved_face[k] = idx;
-          }
-          size_t written_index_count = 0;
-          size_t written_face_count = 0;
-          if (config.triangulate) {
-            written_index_count = opt_triangulate_face(
-                attrib->vertices, resolved_face.data(), resolved_face.size(),
-                &attrib->indices[fc]);
-            written_face_count = written_index_count / 3;
-          } else {
-            written_index_count = resolved_face.size();
-            written_face_count = 1;
-            for (size_t k = 0; k < resolved_face.size(); k++) {
-              attrib->indices[fc + k] = resolved_face[k];
-            }
-          }
-          for (size_t k = 0; k < written_face_count; k++) {
-            attrib->face_num_verts[fcc + k] = config.triangulate
-                                                  ? 3
-                                                  : static_cast<int>(cmd.emitted_face_verts);
-            attrib->material_ids[fcc + k] = current_mat_id;
-            all_smoothing_group_ids[fcc + k] = current_smoothing_id;
-          }
-          command_written_faces[t][i] =
-              static_cast<unsigned int>(written_face_count);
-          fc += written_index_count;
-          fcc += written_face_count;
-          break;
-        }
-        case OPT_CMD_USEMTL:
-          current_mat_id = cmd.resolved_material_id;
-          break;
-        case OPT_CMD_S:
-          current_smoothing_id = cmd.smoothing_group_id;
-          break;
-        default:
-          break;
+    for (size_t si = 0; si < td.seq.size(); si++) {
+      const OptSeqEntry &entry = td.seq[si];
+      if (entry.kind == OptSeqEntry::SEQ_META) {
+        const OptMetaCmd &meta = td.metas[entry.index];
+        if (meta.type == OPT_CMD_USEMTL)
+          current_mat_id = meta.resolved_material_id;
+        else if (meta.type == OPT_CMD_S)
+          current_smoothing_id = meta.smoothing_group_id;
+        continue;
       }
+      // SEQ_FACE
+      const OptFaceCmd &face = td.faces[entry.index];
+      if (face.degenerate) {
+        command_written_faces[t][entry.index] = 0;
+        continue;
+      }
+      // Compute running counts for index resolution
+      size_t vc = v_off[t] + face.v_count_before;
+      size_t nc = n_off[t] + face.vn_count_before;
+      size_t tc = t_off[t] + face.vt_count_before;
+
+      std::vector<index_t> resolved_face(face.face_vertex_count);
+      for (size_t k = 0; k < face.face_vertex_count; k++) {
+        const opt_index_t &vi = face.face_indices()[k];
+        index_t idx;
+        if (!opt_resolveIndexLikeLegacy(vi.vertex_index,
+                                        static_cast<int>(vc),
+                                        &idx.vertex_index, false)) {
+          merge_error_lines[t] = face.source_line;
+          merge_error_messages[t] =
+              "failed to parse `f' line (invalid vertex index)";
+          return;
+        }
+        opt_updateGreatestIndex(idx.vertex_index, &greatest_v_idx);
+        if (vi.texcoord_index == opt_index_t::kNotPresent) {
+          idx.texcoord_index = -1;
+        } else {
+          if (!opt_resolveIndexLikeLegacy(vi.texcoord_index,
+                                          static_cast<int>(tc),
+                                          &idx.texcoord_index, true)) {
+            merge_error_lines[t] = face.source_line;
+            merge_error_messages[t] =
+                "failed to parse `f' line (invalid vertex index)";
+            return;
+          }
+          if (idx.texcoord_index >= 0) {
+            opt_updateGreatestIndex(idx.texcoord_index, &greatest_vt_idx);
+          }
+        }
+        if (vi.normal_index == opt_index_t::kNotPresent) {
+          idx.normal_index = -1;
+        } else {
+          if (!opt_resolveIndexLikeLegacy(vi.normal_index,
+                                          static_cast<int>(nc),
+                                          &idx.normal_index, true)) {
+            merge_error_lines[t] = face.source_line;
+            merge_error_messages[t] =
+                "failed to parse `f' line (invalid vertex index)";
+            return;
+          }
+          if (idx.normal_index >= 0) {
+            opt_updateGreatestIndex(idx.normal_index, &greatest_vn_idx);
+          }
+        }
+        resolved_face[k] = idx;
+      }
+      size_t written_index_count = 0;
+      size_t written_face_count = 0;
+      if (config.triangulate) {
+        written_index_count = opt_triangulate_face(
+            attrib->vertices, resolved_face.data(), resolved_face.size(),
+            &attrib->indices[fc]);
+        written_face_count = written_index_count / 3;
+      } else {
+        written_index_count = resolved_face.size();
+        written_face_count = 1;
+        for (size_t k = 0; k < resolved_face.size(); k++) {
+          attrib->indices[fc + k] = resolved_face[k];
+        }
+      }
+      for (size_t k = 0; k < written_face_count; k++) {
+        attrib->face_num_verts[fcc + k] = config.triangulate
+                                              ? 3
+                                              : static_cast<int>(face.emitted_face_verts);
+        attrib->material_ids[fcc + k] = current_mat_id;
+        all_smoothing_group_ids[fcc + k] = current_smoothing_id;
+      }
+      command_written_faces[t][entry.index] =
+          static_cast<unsigned int>(written_face_count);
+      fc += written_index_count;
+      fcc += written_face_count;
     }
     written_index_counts[t] = fc - f_off[t];
     written_face_counts[t] = fcc - face_off[t];
@@ -11656,82 +12501,85 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
     bool have_active_shape_name = false;
 
     for (size_t t = 0; t < num_t; t++) {
-      for (size_t i = 0; i < thread_commands[t].size(); i++) {
-        if (thread_commands[t][i].type == OPT_CMD_O ||
-            thread_commands[t][i].type == OPT_CMD_G) {
-          std::string name;
-          const OptCommand &cmd = thread_commands[t][i];
-          if (cmd.type == OPT_CMD_O && cmd.object_name) {
-            name.assign(cmd.object_name, cmd.object_name_len);
-          } else if (!cmd.group_name_storage.empty()) {
-            name = cmd.group_name_storage;
-          } else if (cmd.group_name) {
-            name.assign(cmd.group_name, cmd.group_name_len);
-          }
-          while (!name.empty() &&
-                 (name.back() == '\r' || name.back() == '\n'))
-            name.pop_back();
-
-          if (face_count == 0) {
-            shape.name = name;
-            face_prev_offset = 0;
-            have_active_shape_name = true;
-          } else {
-            if (!have_active_shape_name) {
-              // faces before first group/object
-              basic_shape_t<> prev_shape;
-              prev_shape.mesh.num_face_vertices.assign(
-                  attrib->face_num_verts.begin(),
-                  attrib->face_num_verts.begin() +
-                      static_cast<std::ptrdiff_t>(face_count));
-              prev_shape.mesh.indices.assign(
-                  attrib->indices.begin(),
-                  attrib->indices.begin() +
-                      static_cast<std::ptrdiff_t>(idx_prefix[face_count]));
-              prev_shape.mesh.material_ids.assign(
-                  attrib->material_ids.begin(),
-                  attrib->material_ids.begin() +
-                      static_cast<std::ptrdiff_t>(face_count));
-              prev_shape.mesh.smoothing_group_ids.assign(
-                  all_smoothing_group_ids.begin(),
-                  all_smoothing_group_ids.begin() +
-                      static_cast<std::ptrdiff_t>(face_count));
-              shapes->push_back(std::move(prev_shape));
-            } else if (face_count > face_prev_offset) {
-              // push previous shape
-              basic_shape_t<> prev_shape;
-              prev_shape.name = shape.name;
-              prev_shape.mesh.num_face_vertices.assign(
-                  attrib->face_num_verts.begin() +
-                      static_cast<std::ptrdiff_t>(face_prev_offset),
-                  attrib->face_num_verts.begin() +
-                      static_cast<std::ptrdiff_t>(face_count));
-              prev_shape.mesh.indices.assign(
-                  attrib->indices.begin() +
-                      static_cast<std::ptrdiff_t>(idx_prefix[face_prev_offset]),
-                  attrib->indices.begin() +
-                      static_cast<std::ptrdiff_t>(idx_prefix[face_count]));
-              prev_shape.mesh.material_ids.assign(
-                  attrib->material_ids.begin() +
-                      static_cast<std::ptrdiff_t>(face_prev_offset),
-                  attrib->material_ids.begin() +
-                      static_cast<std::ptrdiff_t>(face_count));
-              prev_shape.mesh.smoothing_group_ids.assign(
-                  all_smoothing_group_ids.begin() +
-                      static_cast<std::ptrdiff_t>(face_prev_offset),
-                  all_smoothing_group_ids.begin() +
-                      static_cast<std::ptrdiff_t>(face_count));
-              shapes->push_back(std::move(prev_shape));
+      const OptThreadData &td = thread_data[t];
+      for (size_t si = 0; si < td.seq.size(); si++) {
+        const OptSeqEntry &entry = td.seq[si];
+        if (entry.kind == OptSeqEntry::SEQ_META) {
+          const OptMetaCmd &meta = td.metas[entry.index];
+          if (meta.type == OPT_CMD_O || meta.type == OPT_CMD_G) {
+            std::string name;
+            if (meta.type == OPT_CMD_O && meta.str_ptr) {
+              name.assign(meta.str_ptr, meta.str_len);
+            } else if (!meta.str_storage.empty()) {
+              name = meta.str_storage;
+            } else if (meta.str_ptr) {
+              name.assign(meta.str_ptr, meta.str_len);
             }
-            shape.name = name;
-            face_prev_offset = face_count;
-            have_active_shape_name = true;
+            while (!name.empty() &&
+                   (name.back() == '\r' || name.back() == '\n'))
+              name.pop_back();
+
+            if (face_count == 0) {
+              shape.name = name;
+              face_prev_offset = 0;
+              have_active_shape_name = true;
+            } else {
+              if (!have_active_shape_name) {
+                // faces before first group/object
+                basic_shape_t<> prev_shape;
+                prev_shape.mesh.num_face_vertices.assign(
+                    attrib->face_num_verts.begin(),
+                    attrib->face_num_verts.begin() +
+                        static_cast<std::ptrdiff_t>(face_count));
+                prev_shape.mesh.indices.assign(
+                    attrib->indices.begin(),
+                    attrib->indices.begin() +
+                        static_cast<std::ptrdiff_t>(idx_prefix[face_count]));
+                prev_shape.mesh.material_ids.assign(
+                    attrib->material_ids.begin(),
+                    attrib->material_ids.begin() +
+                        static_cast<std::ptrdiff_t>(face_count));
+                prev_shape.mesh.smoothing_group_ids.assign(
+                    all_smoothing_group_ids.begin(),
+                    all_smoothing_group_ids.begin() +
+                        static_cast<std::ptrdiff_t>(face_count));
+                shapes->push_back(std::move(prev_shape));
+              } else if (face_count > face_prev_offset) {
+                // push previous shape
+                basic_shape_t<> prev_shape;
+                prev_shape.name = shape.name;
+                prev_shape.mesh.num_face_vertices.assign(
+                    attrib->face_num_verts.begin() +
+                        static_cast<std::ptrdiff_t>(face_prev_offset),
+                    attrib->face_num_verts.begin() +
+                        static_cast<std::ptrdiff_t>(face_count));
+                prev_shape.mesh.indices.assign(
+                    attrib->indices.begin() +
+                        static_cast<std::ptrdiff_t>(idx_prefix[face_prev_offset]),
+                    attrib->indices.begin() +
+                        static_cast<std::ptrdiff_t>(idx_prefix[face_count]));
+                prev_shape.mesh.material_ids.assign(
+                    attrib->material_ids.begin() +
+                        static_cast<std::ptrdiff_t>(face_prev_offset),
+                    attrib->material_ids.begin() +
+                        static_cast<std::ptrdiff_t>(face_count));
+                prev_shape.mesh.smoothing_group_ids.assign(
+                    all_smoothing_group_ids.begin() +
+                        static_cast<std::ptrdiff_t>(face_prev_offset),
+                    all_smoothing_group_ids.begin() +
+                        static_cast<std::ptrdiff_t>(face_count));
+                shapes->push_back(std::move(prev_shape));
+              }
+              shape.name = name;
+              face_prev_offset = face_count;
+              have_active_shape_name = true;
+            }
+            shape_has_face_record = false;
           }
-          shape_has_face_record = false;
-        }
-        if (thread_commands[t][i].type == OPT_CMD_F) {
+        } else {
+          // SEQ_FACE
           shape_has_face_record = true;
-          face_count += command_written_faces[t][i];
+          face_count += command_written_faces[t][entry.index];
         }
       }
     }
@@ -11858,6 +12706,881 @@ bool LoadObjOpt(basic_attrib_t<> *attrib,
   return LoadObjOpt_internal(attrib, shapes, materials, warn, err,
                              buf.data(), static_cast<size_t>(fsize), baseDir,
                              filepath, true, config);
+}
+
+// ---- LoadObjOptTyped internals ----
+
+static bool LoadObjOptTyped_internal(OptResult *result,
+                                     std::string *warn, std::string *err,
+                                     const char *buf, size_t buf_len,
+                                     const std::string &mtl_basedir,
+                                     const std::string &source_name,
+                                     bool enable_mtllib_loading,
+                                     const OptLoadConfig &config) {
+  using namespace opt_internal;
+
+  ArenaAllocator &arena = result->arena;
+  OptAttrib &attrib = result->attrib;
+  result->valid = false;
+
+  if (buf_len < 1) {
+    result->valid = true;
+    return true;
+  }
+  if (!buf) {
+    if (err) *err = "buf must not be null when buf_len > 0.";
+    return false;
+  }
+
+  const char *work_buf = buf;
+  size_t work_len = buf_len;
+  std::vector<char> buf_with_sentinel;
+  if (buf[buf_len - 1] != '\n') {
+    buf_with_sentinel.assign(buf, buf + buf_len);
+    buf_with_sentinel.push_back('\n');
+    work_buf = buf_with_sentinel.data();
+    work_len = buf_with_sentinel.size();
+  }
+
+  int num_threads = 1;
+#ifdef TINYOBJLOADER_USE_MULTITHREADING
+  if (config.num_threads < 0) {
+    num_threads = static_cast<int>(std::thread::hardware_concurrency());
+    if (num_threads < 1) num_threads = 1;
+  } else if (config.num_threads > 1) {
+    num_threads = config.num_threads;
+  }
+  if (num_threads > kOptMaxThreads) num_threads = kOptMaxThreads;
+#else
+  (void)config;
+#endif
+
+  // ---- Phase 1: find line boundaries ----
+  std::vector<LineInfo> all_line_infos;
+
+#if defined(TINYOBJLOADER_USE_SIMD) && \
+    (defined(TINYOBJLOADER_SIMD_SSE2) || defined(TINYOBJLOADER_SIMD_AVX2) || \
+     defined(TINYOBJLOADER_SIMD_NEON))
+  {
+    std::vector<size_t> nl_positions;
+    nl_positions.reserve(work_len / 64);
+    simd_find_newlines(work_buf, work_len, nl_positions);
+    simd_build_line_infos(work_buf, work_len, nl_positions, all_line_infos);
+  }
+#else
+  {
+    all_line_infos.reserve(work_len / 64);
+    scalar_find_line_infos(work_buf, 0, work_len, all_line_infos);
+  }
+#endif
+
+  const size_t total_lines = all_line_infos.size();
+  if (total_lines == 0) {
+    result->valid = true;
+    return true;
+  }
+
+  // Fast buffer-level check for legacy-only tokens (replaces per-line scan)
+  if (opt_buffer_requires_legacy_fallback(work_buf, work_len)) {
+    basic_attrib_t<> tmp_attrib;
+    std::vector<basic_shape_t<>> tmp_shapes;
+    std::vector<material_t> tmp_materials;
+    std::string input(buf, buf + buf_len);
+    std::istringstream iss(input);
+    attrib_t legacy_attrib;
+    std::vector<shape_t> legacy_shapes;
+    std::vector<material_t> legacy_materials;
+    MaterialFileReader mat_reader(mtl_basedir);
+    MaterialReader *reader =
+        enable_mtllib_loading ? static_cast<MaterialReader *>(&mat_reader) : NULL;
+    const bool ok = LoadObj(&legacy_attrib, &legacy_shapes, &legacy_materials,
+                            warn, err, &iss, reader, config.triangulate, false);
+    if (!ok) return false;
+    ConvertLegacyResultToBasic(legacy_attrib, legacy_shapes, legacy_materials,
+                               &tmp_attrib, &tmp_shapes, &tmp_materials);
+#define TINYOBJ_COPY_VEC_TO_ARENA_(dst, src)        \
+    do {                                             \
+      if (!(src).empty()) {                          \
+        (dst).allocate(arena, (src).size());          \
+        std::memcpy((dst).data(), (src).data(),       \
+                    (src).size() * sizeof((src)[0])); \
+      }                                              \
+    } while (0)
+    TINYOBJ_COPY_VEC_TO_ARENA_(attrib.vertices, tmp_attrib.vertices);
+    TINYOBJ_COPY_VEC_TO_ARENA_(attrib.vertex_weights, tmp_attrib.vertex_weights);
+    TINYOBJ_COPY_VEC_TO_ARENA_(attrib.normals, tmp_attrib.normals);
+    TINYOBJ_COPY_VEC_TO_ARENA_(attrib.texcoords, tmp_attrib.texcoords);
+    TINYOBJ_COPY_VEC_TO_ARENA_(attrib.texcoord_ws, tmp_attrib.texcoord_ws);
+    TINYOBJ_COPY_VEC_TO_ARENA_(attrib.colors, tmp_attrib.colors);
+    TINYOBJ_COPY_VEC_TO_ARENA_(attrib.indices, tmp_attrib.indices);
+    TINYOBJ_COPY_VEC_TO_ARENA_(attrib.face_num_verts, tmp_attrib.face_num_verts);
+    TINYOBJ_COPY_VEC_TO_ARENA_(attrib.material_ids, tmp_attrib.material_ids);
+#undef TINYOBJ_COPY_VEC_TO_ARENA_
+    result->shapes.clear();
+    size_t idx_off = 0, face_off = 0;
+    for (size_t si = 0; si < tmp_shapes.size(); si++) {
+      OptShapeRange sr;
+      sr.name = tmp_shapes[si].name;
+      sr.face_offset = face_off;
+      sr.face_count = tmp_shapes[si].mesh.num_face_vertices.size();
+      sr.index_offset = idx_off;
+      sr.index_count = tmp_shapes[si].mesh.indices.size();
+      face_off += sr.face_count;
+      idx_off += sr.index_count;
+      result->shapes.push_back(std::move(sr));
+    }
+    result->materials = tmp_materials;
+    result->valid = true;
+    return true;
+  }
+
+  // ---- Phase 2: parse lines (compact storage) ----
+  const size_t num_t = static_cast<size_t>(num_threads);
+  std::vector<OptThreadData> thread_data(num_t);
+
+#ifdef TINYOBJLOADER_USE_MULTITHREADING
+  {
+    size_t lines_per_thread = total_lines / num_t;
+    std::vector<std::thread> workers;
+    workers.reserve(num_t);
+
+    for (int t = 0; t < num_threads; t++) {
+      size_t start = static_cast<size_t>(t) * lines_per_thread;
+      size_t end = (t == num_threads - 1)
+                       ? total_lines
+                       : (static_cast<size_t>(t) + 1) * lines_per_thread;
+
+      workers.emplace_back([&, t, start, end]() {
+        OptThreadData &td = thread_data[static_cast<size_t>(t)];
+        size_t est_lines = end - start;
+        td.v_pos.reserve(est_lines * 2);
+        td.faces.reserve(est_lines / 3);
+        td.seq.reserve(est_lines / 3);
+        OptFloatCache *tc = nullptr;
+        OptFloatCache thread_cache(config.float_cache_max_nodes,
+                                   config.fp32_cache);
+        if (config.float_cache) tc = &thread_cache;
+        for (size_t i = start; i < end; i++) {
+          opt_parseLineToThreadData(td, &work_buf[all_line_infos[i].pos],
+                                     all_line_infos[i].len, config.triangulate,
+                                     i + 1, tc);
+          if (td.error_line != 0) break;
+        }
+      });
+    }
+    for (auto &w : workers) w.join();
+  }
+#else
+  {
+    OptThreadData &td = thread_data[0];
+    td.v_pos.reserve(total_lines * 2);
+    td.faces.reserve(total_lines / 3);
+    td.seq.reserve(total_lines / 3);
+    OptFloatCache *tc = nullptr;
+    OptFloatCache thread_cache(config.float_cache_max_nodes,
+                               config.fp32_cache);
+    if (config.float_cache) tc = &thread_cache;
+    for (size_t i = 0; i < total_lines; i++) {
+      opt_parseLineToThreadData(td, &work_buf[all_line_infos[i].pos],
+                                 all_line_infos[i].len, config.triangulate,
+                                 i + 1, tc);
+      if (td.error_line != 0) break;
+    }
+  }
+#endif
+
+  // Check for parse errors
+  size_t first_error_line = 0;
+  std::string first_error_message;
+  for (size_t t = 0; t < num_t; t++) {
+    if (thread_data[t].error_line == 0) continue;
+    if (first_error_line == 0 || thread_data[t].error_line < first_error_line) {
+      first_error_line = thread_data[t].error_line;
+      first_error_message = thread_data[t].error_message;
+    }
+  }
+
+  // ---- Phase 3: process sequential material state ----
+  // Compute v/vn/vt prefix sums across threads
+  std::vector<size_t> v_prefix(num_t), vn_prefix(num_t), vt_prefix(num_t);
+  v_prefix[0] = vn_prefix[0] = vt_prefix[0] = 0;
+  for (size_t t = 1; t < num_t; t++) {
+    v_prefix[t] = v_prefix[t - 1] + thread_data[t - 1].num_v;
+    vn_prefix[t] = vn_prefix[t - 1] + thread_data[t - 1].num_vn;
+    vt_prefix[t] = vt_prefix[t - 1] + thread_data[t - 1].num_vt;
+  }
+
+  std::map<std::string, int> material_map;
+  std::vector<int> initial_material_id(num_t, -1);
+  size_t eof_pending_degenerate_faces = 0;
+  size_t phase3_error_line = 0;
+  std::string phase3_error_message;
+  {
+    MaterialFileReader mat_file_reader(mtl_basedir);
+    std::set<std::string> material_filenames;
+    std::vector<material_t> *material_dst = &result->materials;
+    int running_material_id = -1;
+    size_t pending_degenerate_faces = 0;
+
+    for (size_t t = 0; t < num_t; t++) {
+      if (phase3_error_line != 0) break;
+      initial_material_id[t] = running_material_id;
+      const OptThreadData &td = thread_data[t];
+
+      for (size_t si = 0; si < td.seq.size(); si++) {
+        const OptSeqEntry &entry = td.seq[si];
+
+        if (entry.kind == OptSeqEntry::SEQ_FACE) {
+          const OptFaceCmd &face = td.faces[entry.index];
+          int rv = static_cast<int>(v_prefix[t] + face.v_count_before);
+          int rvn = static_cast<int>(vn_prefix[t] + face.vn_count_before);
+          int rvt = static_cast<int>(vt_prefix[t] + face.vt_count_before);
+
+          if (first_error_line != 0 && face.source_line >= first_error_line) continue;
+
+          if (face.degenerate) {
+            pending_degenerate_faces++;
+            continue;
+          }
+
+          for (size_t k = 0; k < face.face_vertex_count; k++) {
+            const opt_index_t &raw = face.face_indices()[k];
+            int resolved_idx = -1;
+            if (!opt_validateAndResolveFaceIndexLikeLegacy(
+                    raw.vertex_index, rv, false, source_name,
+                    face.source_line, warn, &resolved_idx)) {
+              phase3_error_line = face.source_line;
+              phase3_error_message = "failed to parse `f' line (invalid vertex index)";
+              break;
+            }
+            if (raw.texcoord_index != opt_index_t::kNotPresent) {
+              if (!opt_validateAndResolveFaceIndexLikeLegacy(
+                      raw.texcoord_index, rvt, true, source_name,
+                      face.source_line, warn, &resolved_idx)) {
+                phase3_error_line = face.source_line;
+                phase3_error_message = "failed to parse `f' line (invalid vertex index)";
+                break;
+              }
+            }
+            if (raw.normal_index != opt_index_t::kNotPresent) {
+              if (!opt_validateAndResolveFaceIndexLikeLegacy(
+                      raw.normal_index, rvn, true, source_name,
+                      face.source_line, warn, &resolved_idx)) {
+                phase3_error_line = face.source_line;
+                phase3_error_message = "failed to parse `f' line (invalid vertex index)";
+                break;
+              }
+            }
+          }
+          if (phase3_error_line != 0) break;
+          continue;
+        }
+
+        // SEQ_META
+        OptMetaCmd &meta = thread_data[t].metas[entry.index];
+
+        if (first_error_line != 0 && meta.source_line >= first_error_line) continue;
+
+        if (meta.type == OPT_CMD_G || meta.type == OPT_CMD_O) {
+          for (size_t deg = 0; deg < pending_degenerate_faces; deg++) {
+            if (warn) (*warn) += "Degenerated face found\n.";
+          }
+          pending_degenerate_faces = 0;
+        }
+
+        if (meta.type == OPT_CMD_G && meta.group_name_empty) {
+          if (warn) {
+            (*warn) += "Empty group name. line: " +
+                       std::to_string(meta.source_line) + "\n";
+          }
+          continue;
+        }
+
+        if (meta.type == OPT_CMD_MTLLIB) {
+          if (!enable_mtllib_loading) continue;
+          std::string line_rest;
+          if (meta.str_ptr && meta.str_len > 0) {
+            line_rest.assign(meta.str_ptr, meta.str_len);
+          }
+          std::vector<std::string> filenames;
+          SplitString(line_rest, ' ', '\\', filenames);
+          RemoveEmptyTokens(&filenames);
+          if (filenames.empty()) {
+            if (warn) {
+              (*warn) += "Looks like empty filename for mtllib. Use default "
+                         "material (line " +
+                         std::to_string(meta.source_line) + ".)\n";
+            }
+            continue;
+          }
+          bool found = false;
+          for (size_t s = 0; s < filenames.size(); s++) {
+            if (material_filenames.count(filenames[s]) > 0) {
+              found = true;
+              continue;
+            }
+            std::string warn_mtl, err_mtl;
+            bool ok = mat_file_reader(filenames[s], material_dst, &material_map,
+                                      &warn_mtl, &err_mtl);
+            if (warn && !warn_mtl.empty()) (*warn) += warn_mtl;
+            if (err && !err_mtl.empty()) (*err) += err_mtl;
+            if (ok) {
+              found = true;
+              material_filenames.insert(filenames[s]);
+              break;
+            }
+          }
+          if (!found && warn) {
+            (*warn) += "Failed to load material file(s). Use default material.\n";
+          }
+          continue;
+        }
+
+        if (meta.type == OPT_CMD_USEMTL) {
+          std::string mat_name;
+          if (meta.str_ptr && meta.str_len > 0) {
+            mat_name.assign(meta.str_ptr, meta.str_len);
+          }
+          while (!mat_name.empty() &&
+                 (mat_name.back() == '\r' || mat_name.back() == '\n')) {
+            mat_name.pop_back();
+          }
+          std::map<std::string, int>::const_iterator it = material_map.find(mat_name);
+          if (it != material_map.end()) {
+            meta.resolved_material_id = it->second;
+          } else {
+            meta.resolved_material_id = -1;
+            if (warn) (*warn) += "material [ '" + mat_name + "' ] not found in .mtl\n";
+          }
+          running_material_id = meta.resolved_material_id;
+          continue;
+        }
+      }
+
+    }
+    if (first_error_line == 0) {
+      eof_pending_degenerate_faces = pending_degenerate_faces;
+    }
+  }
+
+  if (phase3_error_line != 0) {
+    if (err) {
+      (*err) += "Failed parse line(line " +
+                std::to_string(phase3_error_line) + "). " +
+                phase3_error_message + "\n";
+    }
+    return false;
+  }
+
+  if (first_error_line != 0) {
+    if (err) {
+      (*err) += "Failed parse line(line " +
+                std::to_string(first_error_line) + "). " +
+                first_error_message + "\n";
+    }
+    return false;
+  }
+
+  // ---- Phase 4: allocate arena arrays and merge ----
+  size_t num_v = 0, num_vn = 0, num_vt = 0, num_f = 0, num_indices = 0;
+  for (size_t t = 0; t < num_t; t++) {
+    num_v += thread_data[t].num_v;
+    num_vn += thread_data[t].num_vn;
+    num_vt += thread_data[t].num_vt;
+    num_f += thread_data[t].num_f_indices;
+    num_indices += thread_data[t].num_f_faces;
+  }
+
+  // Determine which optional arrays are needed
+  bool any_color = false;
+  bool any_weight = false, any_texcoord_w = false, any_smoothing = false;
+  for (size_t t = 0; t < num_t; t++) {
+    if (thread_data[t].saw_any_color) any_color = true;
+    if (thread_data[t].saw_any_weight) any_weight = true;
+    if (thread_data[t].saw_any_texcoord_w) any_texcoord_w = true;
+    if (thread_data[t].saw_any_smoothing) any_smoothing = true;
+  }
+
+  // Allocate from arena
+  attrib.vertices.allocate(arena, num_v * 3);
+  if (any_weight) {
+    attrib.vertex_weights.allocate(arena, num_v);
+    // Fill with default weight 1.0
+    for (size_t i = 0; i < num_v; i++)
+      attrib.vertex_weights[i] = real_t(1.0);
+  }
+  attrib.normals.allocate(arena, num_vn * 3);
+  attrib.texcoords.allocate(arena, num_vt * 2);
+  if (any_texcoord_w) {
+    attrib.texcoord_ws.allocate(arena, num_vt);
+  }
+  attrib.indices.allocate(arena, num_f);
+  attrib.face_num_verts.allocate(arena, num_indices);
+  attrib.material_ids.allocate(arena, num_indices);
+  // Fill material_ids with -1
+  for (size_t i = 0; i < num_indices; i++)
+    attrib.material_ids[i] = -1;
+
+  // Smoothing group ids — only if any smoothing commands seen
+  TypedArray<unsigned int> all_smoothing_group_ids;
+  if (any_smoothing) {
+    all_smoothing_group_ids.allocate(arena, num_indices);
+  }
+
+  // Colors — allocate temp only if any vertex has color
+  TypedArray<real_t> all_colors;
+  if (any_color) {
+    all_colors.allocate(arena, num_v * 3);
+    for (size_t i = 0; i < num_v * 3; i++)
+      all_colors[i] = real_t(1.0);
+  }
+
+  // Compute per-thread offsets
+  std::vector<size_t> v_off(num_t), n_off(num_t), t_off(num_t), f_off(num_t),
+      face_off(num_t);
+  v_off[0] = n_off[0] = t_off[0] = f_off[0] = face_off[0] = 0;
+  for (size_t t = 1; t < num_t; t++) {
+    v_off[t] = v_off[t - 1] + thread_data[t - 1].num_v;
+    n_off[t] = n_off[t - 1] + thread_data[t - 1].num_vn;
+    t_off[t] = t_off[t - 1] + thread_data[t - 1].num_vt;
+    f_off[t] = f_off[t - 1] + thread_data[t - 1].num_f_indices;
+    face_off[t] = face_off[t - 1] + thread_data[t - 1].num_f_faces;
+  }
+
+  // Carry smoothing group state across thread boundaries
+  std::vector<unsigned int> initial_smoothing_group_id(num_t, 0);
+  unsigned int running_smoothing_group_id = 0;
+  for (size_t t = 0; t < num_t; t++) {
+    initial_smoothing_group_id[t] = running_smoothing_group_id;
+    for (size_t mi = 0; mi < thread_data[t].metas.size(); mi++) {
+      if (thread_data[t].metas[mi].type == OPT_CMD_S) {
+        running_smoothing_group_id = thread_data[t].metas[mi].smoothing_group_id;
+      }
+    }
+  }
+
+  // Per-thread face tracking for shape construction
+  std::vector<std::vector<unsigned int>> command_written_faces(num_t);
+  for (size_t t = 0; t < num_t; t++) {
+    command_written_faces[t].assign(thread_data[t].faces.size(), 0);
+  }
+  std::vector<size_t> written_index_counts(num_t, 0);
+  std::vector<size_t> written_face_counts(num_t, 0);
+  std::vector<size_t> merge_error_lines(num_t, 0);
+  std::vector<std::string> merge_error_messages(num_t);
+  std::vector<int> thread_greatest_v_idx(num_t, -1);
+  std::vector<int> thread_greatest_vn_idx(num_t, -1);
+  std::vector<int> thread_greatest_vt_idx(num_t, -1);
+  std::vector<unsigned char> thread_saw_any_vertex_color(num_t, 0);
+  std::vector<unsigned char> thread_missing_vertex_color(num_t, 0);
+
+  auto merge_vertex_thread = [&](size_t t) {
+    const OptThreadData &td = thread_data[t];
+    // Bulk copy positions
+    if (!td.v_pos.empty()) {
+      std::memcpy(&attrib.vertices[v_off[t] * 3], td.v_pos.data(),
+                  td.v_pos.size() * sizeof(real_t));
+    }
+    // Copy weights
+    if (any_weight && td.saw_any_weight) {
+      for (size_t i = 0; i < td.num_v; i++)
+        attrib.vertex_weights[v_off[t] + i] = td.v_weight[i];
+    }
+    // Copy colors
+    if (any_color) {
+      if (td.saw_any_color) {
+        std::memcpy(&all_colors[v_off[t] * 3], td.v_color.data(),
+                    td.v_color.size() * sizeof(real_t));
+        thread_saw_any_vertex_color[t] = 1;
+        if (td.saw_missing_color) thread_missing_vertex_color[t] = 1;
+      } else if (td.saw_missing_color) {
+        thread_missing_vertex_color[t] = 1;
+      }
+    }
+    // Bulk copy normals
+    if (!td.vn_data.empty()) {
+      std::memcpy(&attrib.normals[n_off[t] * 3], td.vn_data.data(),
+                  td.vn_data.size() * sizeof(real_t));
+    }
+    // Bulk copy texcoords
+    if (!td.vt_data.empty()) {
+      std::memcpy(&attrib.texcoords[t_off[t] * 2], td.vt_data.data(),
+                  td.vt_data.size() * sizeof(real_t));
+    }
+    if (any_texcoord_w && td.saw_any_texcoord_w) {
+      for (size_t i = 0; i < td.num_vt; i++)
+        attrib.texcoord_ws[t_off[t] + i] = td.vt_w[i];
+    }
+  };
+
+  auto merge_thread = [&](size_t t) {
+    const OptThreadData &td = thread_data[t];
+    size_t fc = f_off[t], fcc = face_off[t];
+    int current_mat_id = initial_material_id[t];
+    unsigned int current_smoothing_id = initial_smoothing_group_id[t];
+    int greatest_v_idx = -1;
+    int greatest_vn_idx = -1;
+    int greatest_vt_idx = -1;
+
+    // Reusable scratch buffer for resolved face indices
+    index_t resolved_inline[8];
+    std::vector<index_t> resolved_heap;
+
+    for (size_t si = 0; si < td.seq.size(); si++) {
+      const OptSeqEntry &entry = td.seq[si];
+      if (entry.kind == OptSeqEntry::SEQ_META) {
+        const OptMetaCmd &meta = td.metas[entry.index];
+        if (meta.type == OPT_CMD_USEMTL)
+          current_mat_id = meta.resolved_material_id;
+        else if (meta.type == OPT_CMD_S)
+          current_smoothing_id = meta.smoothing_group_id;
+        continue;
+      }
+      // SEQ_FACE
+      const OptFaceCmd &face = td.faces[entry.index];
+      if (face.degenerate) {
+        command_written_faces[t][entry.index] = 0;
+        continue;
+      }
+      // Compute running counts for index resolution
+      size_t vc = v_off[t] + face.v_count_before;
+      size_t nc = n_off[t] + face.vn_count_before;
+      size_t tc = t_off[t] + face.vt_count_before;
+
+      // Use stack buffer for typical faces, heap only for large polygons
+      index_t *resolved_face;
+      if (face.face_vertex_count <= 8) {
+        resolved_face = resolved_inline;
+      } else {
+        resolved_heap.resize(face.face_vertex_count);
+        resolved_face = resolved_heap.data();
+      }
+      for (size_t k = 0; k < face.face_vertex_count; k++) {
+        const opt_index_t &vi = face.face_indices()[k];
+        index_t idx;
+        if (!opt_resolveIndexLikeLegacy(vi.vertex_index,
+                                        static_cast<int>(vc),
+                                        &idx.vertex_index, false)) {
+          merge_error_lines[t] = face.source_line;
+          merge_error_messages[t] =
+              "failed to parse `f' line (invalid vertex index)";
+          return;
+        }
+        opt_updateGreatestIndex(idx.vertex_index, &greatest_v_idx);
+        if (vi.texcoord_index == opt_index_t::kNotPresent) {
+          idx.texcoord_index = -1;
+        } else {
+          if (!opt_resolveIndexLikeLegacy(vi.texcoord_index,
+                                          static_cast<int>(tc),
+                                          &idx.texcoord_index, true)) {
+            merge_error_lines[t] = face.source_line;
+            merge_error_messages[t] =
+                "failed to parse `f' line (invalid vertex index)";
+            return;
+          }
+          if (idx.texcoord_index >= 0)
+            opt_updateGreatestIndex(idx.texcoord_index, &greatest_vt_idx);
+        }
+        if (vi.normal_index == opt_index_t::kNotPresent) {
+          idx.normal_index = -1;
+        } else {
+          if (!opt_resolveIndexLikeLegacy(vi.normal_index,
+                                          static_cast<int>(nc),
+                                          &idx.normal_index, true)) {
+            merge_error_lines[t] = face.source_line;
+            merge_error_messages[t] =
+                "failed to parse `f' line (invalid vertex index)";
+            return;
+          }
+          if (idx.normal_index >= 0)
+            opt_updateGreatestIndex(idx.normal_index, &greatest_vn_idx);
+        }
+        resolved_face[k] = idx;
+      }
+      size_t written_index_count = 0;
+      size_t written_face_count = 0;
+      if (config.triangulate) {
+        written_index_count = opt_triangulate_face(
+            attrib.vertices.data(), attrib.vertices.size(),
+            resolved_face, face.face_vertex_count,
+            &attrib.indices[fc]);
+        written_face_count = written_index_count / 3;
+      } else {
+        written_index_count = face.face_vertex_count;
+        written_face_count = 1;
+        for (size_t k = 0; k < face.face_vertex_count; k++) {
+          attrib.indices[fc + k] = resolved_face[k];
+        }
+      }
+      for (size_t k = 0; k < written_face_count; k++) {
+        attrib.face_num_verts[fcc + k] = config.triangulate
+                                            ? 3
+                                            : static_cast<int>(face.emitted_face_verts);
+        attrib.material_ids[fcc + k] = current_mat_id;
+        if (any_smoothing) {
+          all_smoothing_group_ids[fcc + k] = current_smoothing_id;
+        }
+      }
+      command_written_faces[t][entry.index] =
+          static_cast<unsigned int>(written_face_count);
+      fc += written_index_count;
+      fcc += written_face_count;
+    }
+    written_index_counts[t] = fc - f_off[t];
+    written_face_counts[t] = fcc - face_off[t];
+    thread_greatest_v_idx[t] = greatest_v_idx;
+    thread_greatest_vn_idx[t] = greatest_vn_idx;
+    thread_greatest_vt_idx[t] = greatest_vt_idx;
+  };
+
+#ifdef TINYOBJLOADER_USE_MULTITHREADING
+  if (num_threads > 1) {
+    std::vector<std::thread> workers;
+    workers.reserve(num_t);
+    for (size_t t = 0; t < num_t; t++) {
+      workers.emplace_back([&, t]() { merge_vertex_thread(t); });
+    }
+    for (auto &w : workers) w.join();
+    workers.clear();
+    for (size_t t = 0; t < num_t; t++) {
+      workers.emplace_back([&, t]() { merge_thread(t); });
+    }
+    for (auto &w : workers) w.join();
+  } else {
+    for (size_t t = 0; t < num_t; t++) merge_vertex_thread(t);
+    for (size_t t = 0; t < num_t; t++) merge_thread(t);
+  }
+#else
+  for (size_t t = 0; t < num_t; t++) merge_vertex_thread(t);
+  for (size_t t = 0; t < num_t; t++) merge_thread(t);
+#endif
+
+  // Check merge errors
+  size_t first_merge_error_line = 0;
+  std::string first_merge_error_message;
+  for (size_t t = 0; t < merge_error_lines.size(); t++) {
+    if (merge_error_lines[t] == 0) continue;
+    if (first_merge_error_line == 0 ||
+        merge_error_lines[t] < first_merge_error_line) {
+      first_merge_error_line = merge_error_lines[t];
+      first_merge_error_message = merge_error_messages[t];
+    }
+  }
+
+  if (first_merge_error_line != 0) {
+    if (err) {
+      (*err) += "Failed parse line(line " +
+                std::to_string(first_merge_error_line) + "). " +
+                first_merge_error_message + "\n";
+    }
+    return false;
+  }
+
+  // Handle vertex colors: only keep if all vertices have color
+  {
+    bool saw_any = false, saw_missing = false;
+    for (size_t t = 0; t < num_t; t++) {
+      saw_any = saw_any || (thread_saw_any_vertex_color[t] != 0);
+      saw_missing = saw_missing || (thread_missing_vertex_color[t] != 0);
+    }
+    if (saw_any && !saw_missing) {
+      attrib.colors = all_colors;  // share arena pointer
+    }
+    // else attrib.colors stays empty (default)
+  }
+
+  // Compute actual sizes and truncate
+  size_t actual_num_indices = 0;
+  size_t actual_num_faces = 0;
+  int greatest_v_idx = -1, greatest_vn_idx = -1, greatest_vt_idx = -1;
+  for (size_t t = 0; t < num_t; t++) {
+    actual_num_indices += written_index_counts[t];
+    actual_num_faces += written_face_counts[t];
+    opt_updateGreatestIndex(thread_greatest_v_idx[t], &greatest_v_idx);
+    opt_updateGreatestIndex(thread_greatest_vn_idx[t], &greatest_vn_idx);
+    opt_updateGreatestIndex(thread_greatest_vt_idx[t], &greatest_vt_idx);
+  }
+  attrib.indices.truncate(actual_num_indices);
+  attrib.face_num_verts.truncate(actual_num_faces);
+  attrib.material_ids.truncate(actual_num_faces);
+  if (any_smoothing) {
+    all_smoothing_group_ids.truncate(actual_num_faces);
+    attrib.smoothing_group_ids = all_smoothing_group_ids;
+  }
+
+  opt_appendOutOfBoundsWarnings(
+      warn, greatest_v_idx, greatest_vn_idx, greatest_vt_idx,
+      static_cast<int>(attrib.vertices.size() / 3),
+      static_cast<int>(attrib.normals.size() / 3),
+      static_cast<int>(attrib.texcoords.size() / 2),
+      all_line_infos.size() + 1);
+  for (size_t deg = 0; deg < eof_pending_degenerate_faces; deg++) {
+    if (warn) (*warn) += "Degenerated face found\n.";
+  }
+
+  // ---- Phase 5: construct shape ranges (views, no copies) ----
+  {
+    const size_t total_faces = attrib.face_num_verts.size();
+    // Build prefix-sum for index offsets
+    TypedArray<size_t> idx_prefix;
+    idx_prefix.allocate(arena, total_faces + 1);
+    idx_prefix[0] = 0;
+    for (size_t fi = 0; fi < total_faces; fi++) {
+      idx_prefix[fi + 1] =
+          idx_prefix[fi] + static_cast<size_t>(attrib.face_num_verts[fi]);
+    }
+
+    size_t face_count = 0;
+    std::string current_name;
+    size_t face_prev_offset = 0;
+    bool have_active_shape_name = false;
+
+    auto emit_shape = [&](const std::string &name, size_t f_start, size_t f_end) {
+      if (f_end <= f_start) return;
+      OptShapeRange sr;
+      sr.name = name;
+      sr.face_offset = f_start;
+      sr.face_count = f_end - f_start;
+      sr.index_offset = idx_prefix[f_start];
+      sr.index_count = idx_prefix[f_end] - idx_prefix[f_start];
+      result->shapes.push_back(std::move(sr));
+    };
+
+    for (size_t t = 0; t < num_t; t++) {
+      const OptThreadData &td = thread_data[t];
+      for (size_t si = 0; si < td.seq.size(); si++) {
+        const OptSeqEntry &entry = td.seq[si];
+        if (entry.kind == OptSeqEntry::SEQ_META) {
+          const OptMetaCmd &meta = td.metas[entry.index];
+          if (meta.type == OPT_CMD_O || meta.type == OPT_CMD_G) {
+            std::string name;
+            if (meta.type == OPT_CMD_O && meta.str_ptr) {
+              name.assign(meta.str_ptr, meta.str_len);
+            } else if (!meta.str_storage.empty()) {
+              name = meta.str_storage;
+            } else if (meta.str_ptr) {
+              name.assign(meta.str_ptr, meta.str_len);
+            }
+            while (!name.empty() &&
+                   (name.back() == '\r' || name.back() == '\n'))
+              name.pop_back();
+
+            if (face_count == 0) {
+              current_name = name;
+              face_prev_offset = 0;
+              have_active_shape_name = true;
+            } else {
+              if (!have_active_shape_name) {
+                emit_shape(std::string(), 0, face_count);
+              } else if (face_count > face_prev_offset) {
+                emit_shape(current_name, face_prev_offset, face_count);
+              }
+              current_name = name;
+              face_prev_offset = face_count;
+              have_active_shape_name = true;
+            }
+          }
+        } else {
+          // SEQ_FACE
+          face_count += command_written_faces[t][entry.index];
+        }
+      }
+    }
+
+    // Final shape
+    if (face_count > face_prev_offset || face_count == 0) {
+      emit_shape(current_name, face_prev_offset, face_count);
+    }
+  }
+
+  result->valid = true;
+  return true;
+}
+
+// ---- LoadObjOptTyped (buffer version, public API) ----
+
+OptResult LoadObjOptTyped(const char *buf, size_t buf_len,
+                          std::string *warn, std::string *err,
+                          const OptLoadConfig &config) {
+  OptResult result;
+  LoadObjOptTyped_internal(&result, warn, err, buf, buf_len,
+                           std::string(), "<stream>", false, config);
+  return result;
+}
+
+// ---- LoadObjOptTyped (file version) ----
+
+OptResult LoadObjOptTyped(const char *filename,
+                          std::string *warn, std::string *err,
+                          const char *mtl_basedir,
+                          const OptLoadConfig &config) {
+  OptResult result;
+  if (!filename) {
+    if (err) *err = "filename is null.";
+    return result;
+  }
+
+  std::string filepath(filename);
+  std::string baseDir;
+  if (mtl_basedir) {
+    baseDir = mtl_basedir;
+  } else {
+    size_t pos = filepath.find_last_of("/\\");
+    if (pos != std::string::npos) {
+      baseDir = filepath.substr(0, pos + 1);
+    }
+  }
+  if (!baseDir.empty()) {
+#ifndef _WIN32
+    const char dirsep = '/';
+#else
+    const char dirsep = '\\';
+#endif
+    if (baseDir[baseDir.length() - 1] != dirsep) baseDir += dirsep;
+  }
+
+#ifdef TINYOBJLOADER_USE_MMAP
+  {
+    MappedFile mf;
+    if (mf.open(filepath.c_str())) {
+      LoadObjOptTyped_internal(&result, warn, err, mf.data, mf.size,
+                               baseDir, filepath, true, config);
+      return result;
+    }
+  }
+#endif
+
+#ifdef _WIN32
+  std::ifstream ifs(LongPathW(UTF8ToWchar(filepath)).c_str(),
+                    std::ios::binary | std::ios::ate);
+#else
+  std::ifstream ifs(filepath.c_str(), std::ios::binary | std::ios::ate);
+#endif
+  if (!ifs.is_open()) {
+    if (err) *err = "Cannot open file: " + filepath;
+    return result;
+  }
+
+  std::streamsize fsize = ifs.tellg();
+  ifs.seekg(0, std::ios::beg);
+
+  if (fsize <= 0) {
+    LoadObjOptTyped_internal(&result, warn, err, "", 0,
+                             baseDir, filepath, true, config);
+    return result;
+  }
+
+  std::vector<char> file_buf(static_cast<size_t>(fsize));
+  if (!ifs.read(file_buf.data(), fsize)) {
+    if (err) *err = "Failed to read file: " + filepath;
+    return result;
+  }
+  ifs.close();
+
+  LoadObjOptTyped_internal(&result, warn, err, file_buf.data(),
+                           static_cast<size_t>(fsize), baseDir, filepath,
+                           true, config);
+  return result;
 }
 
 #ifdef __clang__
