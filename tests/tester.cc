@@ -4027,6 +4027,42 @@ void test_loadobjopt_typed_move_semantics() {
   TEST_CHECK(result2.attrib.vertices.size() == 9);
 }
 
+void test_loadobjopt_nan_inf_values() {
+  // Test that nan/inf in vertex data are handled with OBJ-compatible values
+  // (nan→0, +inf→max, -inf→lowest), matching the legacy parser.
+  const char *obj_text =
+      "v nan inf -inf\n"
+      "v 1.0 2.0 3.0\n"
+      "v 0.0 0.0 0.0\n"
+      "f 1 2 3\n";
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.triangulate = true;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_text, obj_len, config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 9);  // 3 vertices * 3 coords
+
+  // nan maps to 0.0
+  TEST_CHECK(std::abs(attrib.vertices[0] - 0.0f) < 1e-6f);
+  // +inf maps to double::max() → when cast to float becomes +inf
+  TEST_CHECK(std::isinf(attrib.vertices[1]) && attrib.vertices[1] > 0);
+  // -inf maps to double::lowest() → when cast to float becomes -inf
+  TEST_CHECK(std::isinf(attrib.vertices[2]) && attrib.vertices[2] < 0);
+
+  // Verify second vertex is parsed normally
+  TEST_CHECK(std::abs(attrib.vertices[3] - 1.0f) < 1e-6f);
+  TEST_CHECK(std::abs(attrib.vertices[4] - 2.0f) < 1e-6f);
+  TEST_CHECK(std::abs(attrib.vertices[5] - 3.0f) < 1e-6f);
+}
+
 #include "opt/loadobjopt_multithread.inc"
 
 TEST_LIST = {
@@ -4313,4 +4349,5 @@ TEST_LIST = {
     {"test_loadobjopt_typed_matches_loadobjopt", test_loadobjopt_typed_matches_loadobjopt},
     {"test_loadobjopt_typed_empty_buffer", test_loadobjopt_typed_empty_buffer},
     {"test_loadobjopt_typed_move_semantics", test_loadobjopt_typed_move_semantics},
+    {"test_loadobjopt_nan_inf_values", test_loadobjopt_nan_inf_values},
     {NULL, NULL}};

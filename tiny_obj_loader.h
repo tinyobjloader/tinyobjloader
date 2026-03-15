@@ -10055,6 +10055,38 @@ static bool opt_tryParseDouble(const char *s, const char *s_end,
   return false;
 #else
   // Fallback: hand-written float parser
+
+  // Handle nan/inf keywords with OBJ-compatible replacement values.
+  {
+    const char *p = s;
+    bool neg = false;
+    if (p < s_end && *p == '-') { neg = true; ++p; }
+    else if (p < s_end && *p == '+') { ++p; }
+    if (p < s_end) {
+      char fc = *p;
+      if (fc >= 'A' && fc <= 'Z') fc += 32;
+      if (fc == 'n' && (p + 2 < s_end)) {
+        char c1 = p[1], c2 = p[2];
+        if (c1 >= 'A' && c1 <= 'Z') c1 += 32;
+        if (c2 >= 'A' && c2 <= 'Z') c2 += 32;
+        if (c1 == 'a' && c2 == 'n') {
+          *result = 0.0;
+          return true;
+        }
+      }
+      if (fc == 'i' && (p + 2 < s_end)) {
+        char c1 = p[1], c2 = p[2];
+        if (c1 >= 'A' && c1 <= 'Z') c1 += 32;
+        if (c2 >= 'A' && c2 <= 'Z') c2 += 32;
+        if (c1 == 'n' && c2 == 'f') {
+          *result = neg ? std::numeric_limits<double>::lowest()
+                        : (std::numeric_limits<double>::max)();
+          return true;
+        }
+      }
+    }
+  }
+
   double mantissa = 0.0;
   int exponent = 0;
   char sign = '+';
@@ -10278,6 +10310,24 @@ static inline bool opt_tryParseFloatToken(real_t *out, const char **token) {
     end++;
   }
 #ifndef TINYOBJLOADER_DISABLE_FAST_FLOAT
+  // Handle nan/inf with OBJ-compatible values before fast_float.
+  {
+    const char *q = cursor;
+    if (q < end && (*q == '+' || *q == '-')) ++q;
+    if (q < end) {
+      char fc = *q;
+      if (fc >= 'A' && fc <= 'Z') fc += 32;
+      if (fc == 'n' || fc == 'i') {
+        double special_val;
+        const char *end_ptr;
+        if (detail_fp::tryParseNanInf(cursor, end, &special_val, &end_ptr)) {
+          *out = static_cast<real_t>(special_val);
+          *token = end;
+          return true;
+        }
+      }
+    }
+  }
   // Parse directly to real_t (float or double) via fast_float — avoids
   // the double→float conversion and is ~3-4x faster than the hand-rolled parser.
   real_t tmp;
@@ -11009,7 +11059,7 @@ static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
   // group
   if (token[0] == 'g' &&
       (TINYOBJ_OPT_IS_SPACE(token[1]) || TINYOBJ_OPT_IS_NEW_LINE(token[1]) ||
-       token[1] == '\r' || token[1] == '\0')) {
+       token[1] == '\0')) {
     if (TINYOBJ_OPT_IS_SPACE(token[1])) {
       token += 2;
     } else {
@@ -11039,11 +11089,11 @@ static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
   if (token[0] == 's' && TINYOBJ_OPT_IS_SPACE(token[1])) {
     token += 2;
     opt_skip_space(&token);
-    if (TINYOBJ_OPT_IS_NEW_LINE(token[0]) || token[0] == '\r') {
+    if (TINYOBJ_OPT_IS_NEW_LINE(token[0])) {
       command->smoothing_group_id = 0;
     } else if (token[0] == 'o' && token[1] == 'f' && token[2] == 'f' &&
                (TINYOBJ_OPT_IS_NEW_LINE(token[3]) || token[3] == '\0' ||
-                token[3] == ' ' || token[3] == '\t' || token[3] == '\r')) {
+                token[3] == ' ' || token[3] == '\t')) {
       command->smoothing_group_id = 0;
     } else {
       const int sm = opt_my_atoi(token);
@@ -11459,6 +11509,8 @@ class OptFloatCache {
 // Fast inline float parse: skip whitespace, call fast_float with line_end,
 // advance cursor.  No token-end pre-scan.  Returns false if no float found.
 // When cache is non-null, checks/populates the trie cache for short tokens.
+// Handles nan/inf keywords with OBJ-compatible replacement values (matching
+// opt_tryParseDouble behavior).
 #ifndef TINYOBJLOADER_DISABLE_FAST_FLOAT
 static inline bool opt_fast_parse_float(real_t *out, const char **cursor,
                                         const char *line_end,
@@ -11466,6 +11518,26 @@ static inline bool opt_fast_parse_float(real_t *out, const char **cursor,
   const char *p = *cursor;
   while (p < line_end && (*p == ' ' || *p == '\t')) p++;
   if (p >= line_end || *p == '\n' || *p == '\r' || *p == '#') return false;
+
+  // Check for nan/inf keywords before calling fast_float (which doesn't
+  // handle them).  Map to OBJ-compatible values: nan→0, +inf→max, -inf→lowest.
+  {
+    const char *q = p;
+    if (q < line_end && (*q == '+' || *q == '-')) ++q;
+    if (q < line_end) {
+      char fc = *q;
+      if (fc >= 'A' && fc <= 'Z') fc += 32;
+      if (fc == 'n' || fc == 'i') {
+        double special_val;
+        const char *end_ptr;
+        if (detail_fp::tryParseNanInf(p, line_end, &special_val, &end_ptr)) {
+          *out = static_cast<real_t>(special_val);
+          *cursor = end_ptr;
+          return true;
+        }
+      }
+    }
+  }
 
   // --- Cache fast path: scan up to max_key_len chars for trie lookup ---
   if (cache) {
@@ -12499,6 +12571,38 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
     opt_updateGreatestIndex(thread_greatest_vn_idx[t], &greatest_vn_idx);
     opt_updateGreatestIndex(thread_greatest_vt_idx[t], &greatest_vt_idx);
   }
+
+  // Compact face arrays to remove gaps left by threads that wrote fewer
+  // indices/faces than pre-allocated (e.g. triangulation returning 0 for
+  // faces with out-of-bounds vertex indices).
+  if (num_t > 1) {
+    size_t dst_idx = 0;
+    size_t dst_face = 0;
+    for (size_t t = 0; t < num_t; t++) {
+      size_t src_idx = f_off[t];
+      size_t src_face = face_off[t];
+      size_t idx_count = written_index_counts[t];
+      size_t fc_count = written_face_counts[t];
+      if (dst_idx != src_idx && idx_count > 0) {
+        std::memmove(&attrib->indices[dst_idx], &attrib->indices[src_idx],
+                     idx_count * sizeof(index_t));
+      }
+      if (dst_face != src_face && fc_count > 0) {
+        std::memmove(&attrib->face_num_verts[dst_face],
+                     &attrib->face_num_verts[src_face],
+                     fc_count * sizeof(int));
+        std::memmove(&attrib->material_ids[dst_face],
+                     &attrib->material_ids[src_face],
+                     fc_count * sizeof(int));
+        std::memmove(&all_smoothing_group_ids[dst_face],
+                     &all_smoothing_group_ids[src_face],
+                     fc_count * sizeof(unsigned int));
+      }
+      dst_idx += idx_count;
+      dst_face += fc_count;
+    }
+  }
+
   attrib->indices.resize(actual_num_indices);
   attrib->face_num_verts.resize(actual_num_faces);
   attrib->material_ids.resize(actual_num_faces);
@@ -13443,7 +13547,7 @@ static bool LoadObjOptTyped_internal(OptResult *result,
     // else attrib.colors stays empty (default)
   }
 
-  // Compute actual sizes and truncate
+  // Compute actual sizes and compact/truncate
   size_t actual_num_indices = 0;
   size_t actual_num_faces = 0;
   int greatest_v_idx = -1, greatest_vn_idx = -1, greatest_vt_idx = -1;
@@ -13454,6 +13558,40 @@ static bool LoadObjOptTyped_internal(OptResult *result,
     opt_updateGreatestIndex(thread_greatest_vn_idx[t], &greatest_vn_idx);
     opt_updateGreatestIndex(thread_greatest_vt_idx[t], &greatest_vt_idx);
   }
+
+  // Compact face arrays to remove gaps left by threads that wrote fewer
+  // indices/faces than pre-allocated (e.g. triangulation returning 0 for
+  // faces with out-of-bounds vertex indices).
+  if (num_t > 1) {
+    size_t dst_idx = 0;
+    size_t dst_face = 0;
+    for (size_t t = 0; t < num_t; t++) {
+      size_t src_idx = f_off[t];
+      size_t src_face = face_off[t];
+      size_t idx_count = written_index_counts[t];
+      size_t fc_count = written_face_counts[t];
+      if (dst_idx != src_idx && idx_count > 0) {
+        std::memmove(&attrib.indices[dst_idx], &attrib.indices[src_idx],
+                     idx_count * sizeof(index_t));
+      }
+      if (dst_face != src_face && fc_count > 0) {
+        std::memmove(&attrib.face_num_verts[dst_face],
+                     &attrib.face_num_verts[src_face],
+                     fc_count * sizeof(int));
+        std::memmove(&attrib.material_ids[dst_face],
+                     &attrib.material_ids[src_face],
+                     fc_count * sizeof(int));
+        if (any_smoothing) {
+          std::memmove(&all_smoothing_group_ids[dst_face],
+                       &all_smoothing_group_ids[src_face],
+                       fc_count * sizeof(unsigned int));
+        }
+      }
+      dst_idx += idx_count;
+      dst_face += fc_count;
+    }
+  }
+
   attrib.indices.truncate(actual_num_indices);
   attrib.face_num_verts.truncate(actual_num_faces);
   attrib.material_ids.truncate(actual_num_faces);
