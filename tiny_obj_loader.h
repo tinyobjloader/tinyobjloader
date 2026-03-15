@@ -8930,8 +8930,16 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
           return false;
         }
 
+        // Clamp to int range to avoid UB on float-to-int overflow.
+        if (j > static_cast<real_t>(std::numeric_limits<int>::max())) {
+          if (err) {
+            (*err) += sr.format_error(filename,
+                "failed to parse `vw' line: joint_id overflow");
+          }
+          return false;
+        }
         joint_and_weight_t jw;
-        jw.joint_id = int(j);
+        jw.joint_id = static_cast<int>(j);
         jw.weight = w;
 
         sw.weightValues.push_back(jw);

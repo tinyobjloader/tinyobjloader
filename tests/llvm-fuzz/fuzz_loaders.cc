@@ -11,6 +11,12 @@
 #include "../fuzz_common.h"
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
+  // Cap input size to prevent per-iteration memory explosion from running
+  // 5 parsers (ObjReader, LoadObj, LoadObjOpt, StreamLoader, LoadObjOptTyped)
+  // simultaneously.  Inputs above this threshold are unlikely to find new
+  // coverage but can push RSS past the limit.
+  if (size > 4096) return 0;
+
   std::string obj_text;
   std::string mtl_text;
   tinyobj_fuzz::SplitInput(data, size, &obj_text, &mtl_text);
