@@ -1080,13 +1080,18 @@ struct OptShapeRange {
 /// Flat attribute storage using TypedArray (arena-backed).
 /// All arrays are allocated from the OptResult's arena.
 ///
+/// Unlike basic_attrib_t (used by LoadObjOpt), optional arrays like
+/// vertex_weights, texcoord_ws, colors, and smoothing_group_ids are only
+/// allocated when the input actually contains the corresponding data.
+/// Check .empty() before accessing.
+///
 struct OptAttrib {
   TypedArray<real_t> vertices;        ///< xyz, length = num_vertices * 3
-  TypedArray<real_t> vertex_weights;  ///< w per vertex (empty if none present)
+  TypedArray<real_t> vertex_weights;  ///< w per vertex (empty if no `v` line has w)
   TypedArray<real_t> normals;         ///< xyz, length = num_normals * 3
   TypedArray<real_t> texcoords;       ///< uv, length = num_texcoords * 2
-  TypedArray<real_t> texcoord_ws;     ///< w per texcoord (empty if none)
-  TypedArray<real_t> colors;          ///< rgb per vertex (empty if none)
+  TypedArray<real_t> texcoord_ws;     ///< w per texcoord (empty if no `vt` has w)
+  TypedArray<real_t> colors;          ///< rgb per vertex (empty if not all verts have color)
 
   TypedArray<index_t> indices;        ///< flattened face indices
   TypedArray<int> face_num_verts;     ///< vertices per face
@@ -11328,23 +11333,33 @@ static inline bool opt_line_start_is_legacy(const char *p, size_t rem) {
 }
 
 /// Fast whole-buffer scan for legacy-only tokens (vw, l, p, t at line start).
-/// Uses memchr for SIMD-accelerated newline finding.
+/// Uses memchr for SIMD-accelerated newline finding.  Handles both \n and
+/// bare \r (old Mac) line endings.
 static bool opt_buffer_requires_legacy_fallback(const char *buf, size_t len) {
   if (!buf || len == 0) return false;
   // Check at start of buffer
   if (opt_line_start_is_legacy(buf, len)) return true;
-  // Use memchr to jump between newlines (glibc memchr is SIMD-optimized)
-  const char *p = buf;
-  size_t remaining = len;
-  for (;;) {
-    const char *nl = static_cast<const char *>(
-        std::memchr(p, '\n', remaining));
-    if (!nl) break;
-    size_t offset = static_cast<size_t>(nl - buf) + 1;
-    if (offset >= len) break;
-    if (opt_line_start_is_legacy(buf + offset, len - offset)) return true;
-    p = buf + offset;
-    remaining = len - offset;
+  // Scan for line breaks (\n first, then bare \r)
+  for (int pass = 0; pass < 2; pass++) {
+    const char needle = (pass == 0) ? '\n' : '\r';
+    const char *p = buf;
+    size_t remaining = len;
+    for (;;) {
+      const char *nl = static_cast<const char *>(
+          std::memchr(p, needle, remaining));
+      if (!nl) break;
+      size_t offset = static_cast<size_t>(nl - buf) + 1;
+      if (offset >= len) break;
+      // Skip \n in \r\n pair on the \r pass to avoid double-checking
+      if (needle == '\r' && offset < len && buf[offset] == '\n') {
+        p = buf + offset + 1;
+        remaining = len - offset - 1;
+        continue;
+      }
+      if (opt_line_start_is_legacy(buf + offset, len - offset)) return true;
+      p = buf + offset;
+      remaining = len - offset;
+    }
   }
   return false;
 }
@@ -11364,7 +11379,7 @@ class OptFloatCache {
   static const int kAlphabetSize = 15;
 
   explicit OptFloatCache(int max_nodes = 1024, bool fp32_keys = true)
-      : max_nodes_(max_nodes > 65535 ? 65535 : max_nodes),
+      : max_nodes_(max_nodes < 2 ? 2 : (max_nodes > 65535 ? 65535 : max_nodes)),
         max_key_len_(fp32_keys ? kFp32MaxKeyLen : kRealMaxKeyLen) {
     nodes_.reserve(static_cast<size_t>(max_nodes_));
     nodes_.resize(1);
