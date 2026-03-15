@@ -10873,27 +10873,40 @@ static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
     opt_skip_space(&extra_token);
     const int extra_components = opt_count_remaining_scalars(extra_token);
     if (extra_components == 1) {
+      // v x y z w  (4 total) — weight only
       const char *weight_cursor = extra_token;
       if (opt_tryParseFloatToken(&w, &weight_cursor)) {
         command->has_vertex_weight = true;
         command->vw = w;
       }
-    } else if (extra_components >= 3) {
-      real_t maybe_r = r, maybe_g = g, maybe_b = b;
+    } else if (extra_components == 3) {
+      // v x y z r g b  (6 total) — color, weight = r (legacy compat)
+      real_t cr = r, cg = g, cb = b;
       const char *color_cursor = extra_token;
-      if (opt_tryParseFloatToken(&maybe_r, &color_cursor)) {
-        const char *after_r = color_cursor;
-        if (opt_tryParseFloatToken(&maybe_g, &color_cursor) &&
-            opt_tryParseFloatToken(&maybe_b, &color_cursor)) {
-          command->has_vertex_weight = true;
-          command->vw = maybe_r;
-          command->has_vertex_color = true;
-          command->vc_r = maybe_r;
-          command->vc_g = maybe_g;
-          command->vc_b = maybe_b;
-        } else {
-          color_cursor = after_r;
-        }
+      if (opt_tryParseFloatToken(&cr, &color_cursor) &&
+          opt_tryParseFloatToken(&cg, &color_cursor) &&
+          opt_tryParseFloatToken(&cb, &color_cursor)) {
+        command->has_vertex_weight = true;
+        command->vw = cr;
+        command->has_vertex_color = true;
+        command->vc_r = cr;
+        command->vc_g = cg;
+        command->vc_b = cb;
+      }
+    } else if (extra_components >= 4) {
+      // v x y z w r g b  (7+ total) — weight + color
+      real_t vw = real_t(1.0), cr = r, cg = g, cb = b;
+      const char *wc_cursor = extra_token;
+      if (opt_tryParseFloatToken(&vw, &wc_cursor) &&
+          opt_tryParseFloatToken(&cr, &wc_cursor) &&
+          opt_tryParseFloatToken(&cg, &wc_cursor) &&
+          opt_tryParseFloatToken(&cb, &wc_cursor)) {
+        command->has_vertex_weight = true;
+        command->vw = vw;
+        command->has_vertex_color = true;
+        command->vc_r = cr;
+        command->vc_g = cg;
+        command->vc_b = cb;
       }
     }
     command->vx = x;
@@ -11628,14 +11641,22 @@ static void opt_parseLineToThreadData(
       nextra++;
 
     if (nextra == 1) {
-      // weight only
+      // v x y z w  (4 total) — weight only, no color
       if (!td.saw_any_weight) {
         td.saw_any_weight = true;
         td.v_weight.resize(td.num_v, real_t(1.0));
       }
       td.v_weight.push_back(extra[0]);
-    } else if (nextra >= 3) {
-      // weight (=first extra) + color (r,g,b)
+      td.saw_missing_color = true;
+      if (td.saw_any_color) {
+        size_t coff = td.v_color.size();
+        td.v_color.resize(coff + 3);
+        td.v_color[coff] = real_t(1.0);
+        td.v_color[coff+1] = real_t(1.0);
+        td.v_color[coff+2] = real_t(1.0);
+      }
+    } else if (nextra == 3) {
+      // v x y z r g b  (6 total) — color, weight = r (legacy compat)
       if (!td.saw_any_weight) {
         td.saw_any_weight = true;
         td.v_weight.resize(td.num_v, real_t(1.0));
@@ -11650,8 +11671,24 @@ static void opt_parseLineToThreadData(
       td.v_color[coff] = extra[0];
       td.v_color[coff+1] = extra[1];
       td.v_color[coff+2] = extra[2];
+    } else if (nextra >= 4) {
+      // v x y z w r g b  (7+ total) — weight + color
+      if (!td.saw_any_weight) {
+        td.saw_any_weight = true;
+        td.v_weight.resize(td.num_v, real_t(1.0));
+      }
+      td.v_weight.push_back(extra[0]);
+      if (!td.saw_any_color) {
+        td.saw_any_color = true;
+        td.v_color.resize(td.num_v * 3, real_t(1.0));
+      }
+      size_t coff = td.v_color.size();
+      td.v_color.resize(coff + 3);
+      td.v_color[coff] = extra[1];
+      td.v_color[coff+1] = extra[2];
+      td.v_color[coff+2] = extra[3];
     } else {
-      // no extras
+      // nextra == 0 or 2 — no color
       if (td.saw_any_weight) td.v_weight.push_back(real_t(1.0));
       td.saw_missing_color = true;
       if (td.saw_any_color) {
@@ -11662,7 +11699,7 @@ static void opt_parseLineToThreadData(
         td.v_color[coff+2] = real_t(1.0);
       }
     }
-    if (nextra < 3) {
+    if (nextra != 3 && nextra < 4) {
       td.saw_missing_color = true;
     }
     td.num_v++;

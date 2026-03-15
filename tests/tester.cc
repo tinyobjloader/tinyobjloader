@@ -4027,6 +4027,78 @@ void test_loadobjopt_typed_move_semantics() {
   TEST_CHECK(result2.attrib.vertices.size() == 9);
 }
 
+void test_loadobjopt_typed_vertex_color_6_and_7() {
+  // 6-component: v x y z r g b — color=(r,g,b), weight=r (legacy compat)
+  // 7-component: v x y z w r g b — weight=w, color=(r,g,b)
+  {
+    const char *obj6 =
+        "v 1.0 2.0 3.0 0.2 0.4 0.6\n"
+        "v 4.0 5.0 6.0 0.2 0.4 0.6\n"
+        "v 7.0 8.0 9.0 0.2 0.4 0.6\n"
+        "f 1 2 3\n";
+    std::string w, e;
+    tinyobj::OptLoadConfig cfg;
+    cfg.num_threads = 1;
+    cfg.triangulate = true;
+    tinyobj::OptResult r = tinyobj::LoadObjOptTyped(obj6, strlen(obj6), &w, &e, cfg);
+    TEST_CHECK(r.valid);
+    TEST_CHECK(r.attrib.vertices.size() == 9);
+    // Color should be (0.2, 0.4, 0.6)
+    TEST_CHECK(!r.attrib.colors.empty());
+    TEST_CHECK(std::abs(r.attrib.colors[0] - 0.2f) < 1e-5f);
+    TEST_CHECK(std::abs(r.attrib.colors[1] - 0.4f) < 1e-5f);
+    TEST_CHECK(std::abs(r.attrib.colors[2] - 0.6f) < 1e-5f);
+    // Weight should be r (= 0.2)
+    TEST_CHECK(!r.attrib.vertex_weights.empty());
+    TEST_CHECK(std::abs(r.attrib.vertex_weights[0] - 0.2f) < 1e-5f);
+  }
+  // 7-component: v x y z w r g b
+  {
+    const char *obj7 =
+        "v 1.0 2.0 3.0 0.5 0.1 0.2 0.3\n"
+        "v 4.0 5.0 6.0 0.5 0.1 0.2 0.3\n"
+        "v 7.0 8.0 9.0 0.5 0.1 0.2 0.3\n"
+        "f 1 2 3\n";
+    std::string w, e;
+    tinyobj::OptLoadConfig cfg;
+    cfg.num_threads = 1;
+    cfg.triangulate = true;
+    tinyobj::OptResult r = tinyobj::LoadObjOptTyped(obj7, strlen(obj7), &w, &e, cfg);
+    TEST_CHECK(r.valid);
+    // Weight should be 0.5
+    TEST_CHECK(!r.attrib.vertex_weights.empty());
+    TEST_CHECK(std::abs(r.attrib.vertex_weights[0] - 0.5f) < 1e-5f);
+    // Color should be (0.1, 0.2, 0.3) — NOT (0.5, 0.1, 0.2)
+    TEST_CHECK(!r.attrib.colors.empty());
+    TEST_CHECK(std::abs(r.attrib.colors[0] - 0.1f) < 1e-5f);
+    TEST_CHECK(std::abs(r.attrib.colors[1] - 0.2f) < 1e-5f);
+    TEST_CHECK(std::abs(r.attrib.colors[2] - 0.3f) < 1e-5f);
+  }
+  // Also verify LoadObjOpt produces same results
+  {
+    const char *obj7 =
+        "v 1.0 2.0 3.0 0.5 0.1 0.2 0.3\n"
+        "v 4.0 5.0 6.0 0.5 0.1 0.2 0.3\n"
+        "v 7.0 8.0 9.0 0.5 0.1 0.2 0.3\n"
+        "f 1 2 3\n";
+    tinyobj::basic_attrib_t<> attrib;
+    std::vector<tinyobj::basic_shape_t<>> shapes;
+    std::vector<tinyobj::material_t> mats;
+    std::string w, e;
+    tinyobj::OptLoadConfig cfg;
+    cfg.num_threads = 1;
+    cfg.triangulate = true;
+    bool ok = tinyobj::LoadObjOpt(&attrib, &shapes, &mats, &w, &e,
+                                   obj7, strlen(obj7), cfg);
+    TEST_CHECK(ok);
+    TEST_CHECK(!attrib.colors.empty());
+    TEST_CHECK(std::abs(attrib.colors[0] - 0.1f) < 1e-5f);
+    TEST_CHECK(std::abs(attrib.colors[1] - 0.2f) < 1e-5f);
+    TEST_CHECK(std::abs(attrib.colors[2] - 0.3f) < 1e-5f);
+    TEST_CHECK(std::abs(attrib.vertex_weights[0] - 0.5f) < 1e-5f);
+  }
+}
+
 void test_loadobjopt_nan_inf_values() {
   // Test that nan/inf in vertex data are handled with OBJ-compatible values
   // (nan→0, +inf→max, -inf→lowest), matching the legacy parser.
@@ -4350,4 +4422,6 @@ TEST_LIST = {
     {"test_loadobjopt_typed_empty_buffer", test_loadobjopt_typed_empty_buffer},
     {"test_loadobjopt_typed_move_semantics", test_loadobjopt_typed_move_semantics},
     {"test_loadobjopt_nan_inf_values", test_loadobjopt_nan_inf_values},
+    {"test_loadobjopt_typed_vertex_color_6_and_7",
+     test_loadobjopt_typed_vertex_color_6_and_7},
     {NULL, NULL}};
