@@ -10159,8 +10159,12 @@ static bool opt_tryParseDouble(const char *s, const char *s_end,
     read = 0;
     end_not_reached = (curr != s_end);
     while (end_not_reached && TINYOBJ_OPT_IS_DIGIT(*curr)) {
-      exponent *= 10;
-      exponent += static_cast<int>(*curr - '0');
+      // Clamp to avoid signed integer overflow (UB).  |exponent| > 308
+      // already exceeds double range, so further digits are irrelevant.
+      if (exponent < 0x7FFFFFF) {
+        exponent *= 10;
+        exponent += static_cast<int>(*curr - '0');
+      }
       curr++;
       read++;
       end_not_reached = (curr != s_end);
