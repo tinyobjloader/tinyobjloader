@@ -4174,8 +4174,11 @@ void test_loadobjopt_object_name_trimming() {
                                   obj_text, obj_len, config);
   TEST_CHECK(ret == true);
   TEST_CHECK(shapes.size() == 1);
-  // Legacy parser preserves spaces: "o  MyObject  " -> name = " MyObject  "
-  // (first space consumed by 'o ' directive, rest preserved)
+  // Legacy parser uses sr.advance(2) to skip 'o' + one space, then
+  // sr.read_line() captures the remainder verbatim.  For "o  MyObject  \n",
+  // advance(2) skips 'o' and the first space, leaving " MyObject  " as the
+  // object name (leading space is the second space from the original input,
+  // and trailing spaces are preserved).
   TEST_CHECK(shapes[0].name == " MyObject  ");
 }
 
