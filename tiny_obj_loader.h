@@ -1034,7 +1034,7 @@ class TypedArray {
       return;
     }
     // Guard against size_t overflow in count * sizeof(T).
-    if (sizeof(T) > 1 && count > SIZE_MAX / sizeof(T)) {
+    if (count > SIZE_MAX / sizeof(T)) {
       throw std::bad_alloc();
     }
     void *p = arena.allocate(count * sizeof(T), alignof(T));
