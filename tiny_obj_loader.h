@@ -72,6 +72,7 @@ THE SOFTWARE.
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <new>
 #include <type_traits>
 
 namespace tinyobj {
@@ -829,7 +830,11 @@ class arena_adapter {
     if (arena_) {
       return static_cast<T *>(arena_->allocate(n * sizeof(T), alignof(T)));
     }
+#ifdef TINYOBJLOADER_ENABLE_EXCEPTION
     return static_cast<T *>(::operator new(n * sizeof(T)));
+#else
+    return static_cast<T *>(::operator new(n * sizeof(T), std::nothrow));
+#endif
   }
 
   void deallocate(T *p, size_t) noexcept {
@@ -1027,20 +1032,34 @@ class TypedArray {
 
   /// Allocate `count` elements from `arena`.  Previous contents are abandoned.
   /// Elements are zero-initialized via memset (T must be trivially copyable).
-  void allocate(ArenaAllocator &arena, size_t count) {
+  /// Returns false if allocation fails (only possible when exceptions are
+  /// disabled via TINYOBJLOADER_ENABLE_EXCEPTION not being defined).
+  bool allocate(ArenaAllocator &arena, size_t count) {
     if (count == 0) {
       data_ = nullptr;
       size_ = 0;
-      return;
+      return true;
     }
     // Guard against size_t overflow in count * sizeof(T).
     if (count > SIZE_MAX / sizeof(T)) {
+#ifdef TINYOBJLOADER_ENABLE_EXCEPTION
       throw std::bad_alloc();
+#else
+      data_ = nullptr;
+      size_ = 0;
+      return false;
+#endif
     }
     void *p = arena.allocate(count * sizeof(T), alignof(T));
+    if (!p) {
+      data_ = nullptr;
+      size_ = 0;
+      return false;
+    }
     data_ = static_cast<T *>(p);
     size_ = count;
     std::memset(data_, 0, count * sizeof(T));
+    return true;
   }
 
   /// Wrap an existing arena-allocated pointer.  Caller must ensure ptr
@@ -9817,11 +9836,16 @@ void *ArenaAllocator::allocate(size_t bytes, size_t alignment) {
 
   // Guard against size_t overflow in bytes + alignment
   if (bytes > SIZE_MAX - alignment) {
+#ifdef TINYOBJLOADER_ENABLE_EXCEPTION
     throw std::bad_alloc();
+#else
+    return nullptr;
+#endif
   }
 
   // Need a new block
   Block *b = new_block(bytes + alignment);
+  if (!b) return nullptr;
   size_t space = b->capacity;
   void *ptr = b->data;
   std::align(alignment, bytes, ptr, space);
@@ -9835,6 +9859,7 @@ void ArenaAllocator::reset() { destroy(); }
 ArenaAllocator::Block *ArenaAllocator::new_block(size_t min_bytes) {
   size_t cap = (min_bytes > default_block_size_) ? min_bytes
                                                  : default_block_size_;
+#ifdef TINYOBJLOADER_ENABLE_EXCEPTION
   // Allocate data buffer first: if this throws std::bad_alloc, no Block
   // struct is leaked.  If the subsequent Block allocation throws (very
   // unlikely for a small POD), the data buffer is cleaned up.
@@ -9847,6 +9872,12 @@ ArenaAllocator::Block *ArenaAllocator::new_block(size_t min_bytes) {
     throw;
   }
   b->data = data;
+#else
+  Block *b = new (std::nothrow) Block;
+  if (!b) return nullptr;
+  b->data = new (std::nothrow) unsigned char[cap];
+  if (!b->data) { delete b; return nullptr; }
+#endif
   b->capacity = cap;
   b->used = 0;
   b->next = head_;
