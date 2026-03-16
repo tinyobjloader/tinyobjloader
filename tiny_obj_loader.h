@@ -11706,9 +11706,6 @@ static void opt_parseLineToThreadData(
         td.v_color[coff+2] = real_t(1.0);
       }
     }
-    if (nextra != 3 && nextra < 4) {
-      td.saw_missing_color = true;
-    }
     td.num_v++;
     return;
   }
