@@ -9811,6 +9811,11 @@ void *ArenaAllocator::allocate(size_t bytes, size_t alignment) {
     }
   }
 
+  // Guard against size_t overflow in bytes + alignment
+  if (bytes > SIZE_MAX - alignment) {
+    throw std::bad_alloc();
+  }
+
   // Need a new block
   Block *b = new_block(bytes + alignment);
   size_t space = b->capacity;
@@ -10143,9 +10148,11 @@ static bool opt_tryParseDouble(const char *s, const char *s_end,
   if (*curr == 'e' || *curr == 'E') {
     curr++;
     end_not_reached = (curr != s_end);
-    if (end_not_reached && (*curr == '+' || *curr == '-')) {
+    if (!end_not_reached) return false;
+    if (*curr == '+' || *curr == '-') {
       exp_sign = *curr;
       curr++;
+      end_not_reached = (curr != s_end);
     } else if (!TINYOBJ_OPT_IS_DIGIT(*curr)) {
       return false;
     }

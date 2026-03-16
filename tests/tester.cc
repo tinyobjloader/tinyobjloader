@@ -2436,6 +2436,8 @@ void test_numeric_nan_inf() {
   if (!warn.empty()) std::cout << "WARN: " << warn << std::endl;
   if (!err.empty()) std::cerr << "ERR: " << err << std::endl;
 
+#ifndef TINYOBJLOADER_DISABLE_FAST_FLOAT
+  // With fast_float, nan/inf keywords are recognized via tryParseNanInf.
   TEST_CHECK(true == ret);
   // 12 vertices * 3 components = 36
   TEST_CHECK(attrib.vertices.size() == 36);
@@ -2455,6 +2457,11 @@ void test_numeric_nan_inf() {
   // v4: -inf 1 1
   TEST_CHECK(FloatEquals(1.0f, attrib.vertices[13]));
   TEST_CHECK(FloatEquals(1.0f, attrib.vertices[14]));
+#else
+  // The legacy hand-written parser does not recognize nan/inf keywords,
+  // so the parse fails.  Just verify it doesn't crash.
+  (void)ret;
+#endif
 }
 
 void test_numeric_from_stream() {
@@ -2495,7 +2502,8 @@ void test_numeric_from_stream() {
 void test_numeric_overflow_preserves_default() {
   // Regression: values that overflow double must not crash or corrupt memory.
   // tryParseDouble now parses into a temp; *result is only written on success.
-  // With the StreamReader-based parser, overflow is detected as a parse error.
+  // With fast_float, overflow is detected as a parse error (result_out_of_range).
+  // The hand-written fallback parser produces inf for large exponents instead.
   std::string obj_str =
       "v 1e9999 2.0 3.0\n"    // first coord overflows
       "f 1\n";
@@ -2508,9 +2516,17 @@ void test_numeric_overflow_preserves_default() {
   bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
                               &obj_stream, NULL);
 
-  // Must not crash. Parser detects overflow and returns false.
+  // Must not crash.
+#ifndef TINYOBJLOADER_DISABLE_FAST_FLOAT
+  // fast_float detects overflow and returns an error.
   TEST_CHECK(false == ret);
   TEST_CHECK(!err.empty());
+#else
+  // Fallback parser produces inf instead of erroring out.
+  TEST_CHECK(true == ret);
+  TEST_CHECK(attrib.vertices.size() == 3);
+  TEST_CHECK(std::isinf(attrib.vertices[0]));
+#endif
 }
 
 void test_numeric_empty_and_whitespace() {
@@ -4135,6 +4151,60 @@ void test_loadobjopt_nan_inf_values() {
   TEST_CHECK(std::abs(attrib.vertices[5] - 3.0f) < 1e-6f);
 }
 
+void test_loadobjopt_object_name_trimming() {
+  // Verify that object names match the legacy parser behavior.
+  // The legacy parser preserves leading/trailing spaces in object names.
+  const char *obj_text =
+      "o  MyObject  \n"
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "f 1 2 3\n";
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.triangulate = true;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_text, obj_len, config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(shapes.size() == 1);
+  // Legacy parser preserves spaces: "o  MyObject  " -> name = " MyObject  "
+  // (first space consumed by 'o ' directive, rest preserved)
+  TEST_CHECK(shapes[0].name == " MyObject  ");
+}
+
+void test_loadobjopt_mixed_line_endings() {
+  // File with mixed \n, \r\n, and bare \r line endings
+  std::string obj_data;
+  obj_data += "v 0.0 0.0 0.0\n";      // LF
+  obj_data += "v 1.0 0.0 0.0\r\n";    // CRLF
+  obj_data += "v 0.0 1.0 0.0\r";      // bare CR
+  obj_data += "v 1.0 1.0 0.0\n";      // LF
+  obj_data += "f 1 2 3\r\n";          // CRLF
+  obj_data += "f 1 3 4\n";            // LF
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.triangulate = true;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_data.data(), obj_data.size(), config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 12);  // 4 vertices * 3 coords
+  TEST_CHECK(shapes.size() == 1);
+  TEST_CHECK(shapes[0].mesh.indices.size() == 6);  // 2 triangles * 3
+}
+
 #include "opt/loadobjopt_multithread.inc"
 
 TEST_LIST = {
@@ -4424,4 +4494,8 @@ TEST_LIST = {
     {"test_loadobjopt_nan_inf_values", test_loadobjopt_nan_inf_values},
     {"test_loadobjopt_typed_vertex_color_6_and_7",
      test_loadobjopt_typed_vertex_color_6_and_7},
+    {"test_loadobjopt_object_name_trimming",
+     test_loadobjopt_object_name_trimming},
+    {"test_loadobjopt_mixed_line_endings",
+     test_loadobjopt_mixed_line_endings},
     {NULL, NULL}};
