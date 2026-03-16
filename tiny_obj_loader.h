@@ -1033,6 +1033,10 @@ class TypedArray {
       size_ = 0;
       return;
     }
+    // Guard against size_t overflow in count * sizeof(T).
+    if (sizeof(T) > 1 && count > SIZE_MAX / sizeof(T)) {
+      throw std::bad_alloc();
+    }
     void *p = arena.allocate(count * sizeof(T), alignof(T));
     data_ = static_cast<T *>(p);
     size_ = count;
@@ -9831,8 +9835,18 @@ void ArenaAllocator::reset() { destroy(); }
 ArenaAllocator::Block *ArenaAllocator::new_block(size_t min_bytes) {
   size_t cap = (min_bytes > default_block_size_) ? min_bytes
                                                  : default_block_size_;
-  Block *b = new Block;
-  b->data = new unsigned char[cap];
+  // Allocate data buffer first: if this throws std::bad_alloc, no Block
+  // struct is leaked.  If the subsequent Block allocation throws (very
+  // unlikely for a small POD), the data buffer is cleaned up.
+  unsigned char *data = new unsigned char[cap];
+  Block *b;
+  try {
+    b = new Block;
+  } catch (...) {
+    delete[] data;
+    throw;
+  }
+  b->data = data;
   b->capacity = cap;
   b->used = 0;
   b->next = head_;
