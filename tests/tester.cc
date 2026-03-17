@@ -4151,6 +4151,18 @@ void test_loadobjopt_nan_inf_values() {
   TEST_CHECK(std::abs(attrib.vertices[5] - 3.0f) < 1e-6f);
 }
 
+void test_arena_adapter_overflow_guard() {
+  // Verify that arena_adapter::allocate rejects SIZE_MAX/sizeof(T) overflow.
+  // We can't actually allocate SIZE_MAX bytes, but we can verify the function
+  // returns nullptr (when exceptions are disabled, the default).
+  tinyobj::ArenaAllocator arena;
+  tinyobj::arena_adapter<double> adapter(&arena);
+  // Request an allocation that would overflow size_t when multiplied by
+  // sizeof(double)=8.  SIZE_MAX / 8 + 1 overflows.
+  double *p = adapter.allocate(SIZE_MAX / sizeof(double) + 1);
+  TEST_CHECK(p == nullptr);
+}
+
 void test_loadobjopt_object_name_trimming() {
   // Verify that object names match the legacy parser behavior.
   // The legacy parser preserves leading/trailing spaces in object names.
@@ -4497,6 +4509,7 @@ TEST_LIST = {
     {"test_loadobjopt_nan_inf_values", test_loadobjopt_nan_inf_values},
     {"test_loadobjopt_typed_vertex_color_6_and_7",
      test_loadobjopt_typed_vertex_color_6_and_7},
+    {"test_arena_adapter_overflow_guard", test_arena_adapter_overflow_guard},
     {"test_loadobjopt_object_name_trimming",
      test_loadobjopt_object_name_trimming},
     {"test_loadobjopt_mixed_line_endings",

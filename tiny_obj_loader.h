@@ -827,6 +827,13 @@ class arena_adapter {
       : arena_(other.arena()) {}
 
   T *allocate(size_t n) {
+    if (sizeof(T) > 1 && n > SIZE_MAX / sizeof(T)) {
+#ifdef TINYOBJLOADER_ENABLE_EXCEPTION
+      throw std::bad_alloc();
+#else
+      return nullptr;
+#endif
+    }
     if (arena_) {
       return static_cast<T *>(arena_->allocate(n * sizeof(T), alignof(T)));
     }
@@ -9848,7 +9855,15 @@ void *ArenaAllocator::allocate(size_t bytes, size_t alignment) {
   if (!b) return nullptr;
   size_t space = b->capacity;
   void *ptr = b->data;
-  std::align(alignment, bytes, ptr, space);
+  if (!std::align(alignment, bytes, ptr, space)) {
+    // Should never happen: block capacity >= bytes + alignment, but guard
+    // against implementation quirks.
+#ifdef TINYOBJLOADER_ENABLE_EXCEPTION
+    throw std::bad_alloc();
+#else
+    return nullptr;
+#endif
+  }
   b->used =
       static_cast<size_t>(static_cast<unsigned char *>(ptr) - b->data) + bytes;
   return ptr;
@@ -10224,28 +10239,6 @@ opt_assemble:
                       : mantissa);
   return true;
 #endif  // TINYOBJLOADER_DISABLE_FAST_FLOAT
-}
-
-static inline real_t opt_parseFloat(const char **token) {
-  opt_skip_space(token);
-  const char *end = (*token) + opt_until_space(*token);
-  double val = 0.0;
-  opt_tryParseDouble(*token, end, &val);
-  real_t f = static_cast<real_t>(val);
-  *token = end;
-  return f;
-}
-
-static inline void opt_parseFloat3(real_t *x, real_t *y, real_t *z,
-                                   const char **token) {
-  *x = opt_parseFloat(token);
-  *y = opt_parseFloat(token);
-  *z = opt_parseFloat(token);
-}
-
-static inline void opt_parseFloat2(real_t *x, real_t *y, const char **token) {
-  *x = opt_parseFloat(token);
-  *y = opt_parseFloat(token);
 }
 
 struct opt_index_t {
@@ -12379,6 +12372,14 @@ static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
     total_faces += thread_data[t].num_f_faces;
   }
 
+  // Guard against size_t overflow in vertex/normal/texcoord allocation
+  if (num_v > SIZE_MAX / 3 || num_vn > SIZE_MAX / 3 || num_vt > SIZE_MAX / 2) {
+    if (err) {
+      (*err) += "Integer overflow in vertex/normal/texcoord count.\n";
+    }
+    return false;
+  }
+
   attrib->vertices.resize(num_v * 3);
   attrib->vertex_weights.resize(num_v, real_t(1.0));
   attrib->normals.resize(num_vn * 3);
@@ -13339,6 +13340,14 @@ static bool LoadObjOptTyped_internal(OptResult *result,
     num_vt += thread_data[t].num_vt;
     total_idx += thread_data[t].num_f_indices;
     total_faces += thread_data[t].num_f_faces;
+  }
+
+  // Guard against size_t overflow in vertex/normal/texcoord allocation
+  if (num_v > SIZE_MAX / 3 || num_vn > SIZE_MAX / 3 || num_vt > SIZE_MAX / 2) {
+    if (err) {
+      (*err) += "Integer overflow in vertex/normal/texcoord count.\n";
+    }
+    return false;
   }
 
   // Determine which optional arrays are needed
