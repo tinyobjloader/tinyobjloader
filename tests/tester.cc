@@ -4153,8 +4153,8 @@ void test_loadobjopt_nan_inf_values() {
 
 void test_arena_adapter_overflow_guard() {
   // Verify that arena_adapter::allocate rejects SIZE_MAX/sizeof(T) overflow.
-  // We can't actually allocate SIZE_MAX bytes, but we can verify the function
-  // returns nullptr (when exceptions are disabled, the default).
+  // When TINYOBJLOADER_ENABLE_EXCEPTION is not defined, the allocator returns
+  // nullptr on overflow.  When exceptions are enabled, it throws std::bad_alloc.
   tinyobj::ArenaAllocator arena;
   tinyobj::arena_adapter<double> adapter(&arena);
   // Request an allocation that would overflow size_t when multiplied by

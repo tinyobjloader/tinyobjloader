@@ -827,7 +827,7 @@ class arena_adapter {
       : arena_(other.arena()) {}
 
   T *allocate(size_t n) {
-    if (sizeof(T) > 1 && n > SIZE_MAX / sizeof(T)) {
+    if (n > SIZE_MAX / sizeof(T)) {
 #ifdef TINYOBJLOADER_ENABLE_EXCEPTION
       throw std::bad_alloc();
 #else
@@ -9856,8 +9856,9 @@ void *ArenaAllocator::allocate(size_t bytes, size_t alignment) {
   size_t space = b->capacity;
   void *ptr = b->data;
   if (!std::align(alignment, bytes, ptr, space)) {
-    // Should never happen: block capacity >= bytes + alignment, but guard
-    // against implementation quirks.
+    // Defensive guard: the block was allocated with capacity >= bytes + alignment,
+    // so alignment should always succeed.  This handles edge cases where the
+    // capacity was insufficient due to unusual alignment requirements.
 #ifdef TINYOBJLOADER_ENABLE_EXCEPTION
     throw std::bad_alloc();
 #else
