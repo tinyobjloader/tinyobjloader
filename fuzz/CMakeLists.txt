@@ -1,0 +1,11 @@
+# Fuzz targets for TinyOBJLoader
+
+add_executable(tinyobj_loader_fuzzer tinyobj_loader_fuzzer.cc)
+target_link_libraries(tinyobj_loader_fuzzer tinyobjloader)
+target_compile_options(tinyobj_loader_fuzzer PRIVATE -fsanitize=fuzzer,undefined,address)
+target_link_options(tinyobj_loader_fuzzer PRIVATE -fsanitize=fuzzer,undefined,address)
+
+add_executable(tinyobj_real3_fuzzer tinyobj_real3_fuzzer.cc)
+target_link_libraries(tinyobj_real3_fuzzer tinyobjloader)
+target_compile_options(tinyobj_real3_fuzzer PRIVATE -fsanitize=fuzzer,undefined,address)
+target_link_options(tinyobj_real3_fuzzer PRIVATE -fsanitize=fuzzer,undefined,address)
