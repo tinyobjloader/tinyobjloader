@@ -45,56 +45,6 @@ http://casual-effects.com/data/index.html
 * [examples/callback_api/](examples/callback_api/) Callback API example
 * [examples/voxelize/](examples/voxelize/) Voxelizer example
 
-## Use case
-
-TinyObjLoader is successfully used in ...
-
-### New version(v1.0.x)
-
-* Double precision support through `TINYOBJLOADER_USE_DOUBLE` thanks to noma
-* Loading models in Vulkan Tutorial https://vulkan-tutorial.com/Loading_models
-* .obj viewer with Metal https://github.com/middlefeng/NuoModelViewer/tree/master
-* Vulkan Cookbook https://github.com/PacktPublishing/Vulkan-Cookbook
-* cudabox: CUDA Solid Voxelizer Engine https://github.com/gaspardzoss/cudavox
-* Drake: A planning, control, and analysis toolbox for nonlinear dynamical systems https://github.com/RobotLocomotion/drake
-* VFPR - a Vulkan Forward Plus Renderer : https://github.com/WindyDarian/Vulkan-Forward-Plus-Renderer
-* glslViewer: https://github.com/patriciogonzalezvivo/glslViewer
-* Lighthouse2: https://github.com/jbikker/lighthouse2
-* rayrender(an open source R package for raytracing scenes in created in R): https://github.com/tylermorganwall/rayrender
-* liblava - A modern C++ and easy-to-use framework for the Vulkan API. [MIT]: https://github.com/liblava/liblava
-* rtxON - Simple Vulkan raytracing tutorials  https://github.com/iOrange/rtxON
-* metal-ray-tracer - Writing ray-tracer using Metal Performance Shaders https://github.com/sergeyreznik/metal-ray-tracer https://sergeyreznik.github.io/metal-ray-tracer/index.html
-* Supernova Engine - 2D and 3D projects with Lua or C++ in data oriented design: https://github.com/supernovaengine/supernova
-* AGE (Arc Game Engine) - An open-source engine for building 2D & 3D real-time rendering and interactive contents: https://github.com/MohitSethi99/ArcGameEngine
-* [Wicked Engine<img src="https://github.com/turanszkij/WickedEngine/blob/master/Content/logo_small.png" width="28px" align="center"/>](https://github.com/turanszkij/WickedEngine) - 3D engine with modern graphics
-* [Lumina Game Engine](https://github.com/MrDrElliot/LuminaEngine) - A modern, high-performance game engine built with Vulkan
-* lacecore: Python polygonal mesh library optimized for cloud computation https://github.com/lace/lacecore
-* Your project here! (Plese send PR)
-
-### Old version(v0.9.x)
-
-* bullet3 https://github.com/erwincoumans/bullet3
-* pbrt-v2 https://github.com/mmp/pbrt-v2
-* OpenGL game engine development http://swarminglogic.com/jotting/2013_10_gamedev01
-* mallie https://lighttransport.github.io/mallie
-* IBLBaker (Image Based Lighting Baker). http://www.derkreature.com/iblbaker/
-* Stanford CS148 http://web.stanford.edu/class/cs148/assignments/assignment3.pdf
-* Awesome Bump http://awesomebump.besaba.com/about/
-* sdlgl3-wavefront OpenGL .obj viewer https://github.com/chrisliebert/sdlgl3-wavefront
-* pbrt-v3 https://github.com/mmp/pbrt-v3
-* cocos2d-x https://github.com/cocos2d/cocos2d-x/
-* Android Vulkan demo https://github.com/SaschaWillems/Vulkan
-* voxelizer https://github.com/karimnaaji/voxelizer
-* Probulator https://github.com/kayru/Probulator
-* OptiX Prime baking https://github.com/nvpro-samples/optix_prime_baking
-* FireRays SDK https://github.com/GPUOpen-LibrariesAndSDKs/FireRays_SDK
-* parg, tiny C library of various graphics utilities and GL demos https://github.com/prideout/parg
-* Opengl unit of ChronoEngine https://github.com/projectchrono/chrono-opengl
-* Point Based Global Illumination on modern GPU https://pbgi.wordpress.com/code-source/
-* Fast OBJ file importing and parsing in CUDA http://researchonline.jcu.edu.au/42515/1/2015.CVM.OBJCUDA.pdf
-* Sorted Shading for Uni-Directional Pathtracing by Joshua Bainbridge https://nccastaff.bournemouth.ac.uk/jmacey/MastersProjects/MSc15/02Josh/joshua_bainbridge_thesis.pdf
-* GeeXLab http://www.geeks3d.com/hacklab/20160531/geexlab-0-12-0-0-released-for-windows/
-
 
 ## Features
 
@@ -145,18 +95,6 @@ TinyObjLoader is licensed under MIT license.
 ### Installation
 
 One option is to simply copy the header file into your project and to make sure that `TINYOBJLOADER_IMPLEMENTATION` is defined exactly once.
-
-### Building tinyobjloader - Using vcpkg(not recommended though)
-
-Although it is not a recommended way, you can download and install tinyobjloader using the [vcpkg](https://github.com/Microsoft/vcpkg) dependency manager:
-
-    git clone https://github.com/Microsoft/vcpkg.git
-    cd vcpkg
-    ./bootstrap-vcpkg.sh
-    ./vcpkg integrate install
-    ./vcpkg install tinyobjloader
-
-The tinyobjloader port in vcpkg is kept up to date by Microsoft team members and community contributors. If the version is out of date, please [create an issue or pull request](https://github.com/Microsoft/vcpkg) on the vcpkg repository.
 
 ### Data format
 
