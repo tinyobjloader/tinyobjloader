@@ -1099,21 +1099,9 @@ static void Draw(const std::vector<DrawObject>& drawObjects,
   }
 }
 
-static void Init() {
-  trackball(curr_quat, 0, 0, 0, 0);
+static void FitToScene();
 
-  eye[0] = 0.0f;
-  eye[1] = 0.0f;
-  eye[2] = 3.0f;
-
-  lookat[0] = 0.0f;
-  lookat[1] = 0.0f;
-  lookat[2] = 0.0f;
-
-  up[0] = 0.0f;
-  up[1] = 1.0f;
-  up[2] = 0.0f;
-}
+static void Init() { FitToScene(); }
 
 // Reset camera to fit the entire scene in view.
 static void FitToScene() {
