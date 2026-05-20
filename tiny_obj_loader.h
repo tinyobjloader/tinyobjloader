@@ -6315,6 +6315,7 @@ static inline texture_type_t parseTextureType(
   return ty;
 }
 
+#if !defined(TINYOBJLOADER_USE_MAPBOX_EARCUT)
 static tag_sizes parseTagTriple(const char **token) {
   tag_sizes ts;
 
@@ -6426,6 +6427,7 @@ static vertex_index_t parseRawTriple(const char **token) {
   (*token) += strcspn((*token), "/ \t\r");
   return vi;
 }
+#endif  // !defined(TINYOBJLOADER_USE_MAPBOX_EARCUT)
 
 // --- Stream-based parse functions ---
 
