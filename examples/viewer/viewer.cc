@@ -1099,8 +1099,6 @@ static void Draw(const std::vector<DrawObject>& drawObjects,
   }
 }
 
-static void FitToScene();
-
 static void Init() { FitToScene(); }
 
 // Reset camera to fit the entire scene in view.
