@@ -4,6 +4,15 @@
 
     $ make check
 
+`make check` builds and runs the suite in two configurations:
+
+* `check_default` — library defaults: no SIMD, no multithreading, no
+  exceptions.
+* `check_features` — `TINYOBJLOADER_USE_MULTITHREADING`,
+  `TINYOBJLOADER_USE_SIMD`, and `TINYOBJLOADER_ENABLE_EXCEPTION` all enabled.
+
+Run a single configuration with `make check_default` or `make check_features`.
+
 Additional fuzz targets:
 
     $ make obj-fuzz

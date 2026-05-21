@@ -1,6 +1,8 @@
-#ifndef TINYOBJLOADER_USE_MULTITHREADING
-#define TINYOBJLOADER_USE_MULTITHREADING
-#endif
+// NOTE: Do not force-enable TINYOBJLOADER_USE_MULTITHREADING / _USE_SIMD /
+// ENABLE_EXCEPTION here.  The default `make check` build exercises the library
+// defaults (no SIMD, no multithreading, no exceptions); the Makefile's
+// `tester_features` target re-builds this file with those macros defined to
+// cover the optional code paths.
 #ifndef TINYOBJLOADER_IMPLEMENTATION
 #define TINYOBJLOADER_IMPLEMENTATION
 #endif

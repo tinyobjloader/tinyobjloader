@@ -746,11 +746,16 @@ bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
 
 /// ==>>========= Optimized API (C++11 required) ============================
 ///
-/// Enable compile options:
+/// Optional compile options (all DISABLED by default — define the macro to
+/// opt in):
 ///   TINYOBJLOADER_USE_MULTITHREADING - multi-threaded parsing
 ///   TINYOBJLOADER_USE_SIMD           - SIMD-accelerated line scanning
+///                                      (SSE2/AVX2 on x86, NEON on ARM)
+///   TINYOBJLOADER_ENABLE_EXCEPTION   - throw std::bad_alloc on allocation
+///                                      failure instead of returning nullptr
 ///
-/// These features require C++11 or later.
+/// With none of these defined, the parser runs single-threaded, scalar, and
+/// exception-free.  These features require C++11 or later.
 ///
 
 ///
@@ -10098,39 +10103,13 @@ static inline void opt_appendOutOfBoundsWarnings(std::string *warn,
   }
 }
 
+// Hand-written fallback double parser.  Compiled only when fast_float is
+// disabled (TINYOBJLOADER_DISABLE_FAST_FLOAT); otherwise callers use
+// fast_float::from_chars directly and this function is not needed.
+#ifdef TINYOBJLOADER_DISABLE_FAST_FLOAT
 static bool opt_tryParseDouble(const char *s, const char *s_end,
                                double *result) {
   if (s >= s_end) return false;
-
-#ifndef TINYOBJLOADER_DISABLE_FAST_FLOAT
-  // Use the already-embedded fast_float for high-performance parsing.
-  // Handle nan/inf with OBJ-compatible replacement values first.
-  {
-    const char *p = s;
-    if (p < s_end && (*p == '+' || *p == '-')) ++p;
-    if (p < s_end) {
-      char fc = *p;
-      if (fc >= 'A' && fc <= 'Z') fc += 32;
-      if (fc == 'n' || fc == 'i') {
-        const char *end_ptr;
-        if (detail_fp::tryParseNanInf(s, s_end, result, &end_ptr)) {
-          return true;
-        }
-      }
-    }
-  }
-
-  double tmp;
-  auto r = fast_float::from_chars(s, s_end, tmp,
-      fast_float::chars_format::general |
-      fast_float::chars_format::allow_leading_plus);
-  if (r.ec == tinyobj_ff::ff_errc::ok) {
-    *result = tmp;
-    return true;
-  }
-  return false;
-#else
-  // Fallback: hand-written float parser
 
   // Handle nan/inf keywords with OBJ-compatible replacement values.
   {
@@ -10249,8 +10228,8 @@ opt_assemble:
             (exponent ? std::ldexp(mantissa * std::pow(5.0, exponent), exponent)
                       : mantissa);
   return true;
-#endif  // TINYOBJLOADER_DISABLE_FAST_FLOAT
 }
+#endif  // TINYOBJLOADER_DISABLE_FAST_FLOAT
 
 struct opt_index_t {
   int vertex_index, texcoord_index, normal_index;
@@ -11426,27 +11405,6 @@ static void ConvertLegacyResultToBasic(
   }
 }
 
-static bool opt_requires_legacy_fallback(const char *p, size_t len) {
-  if (!p || len == 0) return false;
-  while (len > 0 && (*p == ' ' || *p == '\t')) {
-    p++;
-    len--;
-  }
-  if (len == 0 || *p == '#' || *p == '\r' || *p == '\n') return false;
-
-  if (len >= 3 && p[0] == 'v' && p[1] == 'w' &&
-      (p[2] == ' ' || p[2] == '\t')) {
-    return true;
-  }
-  if (len >= 2 &&
-      ((p[0] == 'l' && (p[1] == ' ' || p[1] == '\t')) ||
-       (p[0] == 'p' && (p[1] == ' ' || p[1] == '\t')) ||
-       (p[0] == 't' && (p[1] == ' ' || p[1] == '\t')))) {
-    return true;
-  }
-  return false;
-}
-
 /// Check if the first non-whitespace token on a line (starting at p, length
 /// rem) requires the legacy parser.
 static inline bool opt_line_start_is_legacy(const char *p, size_t rem) {
@@ -11681,7 +11639,9 @@ static void opt_parseLineToThreadData(
   if (*token == '\n' || *token == '\r' || *token == '#' || *token == '\0')
     return;
 
-#ifndef TINYOBJLOADER_DISABLE_FAST_FLOAT
+#ifdef TINYOBJLOADER_DISABLE_FAST_FLOAT
+  (void)cache;  // only consumed by the fast_float fast path below
+#else
   const char *line_end = line_ptr + line_len;
 
   // ---- Fast path: vertex position (v x y z [w] [r g b]) ----
