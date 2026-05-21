@@ -1,4 +1,5 @@
-.PHONY: clean check check_default check_features all obj-fuzz llvm-fuzz
+.PHONY: clean check check_default check_features check_nofastfloat all \
+        obj-fuzz llvm-fuzz
 
 CXX ?= clang++
 CXXFLAGS ?= -g -O1
@@ -26,7 +27,13 @@ tester_features: $(DEPS)
 	$(CXX) $(CXXFLAGS) $(EXTRA_CXXFLAGS) $(FEATURE_FLAGS) -pthread -I.. \
 		-o tester_features $(SRCS)
 
-all: tester tester_features
+# fast_float-disabled build: exercise the hand-written fallback float parser
+# (TINYOBJLOADER_DISABLE_FAST_FLOAT), otherwise library defaults.
+tester_nofastfloat: $(DEPS)
+	$(CXX) $(CXXFLAGS) $(EXTRA_CXXFLAGS) -DTINYOBJLOADER_DISABLE_FAST_FLOAT \
+		-pthread -I.. -o tester_nofastfloat $(SRCS)
+
+all: tester tester_features tester_nofastfloat
 
 obj-fuzz:
 	$(MAKE) -C obj-fuzz
@@ -34,8 +41,9 @@ obj-fuzz:
 llvm-fuzz:
 	$(MAKE) -C llvm-fuzz
 
-# Run both configurations so CI covers the default and feature-enabled paths.
-check: check_default check_features
+# Run all configurations so CI covers the default, feature-enabled, and
+# fast_float-disabled code paths.
+check: check_default check_features check_nofastfloat
 
 check_default: tester
 	./tester
@@ -43,7 +51,10 @@ check_default: tester
 check_features: tester_features
 	./tester_features
 
+check_nofastfloat: tester_nofastfloat
+	./tester_nofastfloat
+
 clean:
-	rm -rf tester tester_features
+	rm -rf tester tester_features tester_nofastfloat
 	$(MAKE) -C obj-fuzz clean
 	$(MAKE) -C llvm-fuzz clean
