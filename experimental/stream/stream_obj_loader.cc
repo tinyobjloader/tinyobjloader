@@ -791,29 +791,41 @@ static bool ParseLineToEvent(size_t line_num, const std::string &line,
       return false;
     }
 
-    if (tokens.size() >= 4) {
-      real_t maybe_r = real_t(1.0);
-      if (ParseRealToken(tokens[3], &maybe_r)) {
-        if (tokens.size() == 4) {
-          event.has_vertex_weight = true;
-          event.vertex_weight = maybe_r;
-        } else {
-          real_t maybe_g = real_t(1.0);
-          if (!ParseRealToken(tokens[4], &maybe_g)) {
-            event.has_vertex_weight = true;
-            event.vertex_weight = maybe_r;
-          } else if (tokens.size() >= 6) {
-            real_t maybe_b = real_t(1.0);
-            if (ParseRealToken(tokens[5], &maybe_b)) {
-              event.has_vertex_weight = true;
-              event.vertex_weight = maybe_r;
-              event.has_color = true;
-              event.r = maybe_r;
-              event.g = maybe_g;
-              event.b = maybe_b;
-            }
-          }
-        }
+    // Match the legacy/opt loaders' weight + color handling, keyed on the
+    // number of components beyond `x y z`:
+    //   +0  (v x y z)        -> position only
+    //   +1  (v x y z w)      -> weight only
+    //   +3  (v x y z r g b)  -> color, weight = r (legacy compat)
+    //   +4+ (v x y z w r g b)-> weight + color
+    const size_t extra = tokens.size() - 3;
+    if (extra == 1) {
+      real_t w = real_t(1.0);
+      if (ParseRealToken(tokens[3], &w)) {
+        event.has_vertex_weight = true;
+        event.vertex_weight = w;
+      }
+    } else if (extra == 3) {
+      real_t cr = real_t(1.0), cg = real_t(1.0), cb = real_t(1.0);
+      if (ParseRealToken(tokens[3], &cr) && ParseRealToken(tokens[4], &cg) &&
+          ParseRealToken(tokens[5], &cb)) {
+        event.has_vertex_weight = true;
+        event.vertex_weight = cr;
+        event.has_color = true;
+        event.r = cr;
+        event.g = cg;
+        event.b = cb;
+      }
+    } else if (extra >= 4) {
+      real_t w = real_t(1.0), cr = real_t(1.0), cg = real_t(1.0),
+             cb = real_t(1.0);
+      if (ParseRealToken(tokens[3], &w) && ParseRealToken(tokens[4], &cr) &&
+          ParseRealToken(tokens[5], &cg) && ParseRealToken(tokens[6], &cb)) {
+        event.has_vertex_weight = true;
+        event.vertex_weight = w;
+        event.has_color = true;
+        event.r = cr;
+        event.g = cg;
+        event.b = cb;
       }
     }
 

@@ -1188,7 +1188,12 @@ OptResult LoadObjOptTyped(const char *filename,
 
 #endif  // TINY_OBJ_LOADER_H_
 
-#ifdef TINYOBJLOADER_IMPLEMENTATION
+// Guard the implementation against double inclusion within a single
+// translation unit (e.g. when another header that also `#include`s this file
+// is pulled in after TINYOBJLOADER_IMPLEMENTATION is defined).
+#if defined(TINYOBJLOADER_IMPLEMENTATION) && \
+    !defined(TINYOBJLOADER_IMPLEMENTATION_DEFINED)
+#define TINYOBJLOADER_IMPLEMENTATION_DEFINED
 #include <cassert>
 #include <cctype>
 #include <climits>

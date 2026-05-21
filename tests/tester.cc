@@ -39,34 +39,9 @@
 #include <sstream>
 #include <string>
 
-namespace tinyobj {
-namespace experimental_stream {
-struct StreamLoadConfig {
-  bool triangulate;
-  bool default_vcols_fallback;
-  int num_threads;
-  size_t chunk_line_count;
-
-  StreamLoadConfig()
-      : triangulate(true),
-        default_vcols_fallback(false),
-        num_threads(1),
-        chunk_line_count(4096) {}
-};
-
-bool LoadObjStreamExperimental(
-    attrib_t *attrib, std::vector<shape_t> *shapes,
-    std::vector<material_t> *materials, std::string *warn, std::string *err,
-    std::istream *input, MaterialReader *readMatFn,
-    const StreamLoadConfig &config = StreamLoadConfig());
-
-bool LoadObjStreamExperimental(
-    attrib_t *attrib, std::vector<shape_t> *shapes,
-    std::vector<material_t> *materials, std::string *warn, std::string *err,
-    const char *filename, const char *mtl_basedir,
-    const StreamLoadConfig &config = StreamLoadConfig());
-}  // namespace experimental_stream
-}  // namespace tinyobj
+// Pull in the canonical experimental stream loader API instead of re-declaring
+// it here, so this test cannot silently drift from the real header.
+#include "../experimental/stream/stream_obj_loader.h"
 
 #ifdef _WIN32
 #include <direct.h>    // _mkdir
@@ -4159,8 +4134,20 @@ void test_arena_adapter_overflow_guard() {
   tinyobj::arena_adapter<double> adapter(&arena);
   // Request an allocation that would overflow size_t when multiplied by
   // sizeof(double)=8.  SIZE_MAX / 8 + 1 overflows.
-  double *p = adapter.allocate(SIZE_MAX / sizeof(double) + 1);
+  const size_t overflow_n = SIZE_MAX / sizeof(double) + 1;
+#ifdef TINYOBJLOADER_ENABLE_EXCEPTION
+  bool threw = false;
+  try {
+    double *p = adapter.allocate(overflow_n);
+    (void)p;
+  } catch (const std::bad_alloc &) {
+    threw = true;
+  }
+  TEST_CHECK(threw);
+#else
+  double *p = adapter.allocate(overflow_n);
   TEST_CHECK(p == nullptr);
+#endif
 }
 
 void test_loadobjopt_object_name_trimming() {
@@ -4384,6 +4371,8 @@ TEST_LIST = {
      test_stream_loader_vertex_weight},
     {"test_stream_loader_colored_vertex_weight",
      test_stream_loader_colored_vertex_weight},
+    {"test_stream_loader_weighted_color_vertex_7_components",
+     test_stream_loader_weighted_color_vertex_7_components},
     {"test_stream_loader_group_comment_matches_legacy",
      test_stream_loader_group_comment_matches_legacy},
     {"test_stream_loader_weighted_vertex_comment_matches_legacy",

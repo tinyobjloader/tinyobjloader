@@ -1722,6 +1722,38 @@ void test_stream_loader_colored_vertex_weight() {
   TEST_CHECK(legacy_attrib.colors == stream_attrib.colors);
 }
 
+// `v x y z w r g b` (7 components) -> weight = w, color = (r, g, b).
+// The legacy istream loader has a long-standing quirk here (it stops at 6
+// scalars, so it treats the 4th value as both weight and red and drops the
+// 7th); the stream loader instead follows the corrected LoadObjOpt semantics.
+void test_stream_loader_weighted_color_vertex_7_components() {
+  const std::string obj_text =
+      "v 0.0 0.0 0.0 0.5 0.1 0.2 0.3\n"
+      "v 1.0 0.0 0.0 0.6 0.4 0.5 0.6\n";
+
+  tinyobj::attrib_t stream_attrib;
+  std::vector<tinyobj::shape_t> stream_shapes;
+  std::vector<tinyobj::material_t> stream_materials;
+  std::string stream_warn, stream_err;
+  std::istringstream stream(obj_text);
+  tinyobj::experimental_stream::StreamLoadConfig config;
+  bool stream_ok = tinyobj::experimental_stream::LoadObjStreamExperimental(
+      &stream_attrib, &stream_shapes, &stream_materials, &stream_warn,
+      &stream_err, &stream, NULL, config);
+
+  TEST_CHECK(stream_ok == true);
+  TEST_CHECK(stream_attrib.vertex_weights.size() == 2);
+  TEST_CHECK(FloatEquals(0.5f, stream_attrib.vertex_weights[0]));
+  TEST_CHECK(FloatEquals(0.6f, stream_attrib.vertex_weights[1]));
+  TEST_CHECK(stream_attrib.colors.size() == 6);
+  TEST_CHECK(FloatEquals(0.1f, stream_attrib.colors[0]));
+  TEST_CHECK(FloatEquals(0.2f, stream_attrib.colors[1]));
+  TEST_CHECK(FloatEquals(0.3f, stream_attrib.colors[2]));
+  TEST_CHECK(FloatEquals(0.4f, stream_attrib.colors[3]));
+  TEST_CHECK(FloatEquals(0.5f, stream_attrib.colors[4]));
+  TEST_CHECK(FloatEquals(0.6f, stream_attrib.colors[5]));
+}
+
 void test_stream_loader_group_comment_matches_legacy() {
   const std::string obj_text = opt_test::BuildGroupCommentObj();
 
