@@ -18,6 +18,7 @@ Old version is available as `v0.9.x` branch https://github.com/syoyo/tinyobjload
 
 ## What's new
 
+* 22 May, 2026 : Added an optimized in-header loader `LoadObjOpt` with optional multithreading/SIMD (see [Optimized loader](#optimized-loader)).
 * 29 Jul, 2021 : Added Mapbox's earcut for robust triangulation. Also fixes triangulation bug(still there is some issue in built-in triangulation algorithm: https://github.com/tinyobjloader/tinyobjloader/issues/319).
 * 19 Feb, 2020 : The repository has been moved to https://github.com/tinyobjloader/tinyobjloader !
 * 18 May, 2019 : Python binding!(See `python` folder. Also see https://pypi.org/project/tinyobjloader/)
@@ -352,16 +353,45 @@ for (size_t s = 0; s < shapes.size(); s++) {
 
 ## Optimized loader
 
-Optimized multi-threaded .obj loader is available at `experimental/` directory.
-If you want absolute performance to load .obj data, this optimized loader will fit your purpose.
-Note that the optimized loader uses C++11 thread and it does less error checks but may work most .obj data.
+For large `.obj` files, tinyobjloader ships an optimized in-header loader,
+`LoadObjOpt` (C++11 required). It parses the whole buffer in one pass and can
+optionally use multiple threads and SIMD line scanning. It does fewer error
+checks than the standard loader but handles most real-world `.obj` data.
 
-Here is some benchmark result. Time are measured on MacBook 12(Early 2016, Core m5 1.2GHz).
+The result reuses the standard `attrib` / `shapes.mesh.*` layout, so the
+iteration code shown above works unchanged.
 
-* Rungholt scene(6M triangles)
-  * old version(v0.9.x): 15500 msecs.
-  * baseline(v1.0.x): 6800 msecs(2.3x faster than old version)
-  * optimised: 1500 msecs(10x faster than old version, 4.5x faster than baseline)
+```c++
+#define TINYOBJLOADER_IMPLEMENTATION
+// Optional speed-ups (all OFF by default; require C++11):
+//#define TINYOBJLOADER_USE_MULTITHREADING  // multi-threaded parsing
+//#define TINYOBJLOADER_USE_SIMD            // SIMD (SSE2/AVX2/NEON) newline scan
+#include "tiny_obj_loader.h"
+
+tinyobj::basic_attrib_t<> attrib;
+std::vector<tinyobj::basic_shape_t<>> shapes;
+std::vector<tinyobj::material_t> materials;
+std::string warn, err;
+
+tinyobj::OptLoadConfig config;
+config.triangulate = true;
+config.num_threads = -1; // -1 = hardware_concurrency, 0/1 = single-threaded.
+                         // Effective only with TINYOBJLOADER_USE_MULTITHREADING.
+
+bool ok = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                              "large_scene.obj", /* mtl_basedir */ nullptr,
+                              config);
+if (!warn.empty()) std::cout << warn;
+if (!ok) { std::cerr << err; return -1; }
+// attrib.vertices/.normals/.texcoords and shapes[s].mesh.* match the standard
+// loader — iterate exactly as in the example above.
+```
+
+A `LoadObjOptTyped` variant is also available; it returns an `OptResult` whose
+arrays are backed by a single arena allocator and only allocates optional
+arrays (vertex weights, texcoord `w`, colors, ...) when the input contains
+them — handy when minimizing allocations matters. An experimental stream-based
+loader lives under `experimental/stream/`.
 
 ## Python binding
 

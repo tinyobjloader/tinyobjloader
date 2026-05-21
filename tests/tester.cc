@@ -1,5 +1,14 @@
+// NOTE: Do not force-enable TINYOBJLOADER_USE_MULTITHREADING / _USE_SIMD /
+// ENABLE_EXCEPTION here.  The default `make check` build exercises the library
+// defaults (no SIMD, no multithreading, no exceptions); the Makefile's
+// `tester_features` target re-builds this file with those macros defined to
+// cover the optional code paths.
+#ifndef TINYOBJLOADER_IMPLEMENTATION
 #define TINYOBJLOADER_IMPLEMENTATION
+#endif
+#ifndef TINYOBJLOADER_STREAM_READER_MAX_BYTES
 #define TINYOBJLOADER_STREAM_READER_MAX_BYTES (size_t(8) * size_t(1024) * size_t(1024))
+#endif
 #include "../tiny_obj_loader.h"
 
 #if defined(__clang__)
@@ -31,6 +40,10 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+
+// Pull in the canonical experimental stream loader API instead of re-declaring
+// it here, so this test cannot silently drift from the real header.
+#include "../experimental/stream/stream_obj_loader.h"
 
 #ifdef _WIN32
 #include <direct.h>    // _mkdir
@@ -2400,6 +2413,8 @@ void test_numeric_nan_inf() {
   if (!warn.empty()) std::cout << "WARN: " << warn << std::endl;
   if (!err.empty()) std::cerr << "ERR: " << err << std::endl;
 
+#ifndef TINYOBJLOADER_DISABLE_FAST_FLOAT
+  // With fast_float, nan/inf keywords are recognized via tryParseNanInf.
   TEST_CHECK(true == ret);
   // 12 vertices * 3 components = 36
   TEST_CHECK(attrib.vertices.size() == 36);
@@ -2419,6 +2434,11 @@ void test_numeric_nan_inf() {
   // v4: -inf 1 1
   TEST_CHECK(FloatEquals(1.0f, attrib.vertices[13]));
   TEST_CHECK(FloatEquals(1.0f, attrib.vertices[14]));
+#else
+  // The legacy hand-written parser does not recognize nan/inf keywords,
+  // so the parse fails.  Just verify it doesn't crash.
+  (void)ret;
+#endif
 }
 
 void test_numeric_from_stream() {
@@ -2459,7 +2479,8 @@ void test_numeric_from_stream() {
 void test_numeric_overflow_preserves_default() {
   // Regression: values that overflow double must not crash or corrupt memory.
   // tryParseDouble now parses into a temp; *result is only written on success.
-  // With the StreamReader-based parser, overflow is detected as a parse error.
+  // With fast_float, overflow is detected as a parse error (result_out_of_range).
+  // The hand-written fallback parser produces inf for large exponents instead.
   std::string obj_str =
       "v 1e9999 2.0 3.0\n"    // first coord overflows
       "f 1\n";
@@ -2472,9 +2493,17 @@ void test_numeric_overflow_preserves_default() {
   bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
                               &obj_stream, NULL);
 
-  // Must not crash. Parser detects overflow and returns false.
+  // Must not crash.
+#ifndef TINYOBJLOADER_DISABLE_FAST_FLOAT
+  // fast_float detects overflow and returns an error.
   TEST_CHECK(false == ret);
   TEST_CHECK(!err.empty());
+#else
+  // Fallback parser produces inf instead of erroring out.
+  TEST_CHECK(true == ret);
+  TEST_CHECK(attrib.vertices.size() == 3);
+  TEST_CHECK(std::isinf(attrib.vertices[0]));
+#endif
 }
 
 void test_numeric_empty_and_whitespace() {
@@ -3349,6 +3378,839 @@ main(
 }
 #endif
 
+// ---- Tests for Optimized API (LoadObjOpt) ----
+void test_loadobjopt_from_buffer() {
+  // Simple triangle
+  const char *obj_text =
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "vn 0.0 0.0 1.0\n"
+      "vt 0.0 0.0\n"
+      "vt 1.0 0.0\n"
+      "vt 0.0 1.0\n"
+      "f 1/1/1 2/2/1 3/3/1\n";
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 1;  // force single-threaded for determinism
+  config.triangulate = true;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_text, obj_len, config);
+  if (!err.empty()) std::cerr << "ERR: " << err << "\n";
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 9);  // 3 vertices * 3 coords
+  TEST_CHECK(attrib.normals.size() == 3);   // 1 normal * 3 coords
+  TEST_CHECK(attrib.texcoords.size() == 6); // 3 texcoords * 2 coords
+  TEST_CHECK(attrib.indices.size() == 3);   // 3 face indices
+  TEST_CHECK(attrib.face_num_verts.size() == 1);  // 1 face
+  TEST_CHECK(attrib.face_num_verts[0] == 3);      // triangle
+
+  // Check vertex values
+  TEST_CHECK(attrib.vertices[0] == 0.0f);
+  TEST_CHECK(attrib.vertices[1] == 0.0f);
+  TEST_CHECK(attrib.vertices[2] == 0.0f);
+  TEST_CHECK(attrib.vertices[3] == 1.0f);
+}
+
+void test_loadobjopt_from_file() {
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 1;
+  config.triangulate = true;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  "../models/cornell_box.obj", gMtlBasePath,
+                                  config);
+  if (!err.empty()) std::cerr << "ERR: " << err << "\n";
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() > 0);
+  TEST_CHECK(shapes.size() > 0);
+
+  // Compare vertex count with standard LoadObj
+  tinyobj::attrib_t std_attrib;
+  std::vector<tinyobj::shape_t> std_shapes;
+  std::vector<tinyobj::material_t> std_materials;
+  std::string warn2, err2;
+  bool ret2 = tinyobj::LoadObj(&std_attrib, &std_shapes, &std_materials,
+                                &warn2, &err2, "../models/cornell_box.obj",
+                                gMtlBasePath);
+  TEST_CHECK(ret2 == true);
+  TEST_CHECK(attrib.vertices.size() == std_attrib.vertices.size());
+  TEST_CHECK(attrib.normals.size() == std_attrib.normals.size());
+}
+
+void test_loadobjopt_quad_triangulation() {
+  // Quad face that should be triangulated
+  const char *obj_text =
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 1.0 1.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "f 1 2 3 4\n";
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 1;
+  config.triangulate = true;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_text, obj_len, config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 12);  // 4 vertices * 3
+  // Quad triangulated into 2 triangles = 6 indices
+  TEST_CHECK(attrib.indices.size() == 6);
+  TEST_CHECK(attrib.face_num_verts.size() == 2);
+  TEST_CHECK(attrib.face_num_verts[0] == 3);
+  TEST_CHECK(attrib.face_num_verts[1] == 3);
+}
+
+void test_loadobjopt_no_triangulation() {
+  const char *obj_text =
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 1.0 1.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "f 1 2 3 4\n";
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 1;
+  config.triangulate = false;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_text, obj_len, config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.indices.size() == 4);  // quad = 4 indices
+  TEST_CHECK(attrib.face_num_verts.size() == 1);
+  TEST_CHECK(attrib.face_num_verts[0] == 4);
+}
+
+void test_loadobjopt_multiple_groups() {
+  const char *obj_text =
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "v 1.0 1.0 0.0\n"
+      "v 0.0 0.0 1.0\n"
+      "v 1.0 0.0 1.0\n"
+      "g group1\n"
+      "f 1 2 3\n"
+      "g group2\n"
+      "f 4 5 6\n";
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 1;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_text, obj_len, config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(shapes.size() == 2);
+}
+
+void test_loadobjopt_empty_buffer() {
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  "", static_cast<size_t>(0));
+  TEST_CHECK(ret == true);  // empty is not an error
+  TEST_CHECK(attrib.vertices.size() == 0);
+}
+
+void test_loadobjopt_leading_decimal_dot() {
+  // OBJ files may use leading decimal dots (e.g. ".7", "-.5234")
+  const char *obj_text =
+      "v .5 -.25 .0\n"
+      "v 1.0 .7 -.5234\n"
+      "v 0.0 0.0 0.0\n"
+      "f 1 2 3\n";
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.triangulate = true;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_text, obj_len, config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 9);  // 3 vertices * 3 coords
+
+  // v .5 -.25 .0
+  TEST_CHECK(std::abs(attrib.vertices[0] - 0.5f) < 1e-6f);
+  TEST_CHECK(std::abs(attrib.vertices[1] - (-0.25f)) < 1e-6f);
+  TEST_CHECK(std::abs(attrib.vertices[2] - 0.0f) < 1e-6f);
+
+  // v 1.0 .7 -.5234
+  TEST_CHECK(std::abs(attrib.vertices[3] - 1.0f) < 1e-6f);
+  TEST_CHECK(std::abs(attrib.vertices[4] - 0.7f) < 1e-6f);
+  TEST_CHECK(std::abs(attrib.vertices[5] - (-0.5234f)) < 1e-6f);
+}
+
+void test_loadobjopt_no_trailing_newline() {
+  // Buffer without trailing newline (tests sentinel handling)
+  const char *obj_text =
+      "v 1.0 2.0 3.0\n"
+      "v 4.0 5.0 6.0\n"
+      "v 7.0 8.0 9.0\n"
+      "f 1 2 3";  // no trailing newline
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.triangulate = true;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_text, obj_len, config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 9);  // 3 vertices * 3 coords
+  TEST_CHECK(attrib.indices.size() == 3);   // 3 face indices
+}
+
+void test_loadobjopt_face_missing_vt_vn() {
+  // Test that missing vt/vn in face lines are correctly handled as -1
+  // (not misinterpreted as relative index -1).
+  const char *obj_text =
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "vn 0.0 0.0 1.0\n"
+      "f 1//1 2//1 3//1\n";  // vertex//normal (no texcoord)
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.triangulate = true;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_text, obj_len, config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.indices.size() == 3);
+
+  // texcoord_index should be -1 (not present), not a fixed-up relative index
+  for (size_t i = 0; i < attrib.indices.size(); i++) {
+    TEST_CHECK(attrib.indices[i].texcoord_index == -1);
+    TEST_CHECK(attrib.indices[i].normal_index == 0);  // mapped from 1-based
+  }
+
+  // Also test "f 1 2 3" (vertex-only, no texcoord, no normal)
+  const char *obj_text2 =
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "f 1 2 3\n";
+  size_t obj_len2 = strlen(obj_text2);
+
+  tinyobj::basic_attrib_t<> attrib2;
+  std::vector<tinyobj::basic_shape_t<>> shapes2;
+  std::vector<tinyobj::material_t> materials2;
+  std::string warn2, err2;
+
+  ret = tinyobj::LoadObjOpt(&attrib2, &shapes2, &materials2, &warn2, &err2,
+                             obj_text2, obj_len2, config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib2.indices.size() == 3);
+  for (size_t i = 0; i < attrib2.indices.size(); i++) {
+    TEST_CHECK(attrib2.indices[i].texcoord_index == -1);
+    TEST_CHECK(attrib2.indices[i].normal_index == -1);
+  }
+}
+
+void test_loadobjopt_bare_cr_line_endings() {
+  // Test OBJ buffer with bare \r line endings (old Mac style)
+  const char *obj_text =
+      "v 0.0 0.0 0.0\r"
+      "v 1.0 0.0 0.0\r"
+      "v 0.0 1.0 0.0\r"
+      "f 1 2 3\r";
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.triangulate = true;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_text, obj_len, config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 9);  // 3 vertices * 3 coords
+  TEST_CHECK(attrib.indices.size() == 3);   // 3 face indices
+}
+
+void test_loadobjopt_degenerate_face() {
+  // Test that faces with fewer than 3 vertices are skipped
+  const char *obj_text =
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "f 1 2\n"         // degenerate (2 vertices) — should be skipped
+      "f 1 2 3\n";      // valid triangle
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.triangulate = true;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_text, obj_len, config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.indices.size() == 3);   // only the valid triangle
+  TEST_CHECK(attrib.face_num_verts.size() == 1);  // 1 face
+}
+
+void test_loadobjopt_usemtl_multiple_faces() {
+  // Test that usemtl applies to ALL subsequent faces, not just the next one.
+  // Without material files loaded, material_ids should default to -1.
+  const char *obj_text =
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "v 1.0 1.0 0.0\n"
+      "usemtl test_material\n"
+      "f 1 2 3\n"      // face 0 — should have the material
+      "f 2 3 4\n"      // face 1 — should also have the material (not reset)
+      "f 1 3 4\n";     // face 2 — should also have the material
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.triangulate = true;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_text, obj_len, config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.face_num_verts.size() == 3);  // 3 faces
+  TEST_CHECK(attrib.material_ids.size() == 3);
+
+  // All three faces should have the same material ID (-1 since no .mtl loaded)
+  // The key test: material_ids[1] and [2] should NOT be different from [0]
+  TEST_CHECK(attrib.material_ids[0] == attrib.material_ids[1]);
+  TEST_CHECK(attrib.material_ids[1] == attrib.material_ids[2]);
+}
+
+void test_loadobjopt_crlf_line_endings() {
+  // Test OBJ buffer with Windows-style \r\n line endings
+  const char *obj_text =
+      "v 0.0 0.0 0.0\r\n"
+      "v 1.0 0.0 0.0\r\n"
+      "v 0.0 1.0 0.0\r\n"
+      "f 1 2 3\r\n";
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.triangulate = true;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_text, obj_len, config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 9);  // 3 vertices * 3 coords
+  TEST_CHECK(attrib.indices.size() == 3);   // 3 face indices
+}
+
+void test_arena_allocator() {
+  tinyobj::ArenaAllocator arena(4096);
+
+  // Basic allocation
+  void *p1 = arena.allocate(100);
+  TEST_CHECK(p1 != nullptr);
+
+  void *p2 = arena.allocate(200);
+  TEST_CHECK(p2 != nullptr);
+  TEST_CHECK(p1 != p2);
+
+  // Aligned allocation
+  void *p3 = arena.allocate(64, 64);
+  TEST_CHECK(p3 != nullptr);
+  TEST_CHECK(reinterpret_cast<uintptr_t>(p3) % 64 == 0);
+
+  // Large allocation (exceeds default block)
+  void *p4 = arena.allocate(8192);
+  TEST_CHECK(p4 != nullptr);
+
+  // Reset and reuse
+  arena.reset();
+  void *p5 = arena.allocate(100);
+  TEST_CHECK(p5 != nullptr);
+}
+
+void test_arena_adapter_with_vector() {
+  tinyobj::ArenaAllocator arena(1024 * 1024);
+  tinyobj::arena_adapter<float> alloc(&arena);
+
+  // Use arena allocator with std::vector
+  std::vector<float, tinyobj::arena_adapter<float>> vec(alloc);
+  vec.reserve(100);
+  for (int i = 0; i < 100; i++) {
+    vec.push_back(static_cast<float>(i));
+  }
+
+  TEST_CHECK(vec.size() == 100);
+  TEST_CHECK(vec[0] == 0.0f);
+  TEST_CHECK(vec[99] == 99.0f);
+}
+
+void test_basic_attrib_with_arena() {
+  // Test basic_attrib_t with custom allocator
+  tinyobj::ArenaAllocator arena(1024 * 1024);
+  typedef tinyobj::arena_adapter<char> ArenaAlloc;
+
+  TEST_CHECK((std::uses_allocator<tinyobj::basic_tag_t<ArenaAlloc>, ArenaAlloc>::value));
+  TEST_CHECK((std::uses_allocator<tinyobj::basic_skin_weight_t<ArenaAlloc>,
+                                  ArenaAlloc>::value));
+
+  // Verify the template compiles and works
+  tinyobj::basic_attrib_t<ArenaAlloc> attrib;
+  attrib.vertices.push_back(1.0f);
+  attrib.vertices.push_back(2.0f);
+  attrib.vertices.push_back(3.0f);
+  tinyobj::basic_skin_weight_t<ArenaAlloc> sw;
+  sw.vertex_id = 0;
+  tinyobj::joint_and_weight_t jw;
+  jw.joint_id = 1;
+  jw.weight = 0.75f;
+  sw.weightValues.push_back(jw);
+  attrib.skin_weights.push_back(sw);
+
+  tinyobj::basic_mesh_t<ArenaAlloc> mesh;
+  tinyobj::basic_tag_t<ArenaAlloc> tag;
+  tag.name = "crease";
+  tag.intValues.push_back(1);
+  tag.floatValues.push_back(0.5f);
+  tag.stringValues.push_back("hard");
+  mesh.tags.push_back(tag);
+
+  TEST_CHECK(attrib.vertices.size() == 3);
+  TEST_CHECK(attrib.vertices[0] == 1.0f);
+  TEST_CHECK(attrib.skin_weights.size() == 1);
+  TEST_CHECK(mesh.tags.size() == 1);
+}
+
+// ---- Tests for TypedArray-based LoadObjOptTyped API ----
+
+void test_loadobjopt_typed_from_buffer() {
+  const char *obj_text =
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "vn 0.0 0.0 1.0\n"
+      "vt 0.0 0.0\n"
+      "vt 1.0 0.0\n"
+      "vt 0.0 1.0\n"
+      "f 1/1/1 2/2/1 3/3/1\n";
+  size_t obj_len = strlen(obj_text);
+
+  std::string warn, err;
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 1;
+  config.triangulate = true;
+
+  tinyobj::OptResult result =
+      tinyobj::LoadObjOptTyped(obj_text, obj_len, &warn, &err, config);
+  if (!err.empty()) std::cerr << "ERR: " << err << "\n";
+  TEST_CHECK(result.valid == true);
+  TEST_CHECK(result.attrib.vertices.size() == 9);
+  TEST_CHECK(result.attrib.normals.size() == 3);
+  TEST_CHECK(result.attrib.texcoords.size() == 6);
+  TEST_CHECK(result.attrib.indices.size() == 3);
+  TEST_CHECK(result.attrib.face_num_verts.size() == 1);
+  TEST_CHECK(result.attrib.face_num_verts[0] == 3);
+
+  // Check vertex values
+  TEST_CHECK(result.attrib.vertices[0] == 0.0f);
+  TEST_CHECK(result.attrib.vertices[3] == 1.0f);
+
+  // Check shape ranges (should be 1 shape)
+  TEST_CHECK(result.shapes.size() == 1);
+  TEST_CHECK(result.shapes[0].face_offset == 0);
+  TEST_CHECK(result.shapes[0].face_count == 1);
+  TEST_CHECK(result.shapes[0].index_offset == 0);
+  TEST_CHECK(result.shapes[0].index_count == 3);
+}
+
+void test_loadobjopt_typed_multiple_groups() {
+  const char *obj_text =
+      "v 0 0 0\nv 1 0 0\nv 0 1 0\nv 1 1 0\nv 2 0 0\nv 2 1 0\n"
+      "g group1\n"
+      "f 1 2 3\n"
+      "g group2\n"
+      "f 4 5 6\n";
+  size_t obj_len = strlen(obj_text);
+
+  std::string warn, err;
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 1;
+  config.triangulate = true;
+
+  tinyobj::OptResult result =
+      tinyobj::LoadObjOptTyped(obj_text, obj_len, &warn, &err, config);
+  TEST_CHECK(result.valid == true);
+  TEST_CHECK(result.shapes.size() == 2);
+  TEST_CHECK(result.shapes[0].name == "group1");
+  TEST_CHECK(result.shapes[0].face_count == 1);
+  TEST_CHECK(result.shapes[0].index_count == 3);
+  TEST_CHECK(result.shapes[1].name == "group2");
+  TEST_CHECK(result.shapes[1].face_count == 1);
+  TEST_CHECK(result.shapes[1].index_count == 3);
+
+  // Shape ranges point into the flat attrib arrays
+  TEST_CHECK(result.shapes[0].face_offset == 0);
+  TEST_CHECK(result.shapes[1].face_offset == 1);
+  TEST_CHECK(result.shapes[0].index_offset == 0);
+  TEST_CHECK(result.shapes[1].index_offset == 3);
+}
+
+void test_loadobjopt_typed_optional_arrays_lazy() {
+  // No vertex colors, no weights, no texcoord_w — these should be empty
+  const char *obj_text =
+      "v 0 0 0\nv 1 0 0\nv 0 1 0\n"
+      "f 1 2 3\n";
+  size_t obj_len = strlen(obj_text);
+
+  std::string warn, err;
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 1;
+  config.triangulate = true;
+
+  tinyobj::OptResult result =
+      tinyobj::LoadObjOptTyped(obj_text, obj_len, &warn, &err, config);
+  TEST_CHECK(result.valid == true);
+  TEST_CHECK(result.attrib.vertices.size() == 9);
+  // Optional arrays should be empty (lazy allocation)
+  TEST_CHECK(result.attrib.vertex_weights.empty());
+  TEST_CHECK(result.attrib.texcoord_ws.empty());
+  TEST_CHECK(result.attrib.colors.empty());
+  TEST_CHECK(result.attrib.smoothing_group_ids.empty());
+}
+
+void test_loadobjopt_typed_matches_loadobjopt() {
+  // Compare results between LoadObjOpt and LoadObjOptTyped
+  const char *obj_text =
+      "v 0 0 0\nv 1 0 0\nv 0 1 0\nv 1 1 0\n"
+      "vn 0 0 1\n"
+      "vt 0 0\nvt 1 0\nvt 0 1\nvt 1 1\n"
+      "g quad\n"
+      "f 1/1/1 2/2/1 4/4/1 3/3/1\n";
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 1;
+  config.triangulate = true;
+
+  // LoadObjOpt path
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn1, err1;
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn1, &err1,
+                                  obj_text, obj_len, config);
+  TEST_CHECK(ret == true);
+
+  // LoadObjOptTyped path
+  std::string warn2, err2;
+  tinyobj::OptResult result =
+      tinyobj::LoadObjOptTyped(obj_text, obj_len, &warn2, &err2, config);
+  TEST_CHECK(result.valid == true);
+
+  // Compare attrib sizes
+  TEST_CHECK(result.attrib.vertices.size() == attrib.vertices.size());
+  TEST_CHECK(result.attrib.normals.size() == attrib.normals.size());
+  TEST_CHECK(result.attrib.texcoords.size() == attrib.texcoords.size());
+  TEST_CHECK(result.attrib.indices.size() == attrib.indices.size());
+  TEST_CHECK(result.attrib.face_num_verts.size() == attrib.face_num_verts.size());
+
+  // Compare vertex data
+  for (size_t i = 0; i < attrib.vertices.size(); i++) {
+    TEST_CHECK(result.attrib.vertices[i] == attrib.vertices[i]);
+  }
+  // Compare indices
+  for (size_t i = 0; i < attrib.indices.size(); i++) {
+    TEST_CHECK(result.attrib.indices[i].vertex_index == attrib.indices[i].vertex_index);
+    TEST_CHECK(result.attrib.indices[i].texcoord_index == attrib.indices[i].texcoord_index);
+    TEST_CHECK(result.attrib.indices[i].normal_index == attrib.indices[i].normal_index);
+  }
+}
+
+void test_loadobjopt_typed_empty_buffer() {
+  std::string warn, err;
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 1;
+
+  tinyobj::OptResult result =
+      tinyobj::LoadObjOptTyped("", 0, &warn, &err, config);
+  TEST_CHECK(result.valid == true);
+  TEST_CHECK(result.attrib.vertices.empty());
+  TEST_CHECK(result.attrib.indices.empty());
+}
+
+void test_loadobjopt_typed_move_semantics() {
+  const char *obj_text =
+      "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
+  size_t obj_len = strlen(obj_text);
+
+  std::string warn, err;
+  tinyobj::OptLoadConfig config;
+  config.num_threads = 1;
+  config.triangulate = true;
+
+  tinyobj::OptResult result =
+      tinyobj::LoadObjOptTyped(obj_text, obj_len, &warn, &err, config);
+  TEST_CHECK(result.valid == true);
+  const float *verts_ptr = result.attrib.vertices.data();
+
+  // Move to new result
+  tinyobj::OptResult result2 = std::move(result);
+  TEST_CHECK(result2.valid == true);
+  TEST_CHECK(result2.attrib.vertices.data() == verts_ptr);  // same pointer
+  TEST_CHECK(result2.attrib.vertices.size() == 9);
+}
+
+void test_loadobjopt_typed_vertex_color_6_and_7() {
+  // 6-component: v x y z r g b — color=(r,g,b), weight=r (legacy compat)
+  // 7-component: v x y z w r g b — weight=w, color=(r,g,b)
+  {
+    const char *obj6 =
+        "v 1.0 2.0 3.0 0.2 0.4 0.6\n"
+        "v 4.0 5.0 6.0 0.2 0.4 0.6\n"
+        "v 7.0 8.0 9.0 0.2 0.4 0.6\n"
+        "f 1 2 3\n";
+    std::string w, e;
+    tinyobj::OptLoadConfig cfg;
+    cfg.num_threads = 1;
+    cfg.triangulate = true;
+    tinyobj::OptResult r = tinyobj::LoadObjOptTyped(obj6, strlen(obj6), &w, &e, cfg);
+    TEST_CHECK(r.valid);
+    TEST_CHECK(r.attrib.vertices.size() == 9);
+    // Color should be (0.2, 0.4, 0.6)
+    TEST_CHECK(!r.attrib.colors.empty());
+    TEST_CHECK(std::abs(r.attrib.colors[0] - 0.2f) < 1e-5f);
+    TEST_CHECK(std::abs(r.attrib.colors[1] - 0.4f) < 1e-5f);
+    TEST_CHECK(std::abs(r.attrib.colors[2] - 0.6f) < 1e-5f);
+    // Weight should be r (= 0.2)
+    TEST_CHECK(!r.attrib.vertex_weights.empty());
+    TEST_CHECK(std::abs(r.attrib.vertex_weights[0] - 0.2f) < 1e-5f);
+  }
+  // 7-component: v x y z w r g b
+  {
+    const char *obj7 =
+        "v 1.0 2.0 3.0 0.5 0.1 0.2 0.3\n"
+        "v 4.0 5.0 6.0 0.5 0.1 0.2 0.3\n"
+        "v 7.0 8.0 9.0 0.5 0.1 0.2 0.3\n"
+        "f 1 2 3\n";
+    std::string w, e;
+    tinyobj::OptLoadConfig cfg;
+    cfg.num_threads = 1;
+    cfg.triangulate = true;
+    tinyobj::OptResult r = tinyobj::LoadObjOptTyped(obj7, strlen(obj7), &w, &e, cfg);
+    TEST_CHECK(r.valid);
+    // Weight should be 0.5
+    TEST_CHECK(!r.attrib.vertex_weights.empty());
+    TEST_CHECK(std::abs(r.attrib.vertex_weights[0] - 0.5f) < 1e-5f);
+    // Color should be (0.1, 0.2, 0.3) — NOT (0.5, 0.1, 0.2)
+    TEST_CHECK(!r.attrib.colors.empty());
+    TEST_CHECK(std::abs(r.attrib.colors[0] - 0.1f) < 1e-5f);
+    TEST_CHECK(std::abs(r.attrib.colors[1] - 0.2f) < 1e-5f);
+    TEST_CHECK(std::abs(r.attrib.colors[2] - 0.3f) < 1e-5f);
+  }
+  // Also verify LoadObjOpt produces same results
+  {
+    const char *obj7 =
+        "v 1.0 2.0 3.0 0.5 0.1 0.2 0.3\n"
+        "v 4.0 5.0 6.0 0.5 0.1 0.2 0.3\n"
+        "v 7.0 8.0 9.0 0.5 0.1 0.2 0.3\n"
+        "f 1 2 3\n";
+    tinyobj::basic_attrib_t<> attrib;
+    std::vector<tinyobj::basic_shape_t<>> shapes;
+    std::vector<tinyobj::material_t> mats;
+    std::string w, e;
+    tinyobj::OptLoadConfig cfg;
+    cfg.num_threads = 1;
+    cfg.triangulate = true;
+    bool ok = tinyobj::LoadObjOpt(&attrib, &shapes, &mats, &w, &e,
+                                   obj7, strlen(obj7), cfg);
+    TEST_CHECK(ok);
+    TEST_CHECK(!attrib.colors.empty());
+    TEST_CHECK(std::abs(attrib.colors[0] - 0.1f) < 1e-5f);
+    TEST_CHECK(std::abs(attrib.colors[1] - 0.2f) < 1e-5f);
+    TEST_CHECK(std::abs(attrib.colors[2] - 0.3f) < 1e-5f);
+    TEST_CHECK(std::abs(attrib.vertex_weights[0] - 0.5f) < 1e-5f);
+  }
+}
+
+void test_loadobjopt_nan_inf_values() {
+  // Test that nan/inf in vertex data are handled with OBJ-compatible values
+  // (nan→0, +inf→max, -inf→lowest), matching the legacy parser.
+  const char *obj_text =
+      "v nan inf -inf\n"
+      "v 1.0 2.0 3.0\n"
+      "v 0.0 0.0 0.0\n"
+      "f 1 2 3\n";
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.triangulate = true;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_text, obj_len, config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 9);  // 3 vertices * 3 coords
+
+  // nan maps to 0.0
+  TEST_CHECK(std::abs(attrib.vertices[0] - 0.0f) < 1e-6f);
+  // +inf maps to double::max() → when cast to float becomes +inf
+  TEST_CHECK(std::isinf(attrib.vertices[1]) && attrib.vertices[1] > 0);
+  // -inf maps to double::lowest() → when cast to float becomes -inf
+  TEST_CHECK(std::isinf(attrib.vertices[2]) && attrib.vertices[2] < 0);
+
+  // Verify second vertex is parsed normally
+  TEST_CHECK(std::abs(attrib.vertices[3] - 1.0f) < 1e-6f);
+  TEST_CHECK(std::abs(attrib.vertices[4] - 2.0f) < 1e-6f);
+  TEST_CHECK(std::abs(attrib.vertices[5] - 3.0f) < 1e-6f);
+}
+
+void test_arena_adapter_overflow_guard() {
+  // Verify that arena_adapter::allocate rejects SIZE_MAX/sizeof(T) overflow.
+  // When TINYOBJLOADER_ENABLE_EXCEPTION is not defined, the allocator returns
+  // nullptr on overflow.  When exceptions are enabled, it throws std::bad_alloc.
+  tinyobj::ArenaAllocator arena;
+  tinyobj::arena_adapter<double> adapter(&arena);
+  // Request an allocation that would overflow size_t when multiplied by
+  // sizeof(double)=8.  SIZE_MAX / 8 + 1 overflows.
+  const size_t overflow_n = SIZE_MAX / sizeof(double) + 1;
+#ifdef TINYOBJLOADER_ENABLE_EXCEPTION
+  bool threw = false;
+  try {
+    double *p = adapter.allocate(overflow_n);
+    (void)p;
+  } catch (const std::bad_alloc &) {
+    threw = true;
+  }
+  TEST_CHECK(threw);
+#else
+  double *p = adapter.allocate(overflow_n);
+  TEST_CHECK(p == nullptr);
+#endif
+}
+
+void test_loadobjopt_object_name_trimming() {
+  // Verify that object names match the legacy parser behavior.
+  // The legacy parser preserves leading/trailing spaces in object names.
+  const char *obj_text =
+      "o  MyObject  \n"
+      "v 0.0 0.0 0.0\n"
+      "v 1.0 0.0 0.0\n"
+      "v 0.0 1.0 0.0\n"
+      "f 1 2 3\n";
+  size_t obj_len = strlen(obj_text);
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.triangulate = true;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_text, obj_len, config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(shapes.size() == 1);
+  // Legacy parser uses sr.advance(2) to skip 'o' + one space, then
+  // sr.read_line() captures the remainder verbatim.  For "o  MyObject  \n",
+  // advance(2) skips 'o' and the first space, leaving " MyObject  " as the
+  // object name (leading space is the second space from the original input,
+  // and trailing spaces are preserved).
+  TEST_CHECK(shapes[0].name == " MyObject  ");
+}
+
+void test_loadobjopt_mixed_line_endings() {
+  // File with mixed \n, \r\n, and bare \r line endings
+  std::string obj_data;
+  obj_data += "v 0.0 0.0 0.0\n";      // LF
+  obj_data += "v 1.0 0.0 0.0\r\n";    // CRLF
+  obj_data += "v 0.0 1.0 0.0\r";      // bare CR
+  obj_data += "v 1.0 1.0 0.0\n";      // LF
+  obj_data += "f 1 2 3\r\n";          // CRLF
+  obj_data += "f 1 3 4\n";            // LF
+
+  tinyobj::basic_attrib_t<> attrib;
+  std::vector<tinyobj::basic_shape_t<>> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+
+  tinyobj::OptLoadConfig config;
+  config.triangulate = true;
+
+  bool ret = tinyobj::LoadObjOpt(&attrib, &shapes, &materials, &warn, &err,
+                                  obj_data.data(), obj_data.size(), config);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(attrib.vertices.size() == 12);  // 4 vertices * 3 coords
+  TEST_CHECK(shapes.size() == 1);
+  TEST_CHECK(shapes[0].mesh.indices.size() == 6);  // 2 triangles * 3
+}
+
+#include "opt/loadobjopt_multithread.inc"
+
 TEST_LIST = {
     {"cornell_box", test_cornell_box},
     {"catmark_torus_creases0", test_catmark_torus_creases0},
@@ -3444,6 +4306,153 @@ TEST_LIST = {
     {"test_parse_error_backward_compat", test_parse_error_backward_compat},
     {"test_split_string_preserves_non_escape_backslash",
      test_split_string_preserves_non_escape_backslash},
+    {"test_loadobjopt_from_buffer", test_loadobjopt_from_buffer},
+    {"test_loadobjopt_from_file", test_loadobjopt_from_file},
+    {"test_loadobjopt_quad_triangulation", test_loadobjopt_quad_triangulation},
+    {"test_loadobjopt_no_triangulation", test_loadobjopt_no_triangulation},
+    {"test_loadobjopt_multiple_groups", test_loadobjopt_multiple_groups},
+    {"test_loadobjopt_empty_buffer", test_loadobjopt_empty_buffer},
+    {"test_loadobjopt_leading_decimal_dot", test_loadobjopt_leading_decimal_dot},
+    {"test_loadobjopt_no_trailing_newline", test_loadobjopt_no_trailing_newline},
+    {"test_loadobjopt_face_missing_vt_vn", test_loadobjopt_face_missing_vt_vn},
+    {"test_loadobjopt_bare_cr_line_endings", test_loadobjopt_bare_cr_line_endings},
+    {"test_loadobjopt_degenerate_face", test_loadobjopt_degenerate_face},
+    {"test_loadobjopt_usemtl_multiple_faces", test_loadobjopt_usemtl_multiple_faces},
+    {"test_loadobjopt_crlf_line_endings", test_loadobjopt_crlf_line_endings},
+    {"test_arena_allocator", test_arena_allocator},
+    {"test_arena_adapter_with_vector", test_arena_adapter_with_vector},
+    {"test_basic_attrib_with_arena", test_basic_attrib_with_arena},
+    {"test_loadobjopt_multithread_matches_single_thread",
+     test_loadobjopt_multithread_matches_single_thread},
+    {"test_loadobjopt_multithread_relative_indices_match_single_thread",
+     test_loadobjopt_multithread_relative_indices_match_single_thread},
+    {"test_loadobjopt_mtllib_multiple_filenames",
+     test_loadobjopt_mtllib_multiple_filenames},
+    {"test_loadobjopt_mtllib_repeated_lines",
+     test_loadobjopt_mtllib_repeated_lines},
+    {"test_loadobjopt_points_only_input", test_loadobjopt_points_only_input},
+    {"test_loadobjopt_faces_only_input", test_loadobjopt_faces_only_input},
+    {"test_loadobjopt_synthetic_benchmark", test_loadobjopt_synthetic_benchmark},
+    {"test_loadobjopt_matches_legacy_parser_triangle_soup",
+     test_loadobjopt_matches_legacy_parser_triangle_soup},
+    {"test_loadobjopt_matches_legacy_parser_mtllib_threaded",
+     test_loadobjopt_matches_legacy_parser_mtllib_threaded},
+    {"test_loadobjopt_matches_legacy_parser_colors_smoothing_and_comments",
+     test_loadobjopt_matches_legacy_parser_colors_smoothing_and_comments},
+    {"test_loadobjopt_mixed_vertex_colors_drop_like_legacy",
+     test_loadobjopt_mixed_vertex_colors_drop_like_legacy},
+    {"test_stream_loader_mixed_vertex_colors_drop_like_legacy",
+     test_stream_loader_mixed_vertex_colors_drop_like_legacy},
+    {"test_stream_loader_mixed_vertex_colors_backfill",
+     test_stream_loader_mixed_vertex_colors_backfill},
+    {"test_stream_loader_mtllib_escaped_spaces",
+     test_stream_loader_mtllib_escaped_spaces},
+    {"test_stream_loader_clears_outputs_on_failure",
+     test_stream_loader_clears_outputs_on_failure},
+    {"test_loadobjopt_face_comment_matches_legacy",
+     test_loadobjopt_face_comment_matches_legacy},
+    {"test_loadobjopt_concave_polygon_matches_legacy",
+     test_loadobjopt_concave_polygon_matches_legacy},
+    {"test_stream_loader_concave_polygon_matches_legacy",
+     test_stream_loader_concave_polygon_matches_legacy},
+    {"test_loadobjopt_invalid_polygon_matches_legacy",
+     test_loadobjopt_invalid_polygon_matches_legacy},
+    {"test_stream_loader_hash_in_names",
+     test_stream_loader_hash_in_names},
+    {"test_loadobjopt_hash_in_usemtl_matches_legacy",
+     test_loadobjopt_hash_in_usemtl_matches_legacy},
+    {"test_loadobjopt_usemtl_before_mtllib_matches_legacy",
+     test_loadobjopt_usemtl_before_mtllib_matches_legacy},
+    {"test_loadobjopt_group_comment_matches_legacy",
+     test_loadobjopt_group_comment_matches_legacy},
+    {"test_loadobjopt_invalid_face_token_matches_legacy_error",
+     test_loadobjopt_invalid_face_token_matches_legacy_error},
+    {"test_stream_loader_texcoord_w",
+     test_stream_loader_texcoord_w},
+    {"test_stream_loader_vertex_weight",
+     test_stream_loader_vertex_weight},
+    {"test_stream_loader_colored_vertex_weight",
+     test_stream_loader_colored_vertex_weight},
+    {"test_stream_loader_weighted_color_vertex_7_components",
+     test_stream_loader_weighted_color_vertex_7_components},
+    {"test_stream_loader_group_comment_matches_legacy",
+     test_stream_loader_group_comment_matches_legacy},
+    {"test_stream_loader_weighted_vertex_comment_matches_legacy",
+     test_stream_loader_weighted_vertex_comment_matches_legacy},
+    {"test_loadobjopt_mtllib_warning_preserved_on_parse_error",
+     test_loadobjopt_mtllib_warning_preserved_on_parse_error},
+    {"test_loadobjopt_empty_group_warning_matches_legacy",
+     test_loadobjopt_empty_group_warning_matches_legacy},
+    {"test_stream_loader_empty_group_warning_matches_legacy",
+     test_stream_loader_empty_group_warning_matches_legacy},
+    {"test_stream_loader_optional_vertex_token_matches_legacy",
+     test_stream_loader_optional_vertex_token_matches_legacy},
+    {"test_loadobjopt_buffer_ignores_mtllib_like_legacy_stream",
+     test_loadobjopt_buffer_ignores_mtllib_like_legacy_stream},
+    {"test_loadobjopt_parse_error_reports_record_type",
+     test_loadobjopt_parse_error_reports_record_type},
+    {"test_stream_loader_object_spacing_matches_legacy",
+     test_stream_loader_object_spacing_matches_legacy},
+    {"test_loadobjopt_object_spacing_matches_legacy",
+     test_loadobjopt_object_spacing_matches_legacy},
+    {"test_loadobjopt_empty_mtllib_warning_matches_legacy_file",
+     test_loadobjopt_empty_mtllib_warning_matches_legacy_file},
+    {"test_stream_loader_empty_mtllib_warning_matches_legacy",
+     test_stream_loader_empty_mtllib_warning_matches_legacy},
+    {"test_stream_loader_warnings_preserved_on_parse_error",
+     test_stream_loader_warnings_preserved_on_parse_error},
+    {"test_stream_loader_material_resolution_without_material_output",
+     test_stream_loader_material_resolution_without_material_output},
+    {"test_loadobjopt_matches_legacy_extended_features",
+     test_loadobjopt_matches_legacy_extended_features},
+    {"test_loadobjopt_vertex_weight_and_texcoord_w_match_legacy",
+     test_loadobjopt_vertex_weight_and_texcoord_w_match_legacy},
+    {"test_loadobjopt_single_component_texcoord_matches_legacy",
+     test_loadobjopt_single_component_texcoord_matches_legacy},
+    {"test_stream_loader_single_component_texcoord_matches_legacy",
+     test_stream_loader_single_component_texcoord_matches_legacy},
+    {"test_stream_loader_embedded_carriage_return_matches_legacy",
+     test_stream_loader_embedded_carriage_return_matches_legacy},
+    {"test_stream_loader_embedded_nul_empty_shape_matches_legacy",
+     test_stream_loader_embedded_nul_empty_shape_matches_legacy},
+    {"test_stream_loader_object_only_matches_legacy",
+     test_stream_loader_object_only_matches_legacy},
+    {"test_stream_loader_group_only_matches_legacy",
+     test_stream_loader_group_only_matches_legacy},
+    {"test_stream_loader_degenerate_face_matches_legacy",
+     test_stream_loader_degenerate_face_matches_legacy},
+    {"test_stream_loader_degenerate_face_warning_order_matches_legacy",
+     test_stream_loader_degenerate_face_warning_order_matches_legacy},
+    {"test_stream_loader_degenerate_face_warning_suppressed_on_parse_error",
+     test_stream_loader_degenerate_face_warning_suppressed_on_parse_error},
+    {"test_loadobjopt_degenerate_face_matches_legacy",
+     test_loadobjopt_degenerate_face_matches_legacy},
+    {"test_loadobjopt_degenerate_face_warning_order_matches_legacy",
+     test_loadobjopt_degenerate_face_warning_order_matches_legacy},
+    {"test_loadobjopt_degenerate_face_warning_suppressed_on_parse_error",
+     test_loadobjopt_degenerate_face_warning_suppressed_on_parse_error},
+    {"test_loadobjopt_initial_named_shape_matches_legacy",
+     test_loadobjopt_initial_named_shape_matches_legacy},
+    {"test_loadobjopt_invalid_relative_vertex_index_matches_legacy_error",
+     test_loadobjopt_invalid_relative_vertex_index_matches_legacy_error},
+    {"test_loadobjopt_invalid_relative_texcoord_normal_index_matches_legacy_error",
+     test_loadobjopt_invalid_relative_texcoord_normal_index_matches_legacy_error},
+    {"test_stream_loader_invalid_relative_vertex_index_matches_legacy_error",
+     test_stream_loader_invalid_relative_vertex_index_matches_legacy_error},
+    {"test_stream_loader_invalid_relative_texcoord_normal_index_matches_legacy_error",
+     test_stream_loader_invalid_relative_texcoord_normal_index_matches_legacy_error},
+    {"test_loadobjopt_out_of_bounds_warning_matches_legacy",
+     test_loadobjopt_out_of_bounds_warning_matches_legacy},
+    {"test_stream_loader_out_of_bounds_warning_matches_legacy",
+     test_stream_loader_out_of_bounds_warning_matches_legacy},
+    {"test_loadobjopt_zero_vertex_index_warning_matches_legacy",
+     test_loadobjopt_zero_vertex_index_warning_matches_legacy},
+    {"test_stream_loader_zero_vertex_index_warning_matches_legacy",
+     test_stream_loader_zero_vertex_index_warning_matches_legacy},
+    {"test_loadobjopt_zero_texcoord_normal_indices_match_legacy",
+     test_loadobjopt_zero_texcoord_normal_indices_match_legacy},
+    {"test_stream_loader_zero_texcoord_normal_indices_match_legacy",
+     test_stream_loader_zero_texcoord_normal_indices_match_legacy},
     {"test_streamreader_eof_and_remaining",
      test_streamreader_eof_and_remaining},
     {"test_streamreader_skip_and_read", test_streamreader_skip_and_read},
@@ -3482,4 +4491,18 @@ TEST_LIST = {
      test_empty_mtl_no_phantom_material},
     {"test_streamreader_not_copyable", test_streamreader_not_copyable},
     {"test_out_of_range_face_index", test_out_of_range_face_index},
+    {"test_loadobjopt_typed_from_buffer", test_loadobjopt_typed_from_buffer},
+    {"test_loadobjopt_typed_multiple_groups", test_loadobjopt_typed_multiple_groups},
+    {"test_loadobjopt_typed_optional_arrays_lazy", test_loadobjopt_typed_optional_arrays_lazy},
+    {"test_loadobjopt_typed_matches_loadobjopt", test_loadobjopt_typed_matches_loadobjopt},
+    {"test_loadobjopt_typed_empty_buffer", test_loadobjopt_typed_empty_buffer},
+    {"test_loadobjopt_typed_move_semantics", test_loadobjopt_typed_move_semantics},
+    {"test_loadobjopt_nan_inf_values", test_loadobjopt_nan_inf_values},
+    {"test_loadobjopt_typed_vertex_color_6_and_7",
+     test_loadobjopt_typed_vertex_color_6_and_7},
+    {"test_arena_adapter_overflow_guard", test_arena_adapter_overflow_guard},
+    {"test_loadobjopt_object_name_trimming",
+     test_loadobjopt_object_name_trimming},
+    {"test_loadobjopt_mixed_line_endings",
+     test_loadobjopt_mixed_line_endings},
     {NULL, NULL}};
