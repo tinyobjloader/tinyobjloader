@@ -791,12 +791,16 @@ static bool ParseLineToEvent(size_t line_num, const std::string &line,
       return false;
     }
 
-    // Match the legacy/opt loaders' weight + color handling, keyed on the
-    // number of components beyond `x y z`:
+    // Mirror LoadObjOpt's weight + color handling, keyed on the number of
+    // components beyond `x y z`:
     //   +0  (v x y z)        -> position only
     //   +1  (v x y z w)      -> weight only
     //   +3  (v x y z r g b)  -> color, weight = r (legacy compat)
     //   +4+ (v x y z w r g b)-> weight + color
+    // The OBJ spec / common vertex-color extension only define xyz / xyzw /
+    // xyzrgb (weight and color are mutually exclusive); the +4 case is a
+    // tinyobjloader extension shared with LoadObjOpt.  The classic LoadObj
+    // path caps at 6 and differs here.
     const size_t extra = tokens.size() - 3;
     if (extra == 1) {
       real_t w = real_t(1.0);

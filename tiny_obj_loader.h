@@ -6797,6 +6797,11 @@ static inline void parseV(real_t *x, real_t *y, real_t *z, real_t *w,
 // Extension: parse vertex with colors(6 items)
 // Return 3: xyz, 4: xyzw, 6: xyzrgb
 // `r`: red(case 6) or [w](case 4)
+// NOTE: This classic path caps at 6 components per the de-facto vertex-color
+// extension (xyz / xyzw / xyzrgb; weight and color are mutually exclusive) and
+// ignores any further tokens.  LoadObjOpt / the experimental stream loader
+// additionally accept a non-standard 7-component `v x y z w r g b` (weight +
+// color) form, so they diverge from this function for 7+ token vertices.
 static inline int parseVertexWithColor(real_t *x, real_t *y, real_t *z,
                                        real_t *r, real_t *g, real_t *b,
                                        const char **token,
@@ -10949,7 +10954,13 @@ static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
         command->vc_b = cb;
       }
     } else if (extra_components >= 4) {
-      // v x y z w r g b  (7+ total) — weight + color
+      // v x y z w r g b  (7+ total) — weight + color.
+      // NOTE: 7-component vertices are NOT part of the OBJ spec nor the common
+      // vertex-color extension, which define only xyz / xyzw / xyzrgb and treat
+      // weight and color as mutually exclusive.  tinyobjloader accepts this as
+      // an extension: the 4th value is the weight, the next three are RGB.
+      // (The classic LoadObj / LoadObjWithCallback path instead caps at 6 and
+      // ignores any extra tokens, so it differs from LoadObjOpt here.)
       real_t vw = real_t(1.0), cr = r, cg = g, cb = b;
       const char *wc_cursor = extra_token;
       if (opt_tryParseFloatToken(&vw, &wc_cursor) &&
@@ -11727,7 +11738,13 @@ static void opt_parseLineToThreadData(
       td.v_color[coff+1] = extra[1];
       td.v_color[coff+2] = extra[2];
     } else if (nextra >= 4) {
-      // v x y z w r g b  (7+ total) — weight + color
+      // v x y z w r g b  (7+ total) — weight + color.
+      // NOTE: 7-component vertices are NOT part of the OBJ spec nor the common
+      // vertex-color extension, which define only xyz / xyzw / xyzrgb and treat
+      // weight and color as mutually exclusive.  tinyobjloader accepts this as
+      // an extension: the 4th value is the weight, the next three are RGB.
+      // (The classic LoadObj / LoadObjWithCallback path instead caps at 6 and
+      // ignores any extra tokens, so it differs from LoadObjOpt here.)
       if (!td.saw_any_weight) {
         td.saw_any_weight = true;
         td.v_weight.resize(td.num_v, real_t(1.0));

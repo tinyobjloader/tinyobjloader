@@ -1723,9 +1723,11 @@ void test_stream_loader_colored_vertex_weight() {
 }
 
 // `v x y z w r g b` (7 components) -> weight = w, color = (r, g, b).
-// The legacy istream loader has a long-standing quirk here (it stops at 6
-// scalars, so it treats the 4th value as both weight and red and drops the
-// 7th); the stream loader instead follows the corrected LoadObjOpt semantics.
+// 7-component vertices are not part of the OBJ spec or the common vertex-color
+// extension (which define only xyz / xyzw / xyzrgb); tinyobjloader accepts them
+// as an extension in LoadObjOpt and the stream loader (4th value = weight, next
+// three = RGB).  The classic LoadObj path caps at 6, so we assert explicit
+// values here rather than comparing against it.
 void test_stream_loader_weighted_color_vertex_7_components() {
   const std::string obj_text =
       "v 0.0 0.0 0.0 0.5 0.1 0.2 0.3\n"
