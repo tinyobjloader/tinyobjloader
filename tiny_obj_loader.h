@@ -64,9 +64,16 @@ THE SOFTWARE.
 #ifndef TINY_OBJ_LOADER_H_
 #define TINY_OBJ_LOADER_H_
 
+#include <algorithm>
 #include <map>
 #include <string>
 #include <vector>
+
+#include <cstdint>
+#include <cstring>
+#include <memory>
+#include <new>
+#include <type_traits>
 
 namespace tinyobj {
 
@@ -74,7 +81,6 @@ namespace tinyobj {
 #if __cplusplus < 201103L && (!defined(_MSVC_LANG) || _MSVC_LANG < 201103L)
 #error "tinyobjloader requires C++11 or later. Compile with -std=c++11 or higher."
 #endif
-#define TINYOBJ_OVERRIDE override
 
 #ifdef __clang__
 #pragma clang diagnostic push
@@ -325,25 +331,114 @@ struct material_t {
 #endif
 };
 
-struct tag_t {
-  std::string name;
+template <typename Alloc = std::allocator<char>>
+struct basic_tag_t {
+  using allocator_type = Alloc;
+  using char_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<char>;
+  using string_type =
+      std::basic_string<char, std::char_traits<char>, char_alloc>;
+  using int_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<int>;
+  using real_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<real_t>;
+  using string_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<string_type>;
 
-  std::vector<int> intValues;
-  std::vector<real_t> floatValues;
-  std::vector<std::string> stringValues;
+  string_type name;
+  std::vector<int, int_alloc> intValues;
+  std::vector<real_t, real_alloc> floatValues;
+  std::vector<string_type, string_alloc> stringValues;
+
+  basic_tag_t()
+      : name(),
+        intValues(),
+        floatValues(),
+        stringValues() {}
+
+  explicit basic_tag_t(const allocator_type &alloc)
+      : name(char_alloc(alloc)),
+        intValues(int_alloc(alloc)),
+        floatValues(real_alloc(alloc)),
+        stringValues(string_alloc(alloc)) {}
+
+  template <typename OtherAlloc>
+  basic_tag_t(const basic_tag_t<OtherAlloc> &rhs) : name(rhs.name) {
+    intValues.assign(rhs.intValues.begin(), rhs.intValues.end());
+    floatValues.assign(rhs.floatValues.begin(), rhs.floatValues.end());
+    stringValues.assign(rhs.stringValues.begin(), rhs.stringValues.end());
+  }
+
+  template <typename OtherAlloc>
+  basic_tag_t(const basic_tag_t<OtherAlloc> &rhs, const allocator_type &alloc)
+      : name(rhs.name.begin(), rhs.name.end(), char_alloc(alloc)),
+        intValues(int_alloc(alloc)),
+        floatValues(real_alloc(alloc)),
+        stringValues(string_alloc(alloc)) {
+    intValues.assign(rhs.intValues.begin(), rhs.intValues.end());
+    floatValues.assign(rhs.floatValues.begin(), rhs.floatValues.end());
+    for (size_t i = 0; i < rhs.stringValues.size(); i++) {
+      stringValues.emplace_back(rhs.stringValues[i].begin(),
+                                rhs.stringValues[i].end(), char_alloc(alloc));
+    }
+  }
+
+  template <typename OtherAlloc>
+  basic_tag_t &operator=(const basic_tag_t<OtherAlloc> &rhs) {
+    name = rhs.name;
+    intValues.assign(rhs.intValues.begin(), rhs.intValues.end());
+    floatValues.assign(rhs.floatValues.begin(), rhs.floatValues.end());
+    stringValues.assign(rhs.stringValues.begin(), rhs.stringValues.end());
+    return *this;
+  }
 };
+
+using tag_t = basic_tag_t<>;
 
 struct joint_and_weight_t {
   int joint_id;
   real_t weight;
 };
 
-struct skin_weight_t {
+template <typename Alloc = std::allocator<char>>
+struct basic_skin_weight_t {
+  using allocator_type = Alloc;
+  using joint_weight_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<
+          joint_and_weight_t>;
+
   int vertex_id;  // Corresponding vertex index in `attrib_t::vertices`.
                   // Compared to `index_t`, this index must be positive and
                   // start with 0(does not allow relative indexing)
-  std::vector<joint_and_weight_t> weightValues;
+  std::vector<joint_and_weight_t, joint_weight_alloc> weightValues;
+
+  basic_skin_weight_t() : vertex_id(0) {}
+
+  explicit basic_skin_weight_t(const allocator_type &alloc)
+      : vertex_id(0), weightValues(joint_weight_alloc(alloc)) {}
+
+  template <typename OtherAlloc>
+  basic_skin_weight_t(const basic_skin_weight_t<OtherAlloc> &rhs)
+      : vertex_id(rhs.vertex_id) {
+    weightValues.assign(rhs.weightValues.begin(), rhs.weightValues.end());
+  }
+
+  template <typename OtherAlloc>
+  basic_skin_weight_t(const basic_skin_weight_t<OtherAlloc> &rhs,
+                      const allocator_type &alloc)
+      : vertex_id(rhs.vertex_id), weightValues(joint_weight_alloc(alloc)) {
+    weightValues.assign(rhs.weightValues.begin(), rhs.weightValues.end());
+  }
+
+  template <typename OtherAlloc>
+  basic_skin_weight_t &operator=(const basic_skin_weight_t<OtherAlloc> &rhs) {
+    vertex_id = rhs.vertex_id;
+    weightValues.assign(rhs.weightValues.begin(), rhs.weightValues.end());
+    return *this;
+  }
 };
+
+using skin_weight_t = basic_skin_weight_t<>;
 
 // Index struct to support different indices for vtx/normal/texcoord.
 // -1 means not used.
@@ -477,11 +572,11 @@ class MaterialFileReader : public MaterialReader {
   // Path could contain separator(';' in Windows, ':' in Posix)
   explicit MaterialFileReader(const std::string &mtl_basedir)
       : m_mtlBaseDir(mtl_basedir) {}
-  virtual ~MaterialFileReader() TINYOBJ_OVERRIDE {}
+  virtual ~MaterialFileReader() override {}
   virtual bool operator()(const std::string &matId,
                           std::vector<material_t> *materials,
                           std::map<std::string, int> *matMap, std::string *warn,
-                          std::string *err) TINYOBJ_OVERRIDE;
+                          std::string *err) override;
 
  private:
   std::string m_mtlBaseDir;
@@ -494,11 +589,11 @@ class MaterialStreamReader : public MaterialReader {
  public:
   explicit MaterialStreamReader(std::istream &inStream)
       : m_inStream(inStream) {}
-  virtual ~MaterialStreamReader() TINYOBJ_OVERRIDE {}
+  virtual ~MaterialStreamReader() override {}
   virtual bool operator()(const std::string &matId,
                           std::vector<material_t> *materials,
                           std::map<std::string, int> *matMap, std::string *warn,
-                          std::string *err) TINYOBJ_OVERRIDE;
+                          std::string *err) override;
 
  private:
   std::istream &m_inStream;
@@ -649,6 +744,446 @@ bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
 
 /// =<<========== Legacy v1 API =============================================
 
+/// ==>>========= Optimized API (C++11 required) ============================
+///
+/// Enable compile options:
+///   TINYOBJLOADER_USE_MULTITHREADING - multi-threaded parsing
+///   TINYOBJLOADER_USE_SIMD           - SIMD-accelerated line scanning
+///
+/// These features require C++11 or later.
+///
+
+///
+/// Arena-based memory allocator for reduced allocation overhead when
+/// loading huge meshes.  Memory is freed in bulk when the arena is
+/// destroyed or reset().  Individual deallocate() calls are no-ops.
+///
+class ArenaAllocator {
+ public:
+  explicit ArenaAllocator(size_t block_size = 1024 * 1024)
+      : head_(nullptr), default_block_size_(block_size) {}
+
+  ~ArenaAllocator() { destroy(); }
+
+  ArenaAllocator(const ArenaAllocator &) = delete;
+  ArenaAllocator &operator=(const ArenaAllocator &) = delete;
+
+  ArenaAllocator(ArenaAllocator &&o) noexcept
+      : head_(o.head_), default_block_size_(o.default_block_size_) {
+    o.head_ = nullptr;
+  }
+  ArenaAllocator &operator=(ArenaAllocator &&o) noexcept {
+    if (this != &o) {
+      destroy();
+      head_ = o.head_;
+      default_block_size_ = o.default_block_size_;
+      o.head_ = nullptr;
+    }
+    return *this;
+  }
+
+  void *allocate(size_t bytes,
+                 size_t alignment = sizeof(void *));
+
+  /// Free all memory at once.
+  void reset();
+
+ private:
+  struct Block {
+    unsigned char *data;
+    size_t capacity;
+    size_t used;
+    Block *next;
+  };
+
+  Block *head_;
+  size_t default_block_size_;
+
+  Block *new_block(size_t min_bytes);
+  void destroy();
+};
+
+///
+/// STL-compatible allocator adapter backed by an ArenaAllocator.
+/// deallocate() is a no-op — memory is released when the arena is reset.
+///
+template <typename T>
+class arena_adapter {
+ public:
+  using value_type = T;
+  using pointer = T *;
+  using const_pointer = const T *;
+  using size_type = std::size_t;
+  using difference_type = std::ptrdiff_t;
+  using propagate_on_container_copy_assignment = std::true_type;
+  using propagate_on_container_move_assignment = std::true_type;
+  using propagate_on_container_swap = std::true_type;
+
+  explicit arena_adapter(ArenaAllocator *arena = nullptr) noexcept
+      : arena_(arena) {}
+
+  template <typename U>
+  arena_adapter(const arena_adapter<U> &other) noexcept
+      : arena_(other.arena()) {}
+
+  T *allocate(size_t n) {
+    if (n > SIZE_MAX / sizeof(T)) {
+#ifdef TINYOBJLOADER_ENABLE_EXCEPTION
+      throw std::bad_alloc();
+#else
+      return nullptr;
+#endif
+    }
+    if (arena_) {
+      return static_cast<T *>(arena_->allocate(n * sizeof(T), alignof(T)));
+    }
+#ifdef TINYOBJLOADER_ENABLE_EXCEPTION
+    return static_cast<T *>(::operator new(n * sizeof(T)));
+#else
+    return static_cast<T *>(::operator new(n * sizeof(T), std::nothrow));
+#endif
+  }
+
+  void deallocate(T *p, size_t) noexcept {
+    if (!arena_) {
+      ::operator delete(p);
+      return;
+    }
+    // Arena deallocation is a no-op; memory freed in bulk via reset().
+  }
+
+  ArenaAllocator *arena() const noexcept { return arena_; }
+
+  template <typename U>
+  bool operator==(const arena_adapter<U> &o) const noexcept {
+    return arena_ == o.arena();
+  }
+  template <typename U>
+  bool operator!=(const arena_adapter<U> &o) const noexcept {
+    return arena_ != o.arena();
+  }
+
+  template <typename U>
+  struct rebind {
+    using other = arena_adapter<U>;
+  };
+
+ private:
+  ArenaAllocator *arena_;
+};
+
+///
+/// Template mesh type supporting custom allocators.
+/// Note: Alloc must be default-constructible (stateless). For stateful
+/// allocators like arena_adapter, construct vectors individually with
+/// an allocator instance.
+///
+template <typename Alloc = std::allocator<char>>
+struct basic_mesh_t {
+  using index_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<index_t>;
+  using uint_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<unsigned int>;
+  using int_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<int>;
+  using tag_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<
+          basic_tag_t<Alloc> >;
+
+  std::vector<index_t, index_alloc> indices;
+  std::vector<unsigned int, uint_alloc> num_face_vertices;
+  std::vector<int, int_alloc> material_ids;
+  std::vector<unsigned int, uint_alloc> smoothing_group_ids;
+  std::vector<basic_tag_t<Alloc>, tag_alloc> tags;
+};
+
+template <typename Alloc = std::allocator<char>>
+struct basic_lines_t {
+  using index_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<index_t>;
+  using int_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<int>;
+
+  std::vector<index_t, index_alloc> indices;
+  std::vector<int, int_alloc> num_line_vertices;
+};
+
+template <typename Alloc = std::allocator<char>>
+struct basic_points_t {
+  using index_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<index_t>;
+
+  std::vector<index_t, index_alloc> indices;
+};
+
+///
+/// Template shape type supporting custom allocators.
+/// `name` always uses the default allocator; only mesh buffers are
+/// allocator-aware.
+///
+template <typename Alloc = std::allocator<char>>
+struct basic_shape_t {
+  std::string name;
+  basic_mesh_t<Alloc> mesh;
+  basic_lines_t<Alloc> lines;
+  basic_points_t<Alloc> points;
+};
+
+///
+/// Template attrib type supporting custom allocators.
+/// Flat arrays: vertices(xyz), normals(xyz), texcoords(uv).
+/// Note: Alloc must be default-constructible (stateless). For stateful
+/// allocators like arena_adapter, construct vectors individually with
+/// an allocator instance.
+///
+template <typename Alloc = std::allocator<char>>
+struct basic_attrib_t {
+  using real_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<real_t>;
+  using int_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<int>;
+  using index_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<index_t>;
+  using skin_weight_alloc =
+      typename std::allocator_traits<Alloc>::template rebind_alloc<
+          basic_skin_weight_t<Alloc> >;
+
+  std::vector<real_t, real_alloc> vertices;   // xyz
+  std::vector<real_t, real_alloc> vertex_weights;  // optional w for `v`
+  std::vector<real_t, real_alloc> normals;    // xyz
+  std::vector<real_t, real_alloc> texcoords;  // uv
+  std::vector<real_t, real_alloc> texcoord_ws;  // optional w for `vt`
+  std::vector<real_t, real_alloc> colors;     // rgb (optional)
+  std::vector<basic_skin_weight_t<Alloc>, skin_weight_alloc> skin_weights;
+  std::vector<index_t, index_alloc> indices;  // face indices
+  std::vector<int, int_alloc> face_num_verts; // verts per face
+  std::vector<int, int_alloc> material_ids;   // per-face material
+};
+
+///
+/// Configuration for the optimized loader.
+///
+struct OptLoadConfig {
+  /// Number of threads.  -1 = hardware_concurrency, 0 or 1 = single-threaded.
+  /// Effective only when TINYOBJLOADER_USE_MULTITHREADING is defined.
+  int num_threads;
+
+  bool triangulate;  ///< Triangulate polygons (fan triangulation).
+  bool verbose;      ///< Reserved for future use (currently has no effect).
+
+  /// Enable trie-based float string → value cache.
+  /// Speeds up files with many repeated coordinate values (e.g. "0.0", "1.0").
+  bool float_cache;
+
+  /// Maximum trie nodes per thread (controls cache memory).
+  /// Each node is ~36 bytes, so 1024 nodes ≈ 36 KB (fits in L1 cache).
+  int float_cache_max_nodes;
+
+  /// Use fp32-length keys for the float cache (max 8 chars).
+  /// When true, only tokens up to `float::digits10 + 2` characters are cached.
+  /// When false, uses `real_t::digits10 + 2` (longer keys, fewer hits).
+  /// Has no effect when float_cache is false.
+  bool fp32_cache;
+
+  OptLoadConfig()
+      : num_threads(-1), triangulate(true), verbose(false),
+        float_cache(false), float_cache_max_nodes(1024), fp32_cache(true) {}
+};
+
+/// Optimized loader — parse from a raw memory buffer.
+/// Supports multi-threading (TINYOBJLOADER_USE_MULTITHREADING) and
+/// SIMD line scanning (TINYOBJLOADER_USE_SIMD).
+bool LoadObjOpt(basic_attrib_t<> *attrib,
+                std::vector<basic_shape_t<>> *shapes,
+                std::vector<material_t> *materials,
+                std::string *warn, std::string *err,
+                const char *buf, size_t buf_len,
+                const OptLoadConfig &config = OptLoadConfig());
+
+/// Optimized loader — load from a file.
+bool LoadObjOpt(basic_attrib_t<> *attrib,
+                std::vector<basic_shape_t<>> *shapes,
+                std::vector<material_t> *materials,
+                std::string *warn, std::string *err,
+                const char *filename,
+                const char *mtl_basedir = nullptr,
+                const OptLoadConfig &config = OptLoadConfig());
+
+// ---- TypedArray-based zero-copy API for maximum efficiency ----
+
+///
+/// Non-owning, contiguous array view allocated from an ArenaAllocator.
+/// No capacity tracking, no realloc.  Lifetime is tied to the arena.
+///
+template <typename T>
+class TypedArray {
+  static_assert(std::is_trivially_copyable<T>::value,
+                "TypedArray<T> requires T to be trivially copyable "
+                "(uses memset for initialization).");
+
+ public:
+  TypedArray() : data_(nullptr), size_(0) {}
+
+  T *data() { return data_; }
+  const T *data() const { return data_; }
+  size_t size() const { return size_; }
+  bool empty() const { return size_ == 0; }
+
+  T &operator[](size_t i) { return data_[i]; }
+  const T &operator[](size_t i) const { return data_[i]; }
+
+  T *begin() { return data_; }
+  T *end() { return data_ + size_; }
+  const T *begin() const { return data_; }
+  const T *end() const { return data_ + size_; }
+
+  /// Allocate `count` elements from `arena`.  Previous contents are abandoned.
+  /// Elements are zero-initialized via memset (T must be trivially copyable).
+  /// Returns false if allocation fails (only possible when exceptions are
+  /// disabled via TINYOBJLOADER_ENABLE_EXCEPTION not being defined).
+  bool allocate(ArenaAllocator &arena, size_t count) {
+    if (count == 0) {
+      data_ = nullptr;
+      size_ = 0;
+      return true;
+    }
+    // Guard against size_t overflow in count * sizeof(T).
+    if (count > SIZE_MAX / sizeof(T)) {
+#ifdef TINYOBJLOADER_ENABLE_EXCEPTION
+      throw std::bad_alloc();
+#else
+      data_ = nullptr;
+      size_ = 0;
+      return false;
+#endif
+    }
+    void *p = arena.allocate(count * sizeof(T), alignof(T));
+    if (!p) {
+      data_ = nullptr;
+      size_ = 0;
+      return false;
+    }
+    data_ = static_cast<T *>(p);
+    size_ = count;
+    std::memset(data_, 0, count * sizeof(T));
+    return true;
+  }
+
+  /// Wrap an existing arena-allocated pointer.  Caller must ensure ptr
+  /// points into a live arena and count is within bounds.
+  void set(T *ptr, size_t count) {
+    data_ = ptr;
+    size_ = count;
+  }
+
+  /// Shrink the logical size (no memory freed — arena owns it).
+  void truncate(size_t new_size) {
+    if (new_size < size_) size_ = new_size;
+  }
+
+  void clear() {
+    data_ = nullptr;
+    size_ = 0;
+  }
+
+ private:
+  T *data_;
+  size_t size_;
+};
+
+///
+/// A shape expressed as a range into the flat attrib arrays.
+/// No owned memory — just offsets + counts.
+///
+struct OptShapeRange {
+  std::string name;
+  size_t face_offset;       ///< Start index into OptAttrib::face_num_verts / material_ids
+  size_t face_count;        ///< Number of faces in this shape
+  size_t index_offset;      ///< Start index into OptAttrib::indices
+  size_t index_count;       ///< Number of index_t entries for this shape
+
+  OptShapeRange()
+      : face_offset(0), face_count(0), index_offset(0), index_count(0) {}
+};
+
+///
+/// Flat attribute storage using TypedArray (arena-backed).
+/// All arrays are allocated from the OptResult's arena.
+///
+/// Unlike basic_attrib_t (used by LoadObjOpt), optional arrays like
+/// vertex_weights, texcoord_ws, colors, and smoothing_group_ids are only
+/// allocated when the input actually contains the corresponding data.
+/// Check .empty() before accessing.
+///
+struct OptAttrib {
+  TypedArray<real_t> vertices;        ///< xyz, length = num_vertices * 3
+  TypedArray<real_t> vertex_weights;  ///< w per vertex (empty if no `v` line has w)
+  TypedArray<real_t> normals;         ///< xyz, length = num_normals * 3
+  TypedArray<real_t> texcoords;       ///< uv, length = num_texcoords * 2
+  TypedArray<real_t> texcoord_ws;     ///< w per texcoord (empty if no `vt` has w)
+  TypedArray<real_t> colors;          ///< rgb per vertex (empty if not all verts have color)
+
+  TypedArray<index_t> indices;        ///< flattened face indices
+  TypedArray<int> face_num_verts;     ///< vertices per face
+  TypedArray<int> material_ids;       ///< per-face material id
+  TypedArray<unsigned int> smoothing_group_ids; ///< per-face smoothing group
+};
+
+///
+/// Complete result from the TypedArray-based optimized loader.
+/// Owns the ArenaAllocator — all TypedArray pointers are valid as long
+/// as this object is alive.  Move-only.
+///
+struct OptResult {
+  ArenaAllocator arena;
+  OptAttrib attrib;
+  std::vector<OptShapeRange> shapes;  ///< views into attrib arrays
+  std::vector<material_t> materials;
+  bool valid;
+
+  OptResult() : arena(4 * 1024 * 1024), valid(false) {}
+
+  OptResult(OptResult &&o) noexcept
+      : arena(std::move(o.arena)),
+        attrib(o.attrib),
+        shapes(std::move(o.shapes)),
+        materials(std::move(o.materials)),
+        valid(o.valid) {
+    o.attrib = OptAttrib();  // clear dangling pointers
+    o.valid = false;
+  }
+
+  OptResult &operator=(OptResult &&o) noexcept {
+    if (this != &o) {
+      arena = std::move(o.arena);
+      attrib = o.attrib;
+      shapes = std::move(o.shapes);
+      materials = std::move(o.materials);
+      valid = o.valid;
+      o.attrib = OptAttrib();
+      o.valid = false;
+    }
+    return *this;
+  }
+
+  OptResult(const OptResult &) = delete;
+  OptResult &operator=(const OptResult &) = delete;
+};
+
+/// TypedArray-based optimized loader — parse from a raw memory buffer.
+/// Returns OptResult that owns all allocated memory via its arena.
+OptResult LoadObjOptTyped(const char *buf, size_t buf_len,
+                          std::string *warn, std::string *err,
+                          const OptLoadConfig &config = OptLoadConfig());
+
+/// TypedArray-based optimized loader — load from a file.
+OptResult LoadObjOptTyped(const char *filename,
+                          std::string *warn, std::string *err,
+                          const char *mtl_basedir = nullptr,
+                          const OptLoadConfig &config = OptLoadConfig());
+
+/// =<<========== Optimized API =============================================
+
 }  // namespace tinyobj
 
 #endif  // TINY_OBJ_LOADER_H_
@@ -771,6 +1306,25 @@ static std::wstring LongPathW(const std::wstring &wpath) {
   return normalized;
 }
 #endif  // _WIN32
+
+#ifdef TINYOBJLOADER_USE_MULTITHREADING
+#include <atomic>
+#include <thread>
+#endif
+#ifdef TINYOBJLOADER_USE_SIMD
+#if defined(__SSE2__) || defined(_M_X64) || defined(_M_AMD64) || \
+    (defined(_M_IX86_FP) && _M_IX86_FP >= 2)
+#define TINYOBJLOADER_SIMD_SSE2 1
+#include <emmintrin.h>
+#if defined(__AVX2__)
+#define TINYOBJLOADER_SIMD_AVX2 1
+#include <immintrin.h>
+#endif
+#elif defined(__ARM_NEON) || defined(__ARM_NEON__)
+#define TINYOBJLOADER_SIMD_NEON 1
+#include <arm_neon.h>
+#endif
+#endif  // TINYOBJLOADER_USE_SIMD
 
 // --------------------------------------------------------------------------
 // Embedded fast_float v8.0.2 for high-performance, bit-exact float parsing.
@@ -8411,8 +8965,16 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
           return false;
         }
 
+        // Clamp to int range to avoid UB on float-to-int overflow.
+        if (j > static_cast<real_t>(std::numeric_limits<int>::max())) {
+          if (err) {
+            (*err) += sr.format_error(filename,
+                "failed to parse `vw' line: joint_id overflow");
+          }
+          return false;
+        }
         joint_and_weight_t jw;
-        jw.joint_id = int(j);
+        jw.joint_id = static_cast<int>(j);
         jw.weight = w;
 
         sw.weightValues.push_back(jw);
@@ -9257,6 +9819,4060 @@ bool ObjReader::ParseFromString(const std::string &obj_text,
                    &obj_ifs, &mtl_ss, config.triangulate, config.vertex_color);
 
   return valid_;
+}
+
+// ===========================================================================
+// Optimized API implementation (C++11+)
+// ===========================================================================
+// ---- ArenaAllocator implementation ----
+
+void *ArenaAllocator::allocate(size_t bytes, size_t alignment) {
+  if (bytes == 0) bytes = 1;
+
+  // Try to allocate from current block
+  if (head_) {
+    size_t space = head_->capacity - head_->used;
+    void *ptr = head_->data + head_->used;
+    if (std::align(alignment, bytes, ptr, space)) {
+      head_->used = static_cast<size_t>(static_cast<unsigned char *>(ptr) -
+                                        head_->data) +
+                    bytes;
+      return ptr;
+    }
+  }
+
+  // Guard against size_t overflow in bytes + alignment
+  if (bytes > SIZE_MAX - alignment) {
+#ifdef TINYOBJLOADER_ENABLE_EXCEPTION
+    throw std::bad_alloc();
+#else
+    return nullptr;
+#endif
+  }
+
+  // Need a new block
+  Block *b = new_block(bytes + alignment);
+  if (!b) return nullptr;
+  size_t space = b->capacity;
+  void *ptr = b->data;
+  if (!std::align(alignment, bytes, ptr, space)) {
+    // Defensive guard: the block was allocated with capacity >= bytes + alignment,
+    // so alignment should always succeed.  This handles edge cases where the
+    // capacity was insufficient due to unusual alignment requirements.
+#ifdef TINYOBJLOADER_ENABLE_EXCEPTION
+    throw std::bad_alloc();
+#else
+    return nullptr;
+#endif
+  }
+  b->used =
+      static_cast<size_t>(static_cast<unsigned char *>(ptr) - b->data) + bytes;
+  return ptr;
+}
+
+void ArenaAllocator::reset() { destroy(); }
+
+ArenaAllocator::Block *ArenaAllocator::new_block(size_t min_bytes) {
+  size_t cap = (min_bytes > default_block_size_) ? min_bytes
+                                                 : default_block_size_;
+#ifdef TINYOBJLOADER_ENABLE_EXCEPTION
+  // Allocate data buffer first: if this throws std::bad_alloc, no Block
+  // struct is leaked.  If the subsequent Block allocation throws (very
+  // unlikely for a small POD), the data buffer is cleaned up.
+  unsigned char *data = new unsigned char[cap];
+  Block *b;
+  try {
+    b = new Block;
+  } catch (...) {
+    delete[] data;
+    throw;
+  }
+  b->data = data;
+#else
+  Block *b = new (std::nothrow) Block;
+  if (!b) return nullptr;
+  b->data = new (std::nothrow) unsigned char[cap];
+  if (!b->data) { delete b; return nullptr; }
+#endif
+  b->capacity = cap;
+  b->used = 0;
+  b->next = head_;
+  head_ = b;
+  return b;
+}
+
+void ArenaAllocator::destroy() {
+  Block *b = head_;
+  while (b) {
+    Block *next = b->next;
+    delete[] b->data;
+    delete b;
+    b = next;
+  }
+  head_ = nullptr;
+}
+
+// ---- Optimized parser internals ----
+
+namespace opt_internal {
+
+static const int kOptMaxThreads = 32;
+
+struct LineInfo {
+  size_t pos;
+  size_t len;
+};
+
+#define TINYOBJ_OPT_IS_SPACE(x) (((x) == ' ') || ((x) == '\t'))
+#define TINYOBJ_OPT_IS_DIGIT(x) \
+  (static_cast<unsigned int>((x) - '0') < static_cast<unsigned int>(10))
+#define TINYOBJ_OPT_IS_NEW_LINE(x) \
+  (((x) == '\r') || ((x) == '\n') || ((x) == '\0'))
+
+static inline void opt_skip_space(const char **token) {
+  while ((**token) == ' ' || (**token) == '\t') {
+    (*token)++;
+  }
+}
+
+static inline int opt_until_space(const char *token) {
+  const char *p = token;
+  while (p[0] != '\0' && p[0] != ' ' && p[0] != '\t' && p[0] != '\r' &&
+         p[0] != '\n') {
+    p++;
+  }
+  return static_cast<int>(p - token);
+}
+
+static inline int opt_my_atoi(const char *c) {
+  unsigned int value = 0;
+  int sign = 1;
+  if (*c == '+' || *c == '-') {
+    if (*c == '-') sign = -1;
+    c++;
+  }
+  while ((*c >= '0') && (*c <= '9')) {
+    const unsigned int digit = static_cast<unsigned int>(*c - '0');
+    const unsigned int limit = (sign < 0)
+                                   ? static_cast<unsigned int>(INT_MAX) + 1u
+                                   : static_cast<unsigned int>(INT_MAX);
+    if (value > (limit / 10u) ||
+        (value == (limit / 10u) && digit > (limit % 10u))) {
+      return (sign < 0) ? INT_MIN : INT_MAX;
+    }
+    value = value * 10u + digit;
+    c++;
+  }
+  if (sign < 0) {
+    if (value == static_cast<unsigned int>(INT_MAX) + 1u) {
+      return INT_MIN;
+    }
+    return -static_cast<int>(value);
+  }
+  return static_cast<int>(value);
+}
+
+static inline const char *opt_find_index_token_end(const char *token) {
+  const char *end = token;
+  while (*end != '\0' && *end != '/' && *end != ' ' && *end != '\t' &&
+         *end != '\r' && *end != '\n') {
+    end++;
+  }
+  return end;
+}
+
+static inline bool opt_tryParseIndexToken(const char *token, const char *end,
+                                          int *value) {
+  if (!value || !token || !end || token >= end) return false;
+
+  const char *cursor = token;
+  if (*cursor == '+' || *cursor == '-') {
+    cursor++;
+  }
+  if (cursor >= end) return false;
+  while (cursor < end) {
+    if (!TINYOBJ_OPT_IS_DIGIT(*cursor)) return false;
+    cursor++;
+  }
+
+  *value = opt_my_atoi(token);
+  return true;
+}
+
+static inline bool opt_resolveIndexLikeLegacy(int idx, int n, int *ret,
+                                              bool allow_zero) {
+  if (!ret) return false;
+  if (idx > 0) {
+    (*ret) = idx - 1;
+    return true;
+  }
+  if (idx == 0) {
+    (*ret) = -1;
+    return allow_zero;
+  }
+
+  (*ret) = n + idx;
+  return ((*ret) >= 0);
+}
+
+static inline void opt_appendZeroIndexWarning(std::string *warn,
+                                              const std::string &source_name,
+                                              size_t line_num) {
+  if (!warn) return;
+
+  std::stringstream ss;
+  ss << source_name << ":" << line_num
+     << ": warning: zero value index found (will have a value of -1 for "
+        "normal and tex indices)\n";
+  (*warn) += ss.str();
+}
+
+static inline bool opt_validateAndResolveFaceIndexLikeLegacy(
+    int raw_idx, int n, bool allow_zero, const std::string &source_name,
+    size_t line_num, std::string *warn, int *resolved_idx) {
+  if (raw_idx > 0) {
+    if (resolved_idx) {
+      (*resolved_idx) = raw_idx - 1;
+    }
+    return true;
+  }
+
+  if (raw_idx == 0) {
+    opt_appendZeroIndexWarning(warn, source_name, line_num);
+    if (resolved_idx) {
+      (*resolved_idx) = -1;
+    }
+    return allow_zero;
+  }
+
+  if (resolved_idx) {
+    (*resolved_idx) = n + raw_idx;
+    return ((*resolved_idx) >= 0);
+  }
+
+  return ((n + raw_idx) >= 0);
+}
+
+static inline void opt_updateGreatestIndex(int idx, int *greatest) {
+  if (!greatest) return;
+  if (idx > *greatest) {
+    *greatest = idx;
+  }
+}
+
+static inline void opt_appendOutOfBoundsWarnings(std::string *warn,
+                                                 int greatest_v_idx,
+                                                 int greatest_vn_idx,
+                                                 int greatest_vt_idx,
+                                                 int num_vertices,
+                                                 int num_normals,
+                                                 int num_texcoords,
+                                                 size_t line_num) {
+  if (!warn) return;
+
+  if (greatest_v_idx >= num_vertices) {
+    std::stringstream ss;
+    ss << "Vertex indices out of bounds (line " << line_num << ".)\n\n";
+    (*warn) += ss.str();
+  }
+  if (greatest_vn_idx >= num_normals) {
+    std::stringstream ss;
+    ss << "Vertex normal indices out of bounds (line " << line_num << ".)\n\n";
+    (*warn) += ss.str();
+  }
+  if (greatest_vt_idx >= num_texcoords) {
+    std::stringstream ss;
+    ss << "Vertex texcoord indices out of bounds (line " << line_num
+       << ".)\n\n";
+    (*warn) += ss.str();
+  }
+}
+
+static bool opt_tryParseDouble(const char *s, const char *s_end,
+                               double *result) {
+  if (s >= s_end) return false;
+
+#ifndef TINYOBJLOADER_DISABLE_FAST_FLOAT
+  // Use the already-embedded fast_float for high-performance parsing.
+  // Handle nan/inf with OBJ-compatible replacement values first.
+  {
+    const char *p = s;
+    if (p < s_end && (*p == '+' || *p == '-')) ++p;
+    if (p < s_end) {
+      char fc = *p;
+      if (fc >= 'A' && fc <= 'Z') fc += 32;
+      if (fc == 'n' || fc == 'i') {
+        const char *end_ptr;
+        if (detail_fp::tryParseNanInf(s, s_end, result, &end_ptr)) {
+          return true;
+        }
+      }
+    }
+  }
+
+  double tmp;
+  auto r = fast_float::from_chars(s, s_end, tmp,
+      fast_float::chars_format::general |
+      fast_float::chars_format::allow_leading_plus);
+  if (r.ec == tinyobj_ff::ff_errc::ok) {
+    *result = tmp;
+    return true;
+  }
+  return false;
+#else
+  // Fallback: hand-written float parser
+
+  // Handle nan/inf keywords with OBJ-compatible replacement values.
+  {
+    const char *p = s;
+    bool neg = false;
+    if (p < s_end && *p == '-') { neg = true; ++p; }
+    else if (p < s_end && *p == '+') { ++p; }
+    if (p < s_end) {
+      char fc = *p;
+      if (fc >= 'A' && fc <= 'Z') fc += 32;
+      if (fc == 'n' && (p + 2 < s_end)) {
+        char c1 = p[1], c2 = p[2];
+        if (c1 >= 'A' && c1 <= 'Z') c1 += 32;
+        if (c2 >= 'A' && c2 <= 'Z') c2 += 32;
+        if (c1 == 'a' && c2 == 'n') {
+          *result = 0.0;
+          return true;
+        }
+      }
+      if (fc == 'i' && (p + 2 < s_end)) {
+        char c1 = p[1], c2 = p[2];
+        if (c1 >= 'A' && c1 <= 'Z') c1 += 32;
+        if (c2 >= 'A' && c2 <= 'Z') c2 += 32;
+        if (c1 == 'n' && c2 == 'f') {
+          *result = neg ? std::numeric_limits<double>::lowest()
+                        : (std::numeric_limits<double>::max)();
+          return true;
+        }
+      }
+    }
+  }
+
+  double mantissa = 0.0;
+  int exponent = 0;
+  char sign = '+';
+  char exp_sign = '+';
+  const char *curr = s;
+  int read = 0;
+  bool end_not_reached = false;
+  bool has_leading_decimal = false;
+
+  if (*curr == '+' || *curr == '-') {
+    sign = *curr;
+    curr++;
+  }
+
+  if (curr == s_end) return false;
+
+  if (*curr == '.') {
+    has_leading_decimal = true;
+  } else if (!TINYOBJ_OPT_IS_DIGIT(*curr)) {
+    return false;
+  }
+
+  end_not_reached = (curr != s_end);
+  if (!has_leading_decimal) {
+    while (end_not_reached && TINYOBJ_OPT_IS_DIGIT(*curr)) {
+      mantissa *= 10;
+      mantissa += static_cast<int>(*curr - '0');
+      curr++;
+      read++;
+      end_not_reached = (curr != s_end);
+    }
+    if (read == 0) return false;
+  }
+  if (!end_not_reached) goto opt_assemble;
+
+  if (*curr == '.') {
+    curr++;
+    end_not_reached = (curr != s_end);
+    double frac_scale = 0.1;
+    while (end_not_reached && TINYOBJ_OPT_IS_DIGIT(*curr)) {
+      mantissa += static_cast<int>(*curr - '0') * frac_scale;
+      frac_scale *= 0.1;
+      read++;
+      curr++;
+      end_not_reached = (curr != s_end);
+    }
+    if (has_leading_decimal && read == 0) return false;
+  } else if (*curr != 'e' && *curr != 'E') {
+    goto opt_assemble;
+  }
+
+  if (!end_not_reached) goto opt_assemble;
+
+  if (*curr == 'e' || *curr == 'E') {
+    curr++;
+    end_not_reached = (curr != s_end);
+    if (!end_not_reached) return false;
+    if (*curr == '+' || *curr == '-') {
+      exp_sign = *curr;
+      curr++;
+      end_not_reached = (curr != s_end);
+    } else if (!TINYOBJ_OPT_IS_DIGIT(*curr)) {
+      return false;
+    }
+    read = 0;
+    end_not_reached = (curr != s_end);
+    while (end_not_reached && TINYOBJ_OPT_IS_DIGIT(*curr)) {
+      // Clamp to avoid signed integer overflow (UB).  |exponent| > 308
+      // already exceeds double range, so further digits are irrelevant.
+      if (exponent < 0x7FFFFFF) {
+        exponent *= 10;
+        exponent += static_cast<int>(*curr - '0');
+      }
+      curr++;
+      read++;
+      end_not_reached = (curr != s_end);
+    }
+    exponent *= (exp_sign == '+' ? 1 : -1);
+    if (read == 0) return false;
+  }
+
+opt_assemble:
+  *result = (sign == '+' ? 1.0 : -1.0) *
+            (exponent ? std::ldexp(mantissa * std::pow(5.0, exponent), exponent)
+                      : mantissa);
+  return true;
+#endif  // TINYOBJLOADER_DISABLE_FAST_FLOAT
+}
+
+struct opt_index_t {
+  int vertex_index, texcoord_index, normal_index;
+  // Sentinel for "field not present" to distinguish from OBJ relative index -1.
+  // Using expression form for C++11 static const initializer compatibility.
+  static const int kNotPresent = -2147483647 - 1;  // == std::numeric_limits<int>::min()
+  opt_index_t()
+      : vertex_index(kNotPresent),
+        texcoord_index(kNotPresent),
+        normal_index(kNotPresent) {}
+  opt_index_t(int vi, int ti, int ni)
+      : vertex_index(vi), texcoord_index(ti), normal_index(ni) {}
+};
+
+static bool opt_parseRawTriple(const char **token, opt_index_t *ret) {
+  if (!token || !ret) return false;
+
+  opt_index_t vi;
+  const char *segment_end = opt_find_index_token_end(*token);
+  if (!opt_tryParseIndexToken(*token, segment_end, &vi.vertex_index)) {
+    return false;
+  }
+  *token = segment_end;
+  if (**token != '/') {
+    *ret = vi;
+    return true;
+  }
+  (*token)++;
+
+  if (**token == '/') {
+    (*token)++;
+    segment_end = opt_find_index_token_end(*token);
+    if (!opt_tryParseIndexToken(*token, segment_end, &vi.normal_index)) {
+      return false;
+    }
+    *token = segment_end;
+    *ret = vi;
+    return true;
+  }
+
+  segment_end = opt_find_index_token_end(*token);
+  if (!opt_tryParseIndexToken(*token, segment_end, &vi.texcoord_index)) {
+    return false;
+  }
+  *token = segment_end;
+  if (**token != '/') {
+    *ret = vi;
+    return true;
+  }
+  (*token)++;
+  segment_end = opt_find_index_token_end(*token);
+  if (!opt_tryParseIndexToken(*token, segment_end, &vi.normal_index)) {
+    return false;
+  }
+  *token = segment_end;
+  *ret = vi;
+  return true;
+}
+
+static inline int opt_length_until_newline(const char *token, size_t n) {
+  size_t len = 0;
+  for (len = 0; len < n; len++) {
+    if (token[len] == '\n' || token[len] == '\r') break;
+  }
+  // Trim trailing whitespace
+  while (len > 0 && (token[len - 1] == ' ' || token[len - 1] == '\t')) {
+    len--;
+  }
+  return static_cast<int>(len);
+}
+
+static inline int opt_length_until_token_or_comment(const char *token, size_t n) {
+  size_t len = 0;
+  for (len = 0; len < n; len++) {
+    const char c = token[len];
+    if (c == '\n' || c == '\r' || c == ' ' || c == '\t') break;
+  }
+  return static_cast<int>(len);
+}
+
+static inline std::string opt_parseGroupName(const char *token, size_t n) {
+  std::string name;
+  size_t i = 0;
+  while (i < n) {
+    while (i < n && (token[i] == ' ' || token[i] == '\t')) {
+      i++;
+    }
+    if (i >= n || token[i] == '\n' || token[i] == '\r' || token[i] == '\0' ||
+        token[i] == '#') {
+      break;
+    }
+
+    const size_t start = i;
+    while (i < n && token[i] != '\n' && token[i] != '\r' &&
+           token[i] != '\0' && token[i] != ' ' && token[i] != '\t') {
+      i++;
+    }
+
+    if (!name.empty()) {
+      name.push_back(' ');
+    }
+    name.append(token + start, i - start);
+  }
+  return name;
+}
+
+static inline bool opt_tryParseFloatToken(real_t *out, const char **token) {
+  if (!out || !token) return false;
+  const char *cursor = *token;
+  opt_skip_space(&cursor);
+  if (TINYOBJ_OPT_IS_NEW_LINE(cursor[0]) || cursor[0] == '#' || cursor[0] == '\0') {
+    return false;
+  }
+  const char *end = cursor;
+  while (!TINYOBJ_OPT_IS_NEW_LINE(end[0]) && end[0] != '#' && end[0] != ' ' &&
+         end[0] != '\t' && end[0] != '\0') {
+    end++;
+  }
+#ifndef TINYOBJLOADER_DISABLE_FAST_FLOAT
+  // Handle nan/inf with OBJ-compatible values before fast_float.
+  {
+    const char *q = cursor;
+    if (q < end && (*q == '+' || *q == '-')) ++q;
+    if (q < end) {
+      char fc = *q;
+      if (fc >= 'A' && fc <= 'Z') fc += 32;
+      if (fc == 'n' || fc == 'i') {
+        double special_val;
+        const char *end_ptr;
+        if (detail_fp::tryParseNanInf(cursor, end, &special_val, &end_ptr)) {
+          *out = static_cast<real_t>(special_val);
+          *token = end;
+          return true;
+        }
+      }
+    }
+  }
+  // Parse directly to real_t (float or double) via fast_float — avoids
+  // the double→float conversion and is ~3-4x faster than the hand-rolled parser.
+  real_t tmp;
+  auto r = fast_float::from_chars(cursor, end, tmp,
+      fast_float::chars_format::general |
+      fast_float::chars_format::allow_leading_plus);
+  if (r.ec == tinyobj_ff::ff_errc::ok) {
+    *out = tmp;
+    *token = end;
+    return true;
+  }
+  return false;
+#else
+  double val = 0.0;
+  if (!opt_tryParseDouble(cursor, end, &val)) {
+    return false;
+  }
+  *out = static_cast<real_t>(val);
+  *token = end;
+  return true;
+#endif
+}
+
+static inline int opt_count_remaining_scalars(const char *token) {
+  int count = 0;
+  const char *cursor = token;
+  while (true) {
+    opt_skip_space(&cursor);
+    if (TINYOBJ_OPT_IS_NEW_LINE(cursor[0]) || cursor[0] == '#' ||
+        cursor[0] == '\0') {
+      break;
+    }
+    count++;
+    while (!TINYOBJ_OPT_IS_NEW_LINE(cursor[0]) && cursor[0] != '#' &&
+           cursor[0] != ' ' && cursor[0] != '\t' && cursor[0] != '\0') {
+      cursor++;
+    }
+  }
+  return count;
+}
+
+static inline bool opt_is_comment_start(const char *token) {
+  return token[0] == '#';
+}
+
+enum OptCommandType {
+  OPT_CMD_EMPTY,
+  OPT_CMD_V,
+  OPT_CMD_VN,
+  OPT_CMD_VT,
+  OPT_CMD_F,
+  OPT_CMD_G,
+  OPT_CMD_O,
+  OPT_CMD_USEMTL,
+  OPT_CMD_MTLLIB,
+  OPT_CMD_S
+};
+
+struct OptCommand {
+  static const unsigned int kInlineIndexCapacity = 24;
+
+  real_t vx, vy, vz, vw;
+  real_t vc_r, vc_g, vc_b;
+  real_t nx, ny, nz;
+  real_t tx, ty, tw;
+  bool has_vertex_weight;
+  bool has_vertex_color;
+  bool has_texcoord_w;
+
+  opt_index_t f_inline[kInlineIndexCapacity];
+  unsigned int f_count;
+  unsigned int face_vertex_count;
+  unsigned int emitted_face_count;
+  unsigned int emitted_face_verts;
+  std::vector<opt_index_t> f_heap;
+
+  const char *group_name;
+  unsigned int group_name_len;
+  std::string group_name_storage;
+  const char *object_name;
+  unsigned int object_name_len;
+  const char *material_name;
+  unsigned int material_name_len;
+  const char *mtllib_name;
+  unsigned int mtllib_name_len;
+  size_t source_line;
+  bool group_name_empty;
+  bool degenerate_face;
+  int resolved_material_id;
+  unsigned int smoothing_group_id;
+
+  OptCommandType type;
+
+  OptCommand()
+      : vx(0), vy(0), vz(0), vw(1),
+        vc_r(1), vc_g(1), vc_b(1),
+        nx(0), ny(0), nz(0),
+        tx(0), ty(0), tw(0),
+        has_vertex_weight(false), has_vertex_color(false),
+        has_texcoord_w(false),
+        f_count(0), face_vertex_count(0), emitted_face_count(0),
+        emitted_face_verts(0),
+        group_name(nullptr), group_name_len(0),
+        object_name(nullptr), object_name_len(0),
+        material_name(nullptr), material_name_len(0),
+        mtllib_name(nullptr), mtllib_name_len(0),
+        source_line(0), group_name_empty(false),
+        degenerate_face(false),
+        resolved_material_id(-1),
+        smoothing_group_id(0),
+        type(OPT_CMD_EMPTY) {}
+
+  const opt_index_t *face_indices() const {
+    return f_heap.empty() ? f_inline : f_heap.data();
+  }
+};
+
+struct OptCommandCount {
+  size_t num_v, num_vn, num_vt, num_f, num_indices;
+  OptCommandCount() : num_v(0), num_vn(0), num_vt(0), num_f(0), num_indices(0) {}
+};
+
+// Compact face command — replaces OptCommand for 'f' lines
+struct OptFaceCmd {
+  static const unsigned int kInlineCap = 4;
+  opt_index_t f_inline[kInlineCap];  // 48 bytes (covers tri + quad)
+  std::vector<opt_index_t> f_heap;   // overflow for >4 vertex faces
+  uint32_t face_vertex_count;
+  uint32_t emitted_face_count;
+  uint32_t emitted_face_verts;
+  uint32_t f_count;
+  uint32_t source_line;
+  uint32_t v_count_before;   // running v count when face was parsed (within thread)
+  uint32_t vn_count_before;
+  uint32_t vt_count_before;
+  bool degenerate;
+
+  const opt_index_t *face_indices() const {
+    return f_heap.empty() ? f_inline : f_heap.data();
+  }
+
+  OptFaceCmd()
+      : face_vertex_count(0), emitted_face_count(0), emitted_face_verts(0),
+        f_count(0), source_line(0), v_count_before(0), vn_count_before(0),
+        vt_count_before(0), degenerate(false) {}
+};
+
+// Meta command — for g, o, usemtl, mtllib, s lines
+struct OptMetaCmd {
+  OptCommandType type;
+  uint32_t source_line;
+  const char *str_ptr;
+  uint32_t str_len;
+  std::string str_storage;
+  bool group_name_empty;
+  int resolved_material_id;
+  uint32_t smoothing_group_id;
+
+  OptMetaCmd()
+      : type(OPT_CMD_EMPTY), source_line(0), str_ptr(NULL), str_len(0),
+        group_name_empty(false), resolved_material_id(-1),
+        smoothing_group_id(0) {}
+};
+
+// Sequence entry — ordering of faces and meta commands within a thread
+struct OptSeqEntry {
+  enum Kind : unsigned char { SEQ_FACE = 0, SEQ_META = 1 };
+  Kind kind;
+  uint32_t index;
+};
+
+// Per-thread parsed data — replaces vector<OptCommand>
+struct OptThreadData {
+  // Vertex positions: 3 floats per vertex, contiguous
+  std::vector<real_t> v_pos;
+  // Vertex weights: 1 per vertex, lazily allocated (only if any has weight)
+  std::vector<real_t> v_weight;
+  // Vertex colors: 3 per vertex, lazily allocated
+  std::vector<real_t> v_color;
+
+  // Normal data: 3 floats per normal
+  std::vector<real_t> vn_data;
+
+  // Texcoord data: 2 floats per texcoord
+  std::vector<real_t> vt_data;
+  // Texcoord w: 1 per texcoord, lazily allocated
+  std::vector<real_t> vt_w;
+
+  // Non-vertex commands
+  std::vector<OptFaceCmd> faces;
+  std::vector<OptMetaCmd> metas;
+  std::vector<OptSeqEntry> seq;
+
+  // Counts
+  size_t num_v, num_vn, num_vt;
+  size_t num_f_indices;   // total index_t entries for faces
+  size_t num_f_faces;     // total emitted faces
+
+  // Flags
+  bool saw_any_color, saw_missing_color;
+  bool saw_any_weight;
+  bool saw_any_texcoord_w;
+  bool saw_any_smoothing;
+
+  // Error tracking
+  size_t error_line;
+  std::string error_message;
+
+  OptThreadData()
+      : num_v(0), num_vn(0), num_vt(0), num_f_indices(0), num_f_faces(0),
+        saw_any_color(false), saw_missing_color(false),
+        saw_any_weight(false), saw_any_texcoord_w(false),
+        saw_any_smoothing(false), error_line(0) {}
+};
+
+static inline bool opt_is_valid_face_vertex(const std::vector<real_t> &vertices,
+                                            const index_t &idx) {
+  if (idx.vertex_index < 0) return false;
+  const size_t vi = static_cast<size_t>(idx.vertex_index);
+  return ((3 * vi + 2) < vertices.size());
+}
+
+static inline size_t opt_triangulate_face(const std::vector<real_t> &vertices,
+                                          const index_t *face,
+                                          size_t face_count,
+                                          index_t *dst) {
+  if (face_count < 3) return 0;
+  if (face_count == 3) {
+    dst[0] = face[0];
+    dst[1] = face[1];
+    dst[2] = face[2];
+    return 3;
+  }
+
+  for (size_t i = 0; i < face_count; i++) {
+    if (!opt_is_valid_face_vertex(vertices, face[i])) {
+      return 0;
+    }
+  }
+
+  if (face_count == 4) {
+    const size_t vi0 = static_cast<size_t>(face[0].vertex_index);
+    const size_t vi1 = static_cast<size_t>(face[1].vertex_index);
+    const size_t vi2 = static_cast<size_t>(face[2].vertex_index);
+    const size_t vi3 = static_cast<size_t>(face[3].vertex_index);
+
+    const real_t v0x = vertices[vi0 * 3 + 0];
+    const real_t v0y = vertices[vi0 * 3 + 1];
+    const real_t v0z = vertices[vi0 * 3 + 2];
+    const real_t v1x = vertices[vi1 * 3 + 0];
+    const real_t v1y = vertices[vi1 * 3 + 1];
+    const real_t v1z = vertices[vi1 * 3 + 2];
+    const real_t v2x = vertices[vi2 * 3 + 0];
+    const real_t v2y = vertices[vi2 * 3 + 1];
+    const real_t v2z = vertices[vi2 * 3 + 2];
+    const real_t v3x = vertices[vi3 * 3 + 0];
+    const real_t v3y = vertices[vi3 * 3 + 1];
+    const real_t v3z = vertices[vi3 * 3 + 2];
+
+    const real_t e02x = v2x - v0x;
+    const real_t e02y = v2y - v0y;
+    const real_t e02z = v2z - v0z;
+    const real_t e13x = v3x - v1x;
+    const real_t e13y = v3y - v1y;
+    const real_t e13z = v3z - v1z;
+    const real_t sqr02 = e02x * e02x + e02y * e02y + e02z * e02z;
+    const real_t sqr13 = e13x * e13x + e13y * e13y + e13z * e13z;
+
+    if (sqr02 < sqr13) {
+      dst[0] = face[0];
+      dst[1] = face[1];
+      dst[2] = face[2];
+      dst[3] = face[0];
+      dst[4] = face[2];
+      dst[5] = face[3];
+    } else {
+      dst[0] = face[0];
+      dst[1] = face[1];
+      dst[2] = face[3];
+      dst[3] = face[1];
+      dst[4] = face[2];
+      dst[5] = face[3];
+    }
+    return 6;
+  }
+
+  std::vector<index_t> remaining(face, face + face_count);
+  size_t axes[2] = {1, 2};
+  for (size_t k = 0; k < face_count; ++k) {
+    const size_t vi0 = static_cast<size_t>(face[(k + 0) % face_count].vertex_index);
+    const size_t vi1 = static_cast<size_t>(face[(k + 1) % face_count].vertex_index);
+    const size_t vi2 = static_cast<size_t>(face[(k + 2) % face_count].vertex_index);
+    const real_t v0x = vertices[vi0 * 3 + 0];
+    const real_t v0y = vertices[vi0 * 3 + 1];
+    const real_t v0z = vertices[vi0 * 3 + 2];
+    const real_t v1x = vertices[vi1 * 3 + 0];
+    const real_t v1y = vertices[vi1 * 3 + 1];
+    const real_t v1z = vertices[vi1 * 3 + 2];
+    const real_t v2x = vertices[vi2 * 3 + 0];
+    const real_t v2y = vertices[vi2 * 3 + 1];
+    const real_t v2z = vertices[vi2 * 3 + 2];
+    const real_t e0x = v1x - v0x;
+    const real_t e0y = v1y - v0y;
+    const real_t e0z = v1z - v0z;
+    const real_t e1x = v2x - v1x;
+    const real_t e1y = v2y - v1y;
+    const real_t e1z = v2z - v1z;
+    const real_t cx = std::fabs(e0y * e1z - e0z * e1y);
+    const real_t cy = std::fabs(e0z * e1x - e0x * e1z);
+    const real_t cz = std::fabs(e0x * e1y - e0y * e1x);
+    const real_t epsilon = std::numeric_limits<real_t>::epsilon();
+    if (cx > epsilon || cy > epsilon || cz > epsilon) {
+      if (!(cx > cy && cx > cz)) {
+        axes[0] = 0;
+        if (cz > cx && cz > cy) {
+          axes[1] = 1;
+        }
+      }
+      break;
+    }
+  }
+
+  size_t out = 0;
+  size_t guess_vert = 0;
+  size_t remaining_iterations = remaining.size();
+  size_t previous_remaining_vertices = remaining.size();
+  while (remaining.size() > 3 && remaining_iterations > 0) {
+    const size_t npolys = remaining.size();
+    if (guess_vert >= npolys) {
+      guess_vert -= npolys;
+    }
+
+    if (previous_remaining_vertices != npolys) {
+      previous_remaining_vertices = npolys;
+      remaining_iterations = npolys;
+    } else {
+      remaining_iterations--;
+    }
+
+    index_t ind[3];
+    real_t vx[3];
+    real_t vy[3];
+    for (size_t k = 0; k < 3; k++) {
+      ind[k] = remaining[(guess_vert + k) % npolys];
+      const size_t vi = static_cast<size_t>(ind[k].vertex_index);
+      vx[k] = vertices[vi * 3 + axes[0]];
+      vy[k] = vertices[vi * 3 + axes[1]];
+    }
+
+    const real_t e0x = vx[1] - vx[0];
+    const real_t e0y = vy[1] - vy[0];
+    const real_t e1x = vx[2] - vx[1];
+    const real_t e1y = vy[2] - vy[1];
+    const real_t cross_val = e0x * e1y - e0y * e1x;
+    const real_t area =
+        (vx[0] * vy[1] - vy[0] * vx[1]) * static_cast<real_t>(0.5);
+    if (cross_val * area < static_cast<real_t>(0.0)) {
+      guess_vert += 1;
+      continue;
+    }
+
+    bool overlap = false;
+    for (size_t other_vert = 3; other_vert < npolys; ++other_vert) {
+      const size_t idx = (guess_vert + other_vert) % npolys;
+      const size_t ovi = static_cast<size_t>(remaining[idx].vertex_index);
+      const real_t tx = vertices[ovi * 3 + axes[0]];
+      const real_t ty = vertices[ovi * 3 + axes[1]];
+      if (pnpoly(3, vx, vy, tx, ty)) {
+        overlap = true;
+        break;
+      }
+    }
+
+    if (overlap) {
+      guess_vert += 1;
+      continue;
+    }
+
+    dst[out++] = ind[0];
+    dst[out++] = ind[1];
+    dst[out++] = ind[2];
+    remaining.erase(remaining.begin() +
+                    static_cast<std::ptrdiff_t>((guess_vert + 1) % npolys));
+  }
+
+  if (remaining.size() == 3) {
+    dst[out++] = remaining[0];
+    dst[out++] = remaining[1];
+    dst[out++] = remaining[2];
+  }
+
+  return out;
+}
+
+// Pointer+size overloads for TypedArray-based API
+static inline bool opt_is_valid_face_vertex(const real_t * /*vertices*/,
+                                            size_t vertices_size,
+                                            const index_t &idx) {
+  if (idx.vertex_index < 0) return false;
+  const size_t vi = static_cast<size_t>(idx.vertex_index);
+  return ((3 * vi + 2) < vertices_size);
+}
+
+static inline size_t opt_triangulate_face(const real_t *vertices,
+                                          size_t vertices_size,
+                                          const index_t *face,
+                                          size_t face_count,
+                                          index_t *dst) {
+  if (face_count < 3) return 0;
+  if (face_count == 3) {
+    dst[0] = face[0]; dst[1] = face[1]; dst[2] = face[2];
+    return 3;
+  }
+
+  for (size_t i = 0; i < face_count; i++) {
+    if (!opt_is_valid_face_vertex(vertices, vertices_size, face[i])) return 0;
+  }
+
+  if (face_count == 4) {
+    const size_t vi0 = static_cast<size_t>(face[0].vertex_index);
+    const size_t vi1 = static_cast<size_t>(face[1].vertex_index);
+    const size_t vi2 = static_cast<size_t>(face[2].vertex_index);
+    const size_t vi3 = static_cast<size_t>(face[3].vertex_index);
+    const real_t e02x = vertices[vi2*3+0] - vertices[vi0*3+0];
+    const real_t e02y = vertices[vi2*3+1] - vertices[vi0*3+1];
+    const real_t e02z = vertices[vi2*3+2] - vertices[vi0*3+2];
+    const real_t e13x = vertices[vi3*3+0] - vertices[vi1*3+0];
+    const real_t e13y = vertices[vi3*3+1] - vertices[vi1*3+1];
+    const real_t e13z = vertices[vi3*3+2] - vertices[vi1*3+2];
+    const real_t sqr02 = e02x*e02x + e02y*e02y + e02z*e02z;
+    const real_t sqr13 = e13x*e13x + e13y*e13y + e13z*e13z;
+    if (sqr02 < sqr13) {
+      dst[0]=face[0]; dst[1]=face[1]; dst[2]=face[2];
+      dst[3]=face[0]; dst[4]=face[2]; dst[5]=face[3];
+    } else {
+      dst[0]=face[0]; dst[1]=face[1]; dst[2]=face[3];
+      dst[3]=face[1]; dst[4]=face[2]; dst[5]=face[3];
+    }
+    return 6;
+  }
+
+  // General polygon — ear clipping
+  std::vector<index_t> remaining(face, face + face_count);
+  size_t axes[2] = {1, 2};
+  for (size_t k = 0; k < face_count; ++k) {
+    const size_t vi0 = static_cast<size_t>(face[(k+0)%face_count].vertex_index);
+    const size_t vi1 = static_cast<size_t>(face[(k+1)%face_count].vertex_index);
+    const size_t vi2 = static_cast<size_t>(face[(k+2)%face_count].vertex_index);
+    const real_t e0x = vertices[vi1*3+0]-vertices[vi0*3+0];
+    const real_t e0y = vertices[vi1*3+1]-vertices[vi0*3+1];
+    const real_t e0z = vertices[vi1*3+2]-vertices[vi0*3+2];
+    const real_t e1x = vertices[vi2*3+0]-vertices[vi1*3+0];
+    const real_t e1y = vertices[vi2*3+1]-vertices[vi1*3+1];
+    const real_t e1z = vertices[vi2*3+2]-vertices[vi1*3+2];
+    const real_t cx = std::fabs(e0y*e1z - e0z*e1y);
+    const real_t cy = std::fabs(e0z*e1x - e0x*e1z);
+    const real_t cz = std::fabs(e0x*e1y - e0y*e1x);
+    const real_t epsilon = std::numeric_limits<real_t>::epsilon();
+    if (cx > epsilon || cy > epsilon || cz > epsilon) {
+      if (!(cx > cy && cx > cz)) {
+        axes[0] = 0;
+        if (cz > cx && cz > cy) axes[1] = 1;
+      }
+      break;
+    }
+  }
+
+  size_t out = 0;
+  size_t guess_vert = 0;
+  size_t remaining_iterations = remaining.size();
+  size_t previous_remaining_vertices = remaining.size();
+  while (remaining.size() > 3 && remaining_iterations > 0) {
+    const size_t npolys = remaining.size();
+    if (guess_vert >= npolys) guess_vert -= npolys;
+    if (previous_remaining_vertices != npolys) {
+      previous_remaining_vertices = npolys;
+      remaining_iterations = npolys;
+    } else {
+      remaining_iterations--;
+    }
+    index_t ind[3];
+    real_t vx[3], vy[3];
+    for (size_t k = 0; k < 3; k++) {
+      ind[k] = remaining[(guess_vert + k) % npolys];
+      const size_t vi = static_cast<size_t>(ind[k].vertex_index);
+      vx[k] = vertices[vi*3+axes[0]];
+      vy[k] = vertices[vi*3+axes[1]];
+    }
+    const real_t e0x_ = vx[1]-vx[0], e0y_ = vy[1]-vy[0];
+    const real_t e1x_ = vx[2]-vx[1], e1y_ = vy[2]-vy[1];
+    const real_t cross_val = e0x_*e1y_ - e0y_*e1x_;
+    const real_t area = (vx[0]*vy[1] - vy[0]*vx[1]) * static_cast<real_t>(0.5);
+    if (cross_val * area < static_cast<real_t>(0.0)) {
+      guess_vert += 1; continue;
+    }
+    bool overlap = false;
+    for (size_t other_vert = 3; other_vert < npolys; ++other_vert) {
+      const size_t idx = (guess_vert + other_vert) % npolys;
+      const size_t ovi = static_cast<size_t>(remaining[idx].vertex_index);
+      const real_t ptx = vertices[ovi*3+axes[0]];
+      const real_t pty = vertices[ovi*3+axes[1]];
+      if (pnpoly(3, vx, vy, ptx, pty)) { overlap = true; break; }
+    }
+    if (overlap) { guess_vert += 1; continue; }
+    dst[out++] = ind[0]; dst[out++] = ind[1]; dst[out++] = ind[2];
+    remaining.erase(remaining.begin() +
+                    static_cast<std::ptrdiff_t>((guess_vert + 1) % npolys));
+  }
+  if (remaining.size() == 3) {
+    dst[out++] = remaining[0]; dst[out++] = remaining[1]; dst[out++] = remaining[2];
+  }
+  return out;
+}
+
+static bool opt_parseLine(OptCommand *command, const char *p, size_t p_len,
+                          bool triangulate, bool *parse_error,
+                          std::string *parse_error_message) {
+  // Parse directly from the original buffer without copying.
+  // The caller guarantees that p[p_len] is '\n' (or a sentinel),
+  // so character-scanning helpers that stop on '\n' are safe.
+  if (parse_error) *parse_error = false;
+  if (parse_error_message) parse_error_message->clear();
+  const char *token = p;
+  command->type = OPT_CMD_EMPTY;
+  opt_skip_space(&token);
+
+  if (TINYOBJ_OPT_IS_NEW_LINE(token[0]) || token[0] == '#') return false;
+
+  // vertex
+  if (token[0] == 'v' && TINYOBJ_OPT_IS_SPACE(token[1])) {
+    token += 2;
+    real_t x = 0, y = 0, z = 0;
+    real_t r = real_t(1.0), g = real_t(1.0), b = real_t(1.0);
+    real_t w = real_t(1.0);
+    if (!opt_tryParseFloatToken(&x, &token) ||
+        !opt_tryParseFloatToken(&y, &token) ||
+        !opt_tryParseFloatToken(&z, &token)) {
+      if (parse_error) *parse_error = true;
+      if (parse_error_message) *parse_error_message = "failed to parse `v' line";
+      return false;
+    }
+    const char *extra_token = token;
+    opt_skip_space(&extra_token);
+    const int extra_components = opt_count_remaining_scalars(extra_token);
+    if (extra_components == 1) {
+      // v x y z w  (4 total) — weight only
+      const char *weight_cursor = extra_token;
+      if (opt_tryParseFloatToken(&w, &weight_cursor)) {
+        command->has_vertex_weight = true;
+        command->vw = w;
+      }
+    } else if (extra_components == 3) {
+      // v x y z r g b  (6 total) — color, weight = r (legacy compat)
+      real_t cr = r, cg = g, cb = b;
+      const char *color_cursor = extra_token;
+      if (opt_tryParseFloatToken(&cr, &color_cursor) &&
+          opt_tryParseFloatToken(&cg, &color_cursor) &&
+          opt_tryParseFloatToken(&cb, &color_cursor)) {
+        command->has_vertex_weight = true;
+        command->vw = cr;
+        command->has_vertex_color = true;
+        command->vc_r = cr;
+        command->vc_g = cg;
+        command->vc_b = cb;
+      }
+    } else if (extra_components >= 4) {
+      // v x y z w r g b  (7+ total) — weight + color
+      real_t vw = real_t(1.0), cr = r, cg = g, cb = b;
+      const char *wc_cursor = extra_token;
+      if (opt_tryParseFloatToken(&vw, &wc_cursor) &&
+          opt_tryParseFloatToken(&cr, &wc_cursor) &&
+          opt_tryParseFloatToken(&cg, &wc_cursor) &&
+          opt_tryParseFloatToken(&cb, &wc_cursor)) {
+        command->has_vertex_weight = true;
+        command->vw = vw;
+        command->has_vertex_color = true;
+        command->vc_r = cr;
+        command->vc_g = cg;
+        command->vc_b = cb;
+      }
+    }
+    command->vx = x;
+    command->vy = y;
+    command->vz = z;
+    command->type = OPT_CMD_V;
+    return true;
+  }
+
+  // normal
+  if (token[0] == 'v' && token[1] == 'n' && TINYOBJ_OPT_IS_SPACE(token[2])) {
+    token += 3;
+    real_t x = 0, y = 0, z = 0;
+    if (!opt_tryParseFloatToken(&x, &token) ||
+        !opt_tryParseFloatToken(&y, &token) ||
+        !opt_tryParseFloatToken(&z, &token)) {
+      if (parse_error) *parse_error = true;
+      if (parse_error_message) *parse_error_message = "failed to parse `vn' line";
+      return false;
+    }
+    command->nx = x;
+    command->ny = y;
+    command->nz = z;
+    command->type = OPT_CMD_VN;
+    return true;
+  }
+
+  // texcoord
+  if (token[0] == 'v' && token[1] == 't' && TINYOBJ_OPT_IS_SPACE(token[2])) {
+    token += 3;
+    real_t x = 0, y = 0, w = 0;
+    if (!opt_tryParseFloatToken(&x, &token)) {
+      if (parse_error) *parse_error = true;
+      if (parse_error_message) *parse_error_message = "failed to parse `vt' line";
+      return false;
+    }
+    const char *y_token = token;
+    if (opt_tryParseFloatToken(&y, &y_token)) {
+      token = y_token;
+    }
+    const char *extra_token = token;
+    opt_skip_space(&extra_token);
+    if (!TINYOBJ_OPT_IS_NEW_LINE(extra_token[0]) && extra_token[0] != '#' &&
+        opt_tryParseFloatToken(&w, &extra_token)) {
+      command->has_texcoord_w = true;
+      command->tw = w;
+    }
+    command->tx = x;
+    command->ty = y;
+    command->type = OPT_CMD_VT;
+    return true;
+  }
+
+  // face
+  if (token[0] == 'f' && TINYOBJ_OPT_IS_SPACE(token[1])) {
+    token += 2;
+    opt_skip_space(&token);
+
+    // Collect face vertices (use small stack buffer for typical case)
+    opt_index_t face_buf[8];
+    std::vector<opt_index_t> face_overflow;
+    int face_count = 0;
+
+    while (!TINYOBJ_OPT_IS_NEW_LINE(token[0]) && !opt_is_comment_start(token)) {
+      opt_index_t vi;
+      if (!opt_parseRawTriple(&token, &vi)) {
+        if (parse_error) *parse_error = true;
+        if (parse_error_message) {
+          *parse_error_message = "failed to parse `f' line (invalid vertex index)";
+        }
+        return false;
+      }
+      opt_skip_space(&token);
+      if (face_count < 8) {
+        face_buf[face_count++] = vi;
+      } else {
+        if (face_count == 8) {
+          face_overflow.reserve(16);
+          for (int k = 0; k < 8; k++) face_overflow.push_back(face_buf[k]);
+        }
+        face_overflow.push_back(vi);
+        face_count++;
+      }
+    }
+
+      command->type = OPT_CMD_F;
+      command->face_vertex_count = static_cast<unsigned int>(face_count);
+
+    // Preserve degenerate faces so warnings and EOF shape behavior can match
+    // the legacy loader, but do not reserve output slots for them.
+    if (face_count < 3) {
+      command->degenerate_face = true;
+      command->emitted_face_count = 0;
+      command->emitted_face_verts = 0;
+      command->f_count = 0;
+      return true;
+    }
+
+      if (triangulate) {
+        command->emitted_face_count = static_cast<unsigned int>(face_count - 2);
+        command->emitted_face_verts = 3;
+        command->f_count = command->emitted_face_count * 3;
+
+      opt_index_t *dst = command->f_inline;
+      if (command->face_vertex_count > OptCommand::kInlineIndexCapacity) {
+        command->f_heap.resize(command->face_vertex_count);
+        dst = command->f_heap.data();
+      }
+      if (face_count <= 8) {
+        for (int k = 0; k < face_count; k++) dst[k] = face_buf[k];
+      } else {
+        for (size_t k = 0; k < face_overflow.size(); k++) dst[k] = face_overflow[k];
+      }
+    } else {
+      command->emitted_face_count = 1;
+      command->emitted_face_verts = static_cast<unsigned int>(face_count);
+      command->f_count = static_cast<unsigned int>(face_count);
+      command->face_vertex_count = static_cast<unsigned int>(face_count);
+
+      opt_index_t *dst = command->f_inline;
+      if (command->f_count > OptCommand::kInlineIndexCapacity) {
+        command->f_heap.resize(command->f_count);
+        dst = command->f_heap.data();
+      }
+
+      if (face_count <= 8) {
+        for (int k = 0; k < face_count; k++) dst[k] = face_buf[k];
+      } else {
+        for (size_t k = 0; k < face_overflow.size(); k++) {
+          dst[k] = face_overflow[k];
+        }
+      }
+    }
+    return true;
+  }
+
+  // usemtl
+  if (std::strncmp(token, "usemtl", 6) == 0 &&
+      TINYOBJ_OPT_IS_SPACE(token[6])) {
+    token += 7;
+    opt_skip_space(&token);
+    command->material_name = token;
+    command->material_name_len = static_cast<unsigned int>(
+        opt_length_until_token_or_comment(token,
+                                p_len - static_cast<size_t>(token - p)));
+    command->type = OPT_CMD_USEMTL;
+    return true;
+  }
+
+  // mtllib
+  if (std::strncmp(token, "mtllib", 6) == 0 &&
+      TINYOBJ_OPT_IS_SPACE(token[6])) {
+    token += 7;
+    opt_skip_space(&token);
+    command->mtllib_name = token;
+    command->mtllib_name_len = static_cast<unsigned int>(
+        opt_length_until_newline(token,
+                                p_len - static_cast<size_t>(token - p)));
+    command->type = OPT_CMD_MTLLIB;
+    return true;
+  }
+
+  // group
+  if (token[0] == 'g' &&
+      (TINYOBJ_OPT_IS_SPACE(token[1]) || TINYOBJ_OPT_IS_NEW_LINE(token[1]) ||
+       token[1] == '\0')) {
+    if (TINYOBJ_OPT_IS_SPACE(token[1])) {
+      token += 2;
+    } else {
+      token += 1;
+    }
+    command->group_name_storage = opt_parseGroupName(
+        token, p_len - static_cast<size_t>(token - p));
+    command->group_name = nullptr;
+    command->group_name_len =
+        static_cast<unsigned int>(command->group_name_storage.size());
+    command->group_name_empty = command->group_name_storage.empty();
+    command->type = OPT_CMD_G;
+    return true;
+  }
+
+  // object
+  if (token[0] == 'o' && TINYOBJ_OPT_IS_SPACE(token[1])) {
+    token += 2;
+    command->object_name = token;
+    command->object_name_len = static_cast<unsigned int>(
+        p_len - static_cast<size_t>(token - p));
+    command->type = OPT_CMD_O;
+    return true;
+  }
+
+  // smoothing group
+  if (token[0] == 's' && TINYOBJ_OPT_IS_SPACE(token[1])) {
+    token += 2;
+    opt_skip_space(&token);
+    if (TINYOBJ_OPT_IS_NEW_LINE(token[0])) {
+      command->smoothing_group_id = 0;
+    } else if (token[0] == 'o' && token[1] == 'f' && token[2] == 'f' &&
+               (TINYOBJ_OPT_IS_NEW_LINE(token[3]) || token[3] == '\0' ||
+                token[3] == ' ' || token[3] == '\t')) {
+      command->smoothing_group_id = 0;
+    } else {
+      const int sm = opt_my_atoi(token);
+      command->smoothing_group_id = (sm > 0) ? static_cast<unsigned int>(sm) : 0;
+    }
+    command->type = OPT_CMD_S;
+    return true;
+  }
+
+  return false;
+}
+
+// ---- SIMD newline scanning ----
+
+#ifdef TINYOBJLOADER_USE_SIMD
+
+// Include <intrin.h> for _BitScanForward on MSVC. Placed here (not at the top)
+// because it's only needed when TINYOBJLOADER_USE_SIMD is enabled.
+#if defined(_MSC_VER)
+#include <intrin.h>
+#endif
+
+// Portable count-trailing-zeros for SIMD bitmask extraction
+static inline unsigned int tinyobj_ctz(unsigned int x) {
+#if defined(_MSC_VER)
+  unsigned long idx;
+  _BitScanForward(&idx, x);
+  return static_cast<unsigned int>(idx);
+#else
+  return static_cast<unsigned int>(__builtin_ctz(x));
+#endif
+}
+
+#if defined(TINYOBJLOADER_SIMD_AVX2)
+
+/// AVX2-accelerated line-ending scanning — finds '\n' and '\r' positions.
+static void simd_find_newlines(const char *buf, size_t len,
+                               std::vector<size_t> &positions) {
+  const __m256i nl = _mm256_set1_epi8('\n');
+  const __m256i cr = _mm256_set1_epi8('\r');
+  size_t i = 0;
+  for (; i + 32 <= len; i += 32) {
+    __m256i chunk =
+        _mm256_loadu_si256(reinterpret_cast<const __m256i *>(buf + i));
+    __m256i cmp_nl = _mm256_cmpeq_epi8(chunk, nl);
+    __m256i cmp_cr = _mm256_cmpeq_epi8(chunk, cr);
+    __m256i combined = _mm256_or_si256(cmp_nl, cmp_cr);
+    unsigned int mask = static_cast<unsigned int>(_mm256_movemask_epi8(combined));
+    while (mask) {
+      unsigned int bit = tinyobj_ctz(mask);
+      positions.push_back(i + bit);
+      mask &= mask - 1;
+    }
+  }
+  // Scalar tail
+  for (; i < len; i++) {
+    if (buf[i] == '\n' || buf[i] == '\r') positions.push_back(i);
+  }
+}
+
+#elif defined(TINYOBJLOADER_SIMD_SSE2)
+
+/// SSE2-accelerated line-ending scanning — finds '\n' and '\r' positions.
+static void simd_find_newlines(const char *buf, size_t len,
+                               std::vector<size_t> &positions) {
+  const __m128i nl = _mm_set1_epi8('\n');
+  const __m128i cr = _mm_set1_epi8('\r');
+  size_t i = 0;
+  for (; i + 16 <= len; i += 16) {
+    __m128i chunk =
+        _mm_loadu_si128(reinterpret_cast<const __m128i *>(buf + i));
+    __m128i cmp_nl = _mm_cmpeq_epi8(chunk, nl);
+    __m128i cmp_cr = _mm_cmpeq_epi8(chunk, cr);
+    __m128i combined = _mm_or_si128(cmp_nl, cmp_cr);
+    int mask = _mm_movemask_epi8(combined);
+    while (mask) {
+      int bit = static_cast<int>(tinyobj_ctz(static_cast<unsigned int>(mask)));
+      positions.push_back(i + static_cast<size_t>(bit));
+      mask &= mask - 1;
+    }
+  }
+  // Scalar tail
+  for (; i < len; i++) {
+    if (buf[i] == '\n' || buf[i] == '\r') positions.push_back(i);
+  }
+}
+
+#elif defined(TINYOBJLOADER_SIMD_NEON)
+
+/// NEON-accelerated line-ending scanning — finds '\n' and '\r' positions.
+static void simd_find_newlines(const char *buf, size_t len,
+                               std::vector<size_t> &positions) {
+  const uint8x16_t nl = vdupq_n_u8('\n');
+  const uint8x16_t cr = vdupq_n_u8('\r');
+  size_t i = 0;
+  for (; i + 16 <= len; i += 16) {
+    uint8x16_t chunk = vld1q_u8(reinterpret_cast<const uint8_t *>(buf + i));
+    uint8x16_t cmp_nl = vceqq_u8(chunk, nl);
+    uint8x16_t cmp_cr = vceqq_u8(chunk, cr);
+    uint8x16_t combined = vorrq_u8(cmp_nl, cmp_cr);
+    for (int j = 0; j < 16; j++) {
+      if (vgetq_lane_u8(combined, 0) != 0) {
+        positions.push_back(i + static_cast<size_t>(j));
+      }
+      combined = vextq_u8(combined, combined, 1);
+    }
+  }
+  for (; i < len; i++) {
+    if (buf[i] == '\n' || buf[i] == '\r') positions.push_back(i);
+  }
+}
+
+#endif  // SIMD variant
+
+/// Build LineInfo array from SIMD-detected line-ending positions.
+/// The positions array may contain both '\r' and '\n' hits;
+/// consecutive \r\n pairs are collapsed into a single line boundary.
+static void simd_build_line_infos(const char *buf, size_t len,
+                                  const std::vector<size_t> &nl_positions,
+                                  std::vector<LineInfo> &out) {
+  out.reserve(nl_positions.size() + 1);
+  size_t prev = 0;
+  for (size_t k = 0; k < nl_positions.size(); k++) {
+    size_t pos = nl_positions[k];
+    // Skip the '\n' in a '\r\n' pair (the '\r' already created a boundary)
+    if (buf[pos] == '\n' && pos > 0 && buf[pos - 1] == '\r') {
+      prev = pos + 1;
+      continue;
+    }
+    size_t line_len = pos - prev;
+    if (line_len > 0) {
+      LineInfo info;
+      info.pos = prev;
+      info.len = line_len;
+      out.push_back(info);
+    }
+    prev = pos + 1;
+  }
+  // Handle last line without trailing newline
+  if (prev < len) {
+    size_t line_len = len - prev;
+    if (line_len > 0) {
+      LineInfo info;
+      info.pos = prev;
+      info.len = line_len;
+      out.push_back(info);
+    }
+  }
+}
+
+#endif  // TINYOBJLOADER_USE_SIMD
+
+/// Scalar fallback newline scanning — handles \n, \r\n, and bare \r
+static void scalar_find_line_infos(const char *buf, size_t start, size_t end,
+                                   std::vector<LineInfo> &out) {
+  size_t prev = start;
+  for (size_t i = start; i < end; i++) {
+    if (buf[i] == '\n' || buf[i] == '\r') {
+      size_t line_len = i - prev;
+      // Skip \r in \r\n pair
+      if (buf[i] == '\r' && (i + 1 < end) && buf[i + 1] == '\n') {
+        if (line_len > 0) {
+          LineInfo info;
+          info.pos = prev;
+          info.len = line_len;
+          out.push_back(info);
+        }
+        i++;  // skip the \n in \r\n
+      } else {
+        // bare \n or bare \r
+        if (line_len > 0) {
+          LineInfo info;
+          info.pos = prev;
+          info.len = line_len;
+          out.push_back(info);
+        }
+      }
+      prev = i + 1;
+    }
+  }
+  if (prev < end) {
+    size_t line_len = end - prev;
+    if (line_len > 0) {
+      LineInfo info;
+      info.pos = prev;
+      info.len = line_len;
+      out.push_back(info);
+    }
+  }
+}
+
+template <typename DstVec, typename SrcVec>
+static void opt_assign_vector(DstVec *dst, const SrcVec &src) {
+  if (!dst) return;
+  dst->assign(src.begin(), src.end());
+}
+
+static void ConvertLegacyShapeToBasic(const shape_t &src, basic_shape_t<> *dst) {
+  if (!dst) return;
+  dst->name = src.name;
+  opt_assign_vector(&dst->mesh.indices, src.mesh.indices);
+  opt_assign_vector(&dst->mesh.num_face_vertices, src.mesh.num_face_vertices);
+  opt_assign_vector(&dst->mesh.material_ids, src.mesh.material_ids);
+  opt_assign_vector(&dst->mesh.smoothing_group_ids,
+                    src.mesh.smoothing_group_ids);
+  dst->mesh.tags = src.mesh.tags;
+  opt_assign_vector(&dst->lines.indices, src.lines.indices);
+  opt_assign_vector(&dst->lines.num_line_vertices, src.lines.num_line_vertices);
+  opt_assign_vector(&dst->points.indices, src.points.indices);
+}
+
+static void ConvertLegacyResultToBasic(
+    const attrib_t &src_attrib, const std::vector<shape_t> &src_shapes,
+    const std::vector<material_t> &src_materials, basic_attrib_t<> *dst_attrib,
+    std::vector<basic_shape_t<> > *dst_shapes,
+    std::vector<material_t> *dst_materials) {
+  if (dst_attrib) {
+    opt_assign_vector(&dst_attrib->vertices, src_attrib.vertices);
+    opt_assign_vector(&dst_attrib->vertex_weights, src_attrib.vertex_weights);
+    opt_assign_vector(&dst_attrib->normals, src_attrib.normals);
+    opt_assign_vector(&dst_attrib->texcoords, src_attrib.texcoords);
+    opt_assign_vector(&dst_attrib->texcoord_ws, src_attrib.texcoord_ws);
+    opt_assign_vector(&dst_attrib->colors, src_attrib.colors);
+    dst_attrib->skin_weights = src_attrib.skin_weights;
+    dst_attrib->indices.clear();
+    dst_attrib->face_num_verts.clear();
+    dst_attrib->material_ids.clear();
+    for (size_t si = 0; si < src_shapes.size(); si++) {
+      const mesh_t &mesh = src_shapes[si].mesh;
+      dst_attrib->indices.insert(dst_attrib->indices.end(), mesh.indices.begin(),
+                                 mesh.indices.end());
+      dst_attrib->face_num_verts.insert(dst_attrib->face_num_verts.end(),
+                                        mesh.num_face_vertices.begin(),
+                                        mesh.num_face_vertices.end());
+      dst_attrib->material_ids.insert(dst_attrib->material_ids.end(),
+                                      mesh.material_ids.begin(),
+                                      mesh.material_ids.end());
+    }
+  }
+
+  if (dst_shapes) {
+    dst_shapes->clear();
+    dst_shapes->resize(src_shapes.size());
+    for (size_t i = 0; i < src_shapes.size(); i++) {
+      ConvertLegacyShapeToBasic(src_shapes[i], &(*dst_shapes)[i]);
+    }
+  }
+
+  if (dst_materials) {
+    (*dst_materials) = src_materials;
+  }
+}
+
+static bool opt_requires_legacy_fallback(const char *p, size_t len) {
+  if (!p || len == 0) return false;
+  while (len > 0 && (*p == ' ' || *p == '\t')) {
+    p++;
+    len--;
+  }
+  if (len == 0 || *p == '#' || *p == '\r' || *p == '\n') return false;
+
+  if (len >= 3 && p[0] == 'v' && p[1] == 'w' &&
+      (p[2] == ' ' || p[2] == '\t')) {
+    return true;
+  }
+  if (len >= 2 &&
+      ((p[0] == 'l' && (p[1] == ' ' || p[1] == '\t')) ||
+       (p[0] == 'p' && (p[1] == ' ' || p[1] == '\t')) ||
+       (p[0] == 't' && (p[1] == ' ' || p[1] == '\t')))) {
+    return true;
+  }
+  return false;
+}
+
+/// Check if the first non-whitespace token on a line (starting at p, length
+/// rem) requires the legacy parser.
+static inline bool opt_line_start_is_legacy(const char *p, size_t rem) {
+  while (rem > 0 && (*p == ' ' || *p == '\t')) { p++; rem--; }
+  if (rem >= 3 && p[0] == 'v' && p[1] == 'w' &&
+      (p[2] == ' ' || p[2] == '\t'))
+    return true;
+  if (rem >= 2 &&
+      ((p[0] == 'l' || p[0] == 'p' || p[0] == 't') &&
+       (p[1] == ' ' || p[1] == '\t')))
+    return true;
+  return false;
+}
+
+/// Fast whole-buffer scan for legacy-only tokens (vw, l, p, t at line start).
+/// Uses memchr for SIMD-accelerated newline finding.  Handles both \n and
+/// bare \r (old Mac) line endings.
+static bool opt_buffer_requires_legacy_fallback(const char *buf, size_t len) {
+  if (!buf || len == 0) return false;
+  // Check at start of buffer
+  if (opt_line_start_is_legacy(buf, len)) return true;
+  // Scan for line breaks (\n first, then bare \r)
+  for (int pass = 0; pass < 2; pass++) {
+    const char needle = (pass == 0) ? '\n' : '\r';
+    const char *p = buf;
+    size_t remaining = len;
+    for (;;) {
+      const char *nl = static_cast<const char *>(
+          std::memchr(p, needle, remaining));
+      if (!nl) break;
+      size_t offset = static_cast<size_t>(nl - buf) + 1;
+      if (offset >= len) break;
+      // Skip \n in \r\n pair on the \r pass to avoid double-checking
+      if (needle == '\r' && offset < len && buf[offset] == '\n') {
+        p = buf + offset + 1;
+        remaining = len - offset - 1;
+        continue;
+      }
+      if (opt_line_start_is_legacy(buf + offset, len - offset)) return true;
+      p = buf + offset;
+      remaining = len - offset;
+    }
+  }
+  return false;
+}
+
+///
+/// Trie-based string → float cache for repeated OBJ coordinate values.
+/// Caches short float tokens (up to kMaxKeyLen chars) in a compact trie.
+/// Alphabet: '0'-'9', '+', '-', '.', 'e', 'E' (15 chars).
+/// Thread-local — each thread gets its own cache instance.
+///
+class OptFloatCache {
+ public:
+  static const int kFp32MaxKeyLen =
+      std::numeric_limits<float>::digits10 + 2;  // 8
+  static const int kRealMaxKeyLen =
+      std::numeric_limits<real_t>::digits10 + 2;
+  static const int kAlphabetSize = 15;
+
+  explicit OptFloatCache(int max_nodes = 1024, bool fp32_keys = true)
+      : max_nodes_(max_nodes < 2 ? 2 : (max_nodes > 65535 ? 65535 : max_nodes)),
+        max_key_len_(fp32_keys ? kFp32MaxKeyLen : kRealMaxKeyLen) {
+    nodes_.reserve(static_cast<size_t>(max_nodes_));
+    nodes_.resize(1);
+    std::memset(&nodes_[0], 0, sizeof(Node));
+  }
+
+  static inline int char_index(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    switch (c) {
+      case '+': return 10;
+      case '-': return 11;
+      case '.': return 12;
+      case 'e': return 13;
+      case 'E': return 14;
+    }
+    return -1;
+  }
+
+  /// Try cache lookup.  Returns true + sets *out on hit.
+  inline bool lookup(const char *key, int key_len, real_t *out) const {
+    if (key_len <= 0 || key_len > max_key_len_) return false;
+    int node = 0;
+    for (int i = 0; i < key_len; i++) {
+      int ci = char_index(key[i]);
+      if (ci < 0) return false;
+      int child = nodes_[static_cast<size_t>(node)]
+                      .children[static_cast<size_t>(ci)];
+      if (child == 0) return false;
+      node = child;
+    }
+    const Node &n = nodes_[static_cast<size_t>(node)];
+    if (!n.has_value) return false;
+    *out = n.value;
+    return true;
+  }
+
+  /// Insert parsed value.  Returns false if full or key too long.
+  inline bool insert(const char *key, int key_len, real_t value) {
+    if (key_len <= 0 || key_len > max_key_len_) return false;
+    int node = 0;
+    for (int i = 0; i < key_len; i++) {
+      int ci = char_index(key[i]);
+      if (ci < 0) return false;
+      uint16_t child = nodes_[static_cast<size_t>(node)]
+                           .children[static_cast<size_t>(ci)];
+      if (child == 0) {
+        if (static_cast<int>(nodes_.size()) >= max_nodes_) return false;
+        child = static_cast<uint16_t>(nodes_.size());
+        // Write back BEFORE push_back (push_back may realloc)
+        nodes_[static_cast<size_t>(node)]
+            .children[static_cast<size_t>(ci)] = child;
+        Node new_node;
+        std::memset(&new_node, 0, sizeof(Node));
+        nodes_.push_back(new_node);
+      }
+      node = static_cast<int>(child);
+    }
+    Node &n = nodes_[static_cast<size_t>(node)];
+    n.value = value;
+    n.has_value = true;
+    return true;
+  }
+
+  int max_key_len() const { return max_key_len_; }
+
+ private:
+  struct Node {
+    uint16_t children[kAlphabetSize];  // 30 bytes
+    real_t value;                      // 4 or 8 bytes
+    bool has_value;                    // 1 byte
+  };
+  std::vector<Node> nodes_;
+  int max_nodes_;
+  int max_key_len_;
+};
+
+// Fast inline float parse: skip whitespace, call fast_float with line_end,
+// advance cursor.  No token-end pre-scan.  Returns false if no float found.
+// When cache is non-null, checks/populates the trie cache for short tokens.
+// Handles nan/inf keywords with OBJ-compatible replacement values (matching
+// opt_tryParseDouble behavior).
+#ifndef TINYOBJLOADER_DISABLE_FAST_FLOAT
+static inline bool opt_fast_parse_float(real_t *out, const char **cursor,
+                                        const char *line_end,
+                                        OptFloatCache *cache = nullptr) {
+  const char *p = *cursor;
+  while (p < line_end && (*p == ' ' || *p == '\t')) p++;
+  if (p >= line_end || *p == '\n' || *p == '\r' || *p == '#') return false;
+
+  // Check for nan/inf keywords before calling fast_float (which doesn't
+  // handle them).  Map to OBJ-compatible values: nan→0, +inf→max, -inf→lowest.
+  {
+    const char *q = p;
+    if (q < line_end && (*q == '+' || *q == '-')) ++q;
+    if (q < line_end) {
+      char fc = *q;
+      if (fc >= 'A' && fc <= 'Z') fc += 32;
+      if (fc == 'n' || fc == 'i') {
+        double special_val;
+        const char *end_ptr;
+        if (detail_fp::tryParseNanInf(p, line_end, &special_val, &end_ptr)) {
+          *out = static_cast<real_t>(special_val);
+          *cursor = end_ptr;
+          return true;
+        }
+      }
+    }
+  }
+
+  // --- Cache fast path: scan up to max_key_len chars for trie lookup ---
+  if (cache) {
+    const char *tok_start = p;
+    const char *kp = p;
+    int klen = 0;
+    int mkl = cache->max_key_len();
+    while (klen < mkl && kp < line_end) {
+      char c = *kp;
+      if (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '#' ||
+          c == '\0')
+        break;
+      if (OptFloatCache::char_index(c) < 0) break;
+      klen++;
+      kp++;
+    }
+    // Token is cacheable if it ended at a delimiter (not mid-token)
+    bool at_delim = (kp >= line_end || *kp == ' ' || *kp == '\t' ||
+                     *kp == '\n' || *kp == '\r' || *kp == '#' || *kp == '\0');
+    if (klen > 0 && at_delim) {
+      real_t cached;
+      if (cache->lookup(tok_start, klen, &cached)) {
+        *out = cached;
+        *cursor = kp;
+        return true;
+      }
+      // Cache miss — parse normally, then insert
+      real_t tmp;
+      auto r = fast_float::from_chars(tok_start, line_end, tmp,
+          fast_float::chars_format::general |
+          fast_float::chars_format::allow_leading_plus);
+      if (r.ec != tinyobj_ff::ff_errc::ok) return false;
+      *out = tmp;
+      *cursor = r.ptr;
+      cache->insert(tok_start, klen, tmp);
+      return true;
+    }
+    // Token too long or has non-float chars — fall through to uncached parse
+  }
+
+  // --- Uncached parse ---
+  real_t tmp;
+  auto r = fast_float::from_chars(p, line_end, tmp,
+      fast_float::chars_format::general |
+      fast_float::chars_format::allow_leading_plus);
+  if (r.ec != tinyobj_ff::ff_errc::ok) return false;
+  *out = tmp;
+  *cursor = r.ptr;
+  return true;
+}
+#endif
+
+// Parse a single line and store into compact per-type thread data.
+// Fast path: v/vn/vt lines are parsed directly using fast_float with line_end,
+// bypassing OptCommand entirely.  Face/meta lines fall back to opt_parseLine.
+static void opt_parseLineToThreadData(
+    OptThreadData &td, const char *line_ptr, size_t line_len,
+    bool triangulate, size_t line_number,
+    OptFloatCache *cache = nullptr) {
+  const char *token = line_ptr;
+  while (*token == ' ' || *token == '\t') token++;
+  if (*token == '\n' || *token == '\r' || *token == '#' || *token == '\0')
+    return;
+
+#ifndef TINYOBJLOADER_DISABLE_FAST_FLOAT
+  const char *line_end = line_ptr + line_len;
+
+  // ---- Fast path: vertex position (v x y z [w] [r g b]) ----
+  if (token[0] == 'v' && (token[1] == ' ' || token[1] == '\t')) {
+    const char *cur = token + 2;
+    real_t x, y, z;
+    if (!opt_fast_parse_float(&x, &cur, line_end, cache) ||
+        !opt_fast_parse_float(&y, &cur, line_end, cache) ||
+        !opt_fast_parse_float(&z, &cur, line_end, cache)) {
+      td.error_line = line_number;
+      td.error_message = "failed to parse `v' line";
+      return;
+    }
+    // Write xyz (batch: resize + direct write)
+    size_t off = td.v_pos.size();
+    td.v_pos.resize(off + 3);
+    td.v_pos[off] = x; td.v_pos[off+1] = y; td.v_pos[off+2] = z;
+
+    // Check for extra components (weight / color)
+    real_t extra[4];
+    int nextra = 0;
+    while (nextra < 4 && opt_fast_parse_float(&extra[nextra], &cur, line_end, cache))
+      nextra++;
+
+    if (nextra == 1) {
+      // v x y z w  (4 total) — weight only, no color
+      if (!td.saw_any_weight) {
+        td.saw_any_weight = true;
+        td.v_weight.resize(td.num_v, real_t(1.0));
+      }
+      td.v_weight.push_back(extra[0]);
+      td.saw_missing_color = true;
+      if (td.saw_any_color) {
+        size_t coff = td.v_color.size();
+        td.v_color.resize(coff + 3);
+        td.v_color[coff] = real_t(1.0);
+        td.v_color[coff+1] = real_t(1.0);
+        td.v_color[coff+2] = real_t(1.0);
+      }
+    } else if (nextra == 3) {
+      // v x y z r g b  (6 total) — color, weight = r (legacy compat)
+      if (!td.saw_any_weight) {
+        td.saw_any_weight = true;
+        td.v_weight.resize(td.num_v, real_t(1.0));
+      }
+      td.v_weight.push_back(extra[0]);
+      if (!td.saw_any_color) {
+        td.saw_any_color = true;
+        td.v_color.resize(td.num_v * 3, real_t(1.0));
+      }
+      size_t coff = td.v_color.size();
+      td.v_color.resize(coff + 3);
+      td.v_color[coff] = extra[0];
+      td.v_color[coff+1] = extra[1];
+      td.v_color[coff+2] = extra[2];
+    } else if (nextra >= 4) {
+      // v x y z w r g b  (7+ total) — weight + color
+      if (!td.saw_any_weight) {
+        td.saw_any_weight = true;
+        td.v_weight.resize(td.num_v, real_t(1.0));
+      }
+      td.v_weight.push_back(extra[0]);
+      if (!td.saw_any_color) {
+        td.saw_any_color = true;
+        td.v_color.resize(td.num_v * 3, real_t(1.0));
+      }
+      size_t coff = td.v_color.size();
+      td.v_color.resize(coff + 3);
+      td.v_color[coff] = extra[1];
+      td.v_color[coff+1] = extra[2];
+      td.v_color[coff+2] = extra[3];
+    } else {
+      // nextra == 0 or 2 — no color
+      if (td.saw_any_weight) td.v_weight.push_back(real_t(1.0));
+      td.saw_missing_color = true;
+      if (td.saw_any_color) {
+        size_t coff = td.v_color.size();
+        td.v_color.resize(coff + 3);
+        td.v_color[coff] = real_t(1.0);
+        td.v_color[coff+1] = real_t(1.0);
+        td.v_color[coff+2] = real_t(1.0);
+      }
+    }
+    td.num_v++;
+    return;
+  }
+
+  // ---- Fast path: normal (vn x y z) ----
+  if (token[0] == 'v' && token[1] == 'n' &&
+      (token[2] == ' ' || token[2] == '\t')) {
+    const char *cur = token + 3;
+    real_t x, y, z;
+    if (!opt_fast_parse_float(&x, &cur, line_end, cache) ||
+        !opt_fast_parse_float(&y, &cur, line_end, cache) ||
+        !opt_fast_parse_float(&z, &cur, line_end, cache)) {
+      td.error_line = line_number;
+      td.error_message = "failed to parse `vn' line";
+      return;
+    }
+    size_t off = td.vn_data.size();
+    td.vn_data.resize(off + 3);
+    td.vn_data[off] = x; td.vn_data[off+1] = y; td.vn_data[off+2] = z;
+    td.num_vn++;
+    return;
+  }
+
+  // ---- Fast path: texcoord (vt u [v [w]]) ----
+  if (token[0] == 'v' && token[1] == 't' &&
+      (token[2] == ' ' || token[2] == '\t')) {
+    const char *cur = token + 3;
+    real_t u = 0, v = 0;
+    if (!opt_fast_parse_float(&u, &cur, line_end, cache)) {
+      td.error_line = line_number;
+      td.error_message = "failed to parse `vt' line";
+      return;
+    }
+    opt_fast_parse_float(&v, &cur, line_end, cache);  // v is optional
+    real_t w = 0;
+    bool has_w = opt_fast_parse_float(&w, &cur, line_end, cache);
+
+    size_t off = td.vt_data.size();
+    td.vt_data.resize(off + 2);
+    td.vt_data[off] = u; td.vt_data[off+1] = v;
+    if (has_w) {
+      if (!td.saw_any_texcoord_w) {
+        td.saw_any_texcoord_w = true;
+        td.vt_w.resize(td.num_vt, real_t(0.0));
+      }
+      td.vt_w.push_back(w);
+    } else if (td.saw_any_texcoord_w) {
+      td.vt_w.push_back(real_t(0.0));
+    }
+    td.num_vt++;
+    return;
+  }
+#endif  // TINYOBJLOADER_DISABLE_FAST_FLOAT
+
+  // ---- Slow path: face / meta commands via opt_parseLine ----
+  OptCommand cmd;
+  bool parse_error = false;
+  bool ok = opt_parseLine(&cmd, line_ptr, line_len, triangulate,
+                           &parse_error, nullptr);
+  if (parse_error) {
+    td.error_line = line_number;
+    std::string msg;
+    opt_parseLine(&cmd, line_ptr, line_len, triangulate, nullptr, &msg);
+    td.error_message = msg;
+    return;
+  }
+  if (!ok) return;
+
+  switch (cmd.type) {
+#ifdef TINYOBJLOADER_DISABLE_FAST_FLOAT
+    // When fast_float is disabled, v/vn/vt fall through to here
+    case OPT_CMD_V: {
+      size_t off = td.v_pos.size();
+      td.v_pos.resize(off + 3);
+      td.v_pos[off] = cmd.vx; td.v_pos[off+1] = cmd.vy; td.v_pos[off+2] = cmd.vz;
+      if (cmd.has_vertex_weight) {
+        if (!td.saw_any_weight) {
+          td.saw_any_weight = true;
+          td.v_weight.resize(td.num_v, real_t(1.0));
+        }
+        td.v_weight.push_back(cmd.vw);
+      } else if (td.saw_any_weight) {
+        td.v_weight.push_back(real_t(1.0));
+      }
+      if (cmd.has_vertex_color) {
+        if (!td.saw_any_color) {
+          td.saw_any_color = true;
+          td.v_color.resize(td.num_v * 3, real_t(1.0));
+        }
+        td.v_color.push_back(cmd.vc_r);
+        td.v_color.push_back(cmd.vc_g);
+        td.v_color.push_back(cmd.vc_b);
+      } else {
+        td.saw_missing_color = true;
+        if (td.saw_any_color) {
+          td.v_color.push_back(real_t(1.0));
+          td.v_color.push_back(real_t(1.0));
+          td.v_color.push_back(real_t(1.0));
+        }
+      }
+      td.num_v++;
+      break;
+    }
+    case OPT_CMD_VN: {
+      size_t off = td.vn_data.size();
+      td.vn_data.resize(off + 3);
+      td.vn_data[off] = cmd.nx; td.vn_data[off+1] = cmd.ny; td.vn_data[off+2] = cmd.nz;
+      td.num_vn++;
+      break;
+    }
+    case OPT_CMD_VT: {
+      size_t off = td.vt_data.size();
+      td.vt_data.resize(off + 2);
+      td.vt_data[off] = cmd.tx; td.vt_data[off+1] = cmd.ty;
+      if (cmd.has_texcoord_w) {
+        if (!td.saw_any_texcoord_w) {
+          td.saw_any_texcoord_w = true;
+          td.vt_w.resize(td.num_vt, real_t(0.0));
+        }
+        td.vt_w.push_back(cmd.tw);
+      } else if (td.saw_any_texcoord_w) {
+        td.vt_w.push_back(real_t(0.0));
+      }
+      td.num_vt++;
+      break;
+    }
+#endif  // TINYOBJLOADER_DISABLE_FAST_FLOAT
+    case OPT_CMD_F: {
+      OptFaceCmd fc;
+      fc.face_vertex_count = cmd.face_vertex_count;
+      fc.emitted_face_count = cmd.emitted_face_count;
+      fc.emitted_face_verts = cmd.emitted_face_verts;
+      fc.f_count = cmd.f_count;
+      fc.degenerate = cmd.degenerate_face;
+      fc.source_line = static_cast<uint32_t>(line_number);
+      fc.v_count_before = static_cast<uint32_t>(td.num_v);
+      fc.vn_count_before = static_cast<uint32_t>(td.num_vn);
+      fc.vt_count_before = static_cast<uint32_t>(td.num_vt);
+      if (!cmd.f_heap.empty()) {
+        fc.f_heap = std::move(cmd.f_heap);
+      } else if (cmd.face_vertex_count <= OptFaceCmd::kInlineCap) {
+        for (uint32_t k = 0; k < cmd.face_vertex_count; k++)
+          fc.f_inline[k] = cmd.f_inline[k];
+      } else {
+        fc.f_heap.assign(cmd.f_inline, cmd.f_inline + cmd.face_vertex_count);
+      }
+      td.num_f_indices += fc.f_count;
+      td.num_f_faces += fc.emitted_face_count;
+      OptSeqEntry se;
+      se.kind = OptSeqEntry::SEQ_FACE;
+      se.index = static_cast<uint32_t>(td.faces.size());
+      td.seq.push_back(se);
+      td.faces.push_back(std::move(fc));
+      break;
+    }
+    case OPT_CMD_G:
+    case OPT_CMD_O:
+    case OPT_CMD_USEMTL:
+    case OPT_CMD_MTLLIB:
+    case OPT_CMD_S: {
+      OptMetaCmd mc;
+      mc.type = cmd.type;
+      mc.source_line = static_cast<uint32_t>(line_number);
+      if (cmd.type == OPT_CMD_G) {
+        mc.str_storage = cmd.group_name_storage;
+        mc.str_ptr = cmd.group_name;
+        mc.str_len = cmd.group_name_len;
+        mc.group_name_empty = cmd.group_name_empty;
+      } else if (cmd.type == OPT_CMD_O) {
+        mc.str_ptr = cmd.object_name;
+        mc.str_len = cmd.object_name_len;
+      } else if (cmd.type == OPT_CMD_USEMTL) {
+        mc.str_ptr = cmd.material_name;
+        mc.str_len = cmd.material_name_len;
+      } else if (cmd.type == OPT_CMD_MTLLIB) {
+        mc.str_ptr = cmd.mtllib_name;
+        mc.str_len = cmd.mtllib_name_len;
+      } else if (cmd.type == OPT_CMD_S) {
+        mc.smoothing_group_id = cmd.smoothing_group_id;
+        td.saw_any_smoothing = true;
+      }
+      OptSeqEntry se;
+      se.kind = OptSeqEntry::SEQ_META;
+      se.index = static_cast<uint32_t>(td.metas.size());
+      td.seq.push_back(se);
+      td.metas.push_back(std::move(mc));
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+}  // namespace opt_internal
+
+// Internal implementation with optional basedir for material path resolution
+static bool LoadObjOpt_internal(basic_attrib_t<> *attrib,
+                                std::vector<basic_shape_t<>> *shapes,
+                                std::vector<material_t> *materials,
+                                std::string *warn, std::string *err,
+                                const char *buf, size_t buf_len,
+                                const std::string &mtl_basedir,
+                                const std::string &source_name,
+                                bool enable_mtllib_loading,
+                                const OptLoadConfig &config) {
+  using namespace opt_internal;
+
+  if (!attrib || !shapes) {
+    if (err) *err = "attrib and shapes must not be null.";
+    return false;
+  }
+
+  attrib->vertices.clear();
+  attrib->vertex_weights.clear();
+  attrib->normals.clear();
+  attrib->texcoords.clear();
+  attrib->texcoord_ws.clear();
+  attrib->colors.clear();
+  attrib->skin_weights.clear();
+  attrib->indices.clear();
+  attrib->face_num_verts.clear();
+  attrib->material_ids.clear();
+  shapes->clear();
+  if (materials) materials->clear();
+
+  if (buf_len < 1) return true;  // empty buffer is not an error
+
+  if (!buf) {
+    if (err) *err = "buf must not be null when buf_len > 0.";
+    return false;
+  }
+
+  // Ensure buffer ends with a newline for safe tokenization (avoids
+  // one-byte over-read on the last line when parsing directly from the
+  // buffer without per-line copies).
+  const char *work_buf = buf;
+  size_t work_len = buf_len;
+  std::vector<char> buf_with_sentinel;
+  if (buf[buf_len - 1] != '\n') {
+    buf_with_sentinel.assign(buf, buf + buf_len);
+    buf_with_sentinel.push_back('\n');
+    work_buf = buf_with_sentinel.data();
+    work_len = buf_with_sentinel.size();
+  }
+
+  // Determine thread count
+  int num_threads = 1;
+#ifdef TINYOBJLOADER_USE_MULTITHREADING
+  if (config.num_threads < 0) {
+    num_threads = static_cast<int>(std::thread::hardware_concurrency());
+    if (num_threads < 1) num_threads = 1;
+  } else if (config.num_threads > 1) {
+    num_threads = config.num_threads;
+  }
+  if (num_threads > kOptMaxThreads) num_threads = kOptMaxThreads;
+#else
+#endif
+
+  // ---- Phase 1: find line boundaries ----
+  std::vector<LineInfo> all_line_infos;
+
+#if defined(TINYOBJLOADER_USE_SIMD) && \
+    (defined(TINYOBJLOADER_SIMD_SSE2) || defined(TINYOBJLOADER_SIMD_AVX2) || \
+     defined(TINYOBJLOADER_SIMD_NEON))
+  {
+    std::vector<size_t> nl_positions;
+    nl_positions.reserve(work_len / 64);
+    simd_find_newlines(work_buf, work_len, nl_positions);
+    simd_build_line_infos(work_buf, work_len, nl_positions, all_line_infos);
+  }
+#else
+  {
+    all_line_infos.reserve(work_len / 64);
+    scalar_find_line_infos(work_buf, 0, work_len, all_line_infos);
+  }
+#endif
+
+  const size_t total_lines = all_line_infos.size();
+  if (total_lines == 0) return true;
+
+  // Fast buffer-level check for legacy-only tokens (replaces per-line scan)
+  if (opt_buffer_requires_legacy_fallback(work_buf, work_len)) {
+    std::string input(buf, buf + buf_len);
+    std::istringstream iss(input);
+    attrib_t legacy_attrib;
+    std::vector<shape_t> legacy_shapes;
+    std::vector<material_t> legacy_materials;
+    MaterialFileReader mat_reader(mtl_basedir);
+    MaterialReader *reader =
+        enable_mtllib_loading ? static_cast<MaterialReader *>(&mat_reader) : NULL;
+    const bool ok = LoadObj(&legacy_attrib, &legacy_shapes, &legacy_materials,
+                            warn, err, &iss, reader, config.triangulate, false);
+    if (!ok) {
+      return false;
+    }
+    ConvertLegacyResultToBasic(legacy_attrib, legacy_shapes, legacy_materials,
+                               attrib, shapes, materials);
+    return true;
+  }
+
+  // ---- Phase 2: parse lines (compact storage) ----
+  //   Single-threaded or multi-threaded depending on compile option.
+
+  const size_t num_t = static_cast<size_t>(num_threads);
+  std::vector<OptThreadData> thread_data(num_t);
+
+#ifdef TINYOBJLOADER_USE_MULTITHREADING
+  // Multi-threaded path
+  {
+    size_t lines_per_thread = total_lines / num_t;
+    std::vector<std::thread> workers;
+    workers.reserve(num_t);
+
+    for (int t = 0; t < num_threads; t++) {
+      size_t start = static_cast<size_t>(t) * lines_per_thread;
+      size_t end = (t == num_threads - 1)
+                       ? total_lines
+                       : (static_cast<size_t>(t) + 1) * lines_per_thread;
+
+      workers.emplace_back([&, t, start, end]() {
+        OptThreadData &td = thread_data[static_cast<size_t>(t)];
+        size_t est_lines = end - start;
+        td.v_pos.reserve(est_lines * 2);
+        td.faces.reserve(est_lines / 3);
+        td.seq.reserve(est_lines / 3);
+        OptFloatCache *tc = nullptr;
+#ifndef TINYOBJLOADER_DISABLE_FAST_FLOAT
+        OptFloatCache thread_cache(config.float_cache_max_nodes,
+                                   config.fp32_cache);
+        if (config.float_cache) tc = &thread_cache;
+#endif
+        for (size_t i = start; i < end; i++) {
+          opt_parseLineToThreadData(td, &work_buf[all_line_infos[i].pos],
+                                     all_line_infos[i].len, config.triangulate,
+                                     i + 1, tc);
+          if (td.error_line != 0) break;
+        }
+      });
+    }
+    for (auto &w : workers) w.join();
+  }
+
+#else
+  // Single-threaded path
+  {
+    OptThreadData &td = thread_data[0];
+    td.v_pos.reserve(total_lines * 2);
+    td.faces.reserve(total_lines / 3);
+    td.seq.reserve(total_lines / 3);
+    OptFloatCache *tc = nullptr;
+#ifndef TINYOBJLOADER_DISABLE_FAST_FLOAT
+    OptFloatCache thread_cache(config.float_cache_max_nodes,
+                               config.fp32_cache);
+    if (config.float_cache) tc = &thread_cache;
+#endif
+    for (size_t i = 0; i < total_lines; i++) {
+      opt_parseLineToThreadData(td, &work_buf[all_line_infos[i].pos],
+                                 all_line_infos[i].len, config.triangulate,
+                                 i + 1, tc);
+      if (td.error_line != 0) break;
+    }
+  }
+#endif
+
+  size_t first_error_line = 0;
+  std::string first_error_message;
+  for (size_t t = 0; t < num_t; t++) {
+    if (thread_data[t].error_line == 0) continue;
+    if (first_error_line == 0 || thread_data[t].error_line < first_error_line) {
+      first_error_line = thread_data[t].error_line;
+      first_error_message = thread_data[t].error_message;
+    }
+  }
+
+  // ---- Phase 3: process sequential material state ----
+  // Compute v/vn/vt prefix sums across threads
+  std::vector<size_t> v_prefix(num_t), vn_prefix(num_t), vt_prefix(num_t);
+  v_prefix[0] = vn_prefix[0] = vt_prefix[0] = 0;
+  for (size_t t = 1; t < num_t; t++) {
+    v_prefix[t] = v_prefix[t - 1] + thread_data[t - 1].num_v;
+    vn_prefix[t] = vn_prefix[t - 1] + thread_data[t - 1].num_vn;
+    vt_prefix[t] = vt_prefix[t - 1] + thread_data[t - 1].num_vt;
+  }
+
+  std::map<std::string, int> material_map;
+  std::vector<int> initial_material_id(num_t, -1);
+  size_t eof_pending_degenerate_faces = 0;
+  size_t phase3_error_line = 0;
+  std::string phase3_error_message;
+  {
+    MaterialFileReader mat_file_reader(mtl_basedir);
+    std::set<std::string> material_filenames;
+    std::vector<material_t> temp_materials;
+    std::vector<material_t> *material_dst = materials ? materials : &temp_materials;
+    int running_material_id = -1;
+    size_t pending_degenerate_faces = 0;
+    for (size_t t = 0; t < num_t; t++) {
+      if (phase3_error_line != 0) {
+        break;
+      }
+
+      initial_material_id[t] = running_material_id;
+      const OptThreadData &td = thread_data[t];
+
+      for (size_t si = 0; si < td.seq.size(); si++) {
+        const OptSeqEntry &entry = td.seq[si];
+
+        if (entry.kind == OptSeqEntry::SEQ_FACE) {
+          const OptFaceCmd &face = td.faces[entry.index];
+
+          // Compute running counts from prefix sums + per-face stored counts
+          int rv = static_cast<int>(v_prefix[t] + face.v_count_before);
+          int rvn = static_cast<int>(vn_prefix[t] + face.vn_count_before);
+          int rvt = static_cast<int>(vt_prefix[t] + face.vt_count_before);
+
+          if (first_error_line != 0 && face.source_line >= first_error_line) {
+            continue;
+          }
+
+          if (face.degenerate) {
+            pending_degenerate_faces++;
+            continue;
+          }
+
+          for (size_t k = 0; k < face.face_vertex_count; k++) {
+            const opt_index_t &raw = face.face_indices()[k];
+            int resolved_idx = -1;
+
+            if (!opt_validateAndResolveFaceIndexLikeLegacy(
+                    raw.vertex_index, rv, false, source_name,
+                    face.source_line, warn, &resolved_idx)) {
+              phase3_error_line = face.source_line;
+              phase3_error_message =
+                  "failed to parse `f' line (invalid vertex index)";
+              break;
+            }
+
+            if (raw.texcoord_index != opt_index_t::kNotPresent) {
+              if (!opt_validateAndResolveFaceIndexLikeLegacy(
+                      raw.texcoord_index, rvt, true, source_name,
+                      face.source_line, warn, &resolved_idx)) {
+                phase3_error_line = face.source_line;
+                phase3_error_message =
+                    "failed to parse `f' line (invalid vertex index)";
+                break;
+              }
+            }
+
+            if (raw.normal_index != opt_index_t::kNotPresent) {
+              if (!opt_validateAndResolveFaceIndexLikeLegacy(
+                      raw.normal_index, rvn, true, source_name,
+                      face.source_line, warn, &resolved_idx)) {
+                phase3_error_line = face.source_line;
+                phase3_error_message =
+                    "failed to parse `f' line (invalid vertex index)";
+                break;
+              }
+            }
+          }
+
+          if (phase3_error_line != 0) {
+            break;
+          }
+
+          continue;
+        }
+
+        // SEQ_META
+        OptMetaCmd &meta = thread_data[t].metas[entry.index];
+
+        if (first_error_line != 0 && meta.source_line >= first_error_line) {
+          continue;
+        }
+
+        if (meta.type == OPT_CMD_G || meta.type == OPT_CMD_O) {
+          for (size_t deg = 0; deg < pending_degenerate_faces; deg++) {
+            if (warn) {
+              (*warn) += "Degenerated face found\n.";
+            }
+          }
+          pending_degenerate_faces = 0;
+        }
+
+        if (meta.type == OPT_CMD_G && meta.group_name_empty) {
+          if (warn) {
+            std::stringstream ss;
+            ss << "Empty group name. line: " << meta.source_line << "\n";
+            (*warn) += ss.str();
+          }
+          continue;
+        }
+
+        if (meta.type == OPT_CMD_MTLLIB) {
+          if (!enable_mtllib_loading) {
+            continue;
+          }
+
+          std::string line_rest;
+          if (meta.str_ptr && meta.str_len > 0) {
+            line_rest.assign(meta.str_ptr, meta.str_len);
+          }
+
+          std::vector<std::string> filenames;
+          SplitString(line_rest, ' ', '\\', filenames);
+          RemoveEmptyTokens(&filenames);
+
+          if (filenames.empty()) {
+            if (warn) {
+              std::stringstream ss;
+              ss << "Looks like empty filename for mtllib. Use default "
+                    "material (line "
+                 << meta.source_line << ".)\n";
+              (*warn) += ss.str();
+            }
+            continue;
+          }
+
+          bool found = false;
+          for (size_t s = 0; s < filenames.size(); s++) {
+            if (material_filenames.count(filenames[s]) > 0) {
+              found = true;
+              continue;
+            }
+
+            std::string warn_mtl;
+            std::string err_mtl;
+            bool ok = mat_file_reader(filenames[s], material_dst, &material_map,
+                                      &warn_mtl, &err_mtl);
+
+            if (warn && !warn_mtl.empty()) {
+              (*warn) += warn_mtl;
+            }
+
+            if (err && !err_mtl.empty()) {
+              (*err) += err_mtl;
+            }
+
+            if (ok) {
+              found = true;
+              material_filenames.insert(filenames[s]);
+              break;
+            }
+          }
+
+          if (!found) {
+            if (warn) {
+              (*warn) +=
+                  "Failed to load material file(s). Use default material.\n";
+            }
+          }
+          continue;
+        }
+
+        if (meta.type == OPT_CMD_USEMTL) {
+          std::string mat_name;
+          if (meta.str_ptr && meta.str_len > 0) {
+            mat_name.assign(meta.str_ptr, meta.str_len);
+          }
+          while (!mat_name.empty() &&
+                 (mat_name.back() == '\r' || mat_name.back() == '\n')) {
+            mat_name.pop_back();
+          }
+
+          std::map<std::string, int>::const_iterator it = material_map.find(mat_name);
+          if (it != material_map.end()) {
+            meta.resolved_material_id = it->second;
+          } else {
+            meta.resolved_material_id = -1;
+            if (warn) {
+              (*warn) += "material [ '" + mat_name + "' ] not found in .mtl\n";
+            }
+          }
+          running_material_id = meta.resolved_material_id;
+          continue;
+        }
+      }
+
+    }
+
+    if (first_error_line == 0) {
+      eof_pending_degenerate_faces = pending_degenerate_faces;
+    }
+  }
+
+  if (phase3_error_line != 0) {
+    if (err) {
+      std::stringstream ss;
+      ss << "Failed parse line(line " << phase3_error_line << "). "
+         << phase3_error_message << "\n";
+      if (!err->empty()) {
+        (*err) += ss.str();
+      } else {
+        (*err) = ss.str();
+      }
+    }
+    return false;
+  }
+
+  if (first_error_line != 0) {
+    if (err) {
+      std::stringstream ss;
+      ss << "Failed parse line(line " << first_error_line << "). "
+         << first_error_message << "\n";
+      if (!err->empty()) {
+        (*err) += ss.str();
+      } else {
+        (*err) = ss.str();
+      }
+    }
+    return false;
+  }
+
+  // ---- Phase 4: merge results ----
+  size_t num_v = 0, num_vn = 0, num_vt = 0;
+  size_t total_idx = 0;   // total index_t entries across all faces
+  size_t total_faces = 0; // total emitted faces
+  for (size_t t = 0; t < num_t; t++) {
+    num_v += thread_data[t].num_v;
+    num_vn += thread_data[t].num_vn;
+    num_vt += thread_data[t].num_vt;
+    total_idx += thread_data[t].num_f_indices;
+    total_faces += thread_data[t].num_f_faces;
+  }
+
+  // Guard against size_t overflow in vertex/normal/texcoord allocation
+  if (num_v > SIZE_MAX / 3 || num_vn > SIZE_MAX / 3 || num_vt > SIZE_MAX / 2) {
+    if (err) {
+      (*err) += "Integer overflow in vertex/normal/texcoord count.\n";
+    }
+    return false;
+  }
+
+  attrib->vertices.resize(num_v * 3);
+  attrib->vertex_weights.resize(num_v, real_t(1.0));
+  attrib->normals.resize(num_vn * 3);
+  attrib->texcoords.resize(num_vt * 2);
+  attrib->texcoord_ws.resize(num_vt, real_t(0.0));
+  std::vector<unsigned int> all_smoothing_group_ids(
+      static_cast<size_t>(total_faces), 0);
+  attrib->indices.resize(total_idx);
+  attrib->face_num_verts.resize(static_cast<size_t>(total_faces));
+  attrib->material_ids.resize(static_cast<size_t>(total_faces), -1);
+  std::vector<unsigned char> thread_saw_any_vertex_color(num_t, 0);
+  std::vector<unsigned char> thread_missing_vertex_color(num_t, 0);
+  std::vector<real_t> all_colors(num_v * 3, real_t(1.0));
+
+  // Compute per-thread offsets
+  std::vector<size_t> v_off(num_t), n_off(num_t), t_off(num_t), f_off(num_t),
+      face_off(num_t);
+  v_off[0] = n_off[0] = t_off[0] = f_off[0] = face_off[0] = 0;
+  for (size_t t = 1; t < num_t; t++) {
+    v_off[t] = v_off[t - 1] + thread_data[t - 1].num_v;
+    n_off[t] = n_off[t - 1] + thread_data[t - 1].num_vn;
+    t_off[t] = t_off[t - 1] + thread_data[t - 1].num_vt;
+    f_off[t] = f_off[t - 1] + thread_data[t - 1].num_f_indices;
+    face_off[t] = face_off[t - 1] + thread_data[t - 1].num_f_faces;
+  }
+
+  // Carry parser state that persists across lines, such as smoothing groups,
+  // across thread chunk boundaries before merging in parallel.
+  std::vector<unsigned int> initial_smoothing_group_id(num_t, 0);
+  unsigned int running_smoothing_group_id = 0;
+  for (size_t t = 0; t < num_t; t++) {
+    initial_smoothing_group_id[t] = running_smoothing_group_id;
+    for (size_t mi = 0; mi < thread_data[t].metas.size(); mi++) {
+      if (thread_data[t].metas[mi].type == OPT_CMD_S) {
+        running_smoothing_group_id = thread_data[t].metas[mi].smoothing_group_id;
+      }
+    }
+  }
+
+  // Merge parsed data into final arrays
+  std::vector<std::vector<unsigned int> > command_written_faces(num_t);
+  for (size_t t = 0; t < num_t; t++) {
+    command_written_faces[t].assign(thread_data[t].faces.size(), 0);
+  }
+  std::vector<size_t> written_index_counts(num_t, 0);
+  std::vector<size_t> written_face_counts(num_t, 0);
+  std::vector<size_t> merge_error_lines(num_t, 0);
+  std::vector<std::string> merge_error_messages(num_t);
+  std::vector<int> thread_greatest_v_idx(num_t, -1);
+  std::vector<int> thread_greatest_vn_idx(num_t, -1);
+  std::vector<int> thread_greatest_vt_idx(num_t, -1);
+  auto merge_vertex_thread = [&](size_t t) {
+    const OptThreadData &td = thread_data[t];
+    // Bulk copy positions
+    if (!td.v_pos.empty()) {
+      std::memcpy(&attrib->vertices[v_off[t] * 3], td.v_pos.data(),
+                  td.v_pos.size() * sizeof(real_t));
+    }
+    // Copy weights
+    if (td.saw_any_weight) {
+      for (size_t i = 0; i < td.num_v; i++)
+        attrib->vertex_weights[v_off[t] + i] = td.v_weight[i];
+    }
+    // Copy colors
+    if (td.saw_any_color) {
+      std::memcpy(&all_colors[v_off[t] * 3], td.v_color.data(),
+                  td.v_color.size() * sizeof(real_t));
+      thread_saw_any_vertex_color[t] = 1;
+      if (td.saw_missing_color) thread_missing_vertex_color[t] = 1;
+    } else if (td.saw_missing_color) {
+      thread_missing_vertex_color[t] = 1;
+    }
+    // Bulk copy normals
+    if (!td.vn_data.empty()) {
+      std::memcpy(&attrib->normals[n_off[t] * 3], td.vn_data.data(),
+                  td.vn_data.size() * sizeof(real_t));
+    }
+    // Bulk copy texcoords
+    if (!td.vt_data.empty()) {
+      std::memcpy(&attrib->texcoords[t_off[t] * 2], td.vt_data.data(),
+                  td.vt_data.size() * sizeof(real_t));
+    }
+    if (td.saw_any_texcoord_w) {
+      for (size_t i = 0; i < td.num_vt; i++)
+        attrib->texcoord_ws[t_off[t] + i] = td.vt_w[i];
+    }
+  };
+  auto merge_thread = [&](size_t t) {
+    const OptThreadData &td = thread_data[t];
+    size_t fc = f_off[t], fcc = face_off[t];
+    int current_mat_id = initial_material_id[t];
+    unsigned int current_smoothing_id = initial_smoothing_group_id[t];
+    int greatest_v_idx = -1;
+    int greatest_vn_idx = -1;
+    int greatest_vt_idx = -1;
+
+    for (size_t si = 0; si < td.seq.size(); si++) {
+      const OptSeqEntry &entry = td.seq[si];
+      if (entry.kind == OptSeqEntry::SEQ_META) {
+        const OptMetaCmd &meta = td.metas[entry.index];
+        if (meta.type == OPT_CMD_USEMTL)
+          current_mat_id = meta.resolved_material_id;
+        else if (meta.type == OPT_CMD_S)
+          current_smoothing_id = meta.smoothing_group_id;
+        continue;
+      }
+      // SEQ_FACE
+      const OptFaceCmd &face = td.faces[entry.index];
+      if (face.degenerate) {
+        command_written_faces[t][entry.index] = 0;
+        continue;
+      }
+      // Compute running counts for index resolution
+      size_t vc = v_off[t] + face.v_count_before;
+      size_t nc = n_off[t] + face.vn_count_before;
+      size_t tc = t_off[t] + face.vt_count_before;
+
+      std::vector<index_t> resolved_face(face.face_vertex_count);
+      for (size_t k = 0; k < face.face_vertex_count; k++) {
+        const opt_index_t &vi = face.face_indices()[k];
+        index_t idx;
+        if (!opt_resolveIndexLikeLegacy(vi.vertex_index,
+                                        static_cast<int>(vc),
+                                        &idx.vertex_index, false)) {
+          merge_error_lines[t] = face.source_line;
+          merge_error_messages[t] =
+              "failed to parse `f' line (invalid vertex index)";
+          return;
+        }
+        opt_updateGreatestIndex(idx.vertex_index, &greatest_v_idx);
+        if (vi.texcoord_index == opt_index_t::kNotPresent) {
+          idx.texcoord_index = -1;
+        } else {
+          if (!opt_resolveIndexLikeLegacy(vi.texcoord_index,
+                                          static_cast<int>(tc),
+                                          &idx.texcoord_index, true)) {
+            merge_error_lines[t] = face.source_line;
+            merge_error_messages[t] =
+                "failed to parse `f' line (invalid vertex index)";
+            return;
+          }
+          if (idx.texcoord_index >= 0) {
+            opt_updateGreatestIndex(idx.texcoord_index, &greatest_vt_idx);
+          }
+        }
+        if (vi.normal_index == opt_index_t::kNotPresent) {
+          idx.normal_index = -1;
+        } else {
+          if (!opt_resolveIndexLikeLegacy(vi.normal_index,
+                                          static_cast<int>(nc),
+                                          &idx.normal_index, true)) {
+            merge_error_lines[t] = face.source_line;
+            merge_error_messages[t] =
+                "failed to parse `f' line (invalid vertex index)";
+            return;
+          }
+          if (idx.normal_index >= 0) {
+            opt_updateGreatestIndex(idx.normal_index, &greatest_vn_idx);
+          }
+        }
+        resolved_face[k] = idx;
+      }
+      size_t written_index_count = 0;
+      size_t written_face_count = 0;
+      if (config.triangulate) {
+        written_index_count = opt_triangulate_face(
+            attrib->vertices, resolved_face.data(), resolved_face.size(),
+            &attrib->indices[fc]);
+        written_face_count = written_index_count / 3;
+      } else {
+        written_index_count = resolved_face.size();
+        written_face_count = 1;
+        for (size_t k = 0; k < resolved_face.size(); k++) {
+          attrib->indices[fc + k] = resolved_face[k];
+        }
+      }
+      for (size_t k = 0; k < written_face_count; k++) {
+        attrib->face_num_verts[fcc + k] = config.triangulate
+                                              ? 3
+                                              : static_cast<int>(face.emitted_face_verts);
+        attrib->material_ids[fcc + k] = current_mat_id;
+        all_smoothing_group_ids[fcc + k] = current_smoothing_id;
+      }
+      command_written_faces[t][entry.index] =
+          static_cast<unsigned int>(written_face_count);
+      fc += written_index_count;
+      fcc += written_face_count;
+    }
+    written_index_counts[t] = fc - f_off[t];
+    written_face_counts[t] = fcc - face_off[t];
+    thread_greatest_v_idx[t] = greatest_v_idx;
+    thread_greatest_vn_idx[t] = greatest_vn_idx;
+    thread_greatest_vt_idx[t] = greatest_vt_idx;
+  };
+
+#ifdef TINYOBJLOADER_USE_MULTITHREADING
+  if (num_threads > 1) {
+    std::vector<std::thread> workers;
+    workers.reserve(num_t);
+    for (size_t t = 0; t < num_t; t++) {
+      workers.emplace_back([&, t]() { merge_vertex_thread(t); });
+    }
+    for (auto &w : workers) w.join();
+    workers.clear();
+    for (size_t t = 0; t < num_t; t++) {
+      workers.emplace_back([&, t]() { merge_thread(t); });
+    }
+    for (auto &w : workers) w.join();
+  } else {
+    for (size_t t = 0; t < num_t; t++) merge_vertex_thread(t);
+    for (size_t t = 0; t < num_t; t++) merge_thread(t);
+  }
+#else
+  for (size_t t = 0; t < num_t; t++) merge_vertex_thread(t);
+  for (size_t t = 0; t < num_t; t++) merge_thread(t);
+#endif
+
+  size_t first_merge_error_line = 0;
+  std::string first_merge_error_message;
+  for (size_t t = 0; t < merge_error_lines.size(); t++) {
+    if (merge_error_lines[t] == 0) continue;
+    if (first_merge_error_line == 0 ||
+        merge_error_lines[t] < first_merge_error_line) {
+      first_merge_error_line = merge_error_lines[t];
+      first_merge_error_message = merge_error_messages[t];
+    }
+  }
+
+  if (first_merge_error_line != 0) {
+    attrib->vertices.clear();
+    attrib->vertex_weights.clear();
+    attrib->normals.clear();
+    attrib->texcoords.clear();
+    attrib->texcoord_ws.clear();
+    attrib->colors.clear();
+    attrib->skin_weights.clear();
+    attrib->indices.clear();
+    attrib->face_num_verts.clear();
+    attrib->material_ids.clear();
+    shapes->clear();
+    if (materials) materials->clear();
+
+    if (err) {
+      std::stringstream ss;
+      ss << "Failed parse line(line " << first_merge_error_line << "). "
+         << first_merge_error_message << "\n";
+      if (!err->empty()) {
+        (*err) += ss.str();
+      } else {
+        (*err) = ss.str();
+      }
+    }
+    return false;
+  }
+
+  bool saw_any_vertex_color = false;
+  bool saw_missing_vertex_color = false;
+  for (size_t t = 0; t < num_t; t++) {
+    saw_any_vertex_color =
+        saw_any_vertex_color || (thread_saw_any_vertex_color[t] != 0);
+    saw_missing_vertex_color =
+        saw_missing_vertex_color || (thread_missing_vertex_color[t] != 0);
+  }
+
+  if (saw_any_vertex_color && !saw_missing_vertex_color) {
+    attrib->colors.swap(all_colors);
+  } else {
+    attrib->colors.clear();
+  }
+
+  size_t actual_num_indices = 0;
+  size_t actual_num_faces = 0;
+  int greatest_v_idx = -1;
+  int greatest_vn_idx = -1;
+  int greatest_vt_idx = -1;
+  for (size_t t = 0; t < num_t; t++) {
+    actual_num_indices += written_index_counts[t];
+    actual_num_faces += written_face_counts[t];
+    opt_updateGreatestIndex(thread_greatest_v_idx[t], &greatest_v_idx);
+    opt_updateGreatestIndex(thread_greatest_vn_idx[t], &greatest_vn_idx);
+    opt_updateGreatestIndex(thread_greatest_vt_idx[t], &greatest_vt_idx);
+  }
+
+  // Compact face arrays to remove gaps left by threads that wrote fewer
+  // indices/faces than pre-allocated (e.g. triangulation returning 0 for
+  // faces with out-of-bounds vertex indices).
+  if (num_t > 1) {
+    size_t dst_idx = 0;
+    size_t dst_face = 0;
+    for (size_t t = 0; t < num_t; t++) {
+      size_t src_idx = f_off[t];
+      size_t src_face = face_off[t];
+      size_t idx_count = written_index_counts[t];
+      size_t fc_count = written_face_counts[t];
+      if (dst_idx != src_idx && idx_count > 0) {
+        std::memmove(&attrib->indices[dst_idx], &attrib->indices[src_idx],
+                     idx_count * sizeof(index_t));
+      }
+      if (dst_face != src_face && fc_count > 0) {
+        std::memmove(&attrib->face_num_verts[dst_face],
+                     &attrib->face_num_verts[src_face],
+                     fc_count * sizeof(int));
+        std::memmove(&attrib->material_ids[dst_face],
+                     &attrib->material_ids[src_face],
+                     fc_count * sizeof(int));
+        std::memmove(&all_smoothing_group_ids[dst_face],
+                     &all_smoothing_group_ids[src_face],
+                     fc_count * sizeof(unsigned int));
+      }
+      dst_idx += idx_count;
+      dst_face += fc_count;
+    }
+  }
+
+  attrib->indices.resize(actual_num_indices);
+  attrib->face_num_verts.resize(actual_num_faces);
+  attrib->material_ids.resize(actual_num_faces);
+  all_smoothing_group_ids.resize(actual_num_faces);
+
+  opt_appendOutOfBoundsWarnings(
+      warn, greatest_v_idx, greatest_vn_idx, greatest_vt_idx,
+      static_cast<int>(attrib->vertices.size() / 3),
+      static_cast<int>(attrib->normals.size() / 3),
+      static_cast<int>(attrib->texcoords.size() / 2),
+      all_line_infos.size() + 1);
+  for (size_t deg = 0; deg < eof_pending_degenerate_faces; deg++) {
+    if (warn) {
+      (*warn) += "Degenerated face found\n.";
+    }
+  }
+
+  // ---- Phase 5: construct shapes ----
+  {
+    // Precompute prefix-sum of index offsets for O(1) slicing
+    const size_t total_faces = attrib->face_num_verts.size();
+    std::vector<size_t> idx_prefix(total_faces + 1);
+    idx_prefix[0] = 0;
+    for (size_t fi = 0; fi < total_faces; fi++) {
+      idx_prefix[fi + 1] =
+          idx_prefix[fi] + static_cast<size_t>(attrib->face_num_verts[fi]);
+    }
+
+    size_t face_count = 0;
+    basic_shape_t<> shape;
+    size_t face_prev_offset = 0;
+    bool shape_has_face_record = false;
+    bool have_active_shape_name = false;
+
+    for (size_t t = 0; t < num_t; t++) {
+      const OptThreadData &td = thread_data[t];
+      for (size_t si = 0; si < td.seq.size(); si++) {
+        const OptSeqEntry &entry = td.seq[si];
+        if (entry.kind == OptSeqEntry::SEQ_META) {
+          const OptMetaCmd &meta = td.metas[entry.index];
+          if (meta.type == OPT_CMD_O || meta.type == OPT_CMD_G) {
+            std::string name;
+            if (meta.type == OPT_CMD_O && meta.str_ptr) {
+              name.assign(meta.str_ptr, meta.str_len);
+            } else if (!meta.str_storage.empty()) {
+              name = meta.str_storage;
+            } else if (meta.str_ptr) {
+              name.assign(meta.str_ptr, meta.str_len);
+            }
+            while (!name.empty() &&
+                   (name.back() == '\r' || name.back() == '\n'))
+              name.pop_back();
+
+            if (face_count == 0) {
+              shape.name = name;
+              face_prev_offset = 0;
+              have_active_shape_name = true;
+            } else {
+              if (!have_active_shape_name) {
+                // faces before first group/object
+                basic_shape_t<> prev_shape;
+                prev_shape.mesh.num_face_vertices.assign(
+                    attrib->face_num_verts.begin(),
+                    attrib->face_num_verts.begin() +
+                        static_cast<std::ptrdiff_t>(face_count));
+                prev_shape.mesh.indices.assign(
+                    attrib->indices.begin(),
+                    attrib->indices.begin() +
+                        static_cast<std::ptrdiff_t>(idx_prefix[face_count]));
+                prev_shape.mesh.material_ids.assign(
+                    attrib->material_ids.begin(),
+                    attrib->material_ids.begin() +
+                        static_cast<std::ptrdiff_t>(face_count));
+                prev_shape.mesh.smoothing_group_ids.assign(
+                    all_smoothing_group_ids.begin(),
+                    all_smoothing_group_ids.begin() +
+                        static_cast<std::ptrdiff_t>(face_count));
+                shapes->push_back(std::move(prev_shape));
+              } else if (face_count > face_prev_offset) {
+                // push previous shape
+                basic_shape_t<> prev_shape;
+                prev_shape.name = shape.name;
+                prev_shape.mesh.num_face_vertices.assign(
+                    attrib->face_num_verts.begin() +
+                        static_cast<std::ptrdiff_t>(face_prev_offset),
+                    attrib->face_num_verts.begin() +
+                        static_cast<std::ptrdiff_t>(face_count));
+                prev_shape.mesh.indices.assign(
+                    attrib->indices.begin() +
+                        static_cast<std::ptrdiff_t>(idx_prefix[face_prev_offset]),
+                    attrib->indices.begin() +
+                        static_cast<std::ptrdiff_t>(idx_prefix[face_count]));
+                prev_shape.mesh.material_ids.assign(
+                    attrib->material_ids.begin() +
+                        static_cast<std::ptrdiff_t>(face_prev_offset),
+                    attrib->material_ids.begin() +
+                        static_cast<std::ptrdiff_t>(face_count));
+                prev_shape.mesh.smoothing_group_ids.assign(
+                    all_smoothing_group_ids.begin() +
+                        static_cast<std::ptrdiff_t>(face_prev_offset),
+                    all_smoothing_group_ids.begin() +
+                        static_cast<std::ptrdiff_t>(face_count));
+                shapes->push_back(std::move(prev_shape));
+              }
+              shape.name = name;
+              face_prev_offset = face_count;
+              have_active_shape_name = true;
+            }
+            shape_has_face_record = false;
+          }
+        } else {
+          // SEQ_FACE
+          shape_has_face_record = true;
+          face_count += command_written_faces[t][entry.index];
+        }
+      }
+    }
+
+    // Final shape
+    if (face_count > face_prev_offset || shape_has_face_record) {
+      basic_shape_t<> final_shape;
+      final_shape.name = shape.name;
+      final_shape.mesh.num_face_vertices.assign(
+          attrib->face_num_verts.begin() +
+              static_cast<std::ptrdiff_t>(face_prev_offset),
+          attrib->face_num_verts.begin() +
+              static_cast<std::ptrdiff_t>(face_count));
+      final_shape.mesh.indices.assign(
+          attrib->indices.begin() +
+              static_cast<std::ptrdiff_t>(idx_prefix[face_prev_offset]),
+          attrib->indices.begin() +
+              static_cast<std::ptrdiff_t>(idx_prefix[face_count]));
+      final_shape.mesh.material_ids.assign(
+          attrib->material_ids.begin() +
+              static_cast<std::ptrdiff_t>(face_prev_offset),
+          attrib->material_ids.begin() +
+              static_cast<std::ptrdiff_t>(face_count));
+      final_shape.mesh.smoothing_group_ids.assign(
+          all_smoothing_group_ids.begin() +
+              static_cast<std::ptrdiff_t>(face_prev_offset),
+          all_smoothing_group_ids.begin() +
+              static_cast<std::ptrdiff_t>(face_count));
+      shapes->push_back(std::move(final_shape));
+    }
+  }
+
+  return true;
+}
+
+// ---- LoadObjOpt (buffer version, public API) ----
+
+bool LoadObjOpt(basic_attrib_t<> *attrib,
+                std::vector<basic_shape_t<>> *shapes,
+                std::vector<material_t> *materials,
+                std::string *warn, std::string *err,
+                const char *buf, size_t buf_len,
+                const OptLoadConfig &config) {
+  return LoadObjOpt_internal(attrib, shapes, materials, warn, err,
+                             buf, buf_len, std::string(), "<stream>", false,
+                             config);
+}
+
+// ---- LoadObjOpt (file version) ----
+
+bool LoadObjOpt(basic_attrib_t<> *attrib,
+                std::vector<basic_shape_t<>> *shapes,
+                std::vector<material_t> *materials,
+                std::string *warn, std::string *err,
+                const char *filename,
+                const char *mtl_basedir,
+                const OptLoadConfig &config) {
+  if (!filename) {
+    if (err) *err = "filename is null.";
+    return false;
+  }
+
+  std::string filepath(filename);
+
+  // Resolve material base directory
+  std::string baseDir;
+  if (mtl_basedir) {
+    baseDir = mtl_basedir;
+  } else {
+    // Extract directory from filename
+    size_t pos = filepath.find_last_of("/\\");
+    if (pos != std::string::npos) {
+      baseDir = filepath.substr(0, pos + 1);
+    }
+  }
+  if (!baseDir.empty()) {
+#ifndef _WIN32
+    const char dirsep = '/';
+#else
+    const char dirsep = '\\';
+#endif
+    if (baseDir[baseDir.length() - 1] != dirsep) baseDir += dirsep;
+  }
+
+#ifdef TINYOBJLOADER_USE_MMAP
+  {
+    MappedFile mf;
+    if (mf.open(filepath.c_str())) {
+      return LoadObjOpt_internal(attrib, shapes, materials, warn, err,
+                                 mf.data, mf.size, baseDir, filepath, true,
+                                 config);
+    }
+  }
+#endif
+
+#ifdef _WIN32
+  std::ifstream ifs(LongPathW(UTF8ToWchar(filepath)).c_str(),
+                    std::ios::binary | std::ios::ate);
+#else
+  std::ifstream ifs(filepath.c_str(), std::ios::binary | std::ios::ate);
+#endif
+  if (!ifs.is_open()) {
+    if (err) *err = "Cannot open file: " + filepath;
+    return false;
+  }
+
+  std::streamsize fsize = ifs.tellg();
+  ifs.seekg(0, std::ios::beg);
+
+  if (fsize <= 0) {
+    return LoadObjOpt_internal(attrib, shapes, materials, warn, err,
+                               "", static_cast<size_t>(0), baseDir, filepath,
+                               true, config);
+  }
+
+  std::vector<char> buf(static_cast<size_t>(fsize));
+  if (!ifs.read(buf.data(), fsize)) {
+    if (err) *err = "Failed to read file: " + filepath;
+    return false;
+  }
+  ifs.close();
+
+  // Parse the in-memory file buffer with baseDir for mtllib resolution.
+  return LoadObjOpt_internal(attrib, shapes, materials, warn, err,
+                             buf.data(), static_cast<size_t>(fsize), baseDir,
+                             filepath, true, config);
+}
+
+// ---- LoadObjOptTyped internals ----
+
+static bool LoadObjOptTyped_internal(OptResult *result,
+                                     std::string *warn, std::string *err,
+                                     const char *buf, size_t buf_len,
+                                     const std::string &mtl_basedir,
+                                     const std::string &source_name,
+                                     bool enable_mtllib_loading,
+                                     const OptLoadConfig &config) {
+  using namespace opt_internal;
+
+  ArenaAllocator &arena = result->arena;
+  OptAttrib &attrib = result->attrib;
+  result->valid = false;
+
+  if (buf_len < 1) {
+    result->valid = true;
+    return true;
+  }
+  if (!buf) {
+    if (err) *err = "buf must not be null when buf_len > 0.";
+    return false;
+  }
+
+  const char *work_buf = buf;
+  size_t work_len = buf_len;
+  std::vector<char> buf_with_sentinel;
+  if (buf[buf_len - 1] != '\n') {
+    buf_with_sentinel.assign(buf, buf + buf_len);
+    buf_with_sentinel.push_back('\n');
+    work_buf = buf_with_sentinel.data();
+    work_len = buf_with_sentinel.size();
+  }
+
+  int num_threads = 1;
+#ifdef TINYOBJLOADER_USE_MULTITHREADING
+  if (config.num_threads < 0) {
+    num_threads = static_cast<int>(std::thread::hardware_concurrency());
+    if (num_threads < 1) num_threads = 1;
+  } else if (config.num_threads > 1) {
+    num_threads = config.num_threads;
+  }
+  if (num_threads > kOptMaxThreads) num_threads = kOptMaxThreads;
+#else
+#endif
+
+  // ---- Phase 1: find line boundaries ----
+  std::vector<LineInfo> all_line_infos;
+
+#if defined(TINYOBJLOADER_USE_SIMD) && \
+    (defined(TINYOBJLOADER_SIMD_SSE2) || defined(TINYOBJLOADER_SIMD_AVX2) || \
+     defined(TINYOBJLOADER_SIMD_NEON))
+  {
+    std::vector<size_t> nl_positions;
+    nl_positions.reserve(work_len / 64);
+    simd_find_newlines(work_buf, work_len, nl_positions);
+    simd_build_line_infos(work_buf, work_len, nl_positions, all_line_infos);
+  }
+#else
+  {
+    all_line_infos.reserve(work_len / 64);
+    scalar_find_line_infos(work_buf, 0, work_len, all_line_infos);
+  }
+#endif
+
+  const size_t total_lines = all_line_infos.size();
+  if (total_lines == 0) {
+    result->valid = true;
+    return true;
+  }
+
+  // Fast buffer-level check for legacy-only tokens (replaces per-line scan)
+  if (opt_buffer_requires_legacy_fallback(work_buf, work_len)) {
+    basic_attrib_t<> tmp_attrib;
+    std::vector<basic_shape_t<>> tmp_shapes;
+    std::vector<material_t> tmp_materials;
+    std::string input(buf, buf + buf_len);
+    std::istringstream iss(input);
+    attrib_t legacy_attrib;
+    std::vector<shape_t> legacy_shapes;
+    std::vector<material_t> legacy_materials;
+    MaterialFileReader mat_reader(mtl_basedir);
+    MaterialReader *reader =
+        enable_mtllib_loading ? static_cast<MaterialReader *>(&mat_reader) : NULL;
+    const bool ok = LoadObj(&legacy_attrib, &legacy_shapes, &legacy_materials,
+                            warn, err, &iss, reader, config.triangulate, false);
+    if (!ok) return false;
+    ConvertLegacyResultToBasic(legacy_attrib, legacy_shapes, legacy_materials,
+                               &tmp_attrib, &tmp_shapes, &tmp_materials);
+#define TINYOBJ_COPY_VEC_TO_ARENA_(dst, src)        \
+    do {                                             \
+      if (!(src).empty()) {                          \
+        (dst).allocate(arena, (src).size());          \
+        std::memcpy((dst).data(), (src).data(),       \
+                    (src).size() * sizeof((src)[0])); \
+      }                                              \
+    } while (0)
+    TINYOBJ_COPY_VEC_TO_ARENA_(attrib.vertices, tmp_attrib.vertices);
+    TINYOBJ_COPY_VEC_TO_ARENA_(attrib.vertex_weights, tmp_attrib.vertex_weights);
+    TINYOBJ_COPY_VEC_TO_ARENA_(attrib.normals, tmp_attrib.normals);
+    TINYOBJ_COPY_VEC_TO_ARENA_(attrib.texcoords, tmp_attrib.texcoords);
+    TINYOBJ_COPY_VEC_TO_ARENA_(attrib.texcoord_ws, tmp_attrib.texcoord_ws);
+    TINYOBJ_COPY_VEC_TO_ARENA_(attrib.colors, tmp_attrib.colors);
+    TINYOBJ_COPY_VEC_TO_ARENA_(attrib.indices, tmp_attrib.indices);
+    TINYOBJ_COPY_VEC_TO_ARENA_(attrib.face_num_verts, tmp_attrib.face_num_verts);
+    TINYOBJ_COPY_VEC_TO_ARENA_(attrib.material_ids, tmp_attrib.material_ids);
+#undef TINYOBJ_COPY_VEC_TO_ARENA_
+    // Flatten per-shape smoothing_group_ids into attrib
+    {
+      size_t total_sg = 0;
+      for (size_t si = 0; si < tmp_shapes.size(); si++)
+        total_sg += tmp_shapes[si].mesh.smoothing_group_ids.size();
+      if (total_sg > 0) {
+        attrib.smoothing_group_ids.allocate(arena, total_sg);
+        size_t off = 0;
+        for (size_t si = 0; si < tmp_shapes.size(); si++) {
+          const auto &sg = tmp_shapes[si].mesh.smoothing_group_ids;
+          if (!sg.empty()) {
+            std::memcpy(&attrib.smoothing_group_ids[off], sg.data(),
+                        sg.size() * sizeof(sg[0]));
+            off += sg.size();
+          }
+        }
+      }
+    }
+    result->shapes.clear();
+    size_t idx_off = 0, face_off = 0;
+    for (size_t si = 0; si < tmp_shapes.size(); si++) {
+      OptShapeRange sr;
+      sr.name = tmp_shapes[si].name;
+      sr.face_offset = face_off;
+      sr.face_count = tmp_shapes[si].mesh.num_face_vertices.size();
+      sr.index_offset = idx_off;
+      sr.index_count = tmp_shapes[si].mesh.indices.size();
+      face_off += sr.face_count;
+      idx_off += sr.index_count;
+      result->shapes.push_back(std::move(sr));
+    }
+    result->materials = tmp_materials;
+    result->valid = true;
+    return true;
+  }
+
+  // ---- Phase 2: parse lines (compact storage) ----
+  const size_t num_t = static_cast<size_t>(num_threads);
+  std::vector<OptThreadData> thread_data(num_t);
+
+#ifdef TINYOBJLOADER_USE_MULTITHREADING
+  {
+    size_t lines_per_thread = total_lines / num_t;
+    std::vector<std::thread> workers;
+    workers.reserve(num_t);
+
+    for (int t = 0; t < num_threads; t++) {
+      size_t start = static_cast<size_t>(t) * lines_per_thread;
+      size_t end = (t == num_threads - 1)
+                       ? total_lines
+                       : (static_cast<size_t>(t) + 1) * lines_per_thread;
+
+      workers.emplace_back([&, t, start, end]() {
+        OptThreadData &td = thread_data[static_cast<size_t>(t)];
+        size_t est_lines = end - start;
+        td.v_pos.reserve(est_lines * 2);
+        td.faces.reserve(est_lines / 3);
+        td.seq.reserve(est_lines / 3);
+        OptFloatCache *tc = nullptr;
+#ifndef TINYOBJLOADER_DISABLE_FAST_FLOAT
+        OptFloatCache thread_cache(config.float_cache_max_nodes,
+                                   config.fp32_cache);
+        if (config.float_cache) tc = &thread_cache;
+#endif
+        for (size_t i = start; i < end; i++) {
+          opt_parseLineToThreadData(td, &work_buf[all_line_infos[i].pos],
+                                     all_line_infos[i].len, config.triangulate,
+                                     i + 1, tc);
+          if (td.error_line != 0) break;
+        }
+      });
+    }
+    for (auto &w : workers) w.join();
+  }
+#else
+  {
+    OptThreadData &td = thread_data[0];
+    td.v_pos.reserve(total_lines * 2);
+    td.faces.reserve(total_lines / 3);
+    td.seq.reserve(total_lines / 3);
+    OptFloatCache *tc = nullptr;
+#ifndef TINYOBJLOADER_DISABLE_FAST_FLOAT
+    OptFloatCache thread_cache(config.float_cache_max_nodes,
+                               config.fp32_cache);
+    if (config.float_cache) tc = &thread_cache;
+#endif
+    for (size_t i = 0; i < total_lines; i++) {
+      opt_parseLineToThreadData(td, &work_buf[all_line_infos[i].pos],
+                                 all_line_infos[i].len, config.triangulate,
+                                 i + 1, tc);
+      if (td.error_line != 0) break;
+    }
+  }
+#endif
+
+  // Check for parse errors
+  size_t first_error_line = 0;
+  std::string first_error_message;
+  for (size_t t = 0; t < num_t; t++) {
+    if (thread_data[t].error_line == 0) continue;
+    if (first_error_line == 0 || thread_data[t].error_line < first_error_line) {
+      first_error_line = thread_data[t].error_line;
+      first_error_message = thread_data[t].error_message;
+    }
+  }
+
+  // ---- Phase 3: process sequential material state ----
+  // Compute v/vn/vt prefix sums across threads
+  std::vector<size_t> v_prefix(num_t), vn_prefix(num_t), vt_prefix(num_t);
+  v_prefix[0] = vn_prefix[0] = vt_prefix[0] = 0;
+  for (size_t t = 1; t < num_t; t++) {
+    v_prefix[t] = v_prefix[t - 1] + thread_data[t - 1].num_v;
+    vn_prefix[t] = vn_prefix[t - 1] + thread_data[t - 1].num_vn;
+    vt_prefix[t] = vt_prefix[t - 1] + thread_data[t - 1].num_vt;
+  }
+
+  std::map<std::string, int> material_map;
+  std::vector<int> initial_material_id(num_t, -1);
+  size_t eof_pending_degenerate_faces = 0;
+  size_t phase3_error_line = 0;
+  std::string phase3_error_message;
+  {
+    MaterialFileReader mat_file_reader(mtl_basedir);
+    std::set<std::string> material_filenames;
+    std::vector<material_t> *material_dst = &result->materials;
+    int running_material_id = -1;
+    size_t pending_degenerate_faces = 0;
+
+    for (size_t t = 0; t < num_t; t++) {
+      if (phase3_error_line != 0) break;
+      initial_material_id[t] = running_material_id;
+      const OptThreadData &td = thread_data[t];
+
+      for (size_t si = 0; si < td.seq.size(); si++) {
+        const OptSeqEntry &entry = td.seq[si];
+
+        if (entry.kind == OptSeqEntry::SEQ_FACE) {
+          const OptFaceCmd &face = td.faces[entry.index];
+          int rv = static_cast<int>(v_prefix[t] + face.v_count_before);
+          int rvn = static_cast<int>(vn_prefix[t] + face.vn_count_before);
+          int rvt = static_cast<int>(vt_prefix[t] + face.vt_count_before);
+
+          if (first_error_line != 0 && face.source_line >= first_error_line) continue;
+
+          if (face.degenerate) {
+            pending_degenerate_faces++;
+            continue;
+          }
+
+          for (size_t k = 0; k < face.face_vertex_count; k++) {
+            const opt_index_t &raw = face.face_indices()[k];
+            int resolved_idx = -1;
+            if (!opt_validateAndResolveFaceIndexLikeLegacy(
+                    raw.vertex_index, rv, false, source_name,
+                    face.source_line, warn, &resolved_idx)) {
+              phase3_error_line = face.source_line;
+              phase3_error_message = "failed to parse `f' line (invalid vertex index)";
+              break;
+            }
+            if (raw.texcoord_index != opt_index_t::kNotPresent) {
+              if (!opt_validateAndResolveFaceIndexLikeLegacy(
+                      raw.texcoord_index, rvt, true, source_name,
+                      face.source_line, warn, &resolved_idx)) {
+                phase3_error_line = face.source_line;
+                phase3_error_message = "failed to parse `f' line (invalid vertex index)";
+                break;
+              }
+            }
+            if (raw.normal_index != opt_index_t::kNotPresent) {
+              if (!opt_validateAndResolveFaceIndexLikeLegacy(
+                      raw.normal_index, rvn, true, source_name,
+                      face.source_line, warn, &resolved_idx)) {
+                phase3_error_line = face.source_line;
+                phase3_error_message = "failed to parse `f' line (invalid vertex index)";
+                break;
+              }
+            }
+          }
+          if (phase3_error_line != 0) break;
+          continue;
+        }
+
+        // SEQ_META
+        OptMetaCmd &meta = thread_data[t].metas[entry.index];
+
+        if (first_error_line != 0 && meta.source_line >= first_error_line) continue;
+
+        if (meta.type == OPT_CMD_G || meta.type == OPT_CMD_O) {
+          for (size_t deg = 0; deg < pending_degenerate_faces; deg++) {
+            if (warn) (*warn) += "Degenerated face found\n.";
+          }
+          pending_degenerate_faces = 0;
+        }
+
+        if (meta.type == OPT_CMD_G && meta.group_name_empty) {
+          if (warn) {
+            (*warn) += "Empty group name. line: " +
+                       std::to_string(meta.source_line) + "\n";
+          }
+          continue;
+        }
+
+        if (meta.type == OPT_CMD_MTLLIB) {
+          if (!enable_mtllib_loading) continue;
+          std::string line_rest;
+          if (meta.str_ptr && meta.str_len > 0) {
+            line_rest.assign(meta.str_ptr, meta.str_len);
+          }
+          std::vector<std::string> filenames;
+          SplitString(line_rest, ' ', '\\', filenames);
+          RemoveEmptyTokens(&filenames);
+          if (filenames.empty()) {
+            if (warn) {
+              (*warn) += "Looks like empty filename for mtllib. Use default "
+                         "material (line " +
+                         std::to_string(meta.source_line) + ".)\n";
+            }
+            continue;
+          }
+          bool found = false;
+          for (size_t s = 0; s < filenames.size(); s++) {
+            if (material_filenames.count(filenames[s]) > 0) {
+              found = true;
+              continue;
+            }
+            std::string warn_mtl, err_mtl;
+            bool ok = mat_file_reader(filenames[s], material_dst, &material_map,
+                                      &warn_mtl, &err_mtl);
+            if (warn && !warn_mtl.empty()) (*warn) += warn_mtl;
+            if (err && !err_mtl.empty()) (*err) += err_mtl;
+            if (ok) {
+              found = true;
+              material_filenames.insert(filenames[s]);
+              break;
+            }
+          }
+          if (!found && warn) {
+            (*warn) += "Failed to load material file(s). Use default material.\n";
+          }
+          continue;
+        }
+
+        if (meta.type == OPT_CMD_USEMTL) {
+          std::string mat_name;
+          if (meta.str_ptr && meta.str_len > 0) {
+            mat_name.assign(meta.str_ptr, meta.str_len);
+          }
+          while (!mat_name.empty() &&
+                 (mat_name.back() == '\r' || mat_name.back() == '\n')) {
+            mat_name.pop_back();
+          }
+          std::map<std::string, int>::const_iterator it = material_map.find(mat_name);
+          if (it != material_map.end()) {
+            meta.resolved_material_id = it->second;
+          } else {
+            meta.resolved_material_id = -1;
+            if (warn) (*warn) += "material [ '" + mat_name + "' ] not found in .mtl\n";
+          }
+          running_material_id = meta.resolved_material_id;
+          continue;
+        }
+      }
+
+    }
+    if (first_error_line == 0) {
+      eof_pending_degenerate_faces = pending_degenerate_faces;
+    }
+  }
+
+  if (phase3_error_line != 0) {
+    if (err) {
+      (*err) += "Failed parse line(line " +
+                std::to_string(phase3_error_line) + "). " +
+                phase3_error_message + "\n";
+    }
+    return false;
+  }
+
+  if (first_error_line != 0) {
+    if (err) {
+      (*err) += "Failed parse line(line " +
+                std::to_string(first_error_line) + "). " +
+                first_error_message + "\n";
+    }
+    return false;
+  }
+
+  // ---- Phase 4: allocate arena arrays and merge ----
+  size_t num_v = 0, num_vn = 0, num_vt = 0;
+  size_t total_idx = 0;   // total index_t entries across all faces
+  size_t total_faces = 0; // total emitted faces
+  for (size_t t = 0; t < num_t; t++) {
+    num_v += thread_data[t].num_v;
+    num_vn += thread_data[t].num_vn;
+    num_vt += thread_data[t].num_vt;
+    total_idx += thread_data[t].num_f_indices;
+    total_faces += thread_data[t].num_f_faces;
+  }
+
+  // Guard against size_t overflow in vertex/normal/texcoord allocation
+  if (num_v > SIZE_MAX / 3 || num_vn > SIZE_MAX / 3 || num_vt > SIZE_MAX / 2) {
+    if (err) {
+      (*err) += "Integer overflow in vertex/normal/texcoord count.\n";
+    }
+    return false;
+  }
+
+  // Determine which optional arrays are needed
+  bool any_color = false;
+  bool any_weight = false, any_texcoord_w = false, any_smoothing = false;
+  for (size_t t = 0; t < num_t; t++) {
+    if (thread_data[t].saw_any_color) any_color = true;
+    if (thread_data[t].saw_any_weight) any_weight = true;
+    if (thread_data[t].saw_any_texcoord_w) any_texcoord_w = true;
+    if (thread_data[t].saw_any_smoothing) any_smoothing = true;
+  }
+
+  // Allocate from arena
+  attrib.vertices.allocate(arena, num_v * 3);
+  if (any_weight) {
+    attrib.vertex_weights.allocate(arena, num_v);
+    for (size_t i = 0; i < num_v; i++)
+      attrib.vertex_weights[i] = real_t(1.0);
+  }
+  attrib.normals.allocate(arena, num_vn * 3);
+  attrib.texcoords.allocate(arena, num_vt * 2);
+  if (any_texcoord_w) {
+    attrib.texcoord_ws.allocate(arena, num_vt);
+  }
+  attrib.indices.allocate(arena, total_idx);
+  attrib.face_num_verts.allocate(arena, total_faces);
+  attrib.material_ids.allocate(arena, total_faces);
+  for (size_t i = 0; i < total_faces; i++)
+    attrib.material_ids[i] = -1;
+
+  // Smoothing group ids — only if any smoothing commands seen
+  TypedArray<unsigned int> all_smoothing_group_ids;
+  if (any_smoothing) {
+    all_smoothing_group_ids.allocate(arena, total_faces);
+  }
+
+  // Colors — allocate temp only if any vertex has color
+  TypedArray<real_t> all_colors;
+  if (any_color) {
+    all_colors.allocate(arena, num_v * 3);
+    for (size_t i = 0; i < num_v * 3; i++)
+      all_colors[i] = real_t(1.0);
+  }
+
+  // Compute per-thread offsets
+  std::vector<size_t> v_off(num_t), n_off(num_t), t_off(num_t), f_off(num_t),
+      face_off(num_t);
+  v_off[0] = n_off[0] = t_off[0] = f_off[0] = face_off[0] = 0;
+  for (size_t t = 1; t < num_t; t++) {
+    v_off[t] = v_off[t - 1] + thread_data[t - 1].num_v;
+    n_off[t] = n_off[t - 1] + thread_data[t - 1].num_vn;
+    t_off[t] = t_off[t - 1] + thread_data[t - 1].num_vt;
+    f_off[t] = f_off[t - 1] + thread_data[t - 1].num_f_indices;
+    face_off[t] = face_off[t - 1] + thread_data[t - 1].num_f_faces;
+  }
+
+  // Carry smoothing group state across thread boundaries
+  std::vector<unsigned int> initial_smoothing_group_id(num_t, 0);
+  unsigned int running_smoothing_group_id = 0;
+  for (size_t t = 0; t < num_t; t++) {
+    initial_smoothing_group_id[t] = running_smoothing_group_id;
+    for (size_t mi = 0; mi < thread_data[t].metas.size(); mi++) {
+      if (thread_data[t].metas[mi].type == OPT_CMD_S) {
+        running_smoothing_group_id = thread_data[t].metas[mi].smoothing_group_id;
+      }
+    }
+  }
+
+  // Per-thread face tracking for shape construction
+  std::vector<std::vector<unsigned int>> command_written_faces(num_t);
+  for (size_t t = 0; t < num_t; t++) {
+    command_written_faces[t].assign(thread_data[t].faces.size(), 0);
+  }
+  std::vector<size_t> written_index_counts(num_t, 0);
+  std::vector<size_t> written_face_counts(num_t, 0);
+  std::vector<size_t> merge_error_lines(num_t, 0);
+  std::vector<std::string> merge_error_messages(num_t);
+  std::vector<int> thread_greatest_v_idx(num_t, -1);
+  std::vector<int> thread_greatest_vn_idx(num_t, -1);
+  std::vector<int> thread_greatest_vt_idx(num_t, -1);
+  std::vector<unsigned char> thread_saw_any_vertex_color(num_t, 0);
+  std::vector<unsigned char> thread_missing_vertex_color(num_t, 0);
+
+  auto merge_vertex_thread = [&](size_t t) {
+    const OptThreadData &td = thread_data[t];
+    // Bulk copy positions
+    if (!td.v_pos.empty()) {
+      std::memcpy(&attrib.vertices[v_off[t] * 3], td.v_pos.data(),
+                  td.v_pos.size() * sizeof(real_t));
+    }
+    // Copy weights
+    if (any_weight && td.saw_any_weight) {
+      for (size_t i = 0; i < td.num_v; i++)
+        attrib.vertex_weights[v_off[t] + i] = td.v_weight[i];
+    }
+    // Copy colors
+    if (any_color) {
+      if (td.saw_any_color) {
+        std::memcpy(&all_colors[v_off[t] * 3], td.v_color.data(),
+                    td.v_color.size() * sizeof(real_t));
+        thread_saw_any_vertex_color[t] = 1;
+        if (td.saw_missing_color) thread_missing_vertex_color[t] = 1;
+      } else if (td.saw_missing_color) {
+        thread_missing_vertex_color[t] = 1;
+      }
+    }
+    // Bulk copy normals
+    if (!td.vn_data.empty()) {
+      std::memcpy(&attrib.normals[n_off[t] * 3], td.vn_data.data(),
+                  td.vn_data.size() * sizeof(real_t));
+    }
+    // Bulk copy texcoords
+    if (!td.vt_data.empty()) {
+      std::memcpy(&attrib.texcoords[t_off[t] * 2], td.vt_data.data(),
+                  td.vt_data.size() * sizeof(real_t));
+    }
+    if (any_texcoord_w && td.saw_any_texcoord_w) {
+      for (size_t i = 0; i < td.num_vt; i++)
+        attrib.texcoord_ws[t_off[t] + i] = td.vt_w[i];
+    }
+  };
+
+  auto merge_thread = [&](size_t t) {
+    const OptThreadData &td = thread_data[t];
+    size_t fc = f_off[t], fcc = face_off[t];
+    int current_mat_id = initial_material_id[t];
+    unsigned int current_smoothing_id = initial_smoothing_group_id[t];
+    int greatest_v_idx = -1;
+    int greatest_vn_idx = -1;
+    int greatest_vt_idx = -1;
+
+    // Reusable scratch buffer for resolved face indices
+    index_t resolved_inline[8];
+    std::vector<index_t> resolved_heap;
+
+    for (size_t si = 0; si < td.seq.size(); si++) {
+      const OptSeqEntry &entry = td.seq[si];
+      if (entry.kind == OptSeqEntry::SEQ_META) {
+        const OptMetaCmd &meta = td.metas[entry.index];
+        if (meta.type == OPT_CMD_USEMTL)
+          current_mat_id = meta.resolved_material_id;
+        else if (meta.type == OPT_CMD_S)
+          current_smoothing_id = meta.smoothing_group_id;
+        continue;
+      }
+      // SEQ_FACE
+      const OptFaceCmd &face = td.faces[entry.index];
+      if (face.degenerate) {
+        command_written_faces[t][entry.index] = 0;
+        continue;
+      }
+      // Compute running counts for index resolution
+      size_t vc = v_off[t] + face.v_count_before;
+      size_t nc = n_off[t] + face.vn_count_before;
+      size_t tc = t_off[t] + face.vt_count_before;
+
+      // Use stack buffer for typical faces, heap only for large polygons
+      index_t *resolved_face;
+      if (face.face_vertex_count <= 8) {
+        resolved_face = resolved_inline;
+      } else {
+        resolved_heap.resize(face.face_vertex_count);
+        resolved_face = resolved_heap.data();
+      }
+      for (size_t k = 0; k < face.face_vertex_count; k++) {
+        const opt_index_t &vi = face.face_indices()[k];
+        index_t idx;
+        if (!opt_resolveIndexLikeLegacy(vi.vertex_index,
+                                        static_cast<int>(vc),
+                                        &idx.vertex_index, false)) {
+          merge_error_lines[t] = face.source_line;
+          merge_error_messages[t] =
+              "failed to parse `f' line (invalid vertex index)";
+          return;
+        }
+        opt_updateGreatestIndex(idx.vertex_index, &greatest_v_idx);
+        if (vi.texcoord_index == opt_index_t::kNotPresent) {
+          idx.texcoord_index = -1;
+        } else {
+          if (!opt_resolveIndexLikeLegacy(vi.texcoord_index,
+                                          static_cast<int>(tc),
+                                          &idx.texcoord_index, true)) {
+            merge_error_lines[t] = face.source_line;
+            merge_error_messages[t] =
+                "failed to parse `f' line (invalid vertex index)";
+            return;
+          }
+          if (idx.texcoord_index >= 0)
+            opt_updateGreatestIndex(idx.texcoord_index, &greatest_vt_idx);
+        }
+        if (vi.normal_index == opt_index_t::kNotPresent) {
+          idx.normal_index = -1;
+        } else {
+          if (!opt_resolveIndexLikeLegacy(vi.normal_index,
+                                          static_cast<int>(nc),
+                                          &idx.normal_index, true)) {
+            merge_error_lines[t] = face.source_line;
+            merge_error_messages[t] =
+                "failed to parse `f' line (invalid vertex index)";
+            return;
+          }
+          if (idx.normal_index >= 0)
+            opt_updateGreatestIndex(idx.normal_index, &greatest_vn_idx);
+        }
+        resolved_face[k] = idx;
+      }
+      size_t written_index_count = 0;
+      size_t written_face_count = 0;
+      if (config.triangulate) {
+        written_index_count = opt_triangulate_face(
+            attrib.vertices.data(), attrib.vertices.size(),
+            resolved_face, face.face_vertex_count,
+            &attrib.indices[fc]);
+        written_face_count = written_index_count / 3;
+      } else {
+        written_index_count = face.face_vertex_count;
+        written_face_count = 1;
+        for (size_t k = 0; k < face.face_vertex_count; k++) {
+          attrib.indices[fc + k] = resolved_face[k];
+        }
+      }
+      for (size_t k = 0; k < written_face_count; k++) {
+        attrib.face_num_verts[fcc + k] = config.triangulate
+                                            ? 3
+                                            : static_cast<int>(face.emitted_face_verts);
+        attrib.material_ids[fcc + k] = current_mat_id;
+        if (any_smoothing) {
+          all_smoothing_group_ids[fcc + k] = current_smoothing_id;
+        }
+      }
+      command_written_faces[t][entry.index] =
+          static_cast<unsigned int>(written_face_count);
+      fc += written_index_count;
+      fcc += written_face_count;
+    }
+    written_index_counts[t] = fc - f_off[t];
+    written_face_counts[t] = fcc - face_off[t];
+    thread_greatest_v_idx[t] = greatest_v_idx;
+    thread_greatest_vn_idx[t] = greatest_vn_idx;
+    thread_greatest_vt_idx[t] = greatest_vt_idx;
+  };
+
+#ifdef TINYOBJLOADER_USE_MULTITHREADING
+  if (num_threads > 1) {
+    std::vector<std::thread> workers;
+    workers.reserve(num_t);
+    for (size_t t = 0; t < num_t; t++) {
+      workers.emplace_back([&, t]() { merge_vertex_thread(t); });
+    }
+    for (auto &w : workers) w.join();
+    workers.clear();
+    for (size_t t = 0; t < num_t; t++) {
+      workers.emplace_back([&, t]() { merge_thread(t); });
+    }
+    for (auto &w : workers) w.join();
+  } else {
+    for (size_t t = 0; t < num_t; t++) merge_vertex_thread(t);
+    for (size_t t = 0; t < num_t; t++) merge_thread(t);
+  }
+#else
+  for (size_t t = 0; t < num_t; t++) merge_vertex_thread(t);
+  for (size_t t = 0; t < num_t; t++) merge_thread(t);
+#endif
+
+  // Check merge errors
+  size_t first_merge_error_line = 0;
+  std::string first_merge_error_message;
+  for (size_t t = 0; t < merge_error_lines.size(); t++) {
+    if (merge_error_lines[t] == 0) continue;
+    if (first_merge_error_line == 0 ||
+        merge_error_lines[t] < first_merge_error_line) {
+      first_merge_error_line = merge_error_lines[t];
+      first_merge_error_message = merge_error_messages[t];
+    }
+  }
+
+  if (first_merge_error_line != 0) {
+    if (err) {
+      (*err) += "Failed parse line(line " +
+                std::to_string(first_merge_error_line) + "). " +
+                first_merge_error_message + "\n";
+    }
+    return false;
+  }
+
+  // Handle vertex colors: only keep if all vertices have color
+  {
+    bool saw_any = false, saw_missing = false;
+    for (size_t t = 0; t < num_t; t++) {
+      saw_any = saw_any || (thread_saw_any_vertex_color[t] != 0);
+      saw_missing = saw_missing || (thread_missing_vertex_color[t] != 0);
+    }
+    if (saw_any && !saw_missing) {
+      attrib.colors = all_colors;  // share arena pointer
+    }
+    // else attrib.colors stays empty (default)
+  }
+
+  // Compute actual sizes and compact/truncate
+  size_t actual_num_indices = 0;
+  size_t actual_num_faces = 0;
+  int greatest_v_idx = -1, greatest_vn_idx = -1, greatest_vt_idx = -1;
+  for (size_t t = 0; t < num_t; t++) {
+    actual_num_indices += written_index_counts[t];
+    actual_num_faces += written_face_counts[t];
+    opt_updateGreatestIndex(thread_greatest_v_idx[t], &greatest_v_idx);
+    opt_updateGreatestIndex(thread_greatest_vn_idx[t], &greatest_vn_idx);
+    opt_updateGreatestIndex(thread_greatest_vt_idx[t], &greatest_vt_idx);
+  }
+
+  // Compact face arrays to remove gaps left by threads that wrote fewer
+  // indices/faces than pre-allocated (e.g. triangulation returning 0 for
+  // faces with out-of-bounds vertex indices).
+  if (num_t > 1) {
+    size_t dst_idx = 0;
+    size_t dst_face = 0;
+    for (size_t t = 0; t < num_t; t++) {
+      size_t src_idx = f_off[t];
+      size_t src_face = face_off[t];
+      size_t idx_count = written_index_counts[t];
+      size_t fc_count = written_face_counts[t];
+      if (dst_idx != src_idx && idx_count > 0) {
+        std::memmove(&attrib.indices[dst_idx], &attrib.indices[src_idx],
+                     idx_count * sizeof(index_t));
+      }
+      if (dst_face != src_face && fc_count > 0) {
+        std::memmove(&attrib.face_num_verts[dst_face],
+                     &attrib.face_num_verts[src_face],
+                     fc_count * sizeof(int));
+        std::memmove(&attrib.material_ids[dst_face],
+                     &attrib.material_ids[src_face],
+                     fc_count * sizeof(int));
+        if (any_smoothing) {
+          std::memmove(&all_smoothing_group_ids[dst_face],
+                       &all_smoothing_group_ids[src_face],
+                       fc_count * sizeof(unsigned int));
+        }
+      }
+      dst_idx += idx_count;
+      dst_face += fc_count;
+    }
+  }
+
+  attrib.indices.truncate(actual_num_indices);
+  attrib.face_num_verts.truncate(actual_num_faces);
+  attrib.material_ids.truncate(actual_num_faces);
+  if (any_smoothing) {
+    all_smoothing_group_ids.truncate(actual_num_faces);
+    attrib.smoothing_group_ids = all_smoothing_group_ids;
+  }
+
+  opt_appendOutOfBoundsWarnings(
+      warn, greatest_v_idx, greatest_vn_idx, greatest_vt_idx,
+      static_cast<int>(attrib.vertices.size() / 3),
+      static_cast<int>(attrib.normals.size() / 3),
+      static_cast<int>(attrib.texcoords.size() / 2),
+      all_line_infos.size() + 1);
+  for (size_t deg = 0; deg < eof_pending_degenerate_faces; deg++) {
+    if (warn) (*warn) += "Degenerated face found\n.";
+  }
+
+  // ---- Phase 5: construct shape ranges (views, no copies) ----
+  {
+    const size_t total_faces = attrib.face_num_verts.size();
+    // Build prefix-sum for index offsets
+    TypedArray<size_t> idx_prefix;
+    idx_prefix.allocate(arena, total_faces + 1);
+    idx_prefix[0] = 0;
+    for (size_t fi = 0; fi < total_faces; fi++) {
+      idx_prefix[fi + 1] =
+          idx_prefix[fi] + static_cast<size_t>(attrib.face_num_verts[fi]);
+    }
+
+    size_t face_count = 0;
+    std::string current_name;
+    size_t face_prev_offset = 0;
+    bool have_active_shape_name = false;
+
+    auto emit_shape = [&](const std::string &name, size_t f_start, size_t f_end) {
+      if (f_end <= f_start) return;
+      OptShapeRange sr;
+      sr.name = name;
+      sr.face_offset = f_start;
+      sr.face_count = f_end - f_start;
+      sr.index_offset = idx_prefix[f_start];
+      sr.index_count = idx_prefix[f_end] - idx_prefix[f_start];
+      result->shapes.push_back(std::move(sr));
+    };
+
+    for (size_t t = 0; t < num_t; t++) {
+      const OptThreadData &td = thread_data[t];
+      for (size_t si = 0; si < td.seq.size(); si++) {
+        const OptSeqEntry &entry = td.seq[si];
+        if (entry.kind == OptSeqEntry::SEQ_META) {
+          const OptMetaCmd &meta = td.metas[entry.index];
+          if (meta.type == OPT_CMD_O || meta.type == OPT_CMD_G) {
+            std::string name;
+            if (meta.type == OPT_CMD_O && meta.str_ptr) {
+              name.assign(meta.str_ptr, meta.str_len);
+            } else if (!meta.str_storage.empty()) {
+              name = meta.str_storage;
+            } else if (meta.str_ptr) {
+              name.assign(meta.str_ptr, meta.str_len);
+            }
+            while (!name.empty() &&
+                   (name.back() == '\r' || name.back() == '\n'))
+              name.pop_back();
+
+            if (face_count == 0) {
+              current_name = name;
+              face_prev_offset = 0;
+              have_active_shape_name = true;
+            } else {
+              if (!have_active_shape_name) {
+                emit_shape(std::string(), 0, face_count);
+              } else if (face_count > face_prev_offset) {
+                emit_shape(current_name, face_prev_offset, face_count);
+              }
+              current_name = name;
+              face_prev_offset = face_count;
+              have_active_shape_name = true;
+            }
+          }
+        } else {
+          // SEQ_FACE
+          face_count += command_written_faces[t][entry.index];
+        }
+      }
+    }
+
+    // Final shape
+    if (face_count > face_prev_offset || face_count == 0) {
+      emit_shape(current_name, face_prev_offset, face_count);
+    }
+  }
+
+  result->valid = true;
+  return true;
+}
+
+// ---- LoadObjOptTyped (buffer version, public API) ----
+
+OptResult LoadObjOptTyped(const char *buf, size_t buf_len,
+                          std::string *warn, std::string *err,
+                          const OptLoadConfig &config) {
+  OptResult result;
+  LoadObjOptTyped_internal(&result, warn, err, buf, buf_len,
+                           std::string(), "<stream>", false, config);
+  return result;
+}
+
+// ---- LoadObjOptTyped (file version) ----
+
+OptResult LoadObjOptTyped(const char *filename,
+                          std::string *warn, std::string *err,
+                          const char *mtl_basedir,
+                          const OptLoadConfig &config) {
+  OptResult result;
+  if (!filename) {
+    if (err) *err = "filename is null.";
+    return result;
+  }
+
+  std::string filepath(filename);
+  std::string baseDir;
+  if (mtl_basedir) {
+    baseDir = mtl_basedir;
+  } else {
+    size_t pos = filepath.find_last_of("/\\");
+    if (pos != std::string::npos) {
+      baseDir = filepath.substr(0, pos + 1);
+    }
+  }
+  if (!baseDir.empty()) {
+#ifndef _WIN32
+    const char dirsep = '/';
+#else
+    const char dirsep = '\\';
+#endif
+    if (baseDir[baseDir.length() - 1] != dirsep) baseDir += dirsep;
+  }
+
+#ifdef TINYOBJLOADER_USE_MMAP
+  {
+    MappedFile mf;
+    if (mf.open(filepath.c_str())) {
+      LoadObjOptTyped_internal(&result, warn, err, mf.data, mf.size,
+                               baseDir, filepath, true, config);
+      return result;
+    }
+  }
+#endif
+
+#ifdef _WIN32
+  std::ifstream ifs(LongPathW(UTF8ToWchar(filepath)).c_str(),
+                    std::ios::binary | std::ios::ate);
+#else
+  std::ifstream ifs(filepath.c_str(), std::ios::binary | std::ios::ate);
+#endif
+  if (!ifs.is_open()) {
+    if (err) *err = "Cannot open file: " + filepath;
+    return result;
+  }
+
+  std::streamsize fsize = ifs.tellg();
+  ifs.seekg(0, std::ios::beg);
+
+  if (fsize <= 0) {
+    LoadObjOptTyped_internal(&result, warn, err, "", 0,
+                             baseDir, filepath, true, config);
+    return result;
+  }
+
+  std::vector<char> file_buf(static_cast<size_t>(fsize));
+  if (!ifs.read(file_buf.data(), fsize)) {
+    if (err) *err = "Failed to read file: " + filepath;
+    return result;
+  }
+  ifs.close();
+
+  LoadObjOptTyped_internal(&result, warn, err, file_buf.data(),
+                           static_cast<size_t>(fsize), baseDir, filepath,
+                           true, config);
+  return result;
 }
 
 #ifdef __clang__
