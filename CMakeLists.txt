@@ -168,6 +168,8 @@ configure_file(${PROJECT_NAME}.pc.in ${LIBRARY_NAME}.pc @ONLY)
 if(DEFINED ENV{LIB_FUZZING_ENGINE})
   add_executable(fuzz_ParseFromString fuzzer/fuzz_ParseFromString.cc)
   target_link_libraries(fuzz_ParseFromString ${LIBRARY_NAME} $ENV{LIB_FUZZING_ENGINE})
+  add_executable(fuzz_Comprehensive fuzzer/fuzz_Comprehensive.cc)
+  target_link_libraries(fuzz_Comprehensive ${LIBRARY_NAME} $ENV{LIB_FUZZING_ENGINE})
 endif()
 
 #Installation
