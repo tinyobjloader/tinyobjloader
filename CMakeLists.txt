@@ -141,6 +141,76 @@ if (TINYOBJLOADER_WITH_PYTHON)
 
 endif()
 
+# ---------------------------------------------------------------------------
+# Pure C11 loader (tiny_obj_c + tobj_tess)
+# ---------------------------------------------------------------------------
+option(TINYOBJLOADER_BUILD_C_LIBRARY "Build the pure-C11 loader (tiny_obj_c)" ON)
+option(TINYOBJLOADER_C_ENABLE_FILE_IO "tiny_obj_c: file loading helpers" ON)
+option(TINYOBJLOADER_C_ENABLE_MMAP "tiny_obj_c: mmap-based file loading" OFF)
+option(TINYOBJLOADER_C_ENABLE_SIMD "tiny_obj_c: SIMD newline scan" OFF)
+option(TINYOBJLOADER_C_ENABLE_MULTITHREADING "tiny_obj_c: multithreaded parse" OFF)
+option(TINYOBJLOADER_C_BUILD_TESTS "tiny_obj_c: build C test drivers" OFF)
+
+if(TINYOBJLOADER_BUILD_C_LIBRARY)
+  enable_language(C)
+  set(CMAKE_C_STANDARD 11)
+  set(CMAKE_C_STANDARD_REQUIRED ON)
+  set(CMAKE_C_EXTENSIONS OFF)
+
+  add_library(tinyobjloader_c
+    ${CMAKE_CURRENT_SOURCE_DIR}/tiny_obj_c.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/tobj_tess.c)
+  add_sanitizers(tinyobjloader_c)
+  target_include_directories(tinyobjloader_c PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<INSTALL_INTERFACE:${TINYOBJLOADER_INCLUDE_DIR}>)
+
+  if(TINYOBJLOADER_C_ENABLE_FILE_IO)
+    target_compile_definitions(tinyobjloader_c PUBLIC TOBJ_ENABLE_FILE_IO)
+  endif()
+  if(TINYOBJLOADER_C_ENABLE_MMAP)
+    target_compile_definitions(tinyobjloader_c PUBLIC TOBJ_ENABLE_MMAP)
+  endif()
+  if(TINYOBJLOADER_C_ENABLE_SIMD)
+    target_compile_definitions(tinyobjloader_c PUBLIC TOBJ_ENABLE_SIMD)
+  endif()
+  if(TINYOBJLOADER_C_ENABLE_MULTITHREADING)
+    find_package(Threads REQUIRED)
+    target_compile_definitions(tinyobjloader_c PUBLIC TOBJ_ENABLE_MULTITHREADING)
+    target_link_libraries(tinyobjloader_c PUBLIC Threads::Threads)
+  endif()
+
+  install(TARGETS tinyobjloader_c
+    EXPORT ${PROJECT_NAME}-targets
+    DESTINATION ${TINYOBJLOADER_LIBRARY_DIR})
+  install(FILES
+    tiny_obj_c.h tiny_obj_c_pub.inc tiny_obj_c_impl.inc
+    tobj_tess.h tobj_tess_pub.inc tobj_tess_impl.inc
+    DESTINATION ${TINYOBJLOADER_INCLUDE_DIR})
+
+  if(TINYOBJLOADER_C_BUILD_TESTS)
+    add_executable(tester_c tests/tester_c.c)
+    target_link_libraries(tester_c tinyobjloader_c)
+    target_compile_definitions(tester_c PRIVATE TOBJ_ENABLE_FILE_IO)
+    add_executable(tess_tester tests/tess_tester.c
+      ${CMAKE_CURRENT_SOURCE_DIR}/tobj_tess.c)
+    target_include_directories(tess_tester PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    if(UNIX)
+      target_link_libraries(tester_c m)
+      target_link_libraries(tess_tester m)
+    endif()
+    enable_testing()
+    add_test(NAME tester_c COMMAND tester_c
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+    add_test(NAME tess_tester COMMAND tess_tester)
+  endif()
+
+  if(DEFINED ENV{LIB_FUZZING_ENGINE})
+    add_executable(fuzz_tobj_c fuzzer/fuzz_tobj_c.c)
+    target_link_libraries(fuzz_tobj_c tinyobjloader_c $ENV{LIB_FUZZING_ENGINE})
+  endif()
+endif()
+
 #Write CMake package config files
 include(CMakePackageConfigHelpers)
 
