@@ -2,36 +2,37 @@
 
 [![PyPI version](https://badge.fury.io/py/tinyobjloader.svg)](https://badge.fury.io/py/tinyobjloader)
 
-Tiny but powerful single file wavefront obj loader written in C++11. No dependency except for C++ STL. It can parse over 10M polygons with moderate memory and time.
+Tiny but powerful Wavefront `.obj`/`.mtl` loader. This repository ships **two
+co-equal, independently usable implementations**:
 
-`tinyobjloader` is good for embedding .obj loader to your (global illumination) renderer ;-)
+* **C++11** — `tiny_obj_loader.h`, a single-header loader. No dependency except
+  the C++ STL. Parses 10M+ polygons with moderate memory and time.
+* **C11** — `tiny_obj_c.{c,h}` (plus the bundled `tobj_tess.{c,h}` tessellation
+  library). A from-scratch pure C11 loader: secure, portable,
+  freestanding-capable, dependency-free, fast, and robust. Not header-only.
+  See [Pure C11 loader](#pure-c11-loader-tiny_obj_c).
 
-If you are looking for C99 version, please see https://github.com/syoyo/tinyobjloader-c .
+`tinyobjloader` is good for embedding an .obj loader into your (global
+illumination) renderer ;-)
 
 Version notice
 --------------
 
-We recommend using the `release` (main) branch. It contains the v2.0 release candidate. Most features are now nearly robust and stable. (The remaining task for release v2.0 is polishing C++ and Python API, and fix built-in triangulation code).
-
-We have released new version v1.0.0 on 20 Aug, 2016.
-Old version is available as `v0.9.x` branch https://github.com/syoyo/tinyobjloader/tree/v0.9.x
+We recommend using the `release` (main) branch. It contains the v2.0 release candidate. Most features are now nearly robust and stable.
 
 ## What's new
 
+* 19 Jun, 2026 : Added a pure **C11** loader `tiny_obj_c` with its own robust polygon tessellation library `tobj_tess`. Dual float/double precision, freestanding-capable (no libc dependency in the core), line/point/free-form primitives, and optional multithreading/SIMD/mmap (see [Pure C11 loader](#pure-c11-loader-tiny_obj_c)).
 * 22 May, 2026 : Added an optimized in-header loader `LoadObjOpt` with optional multithreading/SIMD (see [Optimized loader](#optimized-loader)).
 * 29 Jul, 2021 : Added Mapbox's earcut for robust triangulation. Also fixes triangulation bug(still there is some issue in built-in triangulation algorithm: https://github.com/tinyobjloader/tinyobjloader/issues/319).
 * 19 Feb, 2020 : The repository has been moved to https://github.com/tinyobjloader/tinyobjloader !
 * 18 May, 2019 : Python binding!(See `python` folder. Also see https://pypi.org/project/tinyobjloader/)
 * 14 Apr, 2019 : Bump version v2.0.0 rc0. New C++ API and python bindings!(1.x API still exists for backward compatibility)
-* 20 Aug, 2016 : Bump version v1.0.0. New data structure and API!
 
 ## Requirements
 
-* C++11 compiler
-
-### Old version
-
-Previous old version is available in `v0.9.x` branch.
+* C++11 compiler — for `tiny_obj_loader.h`
+* C11 compiler — for `tiny_obj_c.c` / `tobj_tess.c`
 
 ## Example
 
@@ -70,6 +71,10 @@ http://casual-effects.com/data/index.html
 * [ ] 2D curve
 * [ ] surface.
 * [ ] Free form curve/surfaces
+
+The pure C11 loader additionally supports points (`p`) and free-form geometry
+(`curv`/`curv2`/`surf` and friends, parsed & retained) — see
+[Pure C11 loader](#pure-c11-loader-tiny_obj_c).
 
 ### Material
 
@@ -392,6 +397,70 @@ arrays are backed by a single arena allocator and only allocates optional
 arrays (vertex weights, texcoord `w`, colors, ...) when the input contains
 them — handy when minimizing allocations matters. An experimental stream-based
 loader lives under `experimental/stream/`.
+
+## Pure C11 loader (`tiny_obj_c`)
+
+For C projects (and freestanding / embedded use) the repository ships a
+from-scratch **pure C11** loader that is independent of the C++ header:
+
+* `tiny_obj_c.h` / `tiny_obj_c.c` — the loader (not header-only).
+* `tobj_tess.h` / `tobj_tess.c` — a standalone, reusable robust polygon
+  tessellation library.
+
+Properties:
+
+* **Dependency-free / freestanding-capable.** The core links no libc symbols
+  (no `malloc` / `stdio` / `strtod` / `math.h`): supply your own allocator and a
+  byte buffer. Define `TOBJ_NO_LIBC` (a.k.a. `TOBJ_FREESTANDING`) for that mode,
+  or enable libc-backed conveniences with `TOBJ_ENABLE_FILE_IO`.
+* **Dual precision.** `float` (`_f`) and `double` (`_d`) data structures and
+  entry points coexist in the same build (e.g. `tobj_scene_f` / `tobj_scene_d`).
+* **Robust tessellation.** Survives degenerate / concave / collinear /
+  coincident / non-planar / self-intersecting polygons; always emits `n-2`
+  triangles and never crashes or loops.
+* **Primitives.** Faces (with triangulation), lines (`l`), points (`p`), and
+  free-form geometry (`cstype` / `curv` / `curv2` / `surf` / `vp` / `parm` /
+  `trim` / `hole` / `end`), parsed and retained.
+* **Materials.** Phong + PBR + texture options, unknown-parameter map,
+  standalone `.mtl` parsing, a material-resolver callback, and a streaming
+  callback API.
+* **Optional speed-ups** behind macros (scalar / single-threaded by default):
+  `TOBJ_ENABLE_MULTITHREADING`, `TOBJ_ENABLE_SIMD`, `TOBJ_ENABLE_MMAP`.
+
+```c
+#define TOBJ_ENABLE_FILE_IO        // enables tobj_load_obj_from_file_*
+#include "tiny_obj_c.h"            // build tiny_obj_c.c + tobj_tess.c
+
+tobj_scene_f scene;
+tobj_load_config cfg = tobj_default_config();   // triangulate = true
+tobj_diag diag = {0};
+
+if (tobj_load_obj_from_file_f(&scene, "cornell_box.obj", &cfg, &diag) != TOBJ_OK) {
+  if (diag.err) fprintf(stderr, "%s\n", diag.err);
+  return 1;
+}
+
+for (size_t s = 0; s < scene.num_shapes; s++) {
+  const tobj_mesh_f *mesh = &scene.shapes[s].mesh;
+  for (size_t i = 0; i < mesh->num_indices; i++) {
+    tobj_index idx = mesh->indices[i];
+    float x = scene.attrib.vertices.ptr[3 * idx.vertex_index + 0];
+    float y = scene.attrib.vertices.ptr[3 * idx.vertex_index + 1];
+    float z = scene.attrib.vertices.ptr[3 * idx.vertex_index + 2];
+    (void)x; (void)y; (void)z;
+  }
+}
+
+tobj_scene_free_f(&scene);
+tobj_diag_free(&diag, NULL);
+```
+
+Use the `_d` variants for double precision, `tobj_load_obj_from_memory_f` for
+the freestanding / in-memory path, and `tobj_load_obj_with_callbacks_f` for
+streaming. Build with CMake (`-DTINYOBJLOADER_BUILD_C_LIBRARY=ON`, the default;
+options `TINYOBJLOADER_C_ENABLE_FILE_IO` / `MMAP` / `SIMD` / `MULTITHREADING`)
+or simply compile `tiny_obj_c.c` and `tobj_tess.c`. C tests live under `tests/`
+(`make check_c`).
 
 ## Python binding
 
