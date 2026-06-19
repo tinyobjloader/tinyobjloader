@@ -41,8 +41,10 @@ static const char g_obj[] =
 int main(void) {
   tobj_allocator a;
   a.alloc = fs_alloc;
+  a.calloc = 0;
   a.realloc = fs_realloc;
   a.free = fs_free;
+  a.max_alloc_size = 0;
   a.user_data = (void *)0;
 
   tobj_load_config cfg = tobj_default_config();

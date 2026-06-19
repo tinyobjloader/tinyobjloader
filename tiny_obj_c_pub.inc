@@ -253,6 +253,10 @@ TOBJ_API tobj_result TOBJ_T(tobj_load_obj_from_memory)(
     TOBJ_T(tobj_scene) * out, const uint8_t *buf, size_t len,
     const tobj_load_config *cfg, tobj_diag *diag);
 
+TOBJ_API tobj_result TOBJ_T(tobj_load_obj_from_io)(
+    TOBJ_T(tobj_scene) * out, const tobj_io_callbacks *io,
+    const tobj_load_config *cfg, tobj_diag *diag);
+
 #ifdef TOBJ_ENABLE_FILE_IO
 TOBJ_API tobj_result TOBJ_T(tobj_load_obj_from_file)(
     TOBJ_T(tobj_scene) * out, const char *path, const tobj_load_config *cfg,

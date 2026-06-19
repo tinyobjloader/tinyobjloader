@@ -413,6 +413,11 @@ Properties:
   (no `malloc` / `stdio` / `strtod` / `math.h`): supply your own allocator and a
   byte buffer. Define `TOBJ_NO_LIBC` (a.k.a. `TOBJ_FREESTANDING`) for that mode,
   or enable libc-backed conveniences with `TOBJ_ENABLE_FILE_IO`.
+* **Pluggable allocation and I/O.** `tobj_allocator` carries bounded
+  size/alignment requests (`max_alloc_size` is optional) and supports custom
+  `alloc`/`calloc`/`free` backends; libc builds default to malloc/calloc/free.
+  `tobj_load_obj_from_io_*` reads through caller-supplied byte callbacks for
+  freestanding streams.
 * **Dual precision.** `float` (`_f`) and `double` (`_d`) data structures and
   entry points coexist in the same build (e.g. `tobj_scene_f` / `tobj_scene_d`).
 * **Robust tessellation.** Survives degenerate / concave / collinear /
@@ -456,10 +461,11 @@ tobj_diag_free(&diag, NULL);
 ```
 
 Use the `_d` variants for double precision, `tobj_load_obj_from_memory_f` for
-the freestanding / in-memory path, and `tobj_load_obj_with_callbacks_f` for
-streaming. Build with CMake (`-DTINYOBJLOADER_BUILD_C_LIBRARY=ON`, the default;
-options `TINYOBJLOADER_C_ENABLE_FILE_IO` / `MMAP` / `SIMD` / `MULTITHREADING`)
-or simply compile `tiny_obj_c.c` and `tobj_tess.c`. C tests live under `tests/`
+the freestanding / in-memory path, `tobj_load_obj_from_io_f` for custom byte
+input, and `tobj_load_obj_with_callbacks_f` for parse-event callbacks. Build
+with CMake (`-DTINYOBJLOADER_BUILD_C_LIBRARY=ON`, the default; options
+`TINYOBJLOADER_C_ENABLE_FILE_IO` / `MMAP` / `SIMD` / `MULTITHREADING`) or simply
+compile `tiny_obj_c.c` and `tobj_tess.c`. C tests live under `tests/`
 (`make check_c`).
 
 ## Python binding

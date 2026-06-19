@@ -1528,17 +1528,11 @@ tobj_result TOBJ_T(tobj_load_obj_from_memory)(TOBJ_T(tobj_scene) * out,
     defcfg = tobj_default_config();
     cfg = &defcfg;
   }
+  if (len > tobj_resolve_caps(cfg).input_bytes) return TOBJ_ERR_LIMIT_EXCEEDED;
 
   tobj_allocator alloc;
-  if (cfg->allocator.alloc) {
-    alloc = cfg->allocator;
-  } else {
-#ifndef TOBJ_NO_LIBC
-    alloc = tobj_default_allocator();
-#else
+  if (!tobj_resolve_allocator(&cfg->allocator, &alloc))
     return TOBJ_ERR_INVALID_ARG;
-#endif
-  }
 
   tobj_arena *arena = (tobj_arena *)tobj_alloc(&alloc, sizeof(tobj_arena), 16);
   if (!arena) return TOBJ_ERR_ALLOC;
@@ -1641,6 +1635,60 @@ tobj_result TOBJ_T(tobj_load_obj_from_memory)(TOBJ_T(tobj_scene) * out,
   return TOBJ_OK;
 }
 
+tobj_result TOBJ_T(tobj_load_obj_from_io)(TOBJ_T(tobj_scene) * out,
+                                          const tobj_io_callbacks *io,
+                                          const tobj_load_config *cfg,
+                                          tobj_diag *diag) {
+  if (!out) return TOBJ_ERR_INVALID_ARG;
+  tobj_memset(out, 0, sizeof *out);
+  if (!io || !io->read) return TOBJ_ERR_INVALID_ARG;
+
+  tobj_load_config cc = cfg ? *cfg : tobj_default_config();
+  tobj_allocator alloc;
+  if (!tobj_resolve_allocator(&cc.allocator, &alloc))
+    return TOBJ_ERR_INVALID_ARG;
+  cc.allocator = alloc;
+
+  tobj_caps caps = tobj_resolve_caps(&cc);
+  tobj_vec buf;
+  tobj_vec_init(&buf, 1);
+  tobj_result r = TOBJ_OK;
+
+  for (;;) {
+    size_t remain = caps.input_bytes - buf.count;
+    if (remain == 0) {
+      uint8_t extra;
+      size_t got = 0;
+      r = io->read(io->user_data, &extra, 1, &got);
+      if (r == TOBJ_OK && got != 0) r = TOBJ_ERR_LIMIT_EXCEEDED;
+      break;
+    }
+    size_t want = remain < (size_t)(64u * 1024u) ? remain
+                                                  : (size_t)(64u * 1024u);
+    size_t old = buf.count;
+    if (!tobj_vec_reserve(&buf, old + want, &alloc)) {
+      r = TOBJ_ERR_ALLOC;
+      break;
+    }
+    size_t got = 0;
+    r = io->read(io->user_data, (uint8_t *)buf.data + old, want, &got);
+    if (r != TOBJ_OK) break;
+    if (got > want) {
+      r = TOBJ_ERR_IO;
+      break;
+    }
+    if (got == 0) break;
+    buf.count = old + got;
+  }
+
+  if (io->close) io->close(io->user_data);
+  if (r == TOBJ_OK)
+    r = TOBJ_T(tobj_load_obj_from_memory)(out, (const uint8_t *)buf.data,
+                                          buf.count, &cc, diag);
+  tobj_vec_free(&buf, &alloc);
+  return r;
+}
+
 #ifdef TOBJ_ENABLE_FILE_IO
 tobj_result TOBJ_T(tobj_load_obj_from_file)(TOBJ_T(tobj_scene) * out,
                                             const char *path,
@@ -1652,15 +1700,13 @@ tobj_result TOBJ_T(tobj_load_obj_from_file)(TOBJ_T(tobj_scene) * out,
 
   tobj_load_config cc = cfg ? *cfg : tobj_default_config();
   tobj_allocator alloc;
-  if (cc.allocator.alloc) {
-    alloc = cc.allocator;
-  } else {
-    alloc = tobj_default_allocator();
-    cc.allocator = alloc;
-  }
+  if (!tobj_resolve_allocator(&cc.allocator, &alloc))
+    return TOBJ_ERR_INVALID_ARG;
+  cc.allocator = alloc;
 
   tobj_file_buf fb;
-  tobj_result r = tobj_file_open(&fb, path, &alloc);
+  tobj_result r = tobj_file_open(&fb, path, &alloc,
+                                 tobj_resolve_caps(&cc).input_bytes);
   if (r != TOBJ_OK) return r;
 
   size_t dlen;
@@ -1672,6 +1718,7 @@ tobj_result TOBJ_T(tobj_load_obj_from_file)(TOBJ_T(tobj_scene) * out,
   tobj_file_res_ctx ctx;
   ctx.basedir = basedir;
   ctx.alloc = alloc;
+  ctx.max_bytes = tobj_resolve_caps(&cc).input_bytes;
   if (!cc.mtl_resolver) {
     cc.mtl_resolver = tobj_file_material_resolver;
     cc.mtl_resolver_user_data = &ctx;
@@ -1702,16 +1749,10 @@ tobj_result TOBJ_T(tobj_parse_mtl_from_memory)(TOBJ_T(tobj_material_list) * out,
     defcfg = tobj_default_config();
     cfg = &defcfg;
   }
+  if (len > tobj_resolve_caps(cfg).input_bytes) return TOBJ_ERR_LIMIT_EXCEEDED;
   tobj_allocator alloc;
-  if (cfg->allocator.alloc) {
-    alloc = cfg->allocator;
-  } else {
-#ifndef TOBJ_NO_LIBC
-    alloc = tobj_default_allocator();
-#else
+  if (!tobj_resolve_allocator(&cfg->allocator, &alloc))
     return TOBJ_ERR_INVALID_ARG;
-#endif
-  }
   tobj_arena *arena = (tobj_arena *)tobj_alloc(&alloc, sizeof(tobj_arena), 16);
   if (!arena) return TOBJ_ERR_ALLOC;
   tobj_arena_init(arena, &alloc, 0);
@@ -1775,16 +1816,10 @@ tobj_result TOBJ_T(tobj_load_obj_with_callbacks)(
     defcfg = tobj_default_config();
     cfg = &defcfg;
   }
+  if (len > tobj_resolve_caps(cfg).input_bytes) return TOBJ_ERR_LIMIT_EXCEEDED;
   tobj_allocator alloc;
-  if (cfg->allocator.alloc) {
-    alloc = cfg->allocator;
-  } else {
-#ifndef TOBJ_NO_LIBC
-    alloc = tobj_default_allocator();
-#else
+  if (!tobj_resolve_allocator(&cfg->allocator, &alloc))
     return TOBJ_ERR_INVALID_ARG;
-#endif
-  }
   tobj_arena *arena = (tobj_arena *)tobj_alloc(&alloc, sizeof(tobj_arena), 16);
   if (!arena) return TOBJ_ERR_ALLOC;
   tobj_arena_init(arena, &alloc, 0);

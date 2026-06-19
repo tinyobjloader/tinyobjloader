@@ -42,9 +42,48 @@ static const char *load_string_f(const char *obj, tobj_scene_f *sc,
   return tobj_result_string(r);
 }
 
+typedef struct mem_io {
+  const uint8_t *data;
+  size_t len;
+  size_t pos;
+  size_t chunk;
+  int closed;
+} mem_io;
+
+static tobj_result mem_io_read(void *ud, uint8_t *dst, size_t dst_size,
+                               size_t *bytes_read) {
+  mem_io *m = (mem_io *)ud;
+  size_t left = m->len - m->pos;
+  size_t n = left < dst_size ? left : dst_size;
+  if (m->chunk && n > m->chunk) n = m->chunk;
+  if (n) memcpy(dst, m->data + m->pos, n);
+  m->pos += n;
+  *bytes_read = n;
+  return TOBJ_OK;
+}
+
+static void mem_io_close(void *ud) { ((mem_io *)ud)->closed = 1; }
+
+static tobj_result io_overreport_read(void *ud, uint8_t *dst, size_t dst_size,
+                                      size_t *bytes_read) {
+  (void)ud;
+  if (dst_size) dst[0] = 'x';
+  *bytes_read = dst_size + 1;
+  return TOBJ_OK;
+}
+
+static tobj_result io_error_read(void *ud, uint8_t *dst, size_t dst_size,
+                                 size_t *bytes_read) {
+  (void)ud;
+  (void)dst;
+  (void)dst_size;
+  *bytes_read = 0;
+  return TOBJ_ERR_IO;
+}
+
 /* ---- corpus ------------------------------------------------------------ */
 
-/* Only files committed to the repo (CI checks out a clean tree; sandbox/*.obj
+/* Only files committed to the repo (CI checks out a clean tree; sandbox files
  * are local scratch files and are intentionally not used here). The
  * pathological-geometry triangulation cases are covered directly by
  * tests/tess_tester.c. */
@@ -205,6 +244,143 @@ static void test_mtl_standalone(void) {
   tobj_material_list_free_f(&ml);
 }
 
+static void test_io_callbacks(void) {
+  const char *obj = "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
+  mem_io mio;
+  mio.data = (const uint8_t *)obj;
+  mio.len = strlen(obj);
+  mio.pos = 0;
+  mio.chunk = 5;
+  mio.closed = 0;
+  tobj_io_callbacks io;
+  io.read = mem_io_read;
+  io.close = mem_io_close;
+  io.user_data = &mio;
+  tobj_load_config cfg = tobj_default_config();
+  tobj_scene_f sc;
+  tobj_result r = tobj_load_obj_from_io_f(&sc, &io, &cfg, NULL);
+  TEST_CHECK(r == TOBJ_OK);
+  TEST_CHECK(mio.closed == 1);
+  TEST_CHECK(sc.num_shapes == 1);
+  TEST_CHECK(sc.shapes[0].mesh.num_indices == 3);
+  tobj_scene_free_f(&sc);
+}
+
+static void test_allocator_limit_failure(void) {
+  const char *obj = "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
+  tobj_load_config cfg = tobj_default_config();
+  cfg.allocator = tobj_default_allocator();
+  cfg.allocator.max_alloc_size = 16;
+  tobj_scene_f sc;
+  tobj_result r =
+      tobj_load_obj_from_memory_f(&sc, (const uint8_t *)obj, strlen(obj), &cfg,
+                                  NULL);
+  TEST_CHECK(r == TOBJ_ERR_ALLOC);
+  TEST_CHECK(sc.num_shapes == 0);
+}
+
+static void test_input_limit_failure(void) {
+  const char *obj = "v 0 0 0\n";
+  tobj_load_config cfg = tobj_default_config();
+  cfg.max_input_bytes = 4;
+  tobj_scene_f sc;
+  tobj_result r =
+      tobj_load_obj_from_memory_f(&sc, (const uint8_t *)obj, strlen(obj), &cfg,
+                                  NULL);
+  TEST_CHECK(r == TOBJ_ERR_LIMIT_EXCEEDED);
+}
+
+static void test_io_input_limit_exact_and_over(void) {
+  const char *obj = "v 0 0 0\n";
+  tobj_load_config cfg = tobj_default_config();
+  cfg.max_input_bytes = strlen(obj);
+
+  mem_io exact;
+  exact.data = (const uint8_t *)obj;
+  exact.len = strlen(obj);
+  exact.pos = 0;
+  exact.chunk = 3;
+  exact.closed = 0;
+  tobj_io_callbacks io;
+  io.read = mem_io_read;
+  io.close = mem_io_close;
+  io.user_data = &exact;
+  tobj_scene_f sc;
+  tobj_result r = tobj_load_obj_from_io_f(&sc, &io, &cfg, NULL);
+  TEST_CHECK(r == TOBJ_OK);
+  TEST_CHECK(exact.closed == 1);
+  tobj_scene_free_f(&sc);
+
+  const char *too_big = "v 0 0 0\n# extra\n";
+  mem_io over;
+  over.data = (const uint8_t *)too_big;
+  over.len = strlen(too_big);
+  over.pos = 0;
+  over.chunk = 0;
+  over.closed = 0;
+  io.user_data = &over;
+  r = tobj_load_obj_from_io_f(&sc, &io, &cfg, NULL);
+  TEST_CHECK(r == TOBJ_ERR_LIMIT_EXCEEDED);
+  TEST_CHECK(over.closed == 1);
+  TEST_CHECK(sc.num_shapes == 0);
+}
+
+static void test_io_callback_errors(void) {
+  tobj_io_callbacks io;
+  io.close = mem_io_close;
+
+  mem_io state;
+  state.data = NULL;
+  state.len = 0;
+  state.pos = 0;
+  state.chunk = 0;
+  state.closed = 0;
+  io.user_data = &state;
+  io.read = io_overreport_read;
+  tobj_scene_f sc;
+  tobj_result r = tobj_load_obj_from_io_f(&sc, &io, NULL, NULL);
+  TEST_CHECK(r == TOBJ_ERR_IO);
+  TEST_CHECK(state.closed == 1);
+
+  state.closed = 0;
+  io.read = io_error_read;
+  r = tobj_load_obj_from_io_f(&sc, &io, NULL, NULL);
+  TEST_CHECK(r == TOBJ_ERR_IO);
+  TEST_CHECK(state.closed == 1);
+}
+
+static void test_invalid_allocator_rejected(void) {
+  const char *obj = "v 0 0 0\n";
+  tobj_load_config cfg = tobj_default_config();
+  cfg.allocator = tobj_default_allocator();
+  cfg.allocator.free = NULL;
+  tobj_scene_f sc;
+  tobj_result r =
+      tobj_load_obj_from_memory_f(&sc, (const uint8_t *)obj, strlen(obj), &cfg,
+                                  NULL);
+  TEST_CHECK(r == TOBJ_ERR_INVALID_ARG);
+  TEST_CHECK(sc.num_shapes == 0);
+}
+
+static void test_allocator_without_calloc_or_realloc(void) {
+  const char *obj =
+      "v 0 0 0\nv 1 0 0\nv 2 0 0\nv 3 0 0\nv 4 0 0\n"
+      "v 5 0 0\nv 6 0 0\nv 7 0 0\nv 8 0 0\n"
+      "f 1 2 3\nf 4 5 6\nf 7 8 9\n";
+  tobj_load_config cfg = tobj_default_config();
+  cfg.allocator = tobj_default_allocator();
+  cfg.allocator.calloc = NULL;
+  cfg.allocator.realloc = NULL;
+  tobj_scene_f sc;
+  tobj_result r =
+      tobj_load_obj_from_memory_f(&sc, (const uint8_t *)obj, strlen(obj), &cfg,
+                                  NULL);
+  TEST_CHECK(r == TOBJ_OK);
+  TEST_CHECK(sc.attrib.vertices.count == 27);
+  TEST_CHECK(sc.shapes[0].mesh.num_indices == 9);
+  tobj_scene_free_f(&sc);
+}
+
 TEST_LIST = {
     {"corpus_loads", test_corpus_loads},
     {"both_precisions", test_both_precisions},
@@ -218,4 +394,12 @@ TEST_LIST = {
     {"degenerate_face_skipped", test_degenerate_face_skipped},
     {"empty_and_garbage", test_empty_and_garbage},
     {"mtl_standalone", test_mtl_standalone},
+    {"io_callbacks", test_io_callbacks},
+    {"allocator_limit_failure", test_allocator_limit_failure},
+    {"input_limit_failure", test_input_limit_failure},
+    {"io_input_limit_exact_and_over", test_io_input_limit_exact_and_over},
+    {"io_callback_errors", test_io_callback_errors},
+    {"invalid_allocator_rejected", test_invalid_allocator_rejected},
+    {"allocator_without_calloc_or_realloc",
+     test_allocator_without_calloc_or_realloc},
     {NULL, NULL}};

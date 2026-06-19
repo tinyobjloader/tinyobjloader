@@ -78,12 +78,15 @@ typedef enum tobj_severity {
 
 /* Injectable allocator. If a config's allocator.alloc is NULL the default
  * libc allocator is used (only available when !TOBJ_NO_LIBC). `align` is a
- * power of two; realloc receives the previous size for arenas/bookkeeping. */
+ * power of two. calloc/realloc are optional; alloc and free are required for
+ * custom allocators. max_alloc_size == 0 means "unbounded". */
 typedef struct tobj_allocator {
   void *(*alloc)(void *ud, size_t size, size_t align);
+  void *(*calloc)(void *ud, size_t count, size_t size, size_t align);
   void *(*realloc)(void *ud, void *ptr, size_t old_size, size_t new_size,
                    size_t align);
   void (*free)(void *ud, void *ptr, size_t size);
+  size_t max_alloc_size;
   void *user_data;
 } tobj_allocator;
 
@@ -156,6 +159,15 @@ typedef struct tobj_mtl_source {
 typedef tobj_result (*tobj_material_resolver)(void *ud, const char *mtllib_name,
                                               tobj_mtl_source *out);
 
+/* Pull-style byte input. read returns TOBJ_OK and writes 0 bytes at EOF. The
+ * loader owns neither callbacks nor user_data, but calls close when non-NULL. */
+typedef struct tobj_io_callbacks {
+  tobj_result (*read)(void *ud, uint8_t *dst, size_t dst_size,
+                      size_t *bytes_read);
+  void (*close)(void *ud);
+  void *user_data;
+} tobj_io_callbacks;
+
 /* Load configuration (precision-independent: it has no real fields). */
 typedef struct tobj_load_config {
   tobj_allocator allocator;     /* {0} -> default libc allocator */
@@ -176,6 +188,7 @@ typedef struct tobj_load_config {
   size_t max_materials;
   size_t max_shapes;
   size_t max_line_bytes;
+  size_t max_input_bytes;
 
   tobj_material_resolver mtl_resolver;
   void *mtl_resolver_user_data;
@@ -232,6 +245,7 @@ typedef tobj_material_list_d tobj_material_list;
 #define tobj_load_obj_from_file(...) tobj_load_obj_from_file_d(__VA_ARGS__)
 #define tobj_load_obj_with_callbacks(...) \
   tobj_load_obj_with_callbacks_d(__VA_ARGS__)
+#define tobj_load_obj_from_io(...) tobj_load_obj_from_io_d(__VA_ARGS__)
 #define tobj_scene_free(...) tobj_scene_free_d(__VA_ARGS__)
 #define tobj_parse_mtl_from_memory(...) tobj_parse_mtl_from_memory_d(__VA_ARGS__)
 #define tobj_material_list_free(...) tobj_material_list_free_d(__VA_ARGS__)
@@ -254,6 +268,7 @@ typedef tobj_material_list_f tobj_material_list;
 #define tobj_load_obj_from_file(...) tobj_load_obj_from_file_f(__VA_ARGS__)
 #define tobj_load_obj_with_callbacks(...) \
   tobj_load_obj_with_callbacks_f(__VA_ARGS__)
+#define tobj_load_obj_from_io(...) tobj_load_obj_from_io_f(__VA_ARGS__)
 #define tobj_scene_free(...) tobj_scene_free_f(__VA_ARGS__)
 #define tobj_parse_mtl_from_memory(...) tobj_parse_mtl_from_memory_f(__VA_ARGS__)
 #define tobj_material_list_free(...) tobj_material_list_free_f(__VA_ARGS__)
