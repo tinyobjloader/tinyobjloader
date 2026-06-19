@@ -44,16 +44,18 @@ static const char *load_string_f(const char *obj, tobj_scene_f *sc,
 
 /* ---- corpus ------------------------------------------------------------ */
 
+/* Only files committed to the repo (CI checks out a clean tree; sandbox/*.obj
+ * are local scratch files and are intentionally not used here). The
+ * pathological-geometry triangulation cases are covered directly by
+ * tests/tess_tester.c. */
 static const char *kCorpus[] = {
     "../models/cube.obj",
     "../models/cornell_box.obj",
     "../models/catmark_torus_creases0.obj",
     "../models/smoothing-group-two-squares.obj",
+    "../models/issue-162-smoothing-group.obj",
+    "../models/smoothing-normal.obj",
     "../models/issue-295-trianguation-failure.obj",
-    "../sandbox/zh2-ill.obj",
-    "../sandbox/ill-tri.obj",
-    "../sandbox/poly.obj",
-    "../sandbox/quad.obj",
     NULL};
 
 static void test_corpus_loads(void) {
