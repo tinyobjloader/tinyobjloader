@@ -19,7 +19,7 @@
 #include "tiny_obj_c.h"
 
 #ifndef TOBJ_NO_LIBC
-#include <stdlib.h> /* malloc/realloc/free */
+#include <stdlib.h> /* malloc/calloc/free */
 #endif
 
 #include <float.h>
@@ -116,12 +116,11 @@ static void *tobj_libc_alloc(void *ud, size_t size, size_t align) {
   (void)align; /* malloc already returns max_align_t-aligned storage */
   return malloc(size ? size : 1);
 }
-static void *tobj_libc_realloc(void *ud, void *ptr, size_t old_size,
-                               size_t new_size, size_t align) {
+static void *tobj_libc_calloc(void *ud, size_t count, size_t size,
+                              size_t align) {
   (void)ud;
-  (void)old_size;
-  (void)align;
-  return realloc(ptr, new_size ? new_size : 1);
+  (void)align; /* calloc already returns max_align_t-aligned storage */
+  return calloc(count ? count : 1, size ? size : 1);
 }
 static void tobj_libc_free(void *ud, void *ptr, size_t size) {
   (void)ud;
@@ -131,22 +130,77 @@ static void tobj_libc_free(void *ud, void *ptr, size_t size) {
 tobj_allocator tobj_default_allocator(void) {
   tobj_allocator a;
   a.alloc = tobj_libc_alloc;
-  a.realloc = tobj_libc_realloc;
+  a.calloc = tobj_libc_calloc;
+  a.realloc = NULL;
   a.free = tobj_libc_free;
+  a.max_alloc_size = 0;
   a.user_data = NULL;
   return a;
 }
 #endif
 
+static bool tobj_is_pow2(size_t x) { return x && ((x & (x - 1u)) == 0); }
+
+static bool tobj_allocator_valid(const tobj_allocator *a) {
+  return a && a->alloc && a->free;
+}
+
+static bool tobj_resolve_allocator(const tobj_allocator *src,
+                                   tobj_allocator *out) {
+  if (src && src->alloc) {
+    if (!tobj_allocator_valid(src)) return false;
+    *out = *src;
+    return true;
+  }
+#ifndef TOBJ_NO_LIBC
+  *out = tobj_default_allocator();
+  return true;
+#else
+  (void)out;
+  return false;
+#endif
+}
+
+static bool tobj_alloc_request_valid(const tobj_allocator *a, size_t size,
+                                     size_t align) {
+  if (!tobj_allocator_valid(a)) return false;
+  if (!tobj_is_pow2(align)) return false;
+  if (a->max_alloc_size && size > a->max_alloc_size) return false;
+  return true;
+}
+
 static void *tobj_alloc(const tobj_allocator *a, size_t size, size_t align) {
+  if (size == 0) size = 1;
+  if (!tobj_alloc_request_valid(a, size, align)) return NULL;
   return a->alloc(a->user_data, size, align);
 }
+static void *tobj_calloc(const tobj_allocator *a, size_t count, size_t size,
+                         size_t align) {
+  size_t bytes;
+  if (!tobj_size_mul(count ? count : 1, size ? size : 1, &bytes)) return NULL;
+  if (!tobj_alloc_request_valid(a, bytes, align)) return NULL;
+  if (a->calloc) return a->calloc(a->user_data, count, size, align);
+  void *p = a->alloc(a->user_data, bytes, align);
+  if (p) tobj_memset(p, 0, bytes);
+  return p;
+}
 static void tobj_free(const tobj_allocator *a, void *ptr, size_t size) {
-  if (ptr) a->free(a->user_data, ptr, size);
+  if (ptr && tobj_allocator_valid(a)) a->free(a->user_data, ptr, size);
 }
 static void *tobj_realloc(const tobj_allocator *a, void *ptr, size_t old_size,
                           size_t new_size, size_t align) {
-  return a->realloc(a->user_data, ptr, old_size, new_size, align);
+  if (new_size == 0) new_size = 1;
+  if (!tobj_alloc_request_valid(a, new_size, align)) return NULL;
+  if (a->realloc)
+    return a->realloc(a->user_data, ptr, old_size, new_size, align);
+  void *p = tobj_alloc(a, new_size, align);
+  if (!p) return NULL;
+  if (ptr && old_size) {
+    size_t n = old_size < new_size ? old_size : new_size;
+    tobj_memcpy(p, ptr, n);
+    tobj_free(a, ptr, old_size);
+  }
+  return p;
 }
 
 /* Arena: bump allocator over a linked list of blocks. Never frees one
@@ -270,7 +324,12 @@ static bool tobj_vec_reserve(tobj_vec *v, size_t want, const tobj_allocator *a) 
   size_t old_bytes, new_bytes;
   if (!tobj_size_mul(v->cap, v->elem, &old_bytes)) return false;
   if (!tobj_size_mul(newcap, v->elem, &new_bytes)) return false;
-  void *p = tobj_realloc(a, v->data, old_bytes, new_bytes, 16);
+  void *p = NULL;
+  if (v->data) {
+    p = tobj_realloc(a, v->data, old_bytes, new_bytes, 16);
+  } else {
+    p = tobj_calloc(a, newcap, v->elem, 16);
+  }
   if (!p) return false;
   v->data = p;
   v->cap = newcap;
@@ -676,6 +735,7 @@ typedef struct tobj_pending_kv {
 /* Resolve effective caps (0 => built-in default). */
 typedef struct tobj_caps {
   size_t vertices, indices, faces, arity, materials, shapes, line_bytes;
+  size_t input_bytes;
 } tobj_caps;
 
 static tobj_caps tobj_resolve_caps(const tobj_load_config *cfg) {
@@ -688,6 +748,7 @@ static tobj_caps tobj_resolve_caps(const tobj_load_config *cfg) {
   c.materials = cfg->max_materials ? cfg->max_materials : (size_t)(1u << 24);
   c.shapes = cfg->max_shapes ? cfg->max_shapes : (size_t)(1u << 24);
   c.line_bytes = cfg->max_line_bytes ? cfg->max_line_bytes : (size_t)(1u << 24);
+  c.input_bytes = cfg->max_input_bytes ? cfg->max_input_bytes : big;
   return c;
 }
 
@@ -712,7 +773,8 @@ typedef struct tobj_file_buf {
 } tobj_file_buf;
 
 static tobj_result tobj_file_open(tobj_file_buf *fb, const char *path,
-                                  const tobj_allocator *a) {
+                                  const tobj_allocator *a,
+                                  size_t max_len) {
   fb->data = NULL;
   fb->len = 0;
   fb->mode = 0;
@@ -725,6 +787,10 @@ static tobj_result tobj_file_open(tobj_file_buf *fb, const char *path,
       struct stat st;
       if (fstat(fd, &st) == 0 && st.st_size >= 0) {
         size_t sz = (size_t)st.st_size;
+        if (sz > max_len) {
+          close(fd);
+          return TOBJ_ERR_LIMIT_EXCEEDED;
+        }
         if (sz == 0) {
           close(fd);
           fb->data = (const uint8_t *)"";
@@ -760,6 +826,10 @@ static tobj_result tobj_file_open(tobj_file_buf *fb, const char *path,
       fclose(f);
       return TOBJ_ERR_IO;
     }
+    if ((size_t)sz > max_len) {
+      fclose(f);
+      return TOBJ_ERR_LIMIT_EXCEEDED;
+    }
     if (fseek(f, 0, SEEK_SET) != 0) {
       fclose(f);
       return TOBJ_ERR_IO;
@@ -794,6 +864,7 @@ static void tobj_file_close(tobj_file_buf *fb) {
 typedef struct tobj_file_res_ctx {
   const char *basedir;
   tobj_allocator alloc;
+  size_t max_bytes;
 } tobj_file_res_ctx;
 
 static void tobj_file_release(void *ud, const uint8_t *d, size_t n) {
@@ -825,7 +896,7 @@ static tobj_result tobj_file_material_resolver(void *ud, const char *name,
     tobj_free(&ctx->alloc, path, plen);
     return TOBJ_ERR_ALLOC;
   }
-  tobj_result r = tobj_file_open(fb, path, &ctx->alloc);
+  tobj_result r = tobj_file_open(fb, path, &ctx->alloc, ctx->max_bytes);
   tobj_free(&ctx->alloc, path, plen);
   if (r != TOBJ_OK) {
     tobj_free(&ctx->alloc, fb, sizeof *fb);
