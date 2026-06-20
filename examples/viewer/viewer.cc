@@ -157,6 +157,10 @@ float g_angleY = 0.0f; // in degree
 bool g_show_wire = true;
 bool g_cull_face = false;
 
+float scene_bmin[3] = {0.0f, 0.0f, 0.0f};
+float scene_bmax[3] = {0.0f, 0.0f, 0.0f};
+float scene_maxExtent = 1.0f;
+
 GLFWwindow* window;
 
 static std::string GetBaseDir(const std::string& filepath) {
@@ -923,6 +927,8 @@ static void reshapeFunc(GLFWwindow* window, int w, int h) {
   height = h;
 }
 
+static void FitToScene();
+
 static void keyboardFunc(GLFWwindow* window, int key, int scancode, int action,
                          int mods) {
   (void)window;
@@ -957,6 +963,11 @@ static void keyboardFunc(GLFWwindow* window, int key, int scancode, int action,
     if (key == GLFW_KEY_C) {
       // cull option
       g_cull_face = !g_cull_face;
+    }
+
+    if (key == GLFW_KEY_F) {
+      // fit to scene
+      FitToScene();
     }
 
     // init_frame = true;
@@ -1088,8 +1099,14 @@ static void Draw(const std::vector<DrawObject>& drawObjects,
   }
 }
 
-static void Init() {
+static void Init() { FitToScene(); }
+
+// Reset camera to fit the entire scene in view.
+static void FitToScene() {
   trackball(curr_quat, 0, 0, 0, 0);
+
+  g_angleX = 0.0f;
+  g_angleY = 0.0f;
 
   eye[0] = 0.0f;
   eye[1] = 0.0f;
@@ -1126,6 +1143,7 @@ int main(int argc, char** argv) {
 
   std::cout << "W : Toggle wireframe\n";
   std::cout << "C : Toggle face culling\n";
+  std::cout << "F : Fit to scene\n";
   //std::cout << "K, J, H, L, P, N : Move camera\n";
   std::cout << "Q, Esc : quit\n";
 
@@ -1154,13 +1172,18 @@ int main(int argc, char** argv) {
     return -1;
   }
 
-  float maxExtent = 0.5f * (bmax[0] - bmin[0]);
-  if (maxExtent < 0.5f * (bmax[1] - bmin[1])) {
-    maxExtent = 0.5f * (bmax[1] - bmin[1]);
+  scene_bmin[0] = bmin[0]; scene_bmin[1] = bmin[1]; scene_bmin[2] = bmin[2];
+  scene_bmax[0] = bmax[0]; scene_bmax[1] = bmax[1]; scene_bmax[2] = bmax[2];
+
+  scene_maxExtent = 0.5f * (bmax[0] - bmin[0]);
+  if (scene_maxExtent < 0.5f * (bmax[1] - bmin[1])) {
+    scene_maxExtent = 0.5f * (bmax[1] - bmin[1]);
   }
-  if (maxExtent < 0.5f * (bmax[2] - bmin[2])) {
-    maxExtent = 0.5f * (bmax[2] - bmin[2]);
+  if (scene_maxExtent < 0.5f * (bmax[2] - bmin[2])) {
+    scene_maxExtent = 0.5f * (bmax[2] - bmin[2]);
   }
+
+  FitToScene();
 
   while (glfwWindowShouldClose(window) == GL_FALSE) {
     glfwPollEvents();
@@ -1178,9 +1201,9 @@ int main(int argc, char** argv) {
               up[1], up[2]);
 
     float center[3];
-    center[0] = 0.5 * (bmax[0] + bmin[0]);
-    center[1] = 0.5 * (bmax[1] + bmin[1]);
-    center[2] = 0.5 * (bmax[2] + bmin[2]);
+    center[0] = 0.5f * (scene_bmax[0] + scene_bmin[0]);
+    center[1] = 0.5f * (scene_bmax[1] + scene_bmin[1]);
+    center[2] = 0.5f * (scene_bmax[2] + scene_bmin[2]);
     float rotm[4][4];
     turntable(g_angleX, g_angleY, center, rotm);
 
@@ -1188,13 +1211,13 @@ int main(int argc, char** argv) {
     glMultMatrixf(&mat[0][0]);
 
     // Fit to -1, 1
-    glScalef(1.0f / maxExtent, 1.0f / maxExtent, 1.0f / maxExtent);
+    glScalef(1.0f / scene_maxExtent, 1.0f / scene_maxExtent,
+             1.0f / scene_maxExtent);
 
-#if 0
     // Centerize object.
-    glTranslatef(-0.5 * (bmax[0] + bmin[0]), -0.5 * (bmax[1] + bmin[1]),
-                 -0.5 * (bmax[2] + bmin[2]));
-#endif
+    glTranslatef(-0.5f * (scene_bmax[0] + scene_bmin[0]),
+                 -0.5f * (scene_bmax[1] + scene_bmin[1]),
+                 -0.5f * (scene_bmax[2] + scene_bmin[2]));
 
     Draw(gDrawObjects, materials, textures);
 
