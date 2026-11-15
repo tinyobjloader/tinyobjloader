@@ -3,6 +3,8 @@ import Tess.C.Gen
 import Tess.C.Arithmetic
 import Tess.C.Magnitude
 import Tess.Certificate
+import Tess.SegmentConflict
+import Tess.Plane
 import Tess.Check
 import Tess.Soundness
 import Tess.Winding
@@ -31,3 +33,13 @@ import Tess.Validity2
 import Tess.Schedule2
 import Tess.PredicateGeometry
 import Tess.SegmentSoundness
+import Tess.PredicateFixture
+import Tess.IntersectionCompleteness
+import Tess.Orient3
+import Tess.IndexedConflict
+import Tess.Orient3Bridge
+import Tess.PlaneCutBridge
+import Tess.TriangleContainsBridge
+import Tess.ProjectionBridge
+import Tess.TriangleContact
+import Tess.TriangleContactSoundness

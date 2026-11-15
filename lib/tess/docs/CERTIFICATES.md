@@ -4,7 +4,7 @@ A mathematical certificate is accepted only after the executable Lean checker
 accepts the actual emitted bytes against a separately retained canonical request:
 
 ```sh
-(cd formal && lake build Tess tesscheck)
+(cd formal && lake build Tess tesscheck tesspredicates)
 formal/.lake/build/bin/tesscheck held-request.tess actual-output.tess
 # Alternatively: request bytes, one NUL byte, then result bytes on stdin.
 formal/.lake/build/bin/tesscheck --stdin < request-NUL-result.bin

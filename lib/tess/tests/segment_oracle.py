@@ -44,29 +44,39 @@ def intersects(points):
         max(a[axis], b[axis]), max(c[axis], d[axis]))
 
 
-rng = random.Random(0x5E6C11)
-grid = [(x, y, 0.) for x, y in product(range(-1, 2), repeat=2)]
-cases = list(product(grid, repeat=4))
-for _ in range(1024):
-    cases.append([tuple(math.ldexp(rng.randrange(-8, 9), rng.randrange(-500, 501))
-                        for _ in range(2))+(0.,) for _ in range(4)])
-for exponent in (-1000, -500, 0, 500, 1000):
-    v = math.ldexp(1., exponent)
-    u = math.ulp(v)
-    cases.extend([
-        [(0., 0., 0.), (v, v, 0.), (0., v, 0.), (v, 0., 0.)],
-        [(0., 0., 0.), (v, 0., 0.), (v, 0., 0.), (v+u, 0., 0.)],
-        [(0., 0., 0.), (v, 0., 0.), (v+u, 0., 0.), (2*v, 0., 0.)],
-        [(0., 0., 0.), (v, 0., 0.), (v/2, 0., 0.), (2*v, 0., 0.)],
-        [(0., 0., 0.), (0., 0., 0.), (0., -v, 0.), (0., v, 0.)],
-        [(0., 0., 0.), (0., 0., 0.), (u, 0., 0.), (u, 0., 0.)]])
-commands = ['segments '+' '.join(float(x).hex() for p in case for x in p)+'\n'
-            for case in cases]
-checked = subprocess.run([sys.argv[1]], input=''.join(commands), capture_output=True,
-                         text=True, timeout=120)
-assert checked.returncode == 0, checked.stderr
-actual = list(map(int, checked.stdout.split()))
-assert len(actual) == len(cases)
-for i, (case, result) in enumerate(zip(cases, actual)):
-    assert result == int(intersects(case)), (i, case, result)
-print(f'{len(cases)} closed segment contact cases passed, including zero-length segments; seed=0x5E6C11')
+def fixtures():
+    rng = random.Random(0x5E6C11)
+    grid = [(x, y, 0.) for x, y in product(range(-1, 2), repeat=2)]
+    cases = list(product(grid, repeat=4))
+    for _ in range(1024):
+        cases.append([tuple(math.ldexp(rng.randrange(-8, 9), rng.randrange(-500, 501))
+                            for _ in range(2))+(0.,) for _ in range(4)])
+    for exponent in (-1000, -500, 0, 500, 1000):
+        v = math.ldexp(1., exponent)
+        u = math.ulp(v)
+        cases.extend([
+            [(0., 0., 0.), (v, v, 0.), (0., v, 0.), (v, 0., 0.)],
+            [(0., 0., 0.), (v, 0., 0.), (v, 0., 0.), (v+u, 0., 0.)],
+            [(0., 0., 0.), (v, 0., 0.), (v+u, 0., 0.), (2*v, 0., 0.)],
+            [(0., 0., 0.), (v, 0., 0.), (v/2, 0., 0.), (2*v, 0., 0.)],
+            [(0., 0., 0.), (0., 0., 0.), (0., -v, 0.), (0., v, 0.)],
+            [(0., 0., 0.), (0., 0., 0.), (u, 0., 0.), (u, 0., 0.)]])
+    return cases
+
+
+def main(executable):
+    cases = fixtures()
+    commands = ['segments '+' '.join(float(x).hex() for p in case for x in p)+'\n'
+                for case in cases]
+    checked = subprocess.run([executable], input=''.join(commands), capture_output=True,
+                             text=True, timeout=120)
+    assert checked.returncode == 0, checked.stderr
+    actual = list(map(int, checked.stdout.split()))
+    assert len(actual) == len(cases)
+    for i, (case, result) in enumerate(zip(cases, actual)):
+        assert result == int(intersects(case)), (i, case, result)
+    print(f'{len(cases)} closed segment contact cases passed, including zero-length segments; seed=0x5E6C11')
+
+
+if __name__ == '__main__':
+    main(sys.argv[1])

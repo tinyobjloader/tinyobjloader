@@ -108,11 +108,11 @@ theorem RationalSegment_real (a b p : Point2) (h : RationalSegment a b p) :
   push_cast
   rfl
 
-/-- Accepted closed intersection supplies a real common segment point. This
-includes zero-length segments, endpoints, and collinear interval overlap. -/
-theorem closedIntersection_sound (a b c d : Point2) (checked : closedIntersection a b c d=true) :
-    ∃ p : P2,(∃ t : ℝ,0≤t ∧ t≤1 ∧ p=interpolate (realPoint2 a) (realPoint2 b) t) ∧
-      (∃ t : ℝ,0≤t ∧ t≤1 ∧ p=interpolate (realPoint2 c) (realPoint2 d) t) := by
+/-- Every accepted intersection has a rational common point, even when it
+arises from collinear overlap rather than a proper crossing. -/
+theorem closedIntersection_rational (a b c d : Point2)
+    (checked : closedIntersection a b c d=true) :
+    ∃ p,RationalSegment a b p ∧ RationalSegment c d p := by
   simp only [closedIntersection,Bool.or_eq_true,decide_eq_true_eq] at checked
   have selfStart (a b : Point2):RationalSegment a b a:=⟨0,by norm_num,by norm_num,by simp [segmentPoint]⟩
   have selfEnd (a b : Point2):RationalSegment a b b:=⟨1,by norm_num,by norm_num,by cases a;cases b;simp [segmentPoint]⟩
@@ -123,7 +123,14 @@ theorem closedIntersection_sound (a b c d : Point2) (checked : closedIntersectio
     · exact ⟨a,selfStart a b,onSegment_rational _ _ _ left⟩
     · exact ⟨b,selfEnd a b,onSegment_rational _ _ _ left⟩
     · exact properCrossing_rational a b c d cross
-  obtain ⟨p,hp,hq⟩:=rational
+  exact rational
+
+/-- Accepted closed intersection supplies a real common segment point. This
+includes zero-length segments, endpoints, and collinear interval overlap. -/
+theorem closedIntersection_sound (a b c d : Point2) (checked : closedIntersection a b c d=true) :
+    ∃ p : P2,(∃ t : ℝ,0≤t ∧ t≤1 ∧ p=interpolate (realPoint2 a) (realPoint2 b) t) ∧
+      (∃ t : ℝ,0≤t ∧ t≤1 ∧ p=interpolate (realPoint2 c) (realPoint2 d) t) := by
+  obtain ⟨p,hp,hq⟩:=closedIntersection_rational a b c d checked
   exact ⟨realPoint2 p,RationalSegment_real a b p hp,RationalSegment_real c d p hq⟩
 
 /-- Every convex parameter gives coordinate-wise closed interval membership. -/

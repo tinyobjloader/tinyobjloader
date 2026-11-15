@@ -50,7 +50,7 @@ jobs:
           lake-package-directory: formal
           auto-config: false
           build: true
-          build-args: Tess tesscheck
+          build-args: Tess tesscheck tesspredicates
           use-mathlib-cache: true
       - name: Kernel proofs, generation and dependency audit
         run: python3 formal/tools/check_tess_proofs.py

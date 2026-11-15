@@ -52,6 +52,8 @@ include(CTest)
 option(TESS_TEST_LEAN "Check actual C artifacts with the built Lean checker" OFF)
 set(TESS_LEAN_CHECKER "${TESS_REPO}/formal/.lake/build/bin/tesscheck"
   CACHE FILEPATH "Executable Lean certificate checker")
+set(TESS_LEAN_PREDICATES "${TESS_REPO}/formal/.lake/build/bin/tesspredicates"
+  CACHE FILEPATH "Executable Lean exact predicate validation probe")
 if(BUILD_TESTING)
   find_package(Python3 COMPONENTS Interpreter)
   function(tess_test target test source)
@@ -79,6 +81,8 @@ if(BUILD_TESTING)
   tess_test(tess_benchmark "" tools/benchmark.c)
   tess_test(tess_resource_sweep "" tools/resource_sweep.c)
   if(Python3_FOUND)
+    add_test(NAME tess_predicate_resources COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/tests/predicate_resources.py $<TARGET_FILE:tess_predicate_probe>)
     add_test(NAME tess_segment_oracle COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_CURRENT_SOURCE_DIR}/tests/segment_oracle.py $<TARGET_FILE:tess_predicate_probe>)
     add_test(NAME tess_arithmetic_core_oracle COMMAND ${Python3_EXECUTABLE}
@@ -102,9 +106,11 @@ if(BUILD_TESTING)
     endif()
   endif()
   if(TESS_TEST_LEAN)
-    if(NOT Python3_FOUND OR NOT EXISTS "${TESS_LEAN_CHECKER}")
-      message(FATAL_ERROR "TESS_TEST_LEAN requires Python and a built tesscheck executable")
+    if(NOT Python3_FOUND OR NOT EXISTS "${TESS_LEAN_CHECKER}" OR NOT EXISTS "${TESS_LEAN_PREDICATES}")
+      message(FATAL_ERROR "TESS_TEST_LEAN requires Python and built tesscheck/tesspredicates executables")
     endif()
+    add_test(NAME tess_lean_predicates COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/tests/predicate_differential.py $<TARGET_FILE:tess_predicate_probe> ${TESS_LEAN_PREDICATES})
     add_test(NAME tess_lean_certificates COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_CURRENT_SOURCE_DIR}/tests/lean_regression.py $<TARGET_FILE:tess_emit_certificate> ${TESS_LEAN_CHECKER})
     if(TESS_BUILD_OBJ)

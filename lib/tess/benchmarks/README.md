@@ -11,7 +11,7 @@ fixture. A missing artifact or failed checker is a hard failure.
 ```sh
 cmake -S lib/tess -B /tmp/tess-release -DCMAKE_BUILD_TYPE=Release
 cmake --build /tmp/tess-release -j4
-(cd formal && lake build Tess tesscheck)
+(cd formal && lake build Tess tesscheck tesspredicates)
 python3 lib/tess/benchmarks/run.py --executable /tmp/tess-release/tess_benchmark \
   --checker formal/.lake/build/bin/tesscheck --output /tmp/tess-results.json
 python3 lib/tess/benchmarks/resources.py \

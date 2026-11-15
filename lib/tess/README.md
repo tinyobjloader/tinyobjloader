@@ -6,7 +6,8 @@ repository's tinyobjloader double loader and writer. The implementation and
 verification acceptance ledger is [STATUS.md](STATUS.md). See the
 [algorithm and resource contract](docs/ALGORITHM.md),
 [certificate format and trust boundary](docs/CERTIFICATES.md),
-[proof-to-code matrix](docs/PROOF_MATRIX.md), and
+[proof-to-code matrix](docs/PROOF_MATRIX.md),
+[direct predicate validation](docs/PREDICATE_VALIDATION.md), and
 [measured benchmarks](benchmarks/README.md).
 
 ```sh
@@ -15,7 +16,7 @@ cmake --build /tmp/tess-build -j4
 ctest --test-dir /tmp/tess-build --output-on-failure
 /tmp/tess-build/tess_obj input.obj output.obj
 /tmp/tess-build/tess_obj --target-count 128 --subdivide-boundary input.obj output.obj
-(cd formal && lake build Tess tesscheck)
+(cd formal && lake build Tess tesscheck tesspredicates)
 /tmp/tess-build/tess_obj --target-count 128 --subdivide-boundary \
   --lean-checker "$PWD/formal/.lake/build/bin/tesscheck" input.obj output.obj
 python3 lib/tess/tools/verify_asset.py --source input.obj \
@@ -89,8 +90,9 @@ frozen-seed binding, positive height tolerance and symmetric Euclidean distance.
 Symbolic refinement proofs cover the actual translated limb multiply-add
 and signed-magnitude helpers, including INT64_MIN. Segment membership is proved
 equivalent to rational and real closed-segment membership, including degenerate
-segments. This does not make the C geometry library machine-verified. See the
-acceptance ledger for the precise completed proof and test scope.
+segments. Closed intersection is also proved equivalent to rational and real
+common-point existence; false means disjoint real segments. This does not make
+the C geometry library machine-verified. See the acceptance ledger for the precise completed proof and test scope.
 
 A public-header-only example is [examples/square.c](examples/square.c). Build it
 with `-DTESS_BUILD_EXAMPLES=ON`; `tess_square /tmp/square` saves a held request,

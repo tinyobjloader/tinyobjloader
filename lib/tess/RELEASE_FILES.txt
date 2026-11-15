@@ -56,7 +56,20 @@ formal/Tess/Coverage.lean
 formal/Tess/DomainCoverage.lean
 formal/Tess/Generic.lean
 formal/Tess/Graph.lean
+formal/Tess/IndexedConflict.lean
+formal/Tess/IntersectionCompleteness.lean
 formal/Tess/Lift.lean
+formal/Tess/Orient3.lean
+formal/Tess/Orient3Bridge.lean
+formal/Tess/Plane.lean
+formal/Tess/PlaneCutBridge.lean
+formal/Tess/TriangleContains.lean
+formal/Tess/TriangleContainsBridge.lean
+formal/Tess/PredicateFixture.lean
+formal/Tess/TriangleContact.lean
+formal/Tess/TriangleContactSoundness.lean
+formal/Tess/Projection.lean
+formal/Tess/ProjectionBridge.lean
 formal/Tess/PredicateGeometry.lean
 formal/Tess/Predicates.lean
 formal/Tess/RealTopology.lean
@@ -65,6 +78,7 @@ formal/Tess/ReferenceBoundSoundness.lean
 formal/Tess/ReferenceSoundness.lean
 formal/Tess/Schedule.lean
 formal/Tess/Schedule2.lean
+formal/Tess/SegmentConflict.lean
 formal/Tess/SegmentSoundness.lean
 formal/Tess/Separation.lean
 formal/Tess/SeparationSoundness.lean
@@ -77,6 +91,7 @@ formal/Tess/Validity2.lean
 formal/Tess/Winding.lean
 formal/TessAudit.lean
 formal/TessCheck.lean
+formal/TessPredicateProbe.lean
 formal/lake-manifest.json
 formal/lakefile.lean
 formal/lean-toolchain
@@ -97,6 +112,7 @@ lib/tess/benchmarks/results.json
 lib/tess/benchmarks/run.py
 lib/tess/docs/ALGORITHM.md
 lib/tess/docs/CERTIFICATES.md
+lib/tess/docs/PREDICATE_VALIDATION.md
 lib/tess/docs/PROOF_MATRIX.md
 lib/tess/docs/RESEARCH.md
 lib/tess/examples/square.c
@@ -138,8 +154,10 @@ lib/tess/tests/fuzz_regression.py
 lib/tess/tests/lean_regression.py
 lib/tess/tests/obj_regression.py
 lib/tess/tests/oracle.py
+lib/tess/tests/predicate_differential.py
 lib/tess/tests/predicate_oracle.py
 lib/tess/tests/predicate_probe.c
+lib/tess/tests/predicate_resources.py
 lib/tess/tests/segment_oracle.py
 lib/tess/tests/test_adversarial.c
 lib/tess/tests/test_audit.c

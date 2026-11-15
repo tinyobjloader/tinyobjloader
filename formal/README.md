@@ -204,3 +204,18 @@ See [the proof-to-code matrix](../lib/tess/docs/PROOF_MATRIX.md) and
 [certificate commands/trust boundary](../lib/tess/docs/CERTIFICATES.md).
 Run `python3 formal/tools/check_tess_proofs.py` from the repository root for
 regeneration freshness, kernel build and the complete Tess axiom dependency audit.
+
+The `tesspredicates` executable supports bounded exact-rational predicate
+fixtures for direct C/Lean/Fraction comparison. Build with
+`lake build Tess tesscheck tesspredicates`. Segment membership and closed
+intersection both have rational and real equivalence theorems, including
+zero-length and collinear cases. The exact 3D orientation is also a light
+executable definition whose cast, coplanarity and `planeValue` identities are
+proved separately. Strict 3D plane cuts likewise have exact rational
+interpolation and plane-zero theorems, while the no-mixed-sign 2D containment
+test covers either face orientation. These are not refinements of the full
+C auditor. The indexed shared-simplex exceptions are
+proved separately: with disjoint endpoint IDs, `segmentConflict` is equivalent
+to closed geometric intersection, while identical indexed edges are expected
+shared simplices. See
+[predicate validation](../lib/tess/docs/PREDICATE_VALIDATION.md).

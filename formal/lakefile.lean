@@ -25,3 +25,7 @@ lean_lib «Tess» where
 
 lean_exe «tesscheck» where
   root := `TessCheck
+
+/-- Bounded exact predicate probe for independent C/Lean/Python validation. -/
+lean_exe «tesspredicates» where
+  root := `TessPredicateProbe

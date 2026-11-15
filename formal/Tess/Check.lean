@@ -1,4 +1,6 @@
 import Tess.Reference
+import Tess.SegmentConflict
+import Tess.Plane
 namespace Tess
 
 def allN (n : Nat) (p : Nat → Bool) : Bool := (List.range n).all p
@@ -7,15 +9,7 @@ def facePositive (m : ExactMesh) (f : Face) : Bool :=
 def inside (m : ExactMesh) (f : Face) (p : Point2) (strict : Bool := false) : Bool :=
   f.edges.all fun (a,b) => if strict then decide (0 < orient (m.project a) (m.project b) p)
     else decide (0 ≤ orient (m.project a) (m.project b) p)
-def segmentConflict (m : ExactMesh) (a b c d : Nat) : Bool :=
-  if (a=c && b=d) || (a=d && b=c) then false else
-  let p := m.project a; let q := m.project b
-  let r := m.project c; let s := m.project d
-  (decide (c≠a ∧ c≠b) && onSegment p q r) ||
-  (decide (d≠a ∧ d≠b) && onSegment p q s) ||
-  (decide (a≠c ∧ a≠d) && onSegment r s p) ||
-  (decide (b≠c ∧ b≠d) && onSegment r s q) ||
-  decide (orient p q r * orient p q s < 0 ∧ orient r s p * orient r s q < 0)
+
 def facePair (m : ExactMesh) (a b : Face) : Bool :=
   pairSeparable m a b && !(a.ids.any (fun i => inside m b (m.project i) true)) &&
   !(b.ids.any (fun i => inside m a (m.project i) true)) &&
@@ -68,12 +62,6 @@ def domainCheck (rings : Array Nat) (m : ExactMesh) : Bool :=
     decide (classifyRing rings m 0 p = 1) &&
     allN (nr-1) (fun j => if i=j then true else decide (classifyRing rings m (j+1) p = 0)))
 
-def planeValue (m : ExactMesh) (f : Face) (p : Point3) : Rat :=
-  let a := m.point f.a; let b := m.point f.b; let c := m.point f.c
-  let ax := a.x-p.x; let ay := a.y-p.y; let az := a.z-p.z
-  let bx := b.x-p.x; let byy := b.y-p.y; let bz := b.z-p.z
-  let cx := c.x-p.x; let cy := c.y-p.y; let cz := c.z-p.z
-  ax*(byy*cz-bz*cy)-ay*(bx*cz-bz*cx)+az*(bx*cy-byy*cx)
 def planarCheck (m : ExactMesh) : Bool :=
   match m.faces[0]? with
   | none => false

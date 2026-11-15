@@ -173,3 +173,129 @@ build warning policy.
   (66.89 seconds), with local leak detection disabled for the previously
   documented tracing limitation. A standalone source-copy build without the
   repository OBJ adapter passes 20/20 tests (35.27 seconds).
+
+## Closed-intersection completeness and direct executable validation (2026-11-15)
+
+- `Tess.closedIntersection_iff_real` and `closedIntersection_iff_rational`
+  characterize true results by real and rational common segment points.
+  `closedIntersection_false_iff` proves false means real disjointness. The
+  completeness proof covers point segments, endpoints and collinear intervals
+  without general-position assumptions. Rational witness soundness is exposed
+  separately as `closedIntersection_rational`.
+- A bounded `tesspredicates` executable evaluates the actual Lean orientation,
+  corrected incircle, membership and intersection definitions. The C/Lean/
+  Fraction suite passes 16,036 shared exact-dyadic cases. Independent Python
+  constructions use homogeneous Gaussian determinants and line parameters.
+- The new fixture parser passes malformed, zero-denominator, UTF-8, NUL,
+  missing-field, usage, count/line/digit/byte-limit tests and 64 deterministic
+  mutations. Accepted mutations are checked against Fraction. Newline limits
+  are checked before splitting records. This validation protocol does not
+  replace certificates or claim a proved parser/compiler refinement.
+- A frozen extreme mixed-exponent incircle fixture returns the expected default
+  C resource status with no sign; Lean and Fraction agree on its exact result.
+  Error paths in the C test probe now release the mesh before returning, with
+  byte-accounting teardown checks. A native-only resource regression also runs
+  in the sanitizer CI job without requiring Lean.
+- Complete proof/generation/axiom audit passes: 905 Tess declarations, standard
+  allowlist only. GCC passes 27/27 tests (84.19 seconds), Clang 24/24 (30.81
+  seconds). A standalone source-copy build passes 21/21 (35.25 seconds).
+  The full 16,036-case direct workload, frozen C resource error and
+  parser campaigns also pass with the C executable under ASan/UBSan; local leak
+  detection remains disabled for the documented tracing limitation.
+- `TESS_TEST_LEAN` requires the two executable targets `tesscheck` and
+  `tesspredicates`; build commands and CI now build both. The OBJ/geometry core
+  and artifact-checker definitions are unchanged. See
+  [PREDICATE_VALIDATION.md](docs/PREDICATE_VALIDATION.md) for exact conventions,
+  protocol limits, trust boundary and reproduction commands.
+
+## Indexed segment-conflict semantics and shared-ID validation (2026-11-15)
+
+- The exact computational `segmentConflict` definition now lives in the light
+  `formal/Tess/SegmentConflict.lean` module so executable validation can call
+  the same code as the checker. `Check.lean` uses that module; the artifact
+  checker behavior is unchanged.
+- `formal/Tess/IndexedConflict.lean` proves that an indexed conflict is a real
+  closed geometric intersection and that ordinary closed intersection is
+  equivalent to indexed conflict for valid indices, nondegenerate projected
+  edges and disjoint edge endpoint-ID sets. Identical unordered indexed edges
+  are explicitly expected shared simplices. For edges sharing only `a=c`, the
+  result characterizes precisely the unexpected endpoint contacts, including
+  collinear overlap beyond the common indexed vertex; proper crossing is
+  impossible there. These are Lean executable-specification proofs, not a C
+  refinement.
+- `tesspredicates` and the C probe now support `indexedsegments`, with binary64
+  coordinates plus four vertex IDs for C and exact rationals plus IDs for Lean.
+  Non-1024 IDs are rejected, repeated IDs must carry equal coordinates, and the
+  Lean fixture rejects inconsistent shared-ID fixtures. The Python oracle models
+  exact IDs, line parameters and interval overlap.
+- The direct comparison now covers **19,982** C/Lean/Fraction cases: ordinary
+  disjoint-overlap checks, every shared endpoint position, identical and reversed
+  indexed edges, larger IDs, collinear/degenerate data and mixed dyadic exponents.
+  Accepted Lean parser mutations are still checked against Fraction and include
+  inconsistent repeated-ID fixtures.
+- The complete regeneration/kernel/axiom audit passes for **971** Tess declarations
+  with only `propext`, `Classical.choice` and `Quot.sound` allowed. GCC Release
+  passes 27/27 tests (84.95 seconds); Clang Release passes 27/27 tests (77.55
+  seconds). The full 19,982-case workload passes with the C probe under
+  ASan/UBSan, with local leak detection disabled for the documented tracing
+  limitation. The frozen resource-exhaustion fixture and parser campaign also pass.
+
+## Exact 3D orientation and plane-value bridge (2026-11-15)
+
+- `formal/Tess/Orient3.lean` defines the actual exact determinant in the same
+  row order as `tg_orient3` (`a-d`, `b-d`, `c-d`) without pulling in proof
+  dependencies. `Tess.Orient3Bridge` proves its cast to the real scalar triple
+  product, the zero/coplanarity equivalence (linear dependence, with no
+  noncollinearity hypothesis), and exact equality with the checker's
+  `planeValue` and plane-value coplanarity check.
+- `tesspredicates` now supports `orient3` as twelve 3D coordinates. C receives
+  four explicit vertices through the same `tg_orient3` row order; Lean calls the
+  exact executable determinant; Python uses an independent homogeneous Gaussian
+  determinant over exact Fractions.
+- The direct suite now includes 512 3D cases (128 low-coordinate grid, 256
+  bounded dyadic-exponent random and 128 axis-dominant extreme-exponent cases).
+  These are sign comparisons under C's default work budget, not a C resource or
+  allocator refinement. The proof claims remain statements about the executable
+  Lean specification, not the C implementation.
+- The regeneration/kernel/axiom audit passes for **971** declarations with the
+  same three-standard-axiom allowlist. GCC and Clang Release pass 27/27 tests
+  (84.95 and 77.55 seconds). The full **19,982-case** workload passes under
+  ASan/UBSan; local leak detection remains disabled for the documented tracing
+  limitation.
+
+
+## Exact strict 3D plane cuts (2026-11-15)
+
+- The exact computational `planeValue` determinant now lives in lightweight
+  `formal/Tess/Plane.lean`, shared by the checker and future executable probes.
+  `Check.lean` and the certificate artifact definitions are unchanged.
+- `formal/Tess/PlaneCutBridge.lean` proves affine interpolation of `planeValue`
+  and that the strict opposite-sign formula used by the 3D audit yields an exact
+  rational point on the segment, on the supporting plane, and coplanar with the
+  face vertices. Coplanar and endpoint-touching cases are intentionally not reclassified as strict cuts.
+- `formal/Tess/TriangleContainsBridge.lean` proves the no-mixed-sign 2D
+  containment test used by the auditor projection: for nonzero projected face
+  orientation it is the closed triangle in either orientation, with the correct
+  reversed edge order when the face is clockwise. This covers both face
+  orientations without a nondegeneracy-free claim. `Projection.containsProject`
+  instantiates that theorem for the auditor's own 3D projection axes and proves
+  the real closed-triangle characterization in both orientations.
+- These theorems connect the executable rational cut arithmetic to the 3D
+  orientation/coplanarity bridge. They do not prove the full C auditor, native
+  3D triangle containment or allocator/resource behavior.
+
+
+## Exact noncoplanar triangle audits (2026-11-15)
+
+- `formal/Tess/TriangleContact.lean` gives the exact noncoplanar 3D
+  triangle-contact predicate built from the proved plane-cut and projected
+  containment definitions. The first projection axis is selected explicitly and
+  degenerate faces are rejected. The function is not the indexed shared-simplex
+  path.
+- `tesspredicates` and the C probe now support `tricontact` with six 3D points.
+  C calls the native `tg_audit3` diagnostic checker and reports audit acceptance;
+  Lean evaluates the exact executable predicate; Python uses an exact mixed-plane
+  determinant and projected containment oracle. 64 nondegenerate noncoplanar
+  pairs cover disjoint and contacting cases.
+- These are bounded direct comparisons of exact executable paths, not a C
+  refinement theorem for `tg_audit3`, nor coplanar or shared-index validation.
