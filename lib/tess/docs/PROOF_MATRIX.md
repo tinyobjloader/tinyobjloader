@@ -1,0 +1,57 @@
+# Proof, implementation and evidence matrix
+
+The public mathematical release claims are `Tess.check_sound` and
+`Tess.check2_sound`. Their exact conclusions are in
+[`Validity.lean`](../../../formal/Tess/Validity.lean) and
+[`Validity2.lean`](../../../formal/Tess/Validity2.lean). Both have the form
+`check request cert = true → Valid request cert`. They require checker
+acceptance, not hypotheses assuming output domain coverage or embedding.
+The domain is the closure/regularization of the positive oriented ring-winding
+region after the recorded chart transform. Validated simple outer/hole rings
+supply that prescribed domain. Quality statistics are separate engineering claims.
+
+| Claim and assumptions | Lean definitions/proofs | C counterpart | Frozen/regression evidence |
+| --- | --- | --- | --- |
+| Exact determinant definitions, orientation soundness, sound and complete segment membership plus closed-intersection soundness, including endpoints/collinearity | `Predicates`, `PredicateGeometry.orient_realPoint2`, `inside_iff_closedTriangle`, `SegmentSoundness.onSegment_iff_rational`, `onSegment_iff_real`, `closedIntersection_sound` | `geometry.c`, `predicates.c`, `exact.c` | `test_predicate`, 15,625 integer grid triples; 1,905 Fraction cases; 11,293 incircle/orient3 cases; 7,615 independent line-parameter contact cases; adversarial ring tests |
+| Oriented incircle sign equals circle power under the stated noncollinearity/circumcircle hypotheses; CDT legality is a separate property | `PredicateGeometry.incircle_circle_identity`, `illegalDelaunay_circle`; `Predicates.illegalDelaunay_sound` | `predicates.c`, `legalize.c` | cocircular/near-cocircular oracle; zero-Lawson-fuel incomplete flag; final local seed legality checks |
+| Accepted positive triangles intersect exactly in their common indexed simplex | `Separation`, `SeparationSoundness.mesh_intersection_sound` | `audit.c`, `geometry.c` | shared-edge overlap, isolated contact, skew disjoint, noncoplanar crossings and randomized exact pair fixtures |
+| Oriented interior-edge cancellation and prescribed ring-boundary equality imply domain coverage, including edges/vertices by density and closure | `Winding`, `RealTopology`, `Coverage`, `DomainCoverage`, `CertificateCoverage`, `BoundaryCoverage2.check2_domains` | `topology.c`, `geometry.c`, `certificate.c` | annulus, collinear chain, reversed winding, concave L; corrupted faces/boundaries rejected by C and Lean |
+| Positive embedded projected complex and consistent heights define a continuous PL graph, homeomorphic to its projected domain | `Barycentric`, `Lift`, `Graph.graphHomeomorph` | graph lift in `geometry.c`; final audit | warped saddle, vertical chart, overhang rejection, frozen diagonal fixtures |
+| V1 frozen caller-held request, full seed/output validity, exact reference and unchanged constraints | `Check`, `Soundness`, `ReferenceSoundness`, `Validity.check_sound` | `certificate.c` V1 | actual C certificates, changed seed+output diagonal rejection, request/options mutation and corruption |
+| V2 stable/pinned original inputs, unique IDs, ordered exact 3D constraint chains with tags, orientation and full parameter interval [0,1]; fixed subdivision policy | `Subdivision`, `V2`, `ChainSoundness`, `ConstraintCoverage`, `Validity2.InputPreserved` | `features.c`, `edits.c`, `certificate.c` | feature tags 42/99, refinement chains, forbidden edge insertion, owner/parameter/tag/pin/stable-ID mutations |
+| Complete affine height bound over the same domain, zero-tolerance equality and symmetric Euclidean distance via equal chart coordinates | `Reference`, `V2Check`, `AffineBound`, `AffineBoundSoundness`, `ReferenceBoundSoundness`, `Validity2.check2_sound` | `overlay.c`, `certificate.c` | opposite warped diagonals: equal input vertex heights but crossing error 1/2; exact 0 and 1/3 reject, 1/2 accepts; actual approximate outputs |
+| Finite fuel scheduling and rejected-transaction preservation, for an abstract proposal function and accepted checks | `Schedule`, `Schedule2.schedule2_sound` | bounded loops/staging in `remesh.c` | deterministic repeated output; candidate caps; allocation faults before/after a committed edit; retained valid checkpoints |
+| Actual translated uint32 multiply-add returns a*b+c+d < 2^64, no UB or memory/state mutation, for every four uint32 arguments and arbitrary MiniC state satisfying local bindings | `C/Gen`, `C/Arithmetic.limb_madd_bound`, `limb_madd_refines`, `limb_madd_digits`; reused `Obj/C/Semantics`, `Obj/C/Logic` | `exact_core.c:tess_limb_madd`, used in `exact.c` | generated-source freshness; 10,657 direct helper/carry oracle cases |
+| Actual translated signed magnitude is the absolute value for every int64 input, including INT64_MIN, with no UB or state change | `C/Magnitude.magnitude_refines`, reusing `Obj/C/Proofs/ObjFixIndex.toInt_i64_wrap` | `exact_core.c:tess_mag`, used in `exact.c` | 4,688 direct helper oracle cases, signed extrema and power-of-two neighbors |
+
+Both helpers have symbolic MiniC refinement proofs. The full arbitrary-precision
+implementation, allocation/resource
+handling, 3D auditor, numeric metrics, optimizer, OBJ parser/writer and C compiler
+are not refined by these proofs. The abstract schedule theorem does not prove
+that the C schedule implements the model. Deterministic seed choice is tested C
+behavior, not replayed in Lean. No angle, quality-convergence, termination-with-
+targets-met, physical-metric CDT or normal-deviation theorem is claimed.
+
+Lean's executable overlay checker enumerates rational intersections and validates
+independent nonnegative affine-dual identities for whole-cell bounds. Soundness
+of accepted identities is proved; existence/search completeness is unnecessary
+and not claimed. Resource-bounded checkers can reject valid geometry.
+
+## Reproduce the proof audit
+
+```sh
+# Lean v4.35.0 and mathlib revision are pinned in formal/.
+(cd formal && lake exe cache get)
+python3 formal/tools/check_tess_proofs.py
+```
+
+The script checks default tinyobjloader generation freshness and selected tess
+helper freshness, rejects incomplete-proof/axiom/native-decision tokens in Tess
+sources, builds `Tess` and `tesscheck`, then runs `TessAudit.lean`. The audit scans
+compiled dependencies of all public Tess declarations, not only the final two
+theorems. The current audit covered 878 declarations and permitted only
+`propext`, `Classical.choice`, and `Quot.sound`. Compiler warnings about style or
+deprecations do not weaken this kernel-backed dependency check. No incomplete
+proof is accepted. The generated executable additionally depends on Lean's
+runtime; decoding and external byte associations remain the documented trust
+boundary in [CERTIFICATES.md](CERTIFICATES.md).

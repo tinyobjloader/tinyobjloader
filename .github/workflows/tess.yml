@@ -1,0 +1,63 @@
+name: tess C11 and Lean certificates
+on:
+  push:
+    paths: ['lib/tess/**', 'formal/**', 'tiny_obj_c*', 'tobj_*', 'CMakeLists.txt', '.github/workflows/tess.yml']
+  pull_request:
+    paths: ['lib/tess/**', 'formal/**', 'tiny_obj_c*', 'tobj_*', 'CMakeLists.txt', '.github/workflows/tess.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  c11:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        cc: [gcc, clang]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Strict C11 release build
+        run: |
+          cmake -S lib/tess -B build/tess -DCMAKE_C_COMPILER=${{ matrix.cc }} -DCMAKE_BUILD_TYPE=Release -DTESS_BUILD_EXAMPLES=ON
+          cmake --build build/tess -j2
+          ctest --test-dir build/tess --output-on-failure
+      - name: Standalone source-copy build
+        run: |
+          cp -a lib/tess /tmp/tess-standalone
+          cmake -S /tmp/tess-standalone -B /tmp/tess-standalone-build -DCMAKE_C_COMPILER=${{ matrix.cc }} -DBUILD_TESTING=OFF -DTESS_BUILD_EXAMPLES=ON
+          cmake --build /tmp/tess-standalone-build -j2
+          /tmp/tess-standalone-build/tess_square /tmp/tess-square
+  sanitizer:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Address and undefined behavior sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cmake -S lib/tess -B build/tess-san -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_FLAGS='-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer' -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined'
+          cmake --build build/tess-san -j2
+          ctest --test-dir build/tess-san --output-on-failure
+  certificates:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: leanprover/lean-action@v1
+        env:
+          LEAN_NUM_THREADS: '1'
+        with:
+          lake-package-directory: formal
+          auto-config: false
+          build: true
+          build-args: Tess tesscheck
+          use-mathlib-cache: true
+      - name: Kernel proofs, generation and dependency audit
+        run: python3 formal/tools/check_tess_proofs.py
+      - name: Actual C output and OBJ certificate checks
+        run: |
+          cmake -S lib/tess -B build/tess-cert -DCMAKE_BUILD_TYPE=Release -DTESS_TEST_LEAN=ON
+          cmake --build build/tess-cert -j2
+          ctest --test-dir build/tess-cert --output-on-failure
+          python3 lib/tess/benchmarks/run.py --executable build/tess-cert/tess_benchmark --checker formal/.lake/build/bin/tesscheck --output build/tess-cert/benchmark.json
+          python3 lib/tess/benchmarks/resources.py --executable build/tess-cert/tess_resource_sweep --output build/tess-cert/resources.json

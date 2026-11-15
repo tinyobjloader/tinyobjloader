@@ -28,6 +28,8 @@
 /*                                                                           */
 /*   TOBJ_NO_LIBC / TOBJ_FREESTANDING : forbid libc; caller must supply an   */
 /*                                      allocator; no default file I/O.      */
+/*   TOBJ_SCAN_DOUBLE_OVERRIDE(pp,end,out): optional bounded number scanner.  */
+/*     Declare it before compiling the implementation; default is unchanged. */
 /*   TOBJ_ENABLE_FILE_IO              : tobj_load_obj_from_file_* helpers.   */
 /*   TOBJ_ENABLE_MMAP                 : use mmap / MapViewOfFile in file I/O. */
 /*   TOBJ_ENABLE_MULTITHREADING       : parallel chunked parse.             */

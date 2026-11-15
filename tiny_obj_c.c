@@ -400,6 +400,7 @@ static void tobj_skip_space(const char **pp, const char *end) {
   *pp = p;
 }
 
+#ifndef TOBJ_SCAN_DOUBLE_OVERRIDE
 /* Exact powers of ten representable in IEEE-754 double (1e0 .. 1e22). */
 static const double tobj_pow10_tab[23] = {
     1e0,  1e1,  1e2,  1e3,  1e4,  1e5,  1e6,  1e7,  1e8,  1e9,  1e10, 1e11,
@@ -440,9 +441,14 @@ static bool tobj_match_ci(const char **pp, const char *end, const char *word) {
   return true;
 }
 
+#endif
+
 /* Parse a (possibly signed) floating point token. Maps non-finite words to
  * finite OBJ-friendly values (nan->0, +/-inf->+/-DBL_MAX). */
 static bool tobj_scan_double(const char **pp, const char *end, double *out) {
+#ifdef TOBJ_SCAN_DOUBLE_OVERRIDE
+  return TOBJ_SCAN_DOUBLE_OVERRIDE(pp, end, out);
+#else
   tobj_skip_space(pp, end);
   const char *p = *pp;
   if (p >= end) return false;
@@ -523,6 +529,7 @@ static bool tobj_scan_double(const char **pp, const char *end, double *out) {
   *out = sign < 0 ? -value : value;
   *pp = p;
   return true;
+#endif
 }
 
 /* Parse a (possibly signed) integer token (saturating to int range). */

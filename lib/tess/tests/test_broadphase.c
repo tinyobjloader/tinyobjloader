@@ -1,0 +1,7 @@
+#include "result.h"
+#include <stdio.h>
+static unsigned rng=1234567;
+static unsigned next(void){rng=rng*1664525u+1013904223u;return rng;}
+int main(void){size_t trial,i,j;for(trial=0;trial<600;trial++){tm m;int fast,slow;tm_init(&m);for(i=0;i<6;i++){double p[3];for(j=0;j<3;j++)p[j]=(double)((int)(next()%9)-4);tg_add_vertex(&m,p,i);}tg_add_face(&m,0,1,2);tg_add_face(&m,3,4,5);fast=tg_audit3_mode(&m,1);m.c.status=TESS_OK;m.c.ops=0;slow=tg_audit3_mode(&m,0);if(fast!=slow){fprintf(stderr,"3D broadphase disagrees on trial %zu\n",trial);tm_clear(&m);return 1;}tm_clear(&m);if(m.c.bytes)return 2;}
+ {double xyz[]={0,0,0,1,0,0,1,1,0,0,1,0};size_t rings[]={0,4};tess_input in={xyz,4,rings,1};tess_result *r=NULL;tess_options options=tess_default_options();tess_remesh_options remesh=tess_default_remesh_options();tess_run_report report;options.max_operations=2000000000;remesh.subdivide_boundary=1;if(tess_triangulate(&in,&options,&r)!=TESS_OK)return 3;if(tess_remesh(r,&remesh,&report)!=TESS_VALID_TARGETS_MET){tess_result_free(r);return 4;}for(trial=0;trial<30;trial++){tf saved=r->mesh.f[0];int fast,slow;if(trial)r->mesh.f[0].v[next()%3]=next()%r->mesh.nv;fast=tg_validate_mode(&r->mesh,1);r->mesh.c.status=TESS_OK;r->mesh.c.ops=0;slow=tg_validate_mode(&r->mesh,0);r->mesh.f[0]=saved;r->mesh.c.status=TESS_OK;r->mesh.c.ops=0;if(fast!=slow){fprintf(stderr,"planar broadphase disagrees\n");tess_result_free(r);return 5;}}tess_result_free(r);}
+ return 0;}

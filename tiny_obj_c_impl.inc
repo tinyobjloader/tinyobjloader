@@ -142,20 +142,25 @@ static bool TOBJ_T(parse_corner_n)(const char *tok, size_t len, size_t numv,
   tobj_cursor c;
   tobj_cur_init(&c, tok, len);
   int vi;
-  if (!tobj_scan_int(&c.p, c.end, &vi)) return false;
-  bool ok = TOBJ_T(fix_index)(vi, numv, &out->vertex_index);
+  bool got;
+  got = tobj_scan_int(&c.p, c.end, &vi);
+  if (!got) return false;
+  bool ok;
+  ok = TOBJ_T(fix_index)(vi, numv, &out->vertex_index);
   if (c.p < c.end && *c.p == '/') {
     c.p++;
     if (c.p < c.end && *c.p != '/') {
       int ti;
-      if (tobj_scan_int(&c.p, c.end, &ti))
-        TOBJ_T(fix_index)(ti, numvt, &out->texcoord_index);
+      bool gt;
+      gt = tobj_scan_int(&c.p, c.end, &ti);
+      if (gt) TOBJ_T(fix_index)(ti, numvt, &out->texcoord_index);
     }
     if (c.p < c.end && *c.p == '/') {
       c.p++;
       int ni;
-      if (tobj_scan_int(&c.p, c.end, &ni))
-        TOBJ_T(fix_index)(ni, numvn, &out->normal_index);
+      bool gn;
+      gn = tobj_scan_int(&c.p, c.end, &ni);
+      if (gn) TOBJ_T(fix_index)(ni, numvn, &out->normal_index);
     }
   }
   return ok;
@@ -260,6 +265,11 @@ static bool TOBJ_T(handle_vt)(TOBJ_T(tobj_builder) * b, tobj_cursor *c) {
   return true;
 }
 
+static bool TOBJ_T(emit_face_core)(const tobj_index *corners,
+                                    const uint32_t *tri, uint32_t ntri,
+                                    tobj_index *out, size_t *out_count,
+                                    size_t out_cap);
+
 /* Append triangulated/raw face corners to the current shape mesh. */
 static bool TOBJ_T(emit_face)(TOBJ_T(tobj_builder) * b, size_t arity) {
   const tobj_index *corners = (const tobj_index *)b->corners.data;
@@ -336,19 +346,46 @@ static bool TOBJ_T(emit_face)(TOBJ_T(tobj_builder) * b, size_t arity) {
 
   if (b->m_idx.count + (size_t)ntri * 3u > b->caps.indices)
     return TOBJ_T(b_fail)(b, TOBJ_ERR_LIMIT_EXCEEDED);
+  if (ntri > 0) {
+    /* Corner copy is done by the allocation-free core that is verified in
+     * formal/Obj/C/Proofs/ObjEmitFace.lean (emit_face_core_f_exs). */
+    bool copied;
+    if (!tobj_vec_reserve(&b->m_idx, b->m_idx.count + (size_t)ntri * 3u, b->alloc))
+      return TOBJ_T(b_fail)(b, TOBJ_ERR_ALLOC);
+    copied = TOBJ_T(emit_face_core)(corners, tri, ntri,
+                                    (tobj_index *)b->m_idx.data,
+                                    &b->m_idx.count, b->m_idx.cap);
+    if (!copied) return TOBJ_T(b_fail)(b, TOBJ_ERR_ALLOC);
+  }
   for (uint32_t t = 0; t < ntri; t++) {
-    tobj_index tidx[3];
-    tidx[0] = corners[tri[3 * t + 0]];
-    tidx[1] = corners[tri[3 * t + 1]];
-    tidx[2] = corners[tri[3 * t + 2]];
     unsigned fv = 3;
-    if (!tobj_vec_append(&b->m_idx, tidx, 3, b->alloc) ||
-        !tobj_vec_append(&b->m_fv, &fv, 1, b->alloc) ||
+    if (!tobj_vec_append(&b->m_fv, &fv, 1, b->alloc) ||
         !tobj_vec_append(&b->m_mid, &b->cur_material, 1, b->alloc) ||
         !tobj_vec_append(&b->m_sg, &b->cur_smooth, 1, b->alloc))
       return TOBJ_T(b_fail)(b, TOBJ_ERR_ALLOC);
   }
   b->cur_has_prims = true;
+  return true;
+}
+
+/* Verified-friendly core: copy mapped triangle corners into a caller-provided
+ * output array without allocation or builder mutation. */
+static bool TOBJ_T(emit_face_core)(const tobj_index * corners,
+                                    const uint32_t * tri, uint32_t ntri,
+                                    tobj_index * out, size_t * out_count,
+                                    size_t out_cap) {
+  if (!corners || !tri || !out || !out_count) return false;
+  size_t need = (size_t)ntri * 3u;
+  if (*out_count + need > out_cap) return false;
+  for (uint32_t t = 0; t < ntri; t++) {
+    tobj_memcpy(&out[*out_count + 0u], &corners[tri[3u * t + 0u]],
+                sizeof(tobj_index));
+    tobj_memcpy(&out[*out_count + 1u], &corners[tri[3u * t + 1u]],
+                sizeof(tobj_index));
+    tobj_memcpy(&out[*out_count + 2u], &corners[tri[3u * t + 2u]],
+                sizeof(tobj_index));
+    *out_count = *out_count + 3u;
+  }
   return true;
 }
 

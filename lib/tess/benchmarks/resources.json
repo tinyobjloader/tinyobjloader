@@ -1,0 +1,82 @@
+{
+  "timestamp_utc": "2026-11-14T14:25:04.333484+00:00",
+  "platform": "Linux-7.0.0-43-generic-x86_64-with-glibc2.43",
+  "fixture": "(i,i*i,0) in index order, closed by last-to-first edge",
+  "chart_axis": 2,
+  "build": "GCC Release, strict C11",
+  "source_sha256": "d239b57627cc7001d7ea47a065a13d92114356d84d0fb8f5e0d08399c69dc5cc",
+  "samples": [
+    {
+      "vertices": 8,
+      "triangles": 6,
+      "status": 0,
+      "operation_cap": 100000000,
+      "operations": 92362,
+      "peak_construction_bytes": 8560,
+      "cpu_seconds": 0.009074
+    },
+    {
+      "vertices": 16,
+      "triangles": 14,
+      "status": 0,
+      "operation_cap": 100000000,
+      "operations": 540456,
+      "peak_construction_bytes": 15728,
+      "cpu_seconds": 0.056242
+    },
+    {
+      "vertices": 32,
+      "triangles": 30,
+      "status": 0,
+      "operation_cap": 100000000,
+      "operations": 2983892,
+      "peak_construction_bytes": 30064,
+      "cpu_seconds": 0.309964
+    },
+    {
+      "vertices": 64,
+      "triangles": 62,
+      "status": 0,
+      "operation_cap": 100000000,
+      "operations": 16654052,
+      "peak_construction_bytes": 58736,
+      "cpu_seconds": 1.736689
+    },
+    {
+      "vertices": 96,
+      "triangles": 94,
+      "status": 0,
+      "operation_cap": 100000000,
+      "operations": 46864605,
+      "peak_construction_bytes": 103024,
+      "cpu_seconds": 4.762216
+    },
+    {
+      "vertices": 128,
+      "triangles": 126,
+      "status": 0,
+      "operation_cap": 100000000,
+      "operations": 97804448,
+      "peak_construction_bytes": 116080,
+      "cpu_seconds": 9.87781
+    },
+    {
+      "vertices": 160,
+      "triangles": 0,
+      "status": 3,
+      "operation_cap": 100000000,
+      "operations": 100000000,
+      "peak_construction_bytes": 160168,
+      "cpu_seconds": 9.873725
+    },
+    {
+      "vertices": 192,
+      "triangles": 0,
+      "status": 3,
+      "operation_cap": 100000000,
+      "operations": 100000000,
+      "peak_construction_bytes": 161192,
+      "cpu_seconds": 9.906584
+    }
+  ]
+}

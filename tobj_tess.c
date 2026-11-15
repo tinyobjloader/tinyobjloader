@@ -20,6 +20,31 @@
 #define TOBJ_TESS_STACK_N 64u
 #define TOBJ_TESS_STACK_BYTES 2048u
 
+/*
+ * Optional fused multiply-add in the 2D predicates.
+ *
+ * `tobj_orient2d` is `(b0-a0)*(c1-a1) - (b1-a1)*(c0-a0)`.  Computing the
+ * product and the subtraction separately rounds twice; a fused multiply-add
+ * rounds the whole `a*b + c` expression once, which is strictly more accurate
+ * for the orientation test and for `tobj_tess_signed_area`.  Both x86-64
+ * (FMA3 `vfmadd*sd`) and AArch64 (`fmadd`) implement IEEE-754
+ * `fusedMultiplyAdd`, so a single `fma()` call is portable and bit-identical
+ * on both.  Off by default: it changes the exact rounding of the predicates,
+ * so it is opt-in.  Define `TOBJ_TESS_USE_FMA` (or build with
+ * `-ffp-contract=fast`, which is *not* relied upon here) to enable it.
+ */
+#ifdef TOBJ_TESS_USE_FMA
+#if defined(__clang__) || defined(__GNUC__)
+#define TOBJ_TESS_FMA(a, b, c) __builtin_fma((a), (b), (c))
+#else
+#include <math.h>
+#define TOBJ_TESS_FMA(a, b, c) fma((a), (b), (c))
+#endif
+#else
+/* Unfused fallback: two roundings, but no dependency on FMA hardware. */
+#define TOBJ_TESS_FMA(a, b, c) (((a) * (b)) + (c))
+#endif
+
 /* ----------------------------------------------------------------------- */
 /* scratch layout                                                          */
 /* ----------------------------------------------------------------------- */
@@ -37,11 +62,12 @@ static size_t tobj_tess_align(size_t x, size_t a) {
 
 size_t tobj_tess_scratch_size(uint32_t n) {
   size_t sn = (size_t)n;
+  size_t base = tobj_tess_align(sizeof(tobj_tess_work), 16);
   size_t a = tobj_tess_align(sn * 2u * sizeof(double), 16);
   size_t b = tobj_tess_align(sn * sizeof(uint32_t), 16);
   size_t c = tobj_tess_align(sn * sizeof(uint32_t), 16);
   size_t d = tobj_tess_align((sn + 7u) / 8u, 16);
-  return a + b + c + d;
+  return base + a + b + c + d;
 }
 
 static int tobj_tess_work_bind(tobj_tess_work *w, void *scratch, size_t size,
@@ -75,10 +101,13 @@ static int tobj_tess_is_reflex(tobj_tess_work *w, uint32_t i) {
 /* ----------------------------------------------------------------------- */
 
 static double tobj_orient2d(const double *a, const double *b, const double *c) {
-  return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+  /* (b0-a0)*(c1-a1) - (b1-a1)*(c0-a0), i.e. fma(dx0, dy1, -(dy0 * dx1)).
+     The fused form rounds the product-and-subtract once. */
+  return TOBJ_TESS_FMA(b[0] - a[0], c[1] - a[1],
+                       -((b[1] - a[1]) * (c[0] - a[0])));
 }
 
-static double tobj_dabs(double x) { return x < 0 ? -x : x; }
+static double tobj_dabs(double x) { return x < 0.0 ? -x : x; }
 static int tobj_is_finite(double x) { return x == x && tobj_dabs(x) < 1e308; }
 
 /* Strictly-inside test for triangle (a,b,c) wound so that `wind` * area > 0. */
@@ -122,7 +151,10 @@ static double tobj_tess_signed_area(const double *p2d, uint32_t n) {
   double a = 0.0;
   for (uint32_t i = 0; i < n; i++) {
     uint32_t j = (i + 1u) % n;
-    a += p2d[2 * i] * p2d[2 * j + 1] - p2d[2 * j] * p2d[2 * i + 1];
+    /* x_i*y_j - x_j*y_i; the fused form rounds the product and the
+       subtraction together. */
+    a += TOBJ_TESS_FMA(p2d[2 * i], p2d[2 * j + 1],
+                       -((p2d[2 * j]) * (p2d[2 * i + 1])));
   }
   return 0.5 * a;
 }
@@ -232,7 +264,8 @@ static tobj_tess_status tobj_tess_run2d(tobj_tess_work *w, uint32_t n,
     }
 
     cur = next;
-    if (++guard > remaining) {
+    guard += 1;
+    if (guard > remaining) {
       if (relax < 2) {
         relax++;
         guard = 0;

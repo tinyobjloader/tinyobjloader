@@ -289,3 +289,9 @@ if(NOT TARGET uninstall)
     uninstall COMMAND ${CMAKE_COMMAND} -P
                       ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake)
 endif()
+
+# Independent exact C11 triangulation/remeshing project (opt in).
+option(TINYOBJLOADER_BUILD_TESS "Build lib/tess and its OBJ adapter" OFF)
+if(TINYOBJLOADER_BUILD_TESS)
+  add_subdirectory(lib/tess)
+endif()
