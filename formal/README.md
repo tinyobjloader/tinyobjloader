@@ -219,3 +219,29 @@ proved separately: with disjoint endpoint IDs, `segmentConflict` is equivalent
 to closed geometric intersection, while identical indexed edges are expected
 shared simplices. See
 [predicate validation](../lib/tess/docs/PREDICATE_VALIDATION.md).
+
+## Tess (`lib/tess`) formalization overview
+
+`Tess*.lean` formalize the exact C11 n-gon remeshing library in `lib/tess`. The authoritative claim-by-claim
+table (what is proved, what is only differentially validated, and the trust boundary) is
+[`lib/tess/docs/PROOF_MATRIX.md`](../lib/tess/docs/PROOF_MATRIX.md); the audited declaration count and
+verification runs are in [`lib/tess/STATUS.md`](../lib/tess/STATUS.md). Reproduce with
+`python3 formal/tools/check_tess_proofs.py` (generation freshness, kernel build, axiom audit).
+
+Layers:
+
+1. **Certificate soundness** (`Check`, `Validity`, `Validity2`, ...): an accepted V1/V2 certificate implies
+   coverage, embedding, feature preservation and the height bound.
+2. **MiniC refinements of translated C kernels** (`Tess/C/*`, generated `LimbGen.lean`): limb multiply-add,
+   magnitude, `acmp`, `zi_cmp`, the add/sub/mul loops, `trim_len`, `dbl_decode`, `i64_limb_count`/`i64_fill`.
+   Kernels that needed factoring out of allocating functions are marked in `exact.c`.
+3. **Functional models** of the allocating arithmetic (`ZiModel`, `QrModel`, `DivModel`, `ShiftModel`,
+   `PredModel`, `SegModel`, `ZiCmp`): they denote integer/rational arithmetic and the exact predicates; they are
+   tied to the C only through layer 2 and differential tests (the MiniC subset has no allocator).
+4. **Auditor pair decision** (`PairAudit*`, `NoncoplanarComplete`, `InPlane`, `CoplanarSharedEdge`,
+   `SharedVertex`, ...): an executable specification of the C 3D auditor with soundness (accepted pairs meet only
+   in the permitted shared simplex), completeness (rejections are genuine) for all configurations of 0/1/2 shared
+   vertex IDs where stated.
+
+Validation that complements the proofs (C/Lean/Fraction differential, mutation check, sanitizer runs) is
+described in `lib/tess/docs/PREDICATE_VALIDATION.md`, `lib/tess/tools/mutation_check.py` and `lib/tess/STATUS.md`.
