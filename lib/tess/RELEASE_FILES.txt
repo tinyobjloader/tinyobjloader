@@ -115,6 +115,7 @@ formal/Tess/TriangleExitQ.lean
 formal/Tess/PairAuditComplete.lean
 formal/Tess/PairAuditCoplanar.lean
 formal/Tess/PairAuditCoplanarComplete.lean
+formal/Tess/PairAuditRotation.lean
 formal/Tess/PairAuditCoplanarShared.lean
 formal/Tess/PlaneCutBridge.lean
 formal/Tess/TriangleContains.lean
