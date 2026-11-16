@@ -425,3 +425,9 @@ with local leak detection disabled.
   `INT64_MIN`) and kills it. The remaining survivor (`z*w <= 0` in
   `tg_segments`) is an equivalent mutant: strict straddling plus an endpoint of
   one segment on the other's line already returns through the later branch.
+- `Tess.TriangleMeet` proves in the real plane that a segment from a triangle point to an
+  outside point exits through an edge, hence two meeting triangles with no vertex of one in
+  the other have meeting edges. `PairAuditDisjoint.coplanar_disjoint_triangles_disjoint`
+  concludes that an accepted coplanar pair without shared IDs has disjoint projected closed
+  triangles (hypotheses: valid indices, nondegenerate projected edges and second face).
+  Audit: 1715 declarations.

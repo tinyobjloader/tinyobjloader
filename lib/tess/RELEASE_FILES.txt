@@ -79,12 +79,14 @@ formal/Tess/Plane.lean
 formal/Tess/PairAudit.lean
 formal/Tess/PairAuditAllowed.lean
 formal/Tess/PairAuditBridge.lean
+formal/Tess/PairAuditDisjoint.lean
 formal/Tess/PairAuditCoplanar.lean
 formal/Tess/PlaneCutBridge.lean
 formal/Tess/TriangleContains.lean
 formal/Tess/TriangleContainsBridge.lean
 formal/Tess/PredicateFixture.lean
 formal/Tess/TriangleContact.lean
+formal/Tess/TriangleMeet.lean
 formal/Tess/TriangleContactSoundness.lean
 formal/Tess/Projection.lean
 formal/Tess/ProjectionBridge.lean
