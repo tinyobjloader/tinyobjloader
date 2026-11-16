@@ -112,6 +112,7 @@ closed triangles (exact rational points) meet only in the permitted shared simpl
 | Noncoplanar, shared edge | meet exactly in the edge (`SharedEdge.shared_edge_intersection`, independent of acceptance) |
 | Coplanar, shared edge | meet only in the edge (`CoplanarSharedEdge.accepted_coplanar_shared_edge`; the shared edge may be traversed in either direction by the second face) |
 | Noncoplanar, shared edge: valid pairs are accepted | `PairAuditComplete.pairOk_of_shared_edge_noncoplanar` |
+| Coplanar, shared edge traversed oppositely (`(P,Q,R)` and `(Q,P,S)`), third vertices strictly on opposite sides of the edge in the projection: valid pairs are accepted | `PairAuditCoplanarComplete.pairOk_adjacent_coplanar` (no false rejection of valid adjacent planar faces; 2D hypotheses on the projected orientation, distinct ids, projection axes exist, `S` coplanar with `fa`) |
 | Identical vertex sets | rejected by the three-shared-IDs rule (by definition of `pairOk`) |
 
 All results are about the Lean specification, with hypotheses recorded in the rows above; none refines the C code.
