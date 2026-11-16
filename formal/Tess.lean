@@ -26,6 +26,7 @@ import Tess.C.DivShiftC
 import Tess.C.DivSubC
 import Tess.C.DivBitStep
 import Tess.C.DivCmpC
+import Tess.C.DivBinLoop
 import Tess.C.Arithmetic
 import Tess.C.Magnitude
 import Tess.Certificate
