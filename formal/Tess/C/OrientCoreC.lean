@@ -49,6 +49,16 @@ theorem store_i32 (m : Mem) (rb : Nat) (blk : Block) (n : Nat) (hm : m rb = some
   simp [hbytes, hd]
   rfl
 
+theorem load_i32_enc (m : Mem) (rb n : Nat) (hn : n < 2 ^ 32) (hm : m rb = some (encodeLE 4 n)) :
+    load m (.int ⟨32, true⟩) (.ptr rb 0) = .ok (.int ⟨32, true⟩ n) := by
+  have hlen : (encodeLE 4 n).length = 4 := encodeLE_length 4 n
+  have hsz : Ty.size (.int (⟨32, true⟩ : IntTy)) = 4 := rfl
+  simp only [load, hsz, readBytes, hm]
+  rw [if_pos (by rw [hlen])]
+  rw [List.drop_zero, List.take_of_length_le (by rw [hlen])]
+  simp [decodeLE_encodeLE]
+  simpa using hn
+
 theorem orient2i_core_ok (ax ay bx bY cx cy : Int) (h1 : InI64 ax) (h2 : InI64 ay) (h3 : InI64 bx)
     (h4 : InI64 bY) (h5 : InI64 cx) (h6 : InI64 cy) (sp : Nat) (m : Mem) (s0 : State)
     (h0 : s0 = ⟨frameLocals OrientGen.orient2i_core.params
@@ -62,7 +72,8 @@ theorem orient2i_core_ok (ax ay bx bY cx cy : Int) (h1 : InI64 ax) (h2 : InI64 a
     (n1 : sp ≠ 1007) (n2 : sp ≠ 1008) (n3 : sp ≠ 1009) (n4 : sp ≠ 1010) (n5 : sp ≠ 1011)
     (n6 : sp ≠ 1012) (n7 : sp ≠ 1013) (sg : Int)
     (h : orient2iChk ax ay bx bY cx cy = some sg) :
-    ∃ sf, ExS OrientGen.prog s0 OrientGen.orient2i_core.body (.ret (some (.int ⟨32, true⟩ 1))) sf := by
+    ∃ sf, ExS OrientGen.prog s0 OrientGen.orient2i_core.body (.ret (some (.int ⟨32, true⟩ 1))) sf ∧
+      load sf.mem (.int ⟨32, true⟩) (.ptr sp 0) = .ok (.int ⟨32, true⟩ (IntTy.wrap ⟨32, true⟩ sg)) := by
   unfold orient2iChk at h
   rcases hx : subChk bx ax with _ | x
   · simp [hx] at h
@@ -200,14 +211,38 @@ theorem orient2i_core_ok (ax ay bx bY cx cy : Int) (h1 : InI64 ax) (h2 : InI64 a
   have hsub : ∀ a b : Bool, ∃ n, evalBin .sub (some ⟨32, true⟩) (boolVal a) (boolVal b) =
       .ok (.int ⟨32, true⟩ n) := by
     intro a b; cases a <;> cases b <;> exact ⟨_, rfl⟩
-  obtain ⟨n, hn⟩ := hsub (decide (d > 0)) (decide (d < 0))
+  have hsub' : ∀ a b : Bool, evalBin .sub (some ⟨32, true⟩) (boolVal a) (boolVal b) =
+      .ok (.int ⟨32, true⟩ (IntTy.wrap ⟨32, true⟩ ((if a then 1 else 0) - (if b then 1 else 0) : Int))) := by
+    intro a b; cases a <;> cases b <;> rfl
+  have hn := hsub' (decide (d > 0)) (decide (d < 0))
+  set n := IntTy.wrap ⟨32, true⟩ ((if decide (d > 0) then 1 else 0) - (if decide (d < 0) then 1 else 0) : Int) with hndef
   have hval := EvE.bin g1 g2 hn
   have hsp : st7.locals 6 = some (.ptr sp 0) := by rw [hk7' 6 (by norm_num)]; exact l6'
   have hSmem : st7.mem sp = some S := by
     rw [hf7 sp n7, hf6 sp n6, hf5 sp n5, hf4 sp n4, hf3 sp n3, hf2 sp n2, hf1 sp n1, mem0]; exact mS
   have hst := ExS.store (ty := .int ⟨32, true⟩) (EvE.var hsp) hval
     (by rw [hr7, hr6, hr5, hr4, hr3, hr2, hr1]; exact ro0) (store_i32 st7.mem sp S n hSmem lS)
-  refine ⟨{ st7 with mem := st7.mem.upd sp (encodeLE 4 n) }, ?_⟩
+  refine ⟨{ st7 with mem := st7.mem.upd sp (encodeLE 4 n) }, ?_, ?_⟩
+  swap
+  · have hnl : n < 2 ^ 32 := by
+      rw [hndef]
+      unfold IntTy.wrap IntTy.modulus
+      simp only []
+      have h1 := Int.emod_lt_of_pos ((if decide (d > 0) then 1 else 0) - (if decide (d < 0) then 1 else 0) : Int)
+        (show (0:Int) < 2 ^ 32 by norm_num)
+      have h2 := Int.emod_nonneg ((if decide (d > 0) then 1 else 0) - (if decide (d < 0) then 1 else 0) : Int)
+        (show (2:Int) ^ 32 ≠ 0 by norm_num)
+      omega
+    have hsg : sg = Int.sign d := by first | exact h.symm | exact h
+    have hw : n = IntTy.wrap ⟨32, true⟩ sg := by
+      rw [hndef, hsg]
+      rcases lt_trichotomy d 0 with c | c | c
+      · simp [c, not_lt_of_gt c, Int.sign_eq_neg_one_of_neg c]
+      · simp [c]
+      · simp [c, not_lt_of_gt c, Int.sign_eq_one_of_pos c]
+    show load (st7.mem.upd sp (encodeLE 4 n)) (.int ⟨32, true⟩) (.ptr sp 0) = _
+    rw [hw] at hnl ⊢
+    exact load_i32_enc _ sp _ hnl (by simp [Mem.upd])
   unfold OrientGen.orient2i_core
   refine ExS.seq e1 ?_
   refine ExS.seq (okStep st1 ok1) ?_
