@@ -60,6 +60,7 @@ import Tess.TriangleExitQ
 import Tess.PlaneTransfer
 import Tess.NoncoplanarComplete
 import Tess.PairAuditNoncoplanar
+import Tess.SharedEdge
 import Tess.PredicateFixture
 import Tess.IntersectionCompleteness
 import Tess.Orient3
