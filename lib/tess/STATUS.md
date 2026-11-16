@@ -407,6 +407,8 @@ with local leak detection disabled.
   noncoplanar faces without shared vertex IDs.
 - `PredModel` gained `qrDivM_spec` and `qrCmpM_spec` (cmp = sign of the exact
   difference). Audit: 1675 declarations; GCC+Lean predicate/segment tests pass.
+- `PairAuditAllowed.allowed_sound` proves the shared-simplex exception admits only
+  shared vertices and exact rational points of the shared edge. Audit: 1682.
 
 ## Targeted mutation check (2026-11-16)
 
