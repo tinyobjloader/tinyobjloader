@@ -4,6 +4,10 @@ Implemented against `../../robust-ngon-remeshing-c11-lean4-prompt.md`.
 Release evidence below was collected on 2026-11-14. The deliverable is a bounded
 reference library, not a convergence guarantee or full C refinement proof.
 
+**Current authoritative proof-audit count: 1302 Tess declarations** (re-run
+2026-11-16; standard axioms only). Declaration counts quoted in the dated
+sections below are historical snapshots.
+
 ## Milestones delivered
 
 1. **Contract/arithmetic:** standalone strict C11 public API; exact binary64 and
@@ -299,3 +303,47 @@ build warning policy.
   pairs cover disjoint and contacting cases.
 - These are bounded direct comparisons of exact executable paths, not a C
   refinement theorem for `tg_audit3`, nor coplanar or shared-index validation.
+
+## Strict plane cuts, projected containment and diagnostic coplanar audits (2026-11-15)
+
+- The strict-crossing branch of the 3D auditor is now a shared static
+  `cut_from_plane_values` in `audit.c`, reused by `edges_against` and by the
+  new diagnostic export `tg_plane_cut` (declared in `geometry.h`).
+  `tg_projected_contains` exports the projected-containment half of the
+  auditor for the probe. The production crossing path is unchanged in behavior;
+  it is now exercised directly.
+- `tesspredicates` gains `planecut` (face a b c plus edge endpoints x y as
+  fifteen rationals; prints `1` with three exact cut rationals or `0`) and
+  `contains2` (two 2D points; orientation-independent closed-triangle answer).
+  The C probe answers `planecut` with exact rational cut coordinates encoded as
+  `0x…/0x…` tokens and `contains2` with 0/1. Python parses both encodings into
+  exact Fractions and checks the cut lies on the segment and the face plane.
+- A separate C-only `triaudit` diagnostic mode covers the coplanar and
+  shared-index two-face paths: coplanar containment on the face's own
+  projection axis, indexed shared-simplex allowance (vertex equality and
+  on-segment plus collinearity for two shared IDs), projected segment conflict
+  with the indexed exception, and the identical-triangle rejection. The Lean
+  fixture rejects `triaudit` explicitly; the differential compares C against an
+  independently written exact Fraction replication of the auditor, including
+  six hand-verified fixtures. This is bounded differential evidence, not a C
+  auditor refinement proof.
+- The direct differential now covers **21,923** C/Lean/Fraction predicate
+  comparisons. It feeds each probe in 19,000-record chunks instead of raising
+  Lean's per-invocation fixture cap. Parser campaigns cover truncations of the
+  new records; 256 deterministic mutations are checked against Fraction.
+- `predicate_resources.py` additionally freezes two new default-budget
+  exhaustion fixtures: a mixed-exponent orient3 case (Lean sign −1) and a
+  mixed-exponent tricontact case (Lean returns 1, no contact). The C probe
+  deterministically reports library status 3 with no sign. Both were found by
+  seeded random search over exact dyadics and are replayed exactly.
+- The regeneration/kernel/axiom audit passes for **976** Tess declarations
+  with only `propext`, `Classical.choice` and `Quot.sound` allowed. GCC Release
+  and Clang Release pass 27/27 tests (86.65 s and 79.42 s). A standalone
+  source-copy build without the repository OBJ adapter passes 21/21. The full
+  21,923-case direct workload and `predicate_resources.py` pass with the C
+  probe under ASan/UBSan, with local leak detection disabled for the
+  documented tracing limitation.
+
+These are executable differential checks. No claim is made that the C 3D
+auditor is refined by the Lean specification, and the coplanar/shared-index
+path has no Lean executable specification at all.

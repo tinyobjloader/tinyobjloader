@@ -44,9 +44,15 @@ formal/Tess/AffineBound.lean
 formal/Tess/AffineBoundSoundness.lean
 formal/Tess/Barycentric.lean
 formal/Tess/BoundaryCoverage2.lean
+formal/Tess/C/Acmp.lean
 formal/Tess/C/Arithmetic.lean
 formal/Tess/C/Gen.lean
+formal/Tess/C/LimbGen.lean
 formal/Tess/C/Magnitude.lean
+formal/Tess/C/ZiAdd.lean
+formal/Tess/C/ZiAddMixed.lean
+formal/Tess/C/ZiMem.lean
+formal/Tess/C/ZiMul.lean
 formal/Tess/Certificate.lean
 formal/Tess/CertificateCoverage.lean
 formal/Tess/ChainSoundness.lean

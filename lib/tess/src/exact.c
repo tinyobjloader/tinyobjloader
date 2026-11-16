@@ -126,6 +126,43 @@ void zi_copy(tx* c, zi* r, const zi* a) {
   }
   move(c, r, &t);
 }
+/* Limb kernels split out for exact verification. These helpers carry no
+   allocator state and are the translation boundary for the c2lean MiniC
+   refinement. They perform exactly the bit arithmetic that used to be
+   inlined in zi_add and zi_mul. */
+static void zi_add_equisign(zi* t, const zi* a, const zi* b, size_t n) {
+  size_t i;
+  uint64_t carry = 0;
+  for (i = 0; i < n; i++) {
+    uint64_t v = carry + (i < a->n ? a->v[i] : 0) +
+                 (uint64_t)(i < b->n ? b->v[i] : 0);
+    t->v[i] = (uint32_t)v;
+    carry = v >> 32;
+  }
+  t->v[n] = (uint32_t)carry;
+}
+static void zi_add_mixed(zi* t, const zi* x, const zi* y, size_t n) {
+  size_t i;
+  uint64_t carry = 0;
+  for (i = 0; i < n; i++) {
+    uint64_t xv = i < x->n ? x->v[i] : 0,
+             yv = (uint64_t)(i < y->n ? y->v[i] : 0) + carry;
+    t->v[i] = (uint32_t)(xv - yv);
+    carry = xv < yv;
+  }
+}
+static void zi_mul_accumulate(zi* t, const zi* a, const zi* b) {
+  size_t i, j;
+  for (i = 0; i < a->n; i++) {
+    uint64_t k = 0;
+    for (j = 0; j < b->n; j++) {
+      uint64_t v = tess_limb_madd(a->v[i], b->v[j], t->v[i + j], (uint32_t)k);
+      t->v[i + j] = (uint32_t)v;
+      k = v >> 32;
+    }
+    t->v[i + b->n] = (uint32_t)k;
+  }
+}
 static int acmp(const zi* a, const zi* b) {
   size_t i;
   if (a->n != b->n) return a->n > b->n ? 1 : -1;
@@ -139,8 +176,7 @@ int zi_cmp(const zi* a, const zi* b) {
 }
 void zi_add(tx* c, zi* r, const zi* a, const zi* b) {
   zi t = {0};
-  size_t i, n = a->n > b->n ? a->n : b->n;
-  uint64_t carry = 0;
+  size_t n = a->n > b->n ? a->n : b->n;
   if (!tick(c, n)) return;
   if (!a->sign) {
     zi_copy(c, r, b);
@@ -153,13 +189,7 @@ void zi_add(tx* c, zi* r, const zi* a, const zi* b) {
   if (a->sign == b->sign) {
     t = make(c, n + 1);
     if (t.v) {
-      for (i = 0; i < n; i++) {
-        uint64_t v = carry + (i < a->n ? a->v[i] : 0) +
-                     (uint64_t)(i < b->n ? b->v[i] : 0);
-        t.v[i] = (uint32_t)v;
-        carry = v >> 32;
-      }
-      t.v[n] = (uint32_t)carry;
+      zi_add_equisign(&t, a, b, n);
       t.sign = a->sign;
     }
   } else {
@@ -170,12 +200,7 @@ void zi_add(tx* c, zi* r, const zi* a, const zi* b) {
     }
     t = make(c, n);
     if (t.v) {
-      for (i = 0; i < n; i++) {
-        uint64_t xv = i < x->n ? x->v[i] : 0,
-                 yv = (uint64_t)(i < y->n ? y->v[i] : 0) + carry;
-        t.v[i] = (uint32_t)(xv - yv);
-        carry = xv < yv;
-      }
+      zi_add_mixed(&t, x, y, n);
       t.sign = x->sign;
     }
   }
@@ -189,7 +214,6 @@ void zi_sub(tx* c, zi* r, const zi* a, const zi* b) {
 }
 void zi_mul(tx* c, zi* r, const zi* a, const zi* b) {
   zi t = {0};
-  size_t i, j;
   if (!a->n || !b->n) {
     move(c, r, &t);
     return;
@@ -201,15 +225,7 @@ void zi_mul(tx* c, zi* r, const zi* a, const zi* b) {
   if (!tick(c, a->n * b->n)) return;
   t = make(c, a->n + b->n);
   if (t.v) {
-    for (i = 0; i < a->n; i++) {
-      uint64_t k = 0;
-      for (j = 0; j < b->n; j++) {
-        uint64_t v = tess_limb_madd(a->v[i], b->v[j], t.v[i + j], (uint32_t)k);
-        t.v[i + j] = (uint32_t)v;
-        k = v >> 32;
-      }
-      t.v[i + b->n] = (uint32_t)k;
-    }
+    zi_mul_accumulate(&t, a, b);
     t.sign = a->sign * b->sign;
   }
   norm(c, &t);
