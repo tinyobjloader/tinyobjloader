@@ -1,5 +1,11 @@
 import Tess.Predicates
 import Tess.C.Gen
+import Tess.C.LimbGen
+import Tess.C.ZiMem
+import Tess.C.Acmp
+import Tess.C.ZiAdd
+import Tess.C.ZiAddMixed
+import Tess.C.ZiMul
 import Tess.C.Arithmetic
 import Tess.C.Magnitude
 import Tess.Certificate

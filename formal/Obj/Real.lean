@@ -91,4 +91,19 @@ def RoundsTo (v u : Rat) (d : DecLit) : Prop := Rat.abs (d.value - v) ≤ u / 2
 
 /-! ### The load-bearing step of the round-trip argument -/
 
+/-- Full decode including sign: `-f64Rat |bits|` for negative patterns, else
+    `f64Rat bits`.  This mirrors the sign-magnitude path in `qr_double`: the
+    sign bit of the `memcpy`d `uint64_t` is applied to the rational built from
+    the significand after clearing it. -/
+def f64RatFull (bits : Nat) : Rat :=
+  let s := (bits / 2 ^ 63) % 2
+  let m := f64Rat (bits &&& (2 ^ 63 - 1))
+  if s = 1 then -m else m
+
+/-- Reject bit patterns the C `qr_double` rejects: exponent bits `2047`
+    (infinity and NaN) are refused; everything else is decoded exactly.
+    NaN payloads beyond a quiet bit are covered by the same exponent test. -/
+def f64Attackable (bits : Nat) : Bool :=
+  (bits / 2 ^ 52) % 2 ^ 11 ≠ 2047
+
 end Obj
