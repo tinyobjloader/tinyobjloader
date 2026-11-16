@@ -94,6 +94,15 @@ def shift_fill : Func where
   params := [0, 1, 2]
   body := (.seq (.set 4 (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq (.seq (.set 3 (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) shift_fill_loop0) (.store (.int ⟨32, false⟩) (.index (.load .ptr (.field (.var 0) 0)) (.bin .add (some ⟨64, false⟩) (.load (.int ⟨64, false⟩) (.field (.var 1) 8)) (.cast ⟨64, false⟩ (.bin .div (some ⟨32, false⟩) (.var 2) (.cast ⟨32, false⟩ (.const (.int ⟨32, true⟩ 32)))))) 4) (.cast ⟨32, false⟩ (.var 4)))))
 
+/-- A loop of `div_single_fill`. -/
+def div_single_fill_loop0 : Stmt := (.loop (.ite (.var 4) (.seq (.set 5 (.bin .bor (some ⟨64, false⟩) (.bin .shl (some ⟨64, false⟩) (.var 3) (.const (.int ⟨32, true⟩ 32))) (.cast ⟨64, false⟩ (.load (.int ⟨32, false⟩) (.index (.load .ptr (.field (.var 1) 0)) (.bin .sub (some ⟨64, false⟩) (.var 4) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 1)))) 4))))) (.seq (.store (.int ⟨32, false⟩) (.index (.load .ptr (.field (.var 0) 0)) (.bin .sub (some ⟨64, false⟩) (.var 4) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 1)))) 4) (.cast ⟨32, false⟩ (.bin .div (some ⟨64, false⟩) (.var 5) (.cast ⟨64, false⟩ (.var 2))))) (.set 3 (.bin .mod (some ⟨64, false⟩) (.var 5) (.cast ⟨64, false⟩ (.var 2)))))) .brk) (.set 4 (.cast ⟨64, false⟩ (.bin .sub (some ⟨64, false⟩) (.cast ⟨64, false⟩ (.var 4)) (.const (.int ⟨64, false⟩ 1))))))
+
+/-- `div_single_fill` (function id 11). Locals: 0=t, 1=a, 2=d, 3=remainder, 4=i, 5=value -/
+def fid_div_single_fill : Nat := 11
+def div_single_fill : Func where
+  params := [0, 1, 2]
+  body := (.seq (.set 3 (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq (.seq (.set 4 (.load (.int ⟨64, false⟩) (.field (.var 1) 8))) div_single_fill_loop0) (.ret (some (.var 3)))))
+
 /-- String literals referenced by the translated functions. -/
 def literals : List UInt8 := []
 
@@ -110,6 +119,7 @@ def prog : Prog := fun f =>
   | 8 => some i64_limb_count
   | 9 => some i64_fill
   | 10 => some shift_fill
+  | 11 => some div_single_fill
   | _ => none
 
 end Tess.C.LimbGen

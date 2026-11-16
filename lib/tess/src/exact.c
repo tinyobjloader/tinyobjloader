@@ -242,6 +242,18 @@ void zi_mul(tx* c, zi* r, const zi* a, const zi* b) {
   norm(c, &t);
   move(c, r, &t);
 }
+/* Radix-2^32 schoolbook division of `a` by the single limb `d` (pure; translated and proved
+ * against the Lean `ldRun` model). Writes the quotient limbs into t and returns the remainder. */
+static uint64_t div_single_fill(zi* t, const zi* a, uint32_t d) {
+  uint64_t remainder = 0;
+  size_t i;
+  for (i = a->n; i; i--) {
+    uint64_t value = (remainder << 32) | a->v[i - 1];
+    t->v[i - 1] = (uint32_t)(value / d);
+    remainder = value % d;
+  }
+  return remainder;
+}
 /* Binary long division; nonnegative remainder for nonnegative operands. */
 void zi_divrem(tx* c, zi* q, zi* r, const zi* a, const zi* b) {
   zi qt = {0}, rt = {0};
@@ -251,15 +263,11 @@ void zi_divrem(tx* c, zi* q, zi* r, const zi* a, const zi* b) {
     return;
   }
   if (b->n == 1) {
-    uint64_t remainder = 0;
+    uint64_t remainder;
     if (!tick(c, a->n)) return;
     qt = make(c, a->n);
     if (a->n && !qt.v) goto done;
-    for (i = a->n; i; i--) {
-      uint64_t value = (remainder << 32) | a->v[i - 1];
-      qt.v[i - 1] = (uint32_t)(value / b->v[0]);
-      remainder = value % b->v[0];
-    }
+    remainder = div_single_fill(&qt, a, b->v[0]);
     qt.sign = a->sign * b->sign;
     if (remainder) {
       rt = make(c, 1);
