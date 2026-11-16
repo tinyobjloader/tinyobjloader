@@ -4,7 +4,7 @@ Implemented against `../../robust-ngon-remeshing-c11-lean4-prompt.md`.
 Release evidence below was collected on 2026-11-14. The deliverable is a bounded
 reference library, not a convergence guarantee or full C refinement proof.
 
-**Current authoritative proof-audit count: 1510 Tess declarations** (re-run
+**Current authoritative proof-audit count: 1759 Tess declarations** (re-run
 2026-11-16 after `C/ZiValue`; standard axioms only). Declaration counts quoted in the dated
 sections below are historical snapshots.
 
@@ -437,3 +437,4 @@ with local leak detection disabled.
   (expression calls run read-only). `LimbGen` now also contains `zi_cmp` (function id 5).
   Audit: 1732 declarations.
 - `BoxSeparation.boxes_separate_disjoint`: a strict gap between recorded AABB extrema excludes any common point of the two closed triangles, justifying the broadphase skip.
+- `C/SegModel.tgSegmentsM_eq`: the `tg_segments` model equals `segmentConflict` (audit count in the header is kept current).

@@ -12,6 +12,7 @@ import Tess.C.ZiModel
 import Tess.C.QrModel
 import Tess.C.DivModel
 import Tess.C.PredModel
+import Tess.C.SegModel
 import Tess.C.ShiftModel
 import Tess.C.ZiCmp
 import Tess.C.ZiCmpC
