@@ -368,4 +368,49 @@ theorem noncoplanar_edgefree_disjoint (a b c d e f : Point3) (pa pb : Nat)
     · have := weighted_pos u v w _ _ _ hu hv hw hsum h1 h2 h3; linarith
 
 
+theorem conflict_swap (a b c d e f : Point3) (pa pb : Nat)
+    (hA : firstProjectionAxis a b c = some pa) (hB : firstProjectionAxis d e f = some pb)
+    (hnc : ¬ (orient3 a b c d = 0 ∧ orient3 a b c e = 0 ∧ orient3 a b c f = 0))
+    (hnc' : ¬ (orient3 d e f a = 0 ∧ orient3 d e f b = 0 ∧ orient3 d e f c = 0)) :
+    noncoplanarTrianglesConflict a b c d e f = noncoplanarTrianglesConflict d e f a b c := by
+  unfold noncoplanarTrianglesConflict
+  rw [hA, hB]
+  simp only [pointPlaneValue]
+  split_ifs with h1 h2 h2
+  · exfalso
+    simp only [Bool.and_eq_true] at h1
+    exact hnc ⟨of_decide_eq_true h1.1.1, of_decide_eq_true h1.1.2, of_decide_eq_true h1.2⟩
+  · exfalso
+    simp only [Bool.and_eq_true] at h1
+    exact hnc ⟨of_decide_eq_true h1.1.1, of_decide_eq_true h1.1.2, of_decide_eq_true h1.2⟩
+  · exfalso
+    simp only [Bool.and_eq_true] at h2
+    exact hnc' ⟨of_decide_eq_true h2.1.1, of_decide_eq_true h2.1.2, of_decide_eq_true h2.2⟩
+  · generalize edgeAgainstTriangle d e f a b = t1
+    generalize edgeAgainstTriangle d e f b c = t2
+    generalize edgeAgainstTriangle d e f c a = t3
+    generalize edgeAgainstTriangle a b c d e = t4
+    generalize edgeAgainstTriangle a b c e f = t5
+    generalize edgeAgainstTriangle a b c f d = t6
+    cases t1 <;> cases t2 <;> cases t3 <;> cases t4 <;> cases t5 <;> cases t6 <;> rfl
+
+/-- Either triangle may play the role of the one without in-plane edges. -/
+theorem noncoplanar_disjoint_either (a b c d e f : Point3) (pa pb : Nat)
+    (hA : firstProjectionAxis a b c = some pa) (hB : firstProjectionAxis d e f = some pb)
+    (hnc : ¬ (orient3 a b c d = 0 ∧ orient3 a b c e = 0 ∧ orient3 a b c f = 0))
+    (hnc' : ¬ (orient3 d e f a = 0 ∧ orient3 d e f b = 0 ∧ orient3 d e f c = 0))
+    (hfree : (¬ (orient3 d e f a = 0 ∧ orient3 d e f b = 0) ∧
+              ¬ (orient3 d e f b = 0 ∧ orient3 d e f c = 0) ∧
+              ¬ (orient3 d e f c = 0 ∧ orient3 d e f a = 0)) ∨
+             (¬ (orient3 a b c d = 0 ∧ orient3 a b c e = 0) ∧
+              ¬ (orient3 a b c e = 0 ∧ orient3 a b c f = 0) ∧
+              ¬ (orient3 a b c f = 0 ∧ orient3 a b c d = 0)))
+    (hc : noncoplanarTrianglesConflict a b c d e f = false) :
+    ¬ ∃ p : Point3, Hull3 a b c p ∧ Hull3 d e f p := by
+  rcases hfree with h | h
+  · exact noncoplanar_edgefree_disjoint a b c d e f pa pb hA hB hnc h hc
+  · rw [conflict_swap a b c d e f pa pb hA hB hnc hnc'] at hc
+    rintro ⟨p, h1, h2⟩
+    exact noncoplanar_edgefree_disjoint d e f a b c pb pa hB hA hnc' h hc ⟨p, h2, h1⟩
+
 end Tess

@@ -4,7 +4,7 @@ Implemented against `../../robust-ngon-remeshing-c11-lean4-prompt.md`.
 Release evidence below was collected on 2026-11-14. The deliverable is a bounded
 reference library, not a convergence guarantee or full C refinement proof.
 
-**Current authoritative proof-audit count: 1822 Tess declarations** (re-run
+**Current authoritative proof-audit count: 1825 Tess declarations** (re-run
 2026-11-16 after `C/ZiValue`; standard axioms only). Declaration counts quoted in the dated
 sections below are historical snapshots.
 
@@ -451,3 +451,6 @@ with local leak detection disabled.
   face's plane (flagged through `vertex_flag`), as long as the faces are noncoplanar and no edge of
   the first face lies in the second's plane; `accepted_noncoplanar_edgefree_disjoint` is the pair-level
   corollary.
+- `conflict_swap` (the exact contact predicate is symmetric for noncoplanar faces) and
+  `noncoplanar_disjoint_either` / `accepted_noncoplanar_either_disjoint`: the disjointness result holds as
+  soon as either face has no edge in the other's plane. Audit: 1825 declarations.
