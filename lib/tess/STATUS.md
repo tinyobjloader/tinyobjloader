@@ -4,7 +4,7 @@ Implemented against `../../robust-ngon-remeshing-c11-lean4-prompt.md`.
 Release evidence below was collected on 2026-11-14. The deliverable is a bounded
 reference library, not a convergence guarantee or full C refinement proof.
 
-**Current authoritative proof-audit count: 1469 Tess declarations** (re-run
+**Current authoritative proof-audit count: 1510 Tess declarations** (re-run
 2026-11-16 after `C/ZiValue`; standard axioms only). Declaration counts quoted in the dated
 sections below are historical snapshots.
 
@@ -379,3 +379,6 @@ path has no Lean executable specification at all.
   `reduce` canonical form and value preservation, `qr_add/sub/mul` denote
   rational arithmetic (the equal-denominator shortcut agrees with the general
   path). Audit: 1469 declarations. `zi_divrem` remains unproved.
+- `Tess.C.DivModel` proves both `zi_divrem` paths compute floor division
+  (radix-2^32 and binary compare/subtract), the bit-extraction identity and the
+  signed truncated-division law. Audit: 1510 declarations.
