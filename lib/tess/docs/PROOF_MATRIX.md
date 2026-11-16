@@ -83,8 +83,8 @@ The script checks default tinyobjloader generation freshness and selected tess
 helper freshness, rejects incomplete-proof/axiom/native-decision tokens in Tess
 sources, builds `Tess` and `tesscheck`, then runs `TessAudit.lean`. The audit scans
 compiled dependencies of all public Tess declarations, not only the final two
-theorems. The current audit covered 1302 declarations and permitted only
-`propext`, `Classical.choice`, and `Quot.sound`. Compiler warnings about style or
+theorems. The current audit count is recorded at the top of [STATUS.md](../STATUS.md) (it covers every public Tess declaration and permitted only
+`propext`, `Classical.choice`, and `Quot.sound`). Compiler warnings about style or
 deprecations do not weaken this kernel-backed dependency check. No incomplete
 proof is accepted. The generated executable additionally depends on Lean's
 runtime; decoding and external byte associations remain the documented trust
