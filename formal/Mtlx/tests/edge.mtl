@@ -18,16 +18,15 @@ mtlx_node n image color3
 newmtl selfloop
 mtlx_surface s standard_surface
 mtlx_node a add float
-connectmtl a a.in1
+mtlx_input a.in1 float @a
 newmtl badout
 mtlx_surface s standard_surface
 mtlx_node a image float
-connectmtl a.outx s.base
+mtlx_input s.base float @a.outx
 newmtl mismatch
 mtlx_surface s standard_surface
 mtlx_node a image float
-mtlx_input s.base_color color3 1 1 1
-connectmtl a s.base_color
+mtlx_input s.base_color color3 @a
 newmtl unterminated
 mtlx_surface s standard_surface
 mtlx_input s.file filename "abc
@@ -38,9 +37,9 @@ mtlx_node uv texcoord vector2
 mtlx_node img tiledimage color3
 mtlx_input img.file filename tex.png
 mtlx_input img.uvtiling vector2 2 2
-connectmtl uv img.texcoord
-connectmtl img s.base_color
-connectmtl img s.emissive
+mtlx_input img.texcoord vector2 @uv
+mtlx_input s.base_color color3 @img
+mtlx_input s.emissive color3 @img
 newmtl 1digit-ñame
 mtlx_surface s UsdPreviewSurface
 mtlx_input s.roughness float 0.25
@@ -71,9 +70,9 @@ mtlx_surface s standard_surface
 mtlx_node t image color3
 mtlx_input t.file filename a.png
 mtlx_colorspace t.file srgb_texture
-mtlx_input s.base_color color3 1 1 1
-mtlx_colorspace s.base_color lin_rec709
-connectmtl t s.base_color
+mtlx_input s.base_color color3 @t
+mtlx_input s.base float 1
+mtlx_colorspace s.base lin_rec709
 newmtl csbad
 mtlx_surface s standard_surface
 mtlx_colorspace s.base_color srgb_texture

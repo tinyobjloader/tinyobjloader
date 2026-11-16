@@ -5,9 +5,9 @@ namespace TobjMtlx.Tests
 open TobjMtlx
 
 def okSrc : String := "newmtl m\nmtlx_surface s standard_surface\nmtlx_node t image color3\n" ++
-  "mtlx_input t.file filename \"a b.png\"\nconnectmtl t s.base_color\n"
+  "mtlx_input t.file filename \"a b.png\"\nmtlx_input s.base_color color3 @t\n"
 def cycSrc : String := "newmtl m\nmtlx_surface s standard_surface\nmtlx_node a add float\n" ++
-  "mtlx_node b add float\nconnectmtl a b.in1\nconnectmtl b a.in1\n"
+  "mtlx_node b add float\nmtlx_input b.in1 float @a\nmtlx_input a.in1 float @b\n"
 
 theorem tokenize_quoted :
     tokenize "mtlx_input t.file filename \"a b.png\"".toList =

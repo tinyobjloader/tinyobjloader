@@ -40,7 +40,7 @@ int main(int argc, char **argv) {
         fails++;
       }
       for (const auto &kv : m.unknown_parameter)
-        if (kv.first.rfind("mtlx_", 0) == 0 || kv.first == "connectmtl") { std::printf("FAIL leak %s\n", kv.first.c_str()); fails++; }
+        if (kv.first.rfind("mtlx_", 0) == 0) { std::printf("FAIL leak %s\n", kv.first.c_str()); fails++; }
       tobj_mtlx_free(&one);
     }
     tobj_mtlx_free(&whole);

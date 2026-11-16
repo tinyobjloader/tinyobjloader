@@ -839,7 +839,6 @@ static bool TOBJ_T(parse_mtl_buffer)(TOBJ_T(tobj_builder) * b,
                tobj_slice_eq(tok, tl, "mtlx_surface") ||
                tobj_slice_eq(tok, tl, "mtlx_node") ||
                tobj_slice_eq(tok, tl, "mtlx_input") ||
-               tobj_slice_eq(tok, tl, "connectmtl") ||
                tobj_slice_eq(tok, tl, "mtlx_include") ||
                tobj_slice_eq(tok, tl, "mtlx_colorspace")) {
       /* MaterialX-in-MTL line: kept verbatim, in order (see tobj_mtlx.h) */

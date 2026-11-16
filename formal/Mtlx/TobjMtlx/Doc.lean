@@ -39,7 +39,7 @@ def outName (n : S) : S := "o_".toList ++ n
 
 /-- The `<input>` for a connection `c` into a node (`intoSurface` selects the nodegraph form). -/
 def connInput (m : Mat) (M : S) (intoSurface : Bool) (c : Conn) : Elem :=
-  let ty := (m.nodeTy? c.src).getD []
+  let ty := c.ty
   if intoSurface then
     el "input" [("name", c.port), ("type", ty), ("nodegraph", ngName M), ("output", outName c.src)]
   else

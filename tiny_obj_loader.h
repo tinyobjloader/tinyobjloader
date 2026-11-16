@@ -247,7 +247,7 @@ struct material_t {
 
   std::map<std::string, std::string> unknown_parameter;
 
-  // MaterialX-in-MTL extension lines (mtlx_* / connectmtl), verbatim and in
+  // MaterialX-in-MTL extension lines (mtlx_*), verbatim and in
   // file order. Parse with tobj_mtlx_parse_lines() (tobj_mtlx.h).
   std::vector<std::string> mtlx_lines;
 
@@ -8687,8 +8687,7 @@ static bool LoadMtlInternal(std::map<std::string, int> *material_map,
     {
       static const char *const kMtlxKeys[] = {"mtlx_version", "mtlx_surface",
                                               "mtlx_node",    "mtlx_input",
-                                              "connectmtl",   "mtlx_include",
-                                              "mtlx_colorspace"};
+                                              "mtlx_include", "mtlx_colorspace"};
       bool is_mtlx = false;
       for (size_t k = 0; k < sizeof(kMtlxKeys) / sizeof(kMtlxKeys[0]); k++) {
         size_t kl = strlen(kMtlxKeys[k]);

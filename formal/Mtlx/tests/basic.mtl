@@ -8,9 +8,8 @@ mtlx_node rgh image float
 mtlx_input tex.file filename "paint 01.png"
 mtlx_input rgh.file filename rough.png
 mtlx_input shader.base_metalness float 1.0
-mtlx_input shader.base_color color3 0.8 0.2 0.1
-connectmtl tex shader.base_color
-connectmtl rgh.out shader.specular_roughness
+mtlx_input shader.base_color color3 @tex
+mtlx_input shader.specular_roughness float @rgh.out
 
 newmtl plain
 Kd 1 1 1
@@ -19,10 +18,24 @@ newmtl cycle
 mtlx_surface s standard_surface
 mtlx_node a multiply color3
 mtlx_node b multiply color3
-connectmtl a b.in1
-connectmtl b a.in1
-connectmtl a s.base_color
+mtlx_input b.in1 color3 @a
+mtlx_input a.in1 color3 @b
+mtlx_input s.base_color color3 @a
 
 newmtl badtype
 mtlx_surface s standard_surface
 mtlx_input s.base float 1 2
+
+newmtl dupbinding
+mtlx_surface s standard_surface
+mtlx_node t image color3
+mtlx_input s.base_color color3 1 1 1
+mtlx_input s.base_color color3 @t
+
+newmtl literal_at
+mtlx_surface s standard_surface
+mtlx_input s.label string @@not_a_ref
+
+newmtl ref_in_list
+mtlx_surface s standard_surface
+mtlx_input s.bad float 1 @x

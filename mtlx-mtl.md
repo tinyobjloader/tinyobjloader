@@ -23,8 +23,8 @@ mtlx_node    rgh  image float
 mtlx_input   tex.file filename "paint 01.png"
 mtlx_input   rgh.file filename rough.png
 mtlx_input   shader.base_metalness float 1.0
-connectmtl   tex shader.base_color
-connectmtl   rgh shader.specular_roughness
+mtlx_input   shader.base_color color3 @tex
+mtlx_input   shader.specular_roughness float @rgh
 ```
 
 ## Lines
@@ -38,7 +38,8 @@ Each keyword applies to the current `newmtl`. Extension lines before the first
 | `mtlx_surface <name> <category>` | The surface shader node, for example `standard_surface`, `open_pbr_surface`, `gltf_pbr` or `UsdPreviewSurface`. Exactly once. |
 | `mtlx_node <name> <category> <type>` | A single-output node of a MaterialX value type. |
 | `mtlx_input <node>.<input> <type> <value...>` | A constant input. |
-| `connectmtl <src>[.out] <dst>.<input>` | Connects the output of `src` to an input of `dst`. |
+| `mtlx_input <node>.<input> <type> @<src>[.out]` | Connects the output of node `src` to the input. |
+| `mtlx_colorspace <node>.<input> <colorspace>` | The colorspace of a constant input (for example `srgb_texture` on an image `file`). |
 | `mtlx_include <path>` | A nodedef library, emitted as `xi:include`. |
 
 ### Tokens
@@ -49,6 +50,12 @@ are no escapes, and a missing closing quote is an error. A line whose first
 non-blank character is `#` is a comment. Trailing `\r` is ignored.
 
 ### Values
+
+- A value that is a single token `@<src>` or `@<src>.out` is a connection, not a
+  constant. Each input is bound exactly once, either to a value or to a
+  connection, so conflicting bindings cannot be written. To give a literal value
+  that starts with `@`, write `@@`; one `@` is removed. An `@` token among
+  several value tokens is an error.
 
 - `string` and `filename` take exactly one token, used verbatim.
 - Every other type joins its tokens with `", "`, which is the MaterialX value
@@ -72,13 +79,14 @@ below:
 3. The surface and node names are valid MaterialX names (`[A-Za-z_][A-Za-z0-9_]*`)
    and all distinct. Categories are valid names, and node types are built-in
    value types.
-4. Every `mtlx_input` names a declared node, has a valid input name, and has a
-   value that parses as its type. No input is set twice.
+4. Every `mtlx_input` names a declared node and has a valid input name. A
+   constant parses as its type. No input is bound twice, by values or
+   connections.
 5. Every connection source is a declared non-surface node, and its output, if
-   given, is `out`. The destination is declared. No input is connected twice.
-   If the same input also has a constant, the constant's type must equal the
-   source's type. The connection replaces the constant.
-6. The node graph is acyclic.
+   given, is `out`. The input's declared type must equal the source node's
+   type.
+6. Every `mtlx_colorspace` annotates a declared constant input, at most once.
+7. The node graph is acyclic.
 
 A material that breaks a rule keeps its classic keys and gets no MaterialX
 network. Loaders report this as a warning, never as a load failure.

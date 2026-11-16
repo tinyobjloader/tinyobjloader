@@ -11,7 +11,7 @@ mtlx_version  <major.minor>
 mtlx_surface  <name> <category>                 -- surface shader node
 mtlx_node     <name> <category> <type>          -- single-output node
 mtlx_input    <node>.<input> <type> <value...>  -- constant input
-connectmtl    <src>[.out] <dst>.<input>         -- connection
+mtlx_input    <node>.<input> <type> @<src>[.out] -- connection (`@@` escapes a literal @)
 mtlx_include  <path>                            -- XInclude of a nodedef library
 mtlx_colorspace <node>.<input> <colorspace>     -- colorspace of a constant input
 ```
@@ -43,6 +43,7 @@ structure Conn where
   srcOut : Option S
   dst : S
   port : S
+  ty : S           -- declared type of the destination input
   deriving Repr, DecidableEq
 
 structure Mat where
@@ -67,10 +68,22 @@ def splitDot (t : S) : S × Option S :=
   | some i => (t.take i, some (t.drop (i + 1)))
   | none => (t, none)
 
+/-- A value token `@node[.out]` is a connection; `@@...` is a literal starting with `@`. -/
+def isRef : S → Bool
+  | '@' :: '@' :: _ => false
+  | '@' :: _ => true
+  | _ => false
+
+def unescape : S → S
+  | '@' :: '@' :: r => '@' :: r
+  | t => t
+
 /-- Value text of `mtlx_input`: string-like types take the single (possibly quoted) token
 verbatim; every other type joins its tokens with `", "`, the MaterialX array/vector syntax. -/
-def valueText (ty : S) (vs : List S) : Option S :=
-  if ty == "string".toList || ty == "filename".toList then
+def valueText (ty : S) (vs0 : List S) : Option S :=
+  let vs := vs0.map unescape
+  if vs0.any isRef then none
+  else if ty == "string".toList || ty == "filename".toList then
     match vs with
     | [v] => some v
     | _ => none
@@ -97,18 +110,20 @@ def step (m : Mat) (toks : List S) : Mat :=
       | _ => addErr m "mtlx_node: expected <name> <category> <type>"
     else if kw == "mtlx_input".toList then
       match args with
+      | [ep, t, '@' :: r] =>
+        if r.head? == some '@' then
+          match splitDot ep, valueText t ['@' :: r] with
+          | (n, some p), some v => { m with inputs := m.inputs ++ [⟨n, p, t, v⟩] }
+          | _, _ => addErr m "mtlx_input: expected <node>.<input> <type> <value>"
+        else
+          match splitDot ep, splitDot r with
+          | (n, some p), (src, o) => { m with conns := m.conns ++ [⟨src, o, n, p, t⟩] }
+          | _, _ => addErr m "mtlx_input: expected <node>.<input> <type> <value>"
       | ep :: t :: vs =>
         match splitDot ep, valueText t vs with
         | (n, some p), some v => { m with inputs := m.inputs ++ [⟨n, p, t, v⟩] }
         | _, _ => addErr m "mtlx_input: expected <node>.<input> <type> <value>"
       | _ => addErr m "mtlx_input: expected <node>.<input> <type> <value>"
-    else if kw == "connectmtl".toList then
-      match args with
-      | [a, b] =>
-        match splitDot a, splitDot b with
-        | (s, o), (d, some p) => { m with conns := m.conns ++ [⟨s, o, d, p⟩] }
-        | _, _ => addErr m "connectmtl: destination must be <node>.<input>"
-      | _ => addErr m "connectmtl: expected <src>[.<output>] <dst>.<input>"
     else if kw == "mtlx_include".toList then
       match args with
       | [p] => { m with includes := m.includes ++ [p] }
@@ -125,7 +140,7 @@ def step (m : Mat) (toks : List S) : Mat :=
 
 def isExtKeyword (kw : S) : Bool :=
   kw == "mtlx_version".toList || kw == "mtlx_surface".toList || kw == "mtlx_node".toList ||
-  kw == "mtlx_input".toList || kw == "connectmtl".toList || kw == "mtlx_include".toList ||
+  kw == "mtlx_input".toList || kw == "mtlx_include".toList ||
   kw == "mtlx_colorspace".toList
 
 /-- Parse a whole `.mtl` text into its materials (in definition order). Extension lines before
@@ -165,8 +180,8 @@ def connOk (m : Mat) (c : Conn) : Bool :=
   (m.nodeTy? c.src).isSome &&
   (c.srcOut.isNone || c.srcOut == some "out".toList) &&
   m.names.contains c.dst && validNameChars c.port &&
-  -- a declared constant on the same port must agree with the source type
-  (m.inputs.all fun i => !(i.node == c.dst && i.port == c.port) || m.nodeTy? c.src == some i.ty)
+  -- the declared input type must equal the source node's output type
+  m.nodeTy? c.src == some c.ty
 
 /-- Ports bound by constants and by connections. -/
 def Mat.inPorts (m : Mat) : List (S × S) := m.inputs.map fun i => (i.node, i.port)
@@ -201,7 +216,7 @@ def check (m : Mat) : Bool :=
   m.surface.all (fun s => validNameChars s.2) &&
   m.nodes.all (fun d => validNameChars d.cat && builtinTy d.ty) &&
   m.inputs.all (inputOk m) && m.inPorts.Nodup &&
-  m.conns.all (connOk m) && m.connPorts.Nodup &&
+  m.conns.all (connOk m) && (m.inPorts ++ m.connPorts).Nodup &&
   m.colorspaces.all (csOk m) && m.csPorts.Nodup &&
   (discoverGraphRanking (lower m) noIface).isSome
 
@@ -214,7 +229,8 @@ structure WellFormed (m : Mat) : Prop where
   inputs : ∀ i ∈ m.inputs, inputOk m i = true
   inputsUnique : m.inPorts.Nodup
   conns : ∀ c ∈ m.conns, connOk m c = true
-  connsUnique : m.connPorts.Nodup
+  /-- Every input is bound once: by a value or by a connection. -/
+  bindingsUnique : (m.inPorts ++ m.connPorts).Nodup
   colorspaces : ∀ c ∈ m.colorspaces, csOk m c = true
   colorspacesUnique : m.csPorts.Nodup
   /-- Every connection source is declared (no dangling edges). -/

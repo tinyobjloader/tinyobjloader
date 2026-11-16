@@ -47,7 +47,7 @@ int main(int argc, char **argv) {
         fails++;
       }
       for (size_t k = 0; k < m->num_unknown_params; k++)
-        if (!strncmp(m->unknown_params[k].key, "mtlx_", 5) || !strcmp(m->unknown_params[k].key, "connectmtl")) {
+        if (!strncmp(m->unknown_params[k].key, "mtlx_", 5)) {
           printf("FAIL %s: %s leaked into unknown params\n", argv[a], m->unknown_params[k].key);
           fails++;
         }

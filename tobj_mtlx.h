@@ -1,7 +1,7 @@
 /*
  * tobj_mtlx — MaterialX-in-MTL extension for tinyobjloader (C11).
  *
- * Parses the `mtlx_*` / `connectmtl` lines of a Wavefront .mtl file into a
+ * Parses the `mtlx_*` lines of a Wavefront .mtl file into a
  * MaterialX node graph per material, checks it, and writes the equivalent
  * MaterialX (.mtlx) document. See doc/mtlx-mtl.md for the format.
  *
@@ -34,6 +34,7 @@ typedef struct tobj_mtlx_conn {
   char *src;
   char *src_out; /* NULL when the source output was omitted */
   char *dst, *port;
+  char *type; /* declared input type; must equal the source node's type */
 } tobj_mtlx_conn;
 
 typedef struct tobj_mtlx_colorspace {

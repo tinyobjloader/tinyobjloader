@@ -24,10 +24,10 @@ def line(r):
     if k in (4, 5): return f"mtlx_node {r.choice(NAMES)} {r.choice(CATS)} {r.choice(TYS)}"
     if k in (6, 7):
         return f"mtlx_input {ep(r)} {r.choice(TYS)} " + " ".join(r.choice(VALS) for _ in range(r.randrange(5)))
-    if k in (8, 9): return f"connectmtl {ep(r, r.random() < 0.3)} {ep(r)}"
+    if k in (8, 9): return f"mtlx_input {ep(r)} {r.choice(TYS[:4])} @{ep(r, r.random() < 0.3)}"
     if k == 11 and r.random() < 0.5: return f"mtlx_colorspace {ep(r)} {r.choice(['srgb_texture', 'lin_rec709', 'bad-cs'])}"
     if k == 10: return f"mtlx_include {r.choice(['lib.mtlx', '\"a b.mtlx\"'])}"
-    return r.choice(["# c", "Kd 1 1 1", "  \tmtlx_surface s standard_surface  ", "", "connectmtl", "mtlx_input a"])
+    return r.choice(["# c", "Kd 1 1 1", "  \tmtlx_surface s standard_surface  ", "", "mtlx_input a.b float @", "mtlx_input a.b string @@x", "mtlx_input a"])
 
 def main():
     seed = int(sys.argv[1]); r = random.Random(seed)

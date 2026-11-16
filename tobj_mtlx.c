@@ -308,15 +308,28 @@ static long dot_at(sl t) {
   return -1;
 }
 
+/* Lean `isRef`: `@x` is a connection, `@@x` a literal starting with '@'. */
+static int is_ref(sl t) { return t.n >= 1 && t.p[0] == '@' && !(t.n >= 2 && t.p[1] == '@'); }
+/* Lean `unescape` */
+static sl unescape(sl t) {
+  if (t.n >= 2 && t.p[0] == '@' && t.p[1] == '@') t.p++, t.n--;
+  return t;
+}
+
 /* Lean `valueText` */
 static char *value_text(sl ty, const sl *vs, size_t n, int *bad) {
   *bad = 0;
+  for (size_t i = 0; i < n; i++)
+    if (is_ref(vs[i])) {
+      *bad = 1;
+      return NULL;
+    }
   if (sl_eq(ty, "string") || sl_eq(ty, "filename")) {
     if (n != 1) {
       *bad = 1;
       return NULL;
     }
-    return dup_sl(vs[0]);
+    return dup_sl(unescape(vs[0]));
   }
   if (n == 0) {
     *bad = 1;
@@ -324,8 +337,9 @@ static char *value_text(sl ty, const sl *vs, size_t n, int *bad) {
   }
   sb b = {0};
   for (size_t i = 0; i < n; i++) {
+    sl t = unescape(vs[i]);
     if (i) sb_put(&b, ", ", 2);
-    sb_put(&b, vs[i].p, vs[i].n);
+    sb_put(&b, t.p, t.n);
   }
   if (b.oom) {
     free(b.p);
@@ -362,6 +376,27 @@ static int step(tobj_mtlx_material *m, const toks *tk) {
     const char *msg = "mtlx_input: expected <node>.<input> <type> <value>";
     if (na < 2) return add_err(m, msg);
     long d = dot_at(a[0]);
+    if (na == 3 && is_ref(a[2])) { /* connection: @src[.out] */
+      if (d < 0) return add_err(m, msg);
+      sl r = {a[2].p + 1, a[2].n - 1};
+      long ds = dot_at(r);
+      tobj_mtlx_conn c;
+      sl src = {r.p, ds < 0 ? r.n : (size_t)ds};
+      sl node = {a[0].p, (size_t)d}, port = {a[0].p + d + 1, a[0].n - d - 1};
+      c.src = dup_sl(src);
+      c.src_out = NULL;
+      if (ds >= 0) {
+        sl o = {r.p + ds + 1, r.n - ds - 1};
+        c.src_out = dup_sl(o);
+        if (!c.src_out) return -1;
+      }
+      c.dst = dup_sl(node);
+      c.port = dup_sl(port);
+      c.type = dup_sl(a[1]);
+      if (!c.src || !c.dst || !c.port || !c.type) return -1;
+      PUSH(m->conns, m->num_conns, tobj_mtlx_conn, c);
+      return 0;
+    }
     int bad = 0;
     char *v = value_text(a[1], a + 2, na - 2, &bad);
     if (d < 0 || bad) {
@@ -373,26 +408,6 @@ static int step(tobj_mtlx_material *m, const toks *tk) {
     tobj_mtlx_input in = {dup_sl(node), dup_sl(port), dup_sl(a[1]), v};
     if (!in.node || !in.port || !in.type) return -1;
     PUSH(m->inputs, m->num_inputs, tobj_mtlx_input, in);
-  } else if (sl_eq(kw, "connectmtl")) {
-    if (na != 2)
-      return add_err(m, "connectmtl: expected <src>[.<output>] <dst>.<input>");
-    long ds = dot_at(a[0]), dd = dot_at(a[1]);
-    if (dd < 0)
-      return add_err(m, "connectmtl: destination must be <node>.<input>");
-    tobj_mtlx_conn c;
-    sl src = {a[0].p, ds < 0 ? a[0].n : (size_t)ds};
-    c.src = dup_sl(src);
-    c.src_out = NULL;
-    if (ds >= 0) {
-      sl o = {a[0].p + ds + 1, a[0].n - ds - 1};
-      c.src_out = dup_sl(o);
-      if (!c.src_out) return -1;
-    }
-    sl dst = {a[1].p, (size_t)dd}, port = {a[1].p + dd + 1, a[1].n - dd - 1};
-    c.dst = dup_sl(dst);
-    c.port = dup_sl(port);
-    if (!c.src || !c.dst || !c.port) return -1;
-    PUSH(m->conns, m->num_conns, tobj_mtlx_conn, c);
   } else if (sl_eq(kw, "mtlx_colorspace")) {
     const char *msg = "mtlx_colorspace: expected <node>.<input> <colorspace>";
     if (na != 2) return add_err(m, msg);
@@ -414,7 +429,7 @@ static int step(tobj_mtlx_material *m, const toks *tk) {
 static int is_ext_keyword(sl kw) {
   return sl_eq(kw, "mtlx_version") || sl_eq(kw, "mtlx_surface") ||
          sl_eq(kw, "mtlx_node") || sl_eq(kw, "mtlx_input") ||
-         sl_eq(kw, "connectmtl") || sl_eq(kw, "mtlx_include") ||
+         sl_eq(kw, "mtlx_include") ||
          sl_eq(kw, "mtlx_colorspace");
 }
 
@@ -527,9 +542,9 @@ static int check(const tobj_mtlx_material *m) {
     if (!st) return 0;
     if (c->src_out && strcmp(c->src_out, "out") != 0) return 0;
     if (!has_name(m, c->dst) || !valid_name(c->port)) return 0;
-    for (size_t j = 0; j < m->num_inputs; j++)
-      if (str_eq(m->inputs[j].node, c->dst) &&
-          str_eq(m->inputs[j].port, c->port) && !str_eq(st, m->inputs[j].type))
+    if (!str_eq(st, c->type)) return 0;
+    for (size_t j = 0; j < m->num_inputs; j++) /* one binding per input */
+      if (str_eq(m->inputs[j].node, c->dst) && str_eq(m->inputs[j].port, c->port))
         return 0;
     for (size_t j = 0; j < i; j++)
       if (str_eq(c->dst, m->conns[j].dst) && str_eq(c->port, m->conns[j].port))
@@ -633,7 +648,7 @@ void tobj_mtlx_free(tobj_mtlx_doc *doc) {
     free(m->inputs);
     for (size_t j = 0; j < m->num_conns; j++)
       free(m->conns[j].src), free(m->conns[j].src_out), free(m->conns[j].dst),
-          free(m->conns[j].port);
+          free(m->conns[j].port), free(m->conns[j].type);
     free(m->conns);
     free_strs(m->includes, m->num_includes);
     for (size_t j = 0; j < m->num_colorspaces; j++)
@@ -672,11 +687,11 @@ static void indent(sb *b, int d) {
 static void conn_input(sb *b, int d, const tobj_mtlx_material *m,
                        const char *M, int into_surface,
                        const tobj_mtlx_conn *c) {
-  const char *ty = node_ty(m, c->src);
+  (void)m;
   indent(b, d);
   sb_puts(b, "<input");
   put_attr(b, "name", c->port);
-  put_attr(b, "type", ty ? ty : "");
+  put_attr(b, "type", c->type);
   if (into_surface) {
     sb_puts(b, " nodegraph=\"NG_");
     sb_puts(b, M);

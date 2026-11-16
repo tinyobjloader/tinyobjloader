@@ -30,6 +30,8 @@ def tokens_of(ty, value):
     if ty in ("string", "filename"):
         if '"' in value or value == "":
             raise Unsupported(f"string value {value!r} cannot be tokenized")
+        if value.startswith("@"):
+            value = "@" + value  # `@@` escapes a literal leading '@'
         return [f'"{value}"' if (" " in value or "\t" in value) else value]
     toks = [t for t in value.replace(",", " ").split() if t]
     if not toks:
@@ -109,7 +111,7 @@ def convert(path):
                     src_scope = ng_nodes
                 if src is not None:
                     visit(src, src_chain, src_scope)
-                    conns.append(f"connectmtl {src.get('name')} {n}.{port}")
+                    conns.append(f"mtlx_input {n}.{port} {ty} @{src.get('name')}")
                     continue
                 if inp.get("nodename") or inp.get("nodegraph"):
                     raise Unsupported(f"{mname}: dangling connection on {n}.{port}")
