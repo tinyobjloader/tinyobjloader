@@ -394,3 +394,5 @@ with local leak detection disabled.
 - `Tess.C.ShiftModel` proves the `shift` limb carry chain denotes `a*2^bits`;
   `QrModel.qrDoubleM_spec` proves `qr_double` returns the canonical exact value
   of a finite binary64 pattern. Audit: 1569 declarations.
+- `Tess.C.ZiCmp` proves `acmp`/`zi_cmp` models equal the order of the denoted
+  integers. Audit: 1636 declarations.

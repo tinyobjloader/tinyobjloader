@@ -13,6 +13,7 @@ import Tess.C.QrModel
 import Tess.C.DivModel
 import Tess.C.PredModel
 import Tess.C.ShiftModel
+import Tess.C.ZiCmp
 import Tess.C.Arithmetic
 import Tess.C.Magnitude
 import Tess.Certificate
