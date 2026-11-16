@@ -445,8 +445,9 @@ with local leak detection disabled.
 - `BoxSeparation.boxes_separate_disjoint`: a strict gap between recorded AABB extrema excludes any common point of the two closed triangles, justifying the broadphase skip.
 - `C/SegModel.tgSegmentsM_eq`: the `tg_segments` model equals `segmentConflict` (audit count in the header is kept current).
 - The mutation campaign is reproducible: `python3 lib/tess/tools/mutation_check.py --lean
-  formal/.lake/build/bin/tesspredicates` applies the twelve mutants to a scratch copy and reports
-  eleven killed plus the one documented equivalent mutant (not part of default ctest).
+  formal/.lake/build/bin/tesspredicates` applies the seventeen mutants to a scratch copy and reports
+  sixteen killed plus the one documented equivalent mutant (not part of default ctest). Five mutants were
+  added for the factored `shift_fill`/`div_single_fill` kernels and the binary division path.
 - `NoncoplanarComplete.noncoplanar_gp_disjoint`: in general position, `noncoplanarTrianglesConflict = false`
   implies no common rational point of the two closed triangles (Case I: exit lemma in the plane of
   `A` for a point of `B ∩ plane A` outside `A`; Case II: strict cut of a `B` edge). Combined with
