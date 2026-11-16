@@ -4,7 +4,7 @@ Implemented against `../../robust-ngon-remeshing-c11-lean4-prompt.md`.
 Release evidence below was collected on 2026-11-14. The deliverable is a bounded
 reference library, not a convergence guarantee or full C refinement proof.
 
-**Current authoritative proof-audit count: 3930 Tess declarations** (re-run
+**Current authoritative proof-audit count: 3939 Tess declarations** (re-run
 2026-11-16 after `C/I64Import`; standard axioms only). `C/I64Import` refines the pure
 kernels (`i64_limb_count`, `i64_fill`) factored out of `zi_i64` (LimbGen ids 8, 9; behavior
 unchanged, 28/28 tests pass); the written limbs denote the int64 magnitude and the sign field is ±1. Declaration counts quoted in the dated
@@ -17,7 +17,7 @@ checked int64 `sub`/`mul` of `tess_orient2i`; limb-level model of the whole bina
 `serial_add`, `grow`, `split_find`, the topology union-find and the certificate insertion sort; and
 auditor completeness for valid coplanar pairs (no shared vertex, one shared vertex, shared edge in either
 direction, all rotations). Not proved: allocating whole-function refinements (MiniC has no allocator),
-real-point (not only rational) disjointness, and a whole-function refinement of `tess_orient2i`.
+real-point (not only rational) disjointness, and the `tess_status` wrapper of `tess_orient2i` (its translated core `orient2i_core` is refined on both success and failure paths).
 Sanitizer note: the full Clang ASan/UBSan suite (leak detection on) passes 25/25 after fixing a pre-existing
 leak in `domain_valid` (edge tangents were dropped by `m->ne = 0` when the domain check ran more than once,
 e.g. across chart-axis attempts).

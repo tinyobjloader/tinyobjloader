@@ -59,6 +59,13 @@ theorem load_i32_enc (m : Mem) (rb n : Nat) (hn : n < 2 ^ 32) (hm : m rb = some 
   simp [decodeLE_encodeLE]
   simpa using hn
 
+theorem subChk_none (a b : Int) (h : subChk a b = none) :
+    (0 < b ∧ a < i64min + b) ∨ (b < 0 ∧ i64max + b < a) := by
+  unfold subChk at h
+  by_cases c : (0 < b ∧ a < i64min + b) ∨ (b < 0 ∧ i64max + b < a)
+  · exact c
+  · rw [if_neg c] at h; cases h
+
 theorem orient2i_core_ok (ax ay bx bY cx cy : Int) (h1 : InI64 ax) (h2 : InI64 ay) (h3 : InI64 bx)
     (h4 : InI64 bY) (h5 : InI64 cx) (h6 : InI64 cy) (sp : Nat) (m : Mem) (s0 : State)
     (h0 : s0 = ⟨frameLocals OrientGen.orient2i_core.params
@@ -259,5 +266,573 @@ theorem orient2i_core_ok (ax ay bx bY cx cy : Int) (h1 : InI64 ax) (h2 : InI64 a
   refine ExS.seq e7 ?_
   refine ExS.seq (okStep st7 ok7) ?_
   exact ExS.seq hst (ExS.ret (EvE.const _))
+
+/-- Failure paths: when step `k` of the model fails, the translated function returns 0. -/
+
+theorem orient2i_core_fail1 (ax ay bx bY cx cy : Int) (h1 : InI64 ax) (h2 : InI64 ay) (h3 : InI64 bx)
+    (h4 : InI64 bY) (h5 : InI64 cx) (h6 : InI64 cy) (sp : Nat) (m : Mem) (s0 : State)
+    (h0 : s0 = ⟨frameLocals OrientGen.orient2i_core.params
+      [.int IntTy.i64 (W ax), .int IntTy.i64 (W ay), .int IntTy.i64 (W bx), .int IntTy.i64 (W bY),
+       .int IntTy.i64 (W cx), .int IntTy.i64 (W cy), .ptr sp 0], m, false⟩)
+    (B1 B2 B3 B4 B5 B6 B7 : Block) (m1 : m 1007 = some B1) (m2 : m 1008 = some B2)
+    (m3 : m 1009 = some B3) (m4 : m 1010 = some B4) (m5 : m 1011 = some B5) (m6 : m 1012 = some B6)
+    (m7 : m 1013 = some B7) (l1 : B1.length = 8) (l2 : B2.length = 8) (l3 : B3.length = 8)
+    (l4 : B4.length = 8) (l5 : B5.length = 8) (l6 : B6.length = 8) (l7 : B7.length = 8)
+    (S : Block) (mS : m sp = some S) (lS : S.length = 4)
+    (n1 : sp ≠ 1007) (n2 : sp ≠ 1008) (n3 : sp ≠ 1009) (n4 : sp ≠ 1010) (n5 : sp ≠ 1011)
+    (n6 : sp ≠ 1012) (n7 : sp ≠ 1013) (hn : subChk bx ax = none) :
+    ∃ sf, ExS OrientGen.prog s0 OrientGen.orient2i_core.body (.ret (some (.int ⟨32, true⟩ 0))) sf := by
+  have l0 : s0.locals 0 = some (.int IntTy.i64 (W ax)) := by rw [h0]; rfl
+  have l1' : s0.locals 1 = some (.int IntTy.i64 (W ay)) := by rw [h0]; rfl
+  have l2' : s0.locals 2 = some (.int IntTy.i64 (W bx)) := by rw [h0]; rfl
+  have l3' : s0.locals 3 = some (.int IntTy.i64 (W bY)) := by rw [h0]; rfl
+  have l4' : s0.locals 4 = some (.int IntTy.i64 (W cx)) := by rw [h0]; rfl
+  have l5' : s0.locals 5 = some (.int IntTy.i64 (W cy)) := by rw [h0]; rfl
+  have l6' : s0.locals 6 = some (.ptr sp 0) := by rw [h0]; rfl
+  have ro0 : s0.ro = false := by rw [h0]
+  have mem0 : s0.mem = m := by rw [h0]
+  obtain ⟨st1, e1, hl1⟩ := (callSub s0 14 (.var 2) (.var 0) 1007 bx ax h3 h1 (EvE.var l2') (EvE.var l0) B1 (by rw [mem0]; exact m1) l1 ro0).1 (subChk_none _ _ hn)
+  have ok1 : st1.locals 14 = some (.int ⟨32, true⟩ 0) := by rw [hl1]; simp [Locals.upd]
+  refine ⟨st1, ?_⟩
+  unfold OrientGen.orient2i_core
+  exact ExS.seq e1 (ExS.seq_ret (ExS.ite (EvE.un (EvE.var ok1) (by simp [evalUn, truthy])) (tb'' true) (ExS.ret (EvE.const _))))
+
+theorem orient2i_core_fail2 (ax ay bx bY cx cy : Int) (h1 : InI64 ax) (h2 : InI64 ay) (h3 : InI64 bx)
+    (h4 : InI64 bY) (h5 : InI64 cx) (h6 : InI64 cy) (sp : Nat) (m : Mem) (s0 : State)
+    (h0 : s0 = ⟨frameLocals OrientGen.orient2i_core.params
+      [.int IntTy.i64 (W ax), .int IntTy.i64 (W ay), .int IntTy.i64 (W bx), .int IntTy.i64 (W bY),
+       .int IntTy.i64 (W cx), .int IntTy.i64 (W cy), .ptr sp 0], m, false⟩)
+    (B1 B2 B3 B4 B5 B6 B7 : Block) (m1 : m 1007 = some B1) (m2 : m 1008 = some B2)
+    (m3 : m 1009 = some B3) (m4 : m 1010 = some B4) (m5 : m 1011 = some B5) (m6 : m 1012 = some B6)
+    (m7 : m 1013 = some B7) (l1 : B1.length = 8) (l2 : B2.length = 8) (l3 : B3.length = 8)
+    (l4 : B4.length = 8) (l5 : B5.length = 8) (l6 : B6.length = 8) (l7 : B7.length = 8)
+    (S : Block) (mS : m sp = some S) (lS : S.length = 4)
+    (n1 : sp ≠ 1007) (n2 : sp ≠ 1008) (n3 : sp ≠ 1009) (n4 : sp ≠ 1010) (n5 : sp ≠ 1011)
+    (n6 : sp ≠ 1012) (n7 : sp ≠ 1013) {x : Int} (hx : subChk bx ax = some x) (hn : subChk bY ay = none) :
+    ∃ sf, ExS OrientGen.prog s0 OrientGen.orient2i_core.body (.ret (some (.int ⟨32, true⟩ 0))) sf := by
+  obtain ⟨gx, hxe⟩ := subChk_some _ _ _ hx
+  have rx : InI64 x := by
+    rcases subChk_spec bx ax h3 h1 with ⟨r, hr, e, hi⟩ | ⟨hr, -⟩
+    · rw [hx] at hr; cases hr; exact hi
+    · rw [hx] at hr; cases hr
+  have l0 : s0.locals 0 = some (.int IntTy.i64 (W ax)) := by rw [h0]; rfl
+  have l1' : s0.locals 1 = some (.int IntTy.i64 (W ay)) := by rw [h0]; rfl
+  have l2' : s0.locals 2 = some (.int IntTy.i64 (W bx)) := by rw [h0]; rfl
+  have l3' : s0.locals 3 = some (.int IntTy.i64 (W bY)) := by rw [h0]; rfl
+  have l4' : s0.locals 4 = some (.int IntTy.i64 (W cx)) := by rw [h0]; rfl
+  have l5' : s0.locals 5 = some (.int IntTy.i64 (W cy)) := by rw [h0]; rfl
+  have l6' : s0.locals 6 = some (.ptr sp 0) := by rw [h0]; rfl
+  have ro0 : s0.ro = false := by rw [h0]
+  have mem0 : s0.mem = m := by rw [h0]
+  -- step 1: ok = sub(bx, ax, &x)
+  obtain ⟨st1, e1, hl1, hm1, hf1, hr1⟩ := (callSub s0 14 (.var 2) (.var 0) 1007 bx ax h3 h1
+    (EvE.var l2') (EvE.var l0) B1 (by rw [mem0]; exact m1) l1 ro0).2 gx
+  have hk1 : ∀ i, i ≠ 14 → st1.locals i = s0.locals i := fun i hi => by
+    rw [hl1]; simp [Locals.upd, hi]
+  have m1x : st1.mem 1007 = some (encodeLE 8 (W x)) := by rw [hxe]; exact hm1
+  have ok1 : st1.locals 14 = some (.int ⟨32, true⟩ 1) := by rw [hl1]; simp [Locals.upd]
+  obtain ⟨st2, e2, hl2⟩ := (callSub st1 14 (.var 3) (.var 1) 1008 bY ay h4 h2 (EvE.var (by rw [hk1 3 (by norm_num)]; exact l3')) (EvE.var (by rw [hk1 1 (by norm_num)]; exact l1')) B2 (by rw [hf1 1008 (by norm_num), mem0]; exact m2) l2 (by rw [hr1]; exact ro0)).1 (subChk_none _ _ hn)
+  have ok2 : st2.locals 14 = some (.int ⟨32, true⟩ 0) := by rw [hl2]; simp [Locals.upd]
+  refine ⟨st2, ?_⟩
+  unfold OrientGen.orient2i_core
+  refine ExS.seq e1 ?_
+  refine ExS.seq (okStep st1 ok1) ?_
+  exact ExS.seq e2 (ExS.seq_ret (ExS.ite (EvE.un (EvE.var ok2) (by simp [evalUn, truthy])) (tb'' true) (ExS.ret (EvE.const _))))
+
+theorem orient2i_core_fail3 (ax ay bx bY cx cy : Int) (h1 : InI64 ax) (h2 : InI64 ay) (h3 : InI64 bx)
+    (h4 : InI64 bY) (h5 : InI64 cx) (h6 : InI64 cy) (sp : Nat) (m : Mem) (s0 : State)
+    (h0 : s0 = ⟨frameLocals OrientGen.orient2i_core.params
+      [.int IntTy.i64 (W ax), .int IntTy.i64 (W ay), .int IntTy.i64 (W bx), .int IntTy.i64 (W bY),
+       .int IntTy.i64 (W cx), .int IntTy.i64 (W cy), .ptr sp 0], m, false⟩)
+    (B1 B2 B3 B4 B5 B6 B7 : Block) (m1 : m 1007 = some B1) (m2 : m 1008 = some B2)
+    (m3 : m 1009 = some B3) (m4 : m 1010 = some B4) (m5 : m 1011 = some B5) (m6 : m 1012 = some B6)
+    (m7 : m 1013 = some B7) (l1 : B1.length = 8) (l2 : B2.length = 8) (l3 : B3.length = 8)
+    (l4 : B4.length = 8) (l5 : B5.length = 8) (l6 : B6.length = 8) (l7 : B7.length = 8)
+    (S : Block) (mS : m sp = some S) (lS : S.length = 4)
+    (n1 : sp ≠ 1007) (n2 : sp ≠ 1008) (n3 : sp ≠ 1009) (n4 : sp ≠ 1010) (n5 : sp ≠ 1011)
+    (n6 : sp ≠ 1012) (n7 : sp ≠ 1013) {x y : Int} (hx : subChk bx ax = some x) (hy : subChk bY ay = some y) (hn : subChk cx ax = none) :
+    ∃ sf, ExS OrientGen.prog s0 OrientGen.orient2i_core.body (.ret (some (.int ⟨32, true⟩ 0))) sf := by
+  obtain ⟨gx, hxe⟩ := subChk_some _ _ _ hx
+  have rx : InI64 x := by
+    rcases subChk_spec bx ax h3 h1 with ⟨r, hr, e, hi⟩ | ⟨hr, -⟩
+    · rw [hx] at hr; cases hr; exact hi
+    · rw [hx] at hr; cases hr
+  obtain ⟨gy, hye⟩ := subChk_some _ _ _ hy
+  have ry : InI64 y := by
+    rcases subChk_spec bY ay h4 h2 with ⟨r, hr, e, hi⟩ | ⟨hr, -⟩
+    · rw [hy] at hr; cases hr; exact hi
+    · rw [hy] at hr; cases hr
+  have l0 : s0.locals 0 = some (.int IntTy.i64 (W ax)) := by rw [h0]; rfl
+  have l1' : s0.locals 1 = some (.int IntTy.i64 (W ay)) := by rw [h0]; rfl
+  have l2' : s0.locals 2 = some (.int IntTy.i64 (W bx)) := by rw [h0]; rfl
+  have l3' : s0.locals 3 = some (.int IntTy.i64 (W bY)) := by rw [h0]; rfl
+  have l4' : s0.locals 4 = some (.int IntTy.i64 (W cx)) := by rw [h0]; rfl
+  have l5' : s0.locals 5 = some (.int IntTy.i64 (W cy)) := by rw [h0]; rfl
+  have l6' : s0.locals 6 = some (.ptr sp 0) := by rw [h0]; rfl
+  have ro0 : s0.ro = false := by rw [h0]
+  have mem0 : s0.mem = m := by rw [h0]
+  -- step 1: ok = sub(bx, ax, &x)
+  obtain ⟨st1, e1, hl1, hm1, hf1, hr1⟩ := (callSub s0 14 (.var 2) (.var 0) 1007 bx ax h3 h1
+    (EvE.var l2') (EvE.var l0) B1 (by rw [mem0]; exact m1) l1 ro0).2 gx
+  have hk1 : ∀ i, i ≠ 14 → st1.locals i = s0.locals i := fun i hi => by
+    rw [hl1]; simp [Locals.upd, hi]
+  have m1x : st1.mem 1007 = some (encodeLE 8 (W x)) := by rw [hxe]; exact hm1
+  -- step 2: ok = sub(by, ay, &y)
+  obtain ⟨st2, e2, hl2, hm2, hf2, hr2⟩ := (callSub st1 14 (.var 3) (.var 1) 1008 bY ay h4 h2
+    (EvE.var (by rw [hk1 3 (by norm_num)]; exact l3')) (EvE.var (by rw [hk1 1 (by norm_num)]; exact l1'))
+    B2 (by rw [hf1 1008 (by norm_num), mem0]; exact m2) l2 (by rw [hr1]; exact ro0)).2 gy
+  have hk2 : ∀ i, i ≠ 14 → st2.locals i = s0.locals i := fun i hi => by
+    rw [hl2]; simp [Locals.upd, hi]; exact hk1 i hi
+  have m2y : st2.mem 1008 = some (encodeLE 8 (W y)) := by rw [hye]; exact hm2
+  have m2x : st2.mem 1007 = some (encodeLE 8 (W x)) := by rw [hf2 1007 (by norm_num)]; exact m1x
+  have ok1 : st1.locals 14 = some (.int ⟨32, true⟩ 1) := by rw [hl1]; simp [Locals.upd]
+  have ok2 : st2.locals 14 = some (.int ⟨32, true⟩ 1) := by rw [hl2]; simp [Locals.upd]
+  obtain ⟨st3, e3, hl3⟩ := (callSub st2 14 (.var 4) (.var 0) 1009 cx ax h5 h1 (EvE.var (by rw [hk2 4 (by norm_num)]; exact l4')) (EvE.var (by rw [hk2 0 (by norm_num)]; exact l0)) B3 (by rw [hf2 1009 (by norm_num), hf1 1009 (by norm_num), mem0]; exact m3) l3 (by rw [hr2, hr1]; exact ro0)).1 (subChk_none _ _ hn)
+  have ok3 : st3.locals 14 = some (.int ⟨32, true⟩ 0) := by rw [hl3]; simp [Locals.upd]
+  refine ⟨st3, ?_⟩
+  unfold OrientGen.orient2i_core
+  refine ExS.seq e1 ?_
+  refine ExS.seq (okStep st1 ok1) ?_
+  refine ExS.seq e2 ?_
+  refine ExS.seq (okStep st2 ok2) ?_
+  exact ExS.seq e3 (ExS.seq_ret (ExS.ite (EvE.un (EvE.var ok3) (by simp [evalUn, truthy])) (tb'' true) (ExS.ret (EvE.const _))))
+
+theorem orient2i_core_fail4 (ax ay bx bY cx cy : Int) (h1 : InI64 ax) (h2 : InI64 ay) (h3 : InI64 bx)
+    (h4 : InI64 bY) (h5 : InI64 cx) (h6 : InI64 cy) (sp : Nat) (m : Mem) (s0 : State)
+    (h0 : s0 = ⟨frameLocals OrientGen.orient2i_core.params
+      [.int IntTy.i64 (W ax), .int IntTy.i64 (W ay), .int IntTy.i64 (W bx), .int IntTy.i64 (W bY),
+       .int IntTy.i64 (W cx), .int IntTy.i64 (W cy), .ptr sp 0], m, false⟩)
+    (B1 B2 B3 B4 B5 B6 B7 : Block) (m1 : m 1007 = some B1) (m2 : m 1008 = some B2)
+    (m3 : m 1009 = some B3) (m4 : m 1010 = some B4) (m5 : m 1011 = some B5) (m6 : m 1012 = some B6)
+    (m7 : m 1013 = some B7) (l1 : B1.length = 8) (l2 : B2.length = 8) (l3 : B3.length = 8)
+    (l4 : B4.length = 8) (l5 : B5.length = 8) (l6 : B6.length = 8) (l7 : B7.length = 8)
+    (S : Block) (mS : m sp = some S) (lS : S.length = 4)
+    (n1 : sp ≠ 1007) (n2 : sp ≠ 1008) (n3 : sp ≠ 1009) (n4 : sp ≠ 1010) (n5 : sp ≠ 1011)
+    (n6 : sp ≠ 1012) (n7 : sp ≠ 1013) {x y u : Int} (hx : subChk bx ax = some x) (hy : subChk bY ay = some y) (hu : subChk cx ax = some u) (hn : subChk cy ay = none) :
+    ∃ sf, ExS OrientGen.prog s0 OrientGen.orient2i_core.body (.ret (some (.int ⟨32, true⟩ 0))) sf := by
+  obtain ⟨gx, hxe⟩ := subChk_some _ _ _ hx
+  have rx : InI64 x := by
+    rcases subChk_spec bx ax h3 h1 with ⟨r, hr, e, hi⟩ | ⟨hr, -⟩
+    · rw [hx] at hr; cases hr; exact hi
+    · rw [hx] at hr; cases hr
+  obtain ⟨gy, hye⟩ := subChk_some _ _ _ hy
+  have ry : InI64 y := by
+    rcases subChk_spec bY ay h4 h2 with ⟨r, hr, e, hi⟩ | ⟨hr, -⟩
+    · rw [hy] at hr; cases hr; exact hi
+    · rw [hy] at hr; cases hr
+  obtain ⟨gu, hue⟩ := subChk_some _ _ _ hu
+  have ru : InI64 u := by
+    rcases subChk_spec cx ax h5 h1 with ⟨r, hr, e, hi⟩ | ⟨hr, -⟩
+    · rw [hu] at hr; cases hr; exact hi
+    · rw [hu] at hr; cases hr
+  have l0 : s0.locals 0 = some (.int IntTy.i64 (W ax)) := by rw [h0]; rfl
+  have l1' : s0.locals 1 = some (.int IntTy.i64 (W ay)) := by rw [h0]; rfl
+  have l2' : s0.locals 2 = some (.int IntTy.i64 (W bx)) := by rw [h0]; rfl
+  have l3' : s0.locals 3 = some (.int IntTy.i64 (W bY)) := by rw [h0]; rfl
+  have l4' : s0.locals 4 = some (.int IntTy.i64 (W cx)) := by rw [h0]; rfl
+  have l5' : s0.locals 5 = some (.int IntTy.i64 (W cy)) := by rw [h0]; rfl
+  have l6' : s0.locals 6 = some (.ptr sp 0) := by rw [h0]; rfl
+  have ro0 : s0.ro = false := by rw [h0]
+  have mem0 : s0.mem = m := by rw [h0]
+  -- step 1: ok = sub(bx, ax, &x)
+  obtain ⟨st1, e1, hl1, hm1, hf1, hr1⟩ := (callSub s0 14 (.var 2) (.var 0) 1007 bx ax h3 h1
+    (EvE.var l2') (EvE.var l0) B1 (by rw [mem0]; exact m1) l1 ro0).2 gx
+  have hk1 : ∀ i, i ≠ 14 → st1.locals i = s0.locals i := fun i hi => by
+    rw [hl1]; simp [Locals.upd, hi]
+  have m1x : st1.mem 1007 = some (encodeLE 8 (W x)) := by rw [hxe]; exact hm1
+  -- step 2: ok = sub(by, ay, &y)
+  obtain ⟨st2, e2, hl2, hm2, hf2, hr2⟩ := (callSub st1 14 (.var 3) (.var 1) 1008 bY ay h4 h2
+    (EvE.var (by rw [hk1 3 (by norm_num)]; exact l3')) (EvE.var (by rw [hk1 1 (by norm_num)]; exact l1'))
+    B2 (by rw [hf1 1008 (by norm_num), mem0]; exact m2) l2 (by rw [hr1]; exact ro0)).2 gy
+  have hk2 : ∀ i, i ≠ 14 → st2.locals i = s0.locals i := fun i hi => by
+    rw [hl2]; simp [Locals.upd, hi]; exact hk1 i hi
+  have m2y : st2.mem 1008 = some (encodeLE 8 (W y)) := by rw [hye]; exact hm2
+  have m2x : st2.mem 1007 = some (encodeLE 8 (W x)) := by rw [hf2 1007 (by norm_num)]; exact m1x
+  -- step 3: ok = sub(cx, ax, &u)
+  obtain ⟨st3, e3, hl3, hm3, hf3, hr3⟩ := (callSub st2 14 (.var 4) (.var 0) 1009 cx ax h5 h1
+    (EvE.var (by rw [hk2 4 (by norm_num)]; exact l4')) (EvE.var (by rw [hk2 0 (by norm_num)]; exact l0))
+    B3 (by rw [hf2 1009 (by norm_num), hf1 1009 (by norm_num), mem0]; exact m3) l3 (by rw [hr2, hr1]; exact ro0)).2 gu
+  have hk3 : ∀ i, i ≠ 14 → st3.locals i = s0.locals i := fun i hi => by
+    rw [hl3]; simp [Locals.upd, hi]; exact hk2 i hi
+  have m3u : st3.mem 1009 = some (encodeLE 8 (W u)) := by rw [hue]; exact hm3
+  have m3y : st3.mem 1008 = some (encodeLE 8 (W y)) := by rw [hf3 1008 (by norm_num)]; exact m2y
+  have m3x : st3.mem 1007 = some (encodeLE 8 (W x)) := by rw [hf3 1007 (by norm_num)]; exact m2x
+  have ok1 : st1.locals 14 = some (.int ⟨32, true⟩ 1) := by rw [hl1]; simp [Locals.upd]
+  have ok2 : st2.locals 14 = some (.int ⟨32, true⟩ 1) := by rw [hl2]; simp [Locals.upd]
+  have ok3 : st3.locals 14 = some (.int ⟨32, true⟩ 1) := by rw [hl3]; simp [Locals.upd]
+  obtain ⟨st4, e4, hl4⟩ := (callSub st3 14 (.var 5) (.var 1) 1010 cy ay h6 h2 (EvE.var (by rw [hk3 5 (by norm_num)]; exact l5')) (EvE.var (by rw [hk3 1 (by norm_num)]; exact l1')) B4 (by rw [hf3 1010 (by norm_num), hf2 1010 (by norm_num), hf1 1010 (by norm_num), mem0]; exact m4) l4 (by rw [hr3, hr2, hr1]; exact ro0)).1 (subChk_none _ _ hn)
+  have ok4 : st4.locals 14 = some (.int ⟨32, true⟩ 0) := by rw [hl4]; simp [Locals.upd]
+  refine ⟨st4, ?_⟩
+  unfold OrientGen.orient2i_core
+  refine ExS.seq e1 ?_
+  refine ExS.seq (okStep st1 ok1) ?_
+  refine ExS.seq e2 ?_
+  refine ExS.seq (okStep st2 ok2) ?_
+  refine ExS.seq e3 ?_
+  refine ExS.seq (okStep st3 ok3) ?_
+  exact ExS.seq e4 (ExS.seq_ret (ExS.ite (EvE.un (EvE.var ok4) (by simp [evalUn, truthy])) (tb'' true) (ExS.ret (EvE.const _))))
+
+theorem orient2i_core_fail5 (ax ay bx bY cx cy : Int) (h1 : InI64 ax) (h2 : InI64 ay) (h3 : InI64 bx)
+    (h4 : InI64 bY) (h5 : InI64 cx) (h6 : InI64 cy) (sp : Nat) (m : Mem) (s0 : State)
+    (h0 : s0 = ⟨frameLocals OrientGen.orient2i_core.params
+      [.int IntTy.i64 (W ax), .int IntTy.i64 (W ay), .int IntTy.i64 (W bx), .int IntTy.i64 (W bY),
+       .int IntTy.i64 (W cx), .int IntTy.i64 (W cy), .ptr sp 0], m, false⟩)
+    (B1 B2 B3 B4 B5 B6 B7 : Block) (m1 : m 1007 = some B1) (m2 : m 1008 = some B2)
+    (m3 : m 1009 = some B3) (m4 : m 1010 = some B4) (m5 : m 1011 = some B5) (m6 : m 1012 = some B6)
+    (m7 : m 1013 = some B7) (l1 : B1.length = 8) (l2 : B2.length = 8) (l3 : B3.length = 8)
+    (l4 : B4.length = 8) (l5 : B5.length = 8) (l6 : B6.length = 8) (l7 : B7.length = 8)
+    (S : Block) (mS : m sp = some S) (lS : S.length = 4)
+    (n1 : sp ≠ 1007) (n2 : sp ≠ 1008) (n3 : sp ≠ 1009) (n4 : sp ≠ 1010) (n5 : sp ≠ 1011)
+    (n6 : sp ≠ 1012) (n7 : sp ≠ 1013) {x y u v : Int} (hx : subChk bx ax = some x) (hy : subChk bY ay = some y) (hu : subChk cx ax = some u) (hv : subChk cy ay = some v) (hn : mulChk x v = none) :
+    ∃ sf, ExS OrientGen.prog s0 OrientGen.orient2i_core.body (.ret (some (.int ⟨32, true⟩ 0))) sf := by
+  obtain ⟨gx, hxe⟩ := subChk_some _ _ _ hx
+  have rx : InI64 x := by
+    rcases subChk_spec bx ax h3 h1 with ⟨r, hr, e, hi⟩ | ⟨hr, -⟩
+    · rw [hx] at hr; cases hr; exact hi
+    · rw [hx] at hr; cases hr
+  obtain ⟨gy, hye⟩ := subChk_some _ _ _ hy
+  have ry : InI64 y := by
+    rcases subChk_spec bY ay h4 h2 with ⟨r, hr, e, hi⟩ | ⟨hr, -⟩
+    · rw [hy] at hr; cases hr; exact hi
+    · rw [hy] at hr; cases hr
+  obtain ⟨gu, hue⟩ := subChk_some _ _ _ hu
+  have ru : InI64 u := by
+    rcases subChk_spec cx ax h5 h1 with ⟨r, hr, e, hi⟩ | ⟨hr, -⟩
+    · rw [hu] at hr; cases hr; exact hi
+    · rw [hu] at hr; cases hr
+  obtain ⟨gv, hve⟩ := subChk_some _ _ _ hv
+  have rv : InI64 v := by
+    rcases subChk_spec cy ay h6 h2 with ⟨r, hr, e, hi⟩ | ⟨hr, -⟩
+    · rw [hv] at hr; cases hr; exact hi
+    · rw [hv] at hr; cases hr
+  have l0 : s0.locals 0 = some (.int IntTy.i64 (W ax)) := by rw [h0]; rfl
+  have l1' : s0.locals 1 = some (.int IntTy.i64 (W ay)) := by rw [h0]; rfl
+  have l2' : s0.locals 2 = some (.int IntTy.i64 (W bx)) := by rw [h0]; rfl
+  have l3' : s0.locals 3 = some (.int IntTy.i64 (W bY)) := by rw [h0]; rfl
+  have l4' : s0.locals 4 = some (.int IntTy.i64 (W cx)) := by rw [h0]; rfl
+  have l5' : s0.locals 5 = some (.int IntTy.i64 (W cy)) := by rw [h0]; rfl
+  have l6' : s0.locals 6 = some (.ptr sp 0) := by rw [h0]; rfl
+  have ro0 : s0.ro = false := by rw [h0]
+  have mem0 : s0.mem = m := by rw [h0]
+  -- step 1: ok = sub(bx, ax, &x)
+  obtain ⟨st1, e1, hl1, hm1, hf1, hr1⟩ := (callSub s0 14 (.var 2) (.var 0) 1007 bx ax h3 h1
+    (EvE.var l2') (EvE.var l0) B1 (by rw [mem0]; exact m1) l1 ro0).2 gx
+  have hk1 : ∀ i, i ≠ 14 → st1.locals i = s0.locals i := fun i hi => by
+    rw [hl1]; simp [Locals.upd, hi]
+  have m1x : st1.mem 1007 = some (encodeLE 8 (W x)) := by rw [hxe]; exact hm1
+  -- step 2: ok = sub(by, ay, &y)
+  obtain ⟨st2, e2, hl2, hm2, hf2, hr2⟩ := (callSub st1 14 (.var 3) (.var 1) 1008 bY ay h4 h2
+    (EvE.var (by rw [hk1 3 (by norm_num)]; exact l3')) (EvE.var (by rw [hk1 1 (by norm_num)]; exact l1'))
+    B2 (by rw [hf1 1008 (by norm_num), mem0]; exact m2) l2 (by rw [hr1]; exact ro0)).2 gy
+  have hk2 : ∀ i, i ≠ 14 → st2.locals i = s0.locals i := fun i hi => by
+    rw [hl2]; simp [Locals.upd, hi]; exact hk1 i hi
+  have m2y : st2.mem 1008 = some (encodeLE 8 (W y)) := by rw [hye]; exact hm2
+  have m2x : st2.mem 1007 = some (encodeLE 8 (W x)) := by rw [hf2 1007 (by norm_num)]; exact m1x
+  -- step 3: ok = sub(cx, ax, &u)
+  obtain ⟨st3, e3, hl3, hm3, hf3, hr3⟩ := (callSub st2 14 (.var 4) (.var 0) 1009 cx ax h5 h1
+    (EvE.var (by rw [hk2 4 (by norm_num)]; exact l4')) (EvE.var (by rw [hk2 0 (by norm_num)]; exact l0))
+    B3 (by rw [hf2 1009 (by norm_num), hf1 1009 (by norm_num), mem0]; exact m3) l3 (by rw [hr2, hr1]; exact ro0)).2 gu
+  have hk3 : ∀ i, i ≠ 14 → st3.locals i = s0.locals i := fun i hi => by
+    rw [hl3]; simp [Locals.upd, hi]; exact hk2 i hi
+  have m3u : st3.mem 1009 = some (encodeLE 8 (W u)) := by rw [hue]; exact hm3
+  have m3y : st3.mem 1008 = some (encodeLE 8 (W y)) := by rw [hf3 1008 (by norm_num)]; exact m2y
+  have m3x : st3.mem 1007 = some (encodeLE 8 (W x)) := by rw [hf3 1007 (by norm_num)]; exact m2x
+  -- step 4: ok = sub(cy, ay, &v)
+  obtain ⟨st4, e4, hl4, hm4, hf4, hr4⟩ := (callSub st3 14 (.var 5) (.var 1) 1010 cy ay h6 h2
+    (EvE.var (by rw [hk3 5 (by norm_num)]; exact l5')) (EvE.var (by rw [hk3 1 (by norm_num)]; exact l1'))
+    B4 (by rw [hf3 1010 (by norm_num), hf2 1010 (by norm_num), hf1 1010 (by norm_num), mem0]; exact m4) l4
+    (by rw [hr3, hr2, hr1]; exact ro0)).2 gv
+  have hk4 : ∀ i, i ≠ 14 → st4.locals i = s0.locals i := fun i hi => by
+    rw [hl4]; simp [Locals.upd, hi]; exact hk3 i hi
+  have m4v : st4.mem 1010 = some (encodeLE 8 (W v)) := by rw [hve]; exact hm4
+  have m4u : st4.mem 1009 = some (encodeLE 8 (W u)) := by rw [hf4 1009 (by norm_num)]; exact m3u
+  have m4y : st4.mem 1008 = some (encodeLE 8 (W y)) := by rw [hf4 1008 (by norm_num)]; exact m3y
+  have m4x : st4.mem 1007 = some (encodeLE 8 (W x)) := by rw [hf4 1007 (by norm_num)]; exact m3x
+  have ok1 : st1.locals 14 = some (.int ⟨32, true⟩ 1) := by rw [hl1]; simp [Locals.upd]
+  have ok2 : st2.locals 14 = some (.int ⟨32, true⟩ 1) := by rw [hl2]; simp [Locals.upd]
+  have ok3 : st3.locals 14 = some (.int ⟨32, true⟩ 1) := by rw [hl3]; simp [Locals.upd]
+  have ok4 : st4.locals 14 = some (.int ⟨32, true⟩ 1) := by rw [hl4]; simp [Locals.upd]
+  obtain ⟨st5, e5, hl5⟩ := (callMul st4 14 _ _ 1011 x v rx rv (evLoadBlk st4 1007 x rx m4x) (evLoadBlk st4 1010 v rv m4v) B5 (by rw [hf4 1011 (by norm_num), hf3 1011 (by norm_num), hf2 1011 (by norm_num), hf1 1011 (by norm_num), mem0]; exact m5) l5 (by rw [hr4, hr3, hr2, hr1]; exact ro0)).1 hn
+  have ok5 : st5.locals 14 = some (.int ⟨32, true⟩ 0) := by rw [hl5]; simp [Locals.upd]
+  refine ⟨st5, ?_⟩
+  unfold OrientGen.orient2i_core
+  refine ExS.seq e1 ?_
+  refine ExS.seq (okStep st1 ok1) ?_
+  refine ExS.seq e2 ?_
+  refine ExS.seq (okStep st2 ok2) ?_
+  refine ExS.seq e3 ?_
+  refine ExS.seq (okStep st3 ok3) ?_
+  refine ExS.seq e4 ?_
+  refine ExS.seq (okStep st4 ok4) ?_
+  exact ExS.seq e5 (ExS.seq_ret (ExS.ite (EvE.un (EvE.var ok5) (by simp [evalUn, truthy])) (tb'' true) (ExS.ret (EvE.const _))))
+
+theorem orient2i_core_fail6 (ax ay bx bY cx cy : Int) (h1 : InI64 ax) (h2 : InI64 ay) (h3 : InI64 bx)
+    (h4 : InI64 bY) (h5 : InI64 cx) (h6 : InI64 cy) (sp : Nat) (m : Mem) (s0 : State)
+    (h0 : s0 = ⟨frameLocals OrientGen.orient2i_core.params
+      [.int IntTy.i64 (W ax), .int IntTy.i64 (W ay), .int IntTy.i64 (W bx), .int IntTy.i64 (W bY),
+       .int IntTy.i64 (W cx), .int IntTy.i64 (W cy), .ptr sp 0], m, false⟩)
+    (B1 B2 B3 B4 B5 B6 B7 : Block) (m1 : m 1007 = some B1) (m2 : m 1008 = some B2)
+    (m3 : m 1009 = some B3) (m4 : m 1010 = some B4) (m5 : m 1011 = some B5) (m6 : m 1012 = some B6)
+    (m7 : m 1013 = some B7) (l1 : B1.length = 8) (l2 : B2.length = 8) (l3 : B3.length = 8)
+    (l4 : B4.length = 8) (l5 : B5.length = 8) (l6 : B6.length = 8) (l7 : B7.length = 8)
+    (S : Block) (mS : m sp = some S) (lS : S.length = 4)
+    (n1 : sp ≠ 1007) (n2 : sp ≠ 1008) (n3 : sp ≠ 1009) (n4 : sp ≠ 1010) (n5 : sp ≠ 1011)
+    (n6 : sp ≠ 1012) (n7 : sp ≠ 1013) {x y u v p : Int} (hx : subChk bx ax = some x) (hy : subChk bY ay = some y) (hu : subChk cx ax = some u) (hv : subChk cy ay = some v) (hp : mulChk x v = some p) (hn : mulChk y u = none) :
+    ∃ sf, ExS OrientGen.prog s0 OrientGen.orient2i_core.body (.ret (some (.int ⟨32, true⟩ 0))) sf := by
+  obtain ⟨gx, hxe⟩ := subChk_some _ _ _ hx
+  have rx : InI64 x := by
+    rcases subChk_spec bx ax h3 h1 with ⟨r, hr, e, hi⟩ | ⟨hr, -⟩
+    · rw [hx] at hr; cases hr; exact hi
+    · rw [hx] at hr; cases hr
+  obtain ⟨gy, hye⟩ := subChk_some _ _ _ hy
+  have ry : InI64 y := by
+    rcases subChk_spec bY ay h4 h2 with ⟨r, hr, e, hi⟩ | ⟨hr, -⟩
+    · rw [hy] at hr; cases hr; exact hi
+    · rw [hy] at hr; cases hr
+  obtain ⟨gu, hue⟩ := subChk_some _ _ _ hu
+  have ru : InI64 u := by
+    rcases subChk_spec cx ax h5 h1 with ⟨r, hr, e, hi⟩ | ⟨hr, -⟩
+    · rw [hu] at hr; cases hr; exact hi
+    · rw [hu] at hr; cases hr
+  obtain ⟨gv, hve⟩ := subChk_some _ _ _ hv
+  have rv : InI64 v := by
+    rcases subChk_spec cy ay h6 h2 with ⟨r, hr, e, hi⟩ | ⟨hr, -⟩
+    · rw [hv] at hr; cases hr; exact hi
+    · rw [hv] at hr; cases hr
+  have rp : InI64 p := by
+    rcases mulChk_spec x v rx rv with ⟨r, hr, e, hi⟩ | ⟨hr, -⟩
+    · rw [hp] at hr; cases hr; exact hi
+    · rw [hp] at hr; cases hr
+  have l0 : s0.locals 0 = some (.int IntTy.i64 (W ax)) := by rw [h0]; rfl
+  have l1' : s0.locals 1 = some (.int IntTy.i64 (W ay)) := by rw [h0]; rfl
+  have l2' : s0.locals 2 = some (.int IntTy.i64 (W bx)) := by rw [h0]; rfl
+  have l3' : s0.locals 3 = some (.int IntTy.i64 (W bY)) := by rw [h0]; rfl
+  have l4' : s0.locals 4 = some (.int IntTy.i64 (W cx)) := by rw [h0]; rfl
+  have l5' : s0.locals 5 = some (.int IntTy.i64 (W cy)) := by rw [h0]; rfl
+  have l6' : s0.locals 6 = some (.ptr sp 0) := by rw [h0]; rfl
+  have ro0 : s0.ro = false := by rw [h0]
+  have mem0 : s0.mem = m := by rw [h0]
+  -- step 1: ok = sub(bx, ax, &x)
+  obtain ⟨st1, e1, hl1, hm1, hf1, hr1⟩ := (callSub s0 14 (.var 2) (.var 0) 1007 bx ax h3 h1
+    (EvE.var l2') (EvE.var l0) B1 (by rw [mem0]; exact m1) l1 ro0).2 gx
+  have hk1 : ∀ i, i ≠ 14 → st1.locals i = s0.locals i := fun i hi => by
+    rw [hl1]; simp [Locals.upd, hi]
+  have m1x : st1.mem 1007 = some (encodeLE 8 (W x)) := by rw [hxe]; exact hm1
+  -- step 2: ok = sub(by, ay, &y)
+  obtain ⟨st2, e2, hl2, hm2, hf2, hr2⟩ := (callSub st1 14 (.var 3) (.var 1) 1008 bY ay h4 h2
+    (EvE.var (by rw [hk1 3 (by norm_num)]; exact l3')) (EvE.var (by rw [hk1 1 (by norm_num)]; exact l1'))
+    B2 (by rw [hf1 1008 (by norm_num), mem0]; exact m2) l2 (by rw [hr1]; exact ro0)).2 gy
+  have hk2 : ∀ i, i ≠ 14 → st2.locals i = s0.locals i := fun i hi => by
+    rw [hl2]; simp [Locals.upd, hi]; exact hk1 i hi
+  have m2y : st2.mem 1008 = some (encodeLE 8 (W y)) := by rw [hye]; exact hm2
+  have m2x : st2.mem 1007 = some (encodeLE 8 (W x)) := by rw [hf2 1007 (by norm_num)]; exact m1x
+  -- step 3: ok = sub(cx, ax, &u)
+  obtain ⟨st3, e3, hl3, hm3, hf3, hr3⟩ := (callSub st2 14 (.var 4) (.var 0) 1009 cx ax h5 h1
+    (EvE.var (by rw [hk2 4 (by norm_num)]; exact l4')) (EvE.var (by rw [hk2 0 (by norm_num)]; exact l0))
+    B3 (by rw [hf2 1009 (by norm_num), hf1 1009 (by norm_num), mem0]; exact m3) l3 (by rw [hr2, hr1]; exact ro0)).2 gu
+  have hk3 : ∀ i, i ≠ 14 → st3.locals i = s0.locals i := fun i hi => by
+    rw [hl3]; simp [Locals.upd, hi]; exact hk2 i hi
+  have m3u : st3.mem 1009 = some (encodeLE 8 (W u)) := by rw [hue]; exact hm3
+  have m3y : st3.mem 1008 = some (encodeLE 8 (W y)) := by rw [hf3 1008 (by norm_num)]; exact m2y
+  have m3x : st3.mem 1007 = some (encodeLE 8 (W x)) := by rw [hf3 1007 (by norm_num)]; exact m2x
+  -- step 4: ok = sub(cy, ay, &v)
+  obtain ⟨st4, e4, hl4, hm4, hf4, hr4⟩ := (callSub st3 14 (.var 5) (.var 1) 1010 cy ay h6 h2
+    (EvE.var (by rw [hk3 5 (by norm_num)]; exact l5')) (EvE.var (by rw [hk3 1 (by norm_num)]; exact l1'))
+    B4 (by rw [hf3 1010 (by norm_num), hf2 1010 (by norm_num), hf1 1010 (by norm_num), mem0]; exact m4) l4
+    (by rw [hr3, hr2, hr1]; exact ro0)).2 gv
+  have hk4 : ∀ i, i ≠ 14 → st4.locals i = s0.locals i := fun i hi => by
+    rw [hl4]; simp [Locals.upd, hi]; exact hk3 i hi
+  have m4v : st4.mem 1010 = some (encodeLE 8 (W v)) := by rw [hve]; exact hm4
+  have m4u : st4.mem 1009 = some (encodeLE 8 (W u)) := by rw [hf4 1009 (by norm_num)]; exact m3u
+  have m4y : st4.mem 1008 = some (encodeLE 8 (W y)) := by rw [hf4 1008 (by norm_num)]; exact m3y
+  have m4x : st4.mem 1007 = some (encodeLE 8 (W x)) := by rw [hf4 1007 (by norm_num)]; exact m3x
+  -- step 5: ok = mul(x, v, &p)
+  obtain ⟨st5, e5, hl5, hm5, hf5, hr5⟩ := (callMul st4 14 _ _ 1011 x v rx rv
+    (evLoadBlk st4 1007 x rx m4x) (evLoadBlk st4 1010 v rv m4v)
+    B5 (by rw [hf4 1011 (by norm_num), hf3 1011 (by norm_num), hf2 1011 (by norm_num),
+      hf1 1011 (by norm_num), mem0]; exact m5) l5 (by rw [hr4, hr3, hr2, hr1]; exact ro0)).2 p hp
+  have hk5 : ∀ i, i ≠ 14 → st5.locals i = s0.locals i := fun i hi => by
+    rw [hl5]; simp [Locals.upd, hi]; exact hk4 i hi
+  have m5p : st5.mem 1011 = some (encodeLE 8 (W p)) := hm5
+  have m5y : st5.mem 1008 = some (encodeLE 8 (W y)) := by rw [hf5 1008 (by norm_num)]; exact m4y
+  have m5u : st5.mem 1009 = some (encodeLE 8 (W u)) := by rw [hf5 1009 (by norm_num)]; exact m4u
+  have ok1 : st1.locals 14 = some (.int ⟨32, true⟩ 1) := by rw [hl1]; simp [Locals.upd]
+  have ok2 : st2.locals 14 = some (.int ⟨32, true⟩ 1) := by rw [hl2]; simp [Locals.upd]
+  have ok3 : st3.locals 14 = some (.int ⟨32, true⟩ 1) := by rw [hl3]; simp [Locals.upd]
+  have ok4 : st4.locals 14 = some (.int ⟨32, true⟩ 1) := by rw [hl4]; simp [Locals.upd]
+  have ok5 : st5.locals 14 = some (.int ⟨32, true⟩ 1) := by rw [hl5]; simp [Locals.upd]
+  obtain ⟨st6, e6, hl6⟩ := (callMul st5 14 _ _ 1012 y u ry ru (evLoadBlk st5 1008 y ry m5y) (evLoadBlk st5 1009 u ru m5u) B6 (by rw [hf5 1012 (by norm_num), hf4 1012 (by norm_num), hf3 1012 (by norm_num), hf2 1012 (by norm_num), hf1 1012 (by norm_num), mem0]; exact m6) l6 (by rw [hr5, hr4, hr3, hr2, hr1]; exact ro0)).1 hn
+  have ok6 : st6.locals 14 = some (.int ⟨32, true⟩ 0) := by rw [hl6]; simp [Locals.upd]
+  refine ⟨st6, ?_⟩
+  unfold OrientGen.orient2i_core
+  refine ExS.seq e1 ?_
+  refine ExS.seq (okStep st1 ok1) ?_
+  refine ExS.seq e2 ?_
+  refine ExS.seq (okStep st2 ok2) ?_
+  refine ExS.seq e3 ?_
+  refine ExS.seq (okStep st3 ok3) ?_
+  refine ExS.seq e4 ?_
+  refine ExS.seq (okStep st4 ok4) ?_
+  refine ExS.seq e5 ?_
+  refine ExS.seq (okStep st5 ok5) ?_
+  exact ExS.seq e6 (ExS.seq_ret (ExS.ite (EvE.un (EvE.var ok6) (by simp [evalUn, truthy])) (tb'' true) (ExS.ret (EvE.const _))))
+
+theorem orient2i_core_fail7 (ax ay bx bY cx cy : Int) (h1 : InI64 ax) (h2 : InI64 ay) (h3 : InI64 bx)
+    (h4 : InI64 bY) (h5 : InI64 cx) (h6 : InI64 cy) (sp : Nat) (m : Mem) (s0 : State)
+    (h0 : s0 = ⟨frameLocals OrientGen.orient2i_core.params
+      [.int IntTy.i64 (W ax), .int IntTy.i64 (W ay), .int IntTy.i64 (W bx), .int IntTy.i64 (W bY),
+       .int IntTy.i64 (W cx), .int IntTy.i64 (W cy), .ptr sp 0], m, false⟩)
+    (B1 B2 B3 B4 B5 B6 B7 : Block) (m1 : m 1007 = some B1) (m2 : m 1008 = some B2)
+    (m3 : m 1009 = some B3) (m4 : m 1010 = some B4) (m5 : m 1011 = some B5) (m6 : m 1012 = some B6)
+    (m7 : m 1013 = some B7) (l1 : B1.length = 8) (l2 : B2.length = 8) (l3 : B3.length = 8)
+    (l4 : B4.length = 8) (l5 : B5.length = 8) (l6 : B6.length = 8) (l7 : B7.length = 8)
+    (S : Block) (mS : m sp = some S) (lS : S.length = 4)
+    (n1 : sp ≠ 1007) (n2 : sp ≠ 1008) (n3 : sp ≠ 1009) (n4 : sp ≠ 1010) (n5 : sp ≠ 1011)
+    (n6 : sp ≠ 1012) (n7 : sp ≠ 1013) {x y u v p q : Int} (hx : subChk bx ax = some x) (hy : subChk bY ay = some y) (hu : subChk cx ax = some u) (hv : subChk cy ay = some v) (hp : mulChk x v = some p) (hq : mulChk y u = some q) (hn : subChk p q = none) :
+    ∃ sf, ExS OrientGen.prog s0 OrientGen.orient2i_core.body (.ret (some (.int ⟨32, true⟩ 0))) sf := by
+  obtain ⟨gx, hxe⟩ := subChk_some _ _ _ hx
+  have rx : InI64 x := by
+    rcases subChk_spec bx ax h3 h1 with ⟨r, hr, e, hi⟩ | ⟨hr, -⟩
+    · rw [hx] at hr; cases hr; exact hi
+    · rw [hx] at hr; cases hr
+  obtain ⟨gy, hye⟩ := subChk_some _ _ _ hy
+  have ry : InI64 y := by
+    rcases subChk_spec bY ay h4 h2 with ⟨r, hr, e, hi⟩ | ⟨hr, -⟩
+    · rw [hy] at hr; cases hr; exact hi
+    · rw [hy] at hr; cases hr
+  obtain ⟨gu, hue⟩ := subChk_some _ _ _ hu
+  have ru : InI64 u := by
+    rcases subChk_spec cx ax h5 h1 with ⟨r, hr, e, hi⟩ | ⟨hr, -⟩
+    · rw [hu] at hr; cases hr; exact hi
+    · rw [hu] at hr; cases hr
+  obtain ⟨gv, hve⟩ := subChk_some _ _ _ hv
+  have rv : InI64 v := by
+    rcases subChk_spec cy ay h6 h2 with ⟨r, hr, e, hi⟩ | ⟨hr, -⟩
+    · rw [hv] at hr; cases hr; exact hi
+    · rw [hv] at hr; cases hr
+  have rp : InI64 p := by
+    rcases mulChk_spec x v rx rv with ⟨r, hr, e, hi⟩ | ⟨hr, -⟩
+    · rw [hp] at hr; cases hr; exact hi
+    · rw [hp] at hr; cases hr
+  have rq : InI64 q := by
+    rcases mulChk_spec y u ry ru with ⟨r, hr, e, hi⟩ | ⟨hr, -⟩
+    · rw [hq] at hr; cases hr; exact hi
+    · rw [hq] at hr; cases hr
+  have l0 : s0.locals 0 = some (.int IntTy.i64 (W ax)) := by rw [h0]; rfl
+  have l1' : s0.locals 1 = some (.int IntTy.i64 (W ay)) := by rw [h0]; rfl
+  have l2' : s0.locals 2 = some (.int IntTy.i64 (W bx)) := by rw [h0]; rfl
+  have l3' : s0.locals 3 = some (.int IntTy.i64 (W bY)) := by rw [h0]; rfl
+  have l4' : s0.locals 4 = some (.int IntTy.i64 (W cx)) := by rw [h0]; rfl
+  have l5' : s0.locals 5 = some (.int IntTy.i64 (W cy)) := by rw [h0]; rfl
+  have l6' : s0.locals 6 = some (.ptr sp 0) := by rw [h0]; rfl
+  have ro0 : s0.ro = false := by rw [h0]
+  have mem0 : s0.mem = m := by rw [h0]
+  -- step 1: ok = sub(bx, ax, &x)
+  obtain ⟨st1, e1, hl1, hm1, hf1, hr1⟩ := (callSub s0 14 (.var 2) (.var 0) 1007 bx ax h3 h1
+    (EvE.var l2') (EvE.var l0) B1 (by rw [mem0]; exact m1) l1 ro0).2 gx
+  have hk1 : ∀ i, i ≠ 14 → st1.locals i = s0.locals i := fun i hi => by
+    rw [hl1]; simp [Locals.upd, hi]
+  have m1x : st1.mem 1007 = some (encodeLE 8 (W x)) := by rw [hxe]; exact hm1
+  -- step 2: ok = sub(by, ay, &y)
+  obtain ⟨st2, e2, hl2, hm2, hf2, hr2⟩ := (callSub st1 14 (.var 3) (.var 1) 1008 bY ay h4 h2
+    (EvE.var (by rw [hk1 3 (by norm_num)]; exact l3')) (EvE.var (by rw [hk1 1 (by norm_num)]; exact l1'))
+    B2 (by rw [hf1 1008 (by norm_num), mem0]; exact m2) l2 (by rw [hr1]; exact ro0)).2 gy
+  have hk2 : ∀ i, i ≠ 14 → st2.locals i = s0.locals i := fun i hi => by
+    rw [hl2]; simp [Locals.upd, hi]; exact hk1 i hi
+  have m2y : st2.mem 1008 = some (encodeLE 8 (W y)) := by rw [hye]; exact hm2
+  have m2x : st2.mem 1007 = some (encodeLE 8 (W x)) := by rw [hf2 1007 (by norm_num)]; exact m1x
+  -- step 3: ok = sub(cx, ax, &u)
+  obtain ⟨st3, e3, hl3, hm3, hf3, hr3⟩ := (callSub st2 14 (.var 4) (.var 0) 1009 cx ax h5 h1
+    (EvE.var (by rw [hk2 4 (by norm_num)]; exact l4')) (EvE.var (by rw [hk2 0 (by norm_num)]; exact l0))
+    B3 (by rw [hf2 1009 (by norm_num), hf1 1009 (by norm_num), mem0]; exact m3) l3 (by rw [hr2, hr1]; exact ro0)).2 gu
+  have hk3 : ∀ i, i ≠ 14 → st3.locals i = s0.locals i := fun i hi => by
+    rw [hl3]; simp [Locals.upd, hi]; exact hk2 i hi
+  have m3u : st3.mem 1009 = some (encodeLE 8 (W u)) := by rw [hue]; exact hm3
+  have m3y : st3.mem 1008 = some (encodeLE 8 (W y)) := by rw [hf3 1008 (by norm_num)]; exact m2y
+  have m3x : st3.mem 1007 = some (encodeLE 8 (W x)) := by rw [hf3 1007 (by norm_num)]; exact m2x
+  -- step 4: ok = sub(cy, ay, &v)
+  obtain ⟨st4, e4, hl4, hm4, hf4, hr4⟩ := (callSub st3 14 (.var 5) (.var 1) 1010 cy ay h6 h2
+    (EvE.var (by rw [hk3 5 (by norm_num)]; exact l5')) (EvE.var (by rw [hk3 1 (by norm_num)]; exact l1'))
+    B4 (by rw [hf3 1010 (by norm_num), hf2 1010 (by norm_num), hf1 1010 (by norm_num), mem0]; exact m4) l4
+    (by rw [hr3, hr2, hr1]; exact ro0)).2 gv
+  have hk4 : ∀ i, i ≠ 14 → st4.locals i = s0.locals i := fun i hi => by
+    rw [hl4]; simp [Locals.upd, hi]; exact hk3 i hi
+  have m4v : st4.mem 1010 = some (encodeLE 8 (W v)) := by rw [hve]; exact hm4
+  have m4u : st4.mem 1009 = some (encodeLE 8 (W u)) := by rw [hf4 1009 (by norm_num)]; exact m3u
+  have m4y : st4.mem 1008 = some (encodeLE 8 (W y)) := by rw [hf4 1008 (by norm_num)]; exact m3y
+  have m4x : st4.mem 1007 = some (encodeLE 8 (W x)) := by rw [hf4 1007 (by norm_num)]; exact m3x
+  -- step 5: ok = mul(x, v, &p)
+  obtain ⟨st5, e5, hl5, hm5, hf5, hr5⟩ := (callMul st4 14 _ _ 1011 x v rx rv
+    (evLoadBlk st4 1007 x rx m4x) (evLoadBlk st4 1010 v rv m4v)
+    B5 (by rw [hf4 1011 (by norm_num), hf3 1011 (by norm_num), hf2 1011 (by norm_num),
+      hf1 1011 (by norm_num), mem0]; exact m5) l5 (by rw [hr4, hr3, hr2, hr1]; exact ro0)).2 p hp
+  have hk5 : ∀ i, i ≠ 14 → st5.locals i = s0.locals i := fun i hi => by
+    rw [hl5]; simp [Locals.upd, hi]; exact hk4 i hi
+  have m5p : st5.mem 1011 = some (encodeLE 8 (W p)) := hm5
+  have m5y : st5.mem 1008 = some (encodeLE 8 (W y)) := by rw [hf5 1008 (by norm_num)]; exact m4y
+  have m5u : st5.mem 1009 = some (encodeLE 8 (W u)) := by rw [hf5 1009 (by norm_num)]; exact m4u
+  -- step 6: ok = mul(y, u, &q)
+  obtain ⟨st6, e6, hl6, hm6, hf6, hr6⟩ := (callMul st5 14 _ _ 1012 y u ry ru
+    (evLoadBlk st5 1008 y ry m5y) (evLoadBlk st5 1009 u ru m5u)
+    B6 (by rw [hf5 1012 (by norm_num), hf4 1012 (by norm_num), hf3 1012 (by norm_num),
+      hf2 1012 (by norm_num), hf1 1012 (by norm_num), mem0]; exact m6) l6
+    (by rw [hr5, hr4, hr3, hr2, hr1]; exact ro0)).2 q hq
+  have hk6 : ∀ i, i ≠ 14 → st6.locals i = s0.locals i := fun i hi => by
+    rw [hl6]; simp [Locals.upd, hi]; exact hk5 i hi
+  have m6q : st6.mem 1012 = some (encodeLE 8 (W q)) := hm6
+  have m6p : st6.mem 1011 = some (encodeLE 8 (W p)) := by rw [hf6 1011 (by norm_num)]; exact m5p
+  have ok1 : st1.locals 14 = some (.int ⟨32, true⟩ 1) := by rw [hl1]; simp [Locals.upd]
+  have ok2 : st2.locals 14 = some (.int ⟨32, true⟩ 1) := by rw [hl2]; simp [Locals.upd]
+  have ok3 : st3.locals 14 = some (.int ⟨32, true⟩ 1) := by rw [hl3]; simp [Locals.upd]
+  have ok4 : st4.locals 14 = some (.int ⟨32, true⟩ 1) := by rw [hl4]; simp [Locals.upd]
+  have ok5 : st5.locals 14 = some (.int ⟨32, true⟩ 1) := by rw [hl5]; simp [Locals.upd]
+  have ok6 : st6.locals 14 = some (.int ⟨32, true⟩ 1) := by rw [hl6]; simp [Locals.upd]
+  obtain ⟨st7, e7, hl7⟩ := (callSub st6 14 _ _ 1013 p q rp rq (evLoadBlk st6 1011 p rp m6p) (evLoadBlk st6 1012 q rq m6q) B7 (by rw [hf6 1013 (by norm_num), hf5 1013 (by norm_num), hf4 1013 (by norm_num), hf3 1013 (by norm_num), hf2 1013 (by norm_num), hf1 1013 (by norm_num), mem0]; exact m7) l7 (by rw [hr6, hr5, hr4, hr3, hr2, hr1]; exact ro0)).1 (subChk_none _ _ hn)
+  have ok7 : st7.locals 14 = some (.int ⟨32, true⟩ 0) := by rw [hl7]; simp [Locals.upd]
+  refine ⟨st7, ?_⟩
+  unfold OrientGen.orient2i_core
+  refine ExS.seq e1 ?_
+  refine ExS.seq (okStep st1 ok1) ?_
+  refine ExS.seq e2 ?_
+  refine ExS.seq (okStep st2 ok2) ?_
+  refine ExS.seq e3 ?_
+  refine ExS.seq (okStep st3 ok3) ?_
+  refine ExS.seq e4 ?_
+  refine ExS.seq (okStep st4 ok4) ?_
+  refine ExS.seq e5 ?_
+  refine ExS.seq (okStep st5 ok5) ?_
+  refine ExS.seq e6 ?_
+  refine ExS.seq (okStep st6 ok6) ?_
+  exact ExS.seq e7 (ExS.seq_ret (ExS.ite (EvE.un (EvE.var ok7) (by simp [evalUn, truthy])) (tb'' true) (ExS.ret (EvE.const _))))
+
+theorem orient2i_core_none (ax ay bx bY cx cy : Int) (h1 : InI64 ax) (h2 : InI64 ay) (h3 : InI64 bx)
+    (h4 : InI64 bY) (h5 : InI64 cx) (h6 : InI64 cy) (sp : Nat) (m : Mem) (s0 : State)
+    (h0 : s0 = ⟨frameLocals OrientGen.orient2i_core.params
+      [.int IntTy.i64 (W ax), .int IntTy.i64 (W ay), .int IntTy.i64 (W bx), .int IntTy.i64 (W bY),
+       .int IntTy.i64 (W cx), .int IntTy.i64 (W cy), .ptr sp 0], m, false⟩)
+    (B1 B2 B3 B4 B5 B6 B7 : Block) (m1 : m 1007 = some B1) (m2 : m 1008 = some B2)
+    (m3 : m 1009 = some B3) (m4 : m 1010 = some B4) (m5 : m 1011 = some B5) (m6 : m 1012 = some B6)
+    (m7 : m 1013 = some B7) (l1 : B1.length = 8) (l2 : B2.length = 8) (l3 : B3.length = 8)
+    (l4 : B4.length = 8) (l5 : B5.length = 8) (l6 : B6.length = 8) (l7 : B7.length = 8)
+    (S : Block) (mS : m sp = some S) (lS : S.length = 4)
+    (n1 : sp ≠ 1007) (n2 : sp ≠ 1008) (n3 : sp ≠ 1009) (n4 : sp ≠ 1010) (n5 : sp ≠ 1011)
+    (n6 : sp ≠ 1012) (n7 : sp ≠ 1013) (h : orient2iChk ax ay bx bY cx cy = none) :
+    ∃ sf, ExS OrientGen.prog s0 OrientGen.orient2i_core.body (.ret (some (.int ⟨32, true⟩ 0))) sf := by
+  unfold orient2iChk at h
+  rcases hx : subChk bx ax with _ | x
+  · exact orient2i_core_fail1 ax ay bx bY cx cy h1 h2 h3 h4 h5 h6 sp m s0 h0 B1 B2 B3 B4 B5 B6 B7 m1 m2 m3 m4 m5 m6 m7 l1 l2 l3 l4 l5 l6 l7 S mS lS n1 n2 n3 n4 n5 n6 n7 hx
+  rcases hy : subChk bY ay with _ | y
+  · exact orient2i_core_fail2 ax ay bx bY cx cy h1 h2 h3 h4 h5 h6 sp m s0 h0 B1 B2 B3 B4 B5 B6 B7 m1 m2 m3 m4 m5 m6 m7 l1 l2 l3 l4 l5 l6 l7 S mS lS n1 n2 n3 n4 n5 n6 n7 hx hy
+  rcases hu : subChk cx ax with _ | u
+  · exact orient2i_core_fail3 ax ay bx bY cx cy h1 h2 h3 h4 h5 h6 sp m s0 h0 B1 B2 B3 B4 B5 B6 B7 m1 m2 m3 m4 m5 m6 m7 l1 l2 l3 l4 l5 l6 l7 S mS lS n1 n2 n3 n4 n5 n6 n7 hx hy hu
+  rcases hv : subChk cy ay with _ | v
+  · exact orient2i_core_fail4 ax ay bx bY cx cy h1 h2 h3 h4 h5 h6 sp m s0 h0 B1 B2 B3 B4 B5 B6 B7 m1 m2 m3 m4 m5 m6 m7 l1 l2 l3 l4 l5 l6 l7 S mS lS n1 n2 n3 n4 n5 n6 n7 hx hy hu hv
+  rcases hp : mulChk x v with _ | p
+  · exact orient2i_core_fail5 ax ay bx bY cx cy h1 h2 h3 h4 h5 h6 sp m s0 h0 B1 B2 B3 B4 B5 B6 B7 m1 m2 m3 m4 m5 m6 m7 l1 l2 l3 l4 l5 l6 l7 S mS lS n1 n2 n3 n4 n5 n6 n7 hx hy hu hv hp
+  rcases hq : mulChk y u with _ | q
+  · exact orient2i_core_fail6 ax ay bx bY cx cy h1 h2 h3 h4 h5 h6 sp m s0 h0 B1 B2 B3 B4 B5 B6 B7 m1 m2 m3 m4 m5 m6 m7 l1 l2 l3 l4 l5 l6 l7 S mS lS n1 n2 n3 n4 n5 n6 n7 hx hy hu hv hp hq
+  rcases hd : subChk p q with _ | d
+  · exact orient2i_core_fail7 ax ay bx bY cx cy h1 h2 h3 h4 h5 h6 sp m s0 h0 B1 B2 B3 B4 B5 B6 B7 m1 m2 m3 m4 m5 m6 m7 l1 l2 l3 l4 l5 l6 l7 S mS lS n1 n2 n3 n4 n5 n6 n7 hx hy hu hv hp hq hd
+  simp [hx, hy, hu, hv, hp, hq, hd] at h
 
 end Tess.C
