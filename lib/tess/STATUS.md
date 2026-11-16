@@ -410,13 +410,13 @@ with local leak detection disabled.
 
 ## Targeted mutation check (2026-11-16)
 
-- Thirteen hand-written mutants of `exact.c`, `predicates.c`, `geometry.c` and
+- Twelve hand-written mutants of `exact.c`, `predicates.c`, `geometry.c` and
   `audit.c` (carry/borrow, sign handling, compare direction, subtract guard,
   incircle orientation correction, coplanar cross check, containment sign
   accumulation, identical-triangle test) were run against the `zi`, exact,
-  predicate and C/Lean/Fraction differential oracles. Twelve were killed.
-  One survivor, `zi_i64` ignoring the sign of negative inputs, exposed an
-  untested path; `tess_zi_oracle` now imports 76 int64 values (including
+  predicate and C/Lean/Fraction differential oracles. Eleven were killed
+  (one of them only after a test fix). The `zi_i64` mutant, ignoring the sign of negative inputs, exposed an
+  untested path and survived initially; `tess_zi_oracle` now imports 76 int64 values (including
   `INT64_MIN`) and kills it. The remaining survivor (`z*w <= 0` in
   `tg_segments`) is an equivalent mutant: strict straddling plus an endpoint of
   one segment on the other's line already returns through the later branch.
