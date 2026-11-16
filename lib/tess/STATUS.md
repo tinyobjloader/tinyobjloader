@@ -431,3 +431,8 @@ with local leak detection disabled.
   concludes that an accepted coplanar pair without shared IDs has disjoint projected closed
   triangles (hypotheses: valid indices, nondegenerate projected edges and second face).
   Audit: 1715 declarations.
+- `Tess.C.ZiCmpC.zi_cmp_refines`: the translated `zi_cmp` (including its call to `acmp`) is
+  proved equal to the model `ziCmpM`, hence to the true integer order by `ziCmpM_spec`.
+  `acmp_exs`/`acmp_exs_unequal` were generalized over the struct signs and the read-only flag
+  (expression calls run read-only). `LimbGen` now also contains `zi_cmp` (function id 5).
+  Audit: 1732 declarations.

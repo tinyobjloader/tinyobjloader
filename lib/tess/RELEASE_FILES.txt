@@ -58,6 +58,7 @@ formal/Tess/C/DivModel.lean
 formal/Tess/C/PredModel.lean
 formal/Tess/C/ShiftModel.lean
 formal/Tess/C/ZiCmp.lean
+formal/Tess/C/ZiCmpC.lean
 formal/Tess/C/ZiMul.lean
 formal/Tess/C/ZiOrder.lean
 formal/Tess/C/ZiValue.lean

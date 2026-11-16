@@ -52,6 +52,12 @@ def zi_mul_accumulate : Func where
   params := [0, 1, 2]
   body := (.seq (.set 3 (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) zi_mul_accumulate_loop1)
 
+/-- `zi_cmp` (function id 5). Locals: 0=a, 1=b -/
+def fid_zi_cmp : Nat := 5
+def zi_cmp : Func where
+  params := [0, 1]
+  body := (.seq (.ite (.bin .ne (some ⟨32, true⟩) (.load (.int ⟨32, true⟩) (.field (.var 0) 16)) (.load (.int ⟨32, true⟩) (.field (.var 1) 16))) (.ret (some (.cond (.bin .gt (some ⟨32, true⟩) (.load (.int ⟨32, true⟩) (.field (.var 0) 16)) (.load (.int ⟨32, true⟩) (.field (.var 1) 16))) (.const (.int ⟨32, true⟩ 1)) (.un .neg ⟨32, true⟩ (.const (.int ⟨32, true⟩ 1)))))) .skip) (.ret (some (.bin .mul (some ⟨32, true⟩) (.load (.int ⟨32, true⟩) (.field (.var 0) 16)) (.call 1 [(.var 0), (.var 1)])))))
+
 /-- String literals referenced by the translated functions. -/
 def literals : List UInt8 := []
 
@@ -62,6 +68,7 @@ def prog : Prog := fun f =>
   | 2 => some zi_add_equisign
   | 3 => some zi_add_mixed
   | 4 => some zi_mul_accumulate
+  | 5 => some zi_cmp
   | _ => none
 
 end Tess.C.LimbGen

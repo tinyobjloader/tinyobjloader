@@ -22,18 +22,18 @@ open Obj.C
 def i32c : IntTy := ⟨32, true⟩
 
 /-- Load the v limb pointer of a `zi` value in memory. -/
-theorem evVPointer (s : State) (v : Nat) (zb vblk : Nat) (n : Nat)
-    (hm : s.mem zb = some (ziBlock vblk n 1)) (hb : vblk < 4294967296)
+theorem evVPointer {sg : Int} (s : State) (v : Nat) (zb vblk : Nat) (n : Nat)
+    (hm : s.mem zb = some (ziBlock vblk n sg)) (hb : vblk < 4294967296)
     (hl : s.locals v = some (.ptr zb 0)) :
     EvE LimbGen.prog s (.load .ptr (.field (.var v) 0)) (.ptr vblk 0) := by
   have hfield : EvE LimbGen.prog s (.field (.var v) 0) (.ptr zb 0) :=
     EvE.field (EvE.var hl) (by simp [ptrAddN, hm, ziBlock_length])
-  exact EvE.load hfield (load_ziBlock_v s.mem zb vblk n 1 hm hb)
+  exact EvE.load hfield (load_ziBlock_v s.mem zb vblk n sg hm hb)
 
 /-- Load limb `j` (at index expression `i - 1` where `i = j + 1`) of a limb array. -/
-theorem evLimbLoad (s : State) (v : Nat) (zb vblk : Nat)
+theorem evLimbLoad {sg : Int} (s : State) (v : Nat) (zb vblk : Nat)
     (limbs : List Nat) (j : Nat)
-    (hm : s.mem zb = some (ziBlock vblk limbs.length 1)) (hb : vblk < 4294967296)
+    (hm : s.mem zb = some (ziBlock vblk limbs.length sg)) (hb : vblk < 4294967296)
     (hl : s.locals v = some (.ptr zb 0))
     (hl2 : s.locals 2 = some (.int ⟨64, false⟩ (j + 1)))
     (hlm : s.mem vblk = some (limbBytes limbs)) (hj : j < limbs.length)
@@ -45,7 +45,7 @@ theorem evLimbLoad (s : State) (v : Nat) (zb vblk : Nat)
   have hfield : EvE LimbGen.prog s (.field (.var v) 0) (.ptr zb 0) :=
     EvE.field (EvE.var hl) (by simp [ptrAddN, hm, ziBlock_length])
   have hloadPtr : EvE LimbGen.prog s (.load .ptr (.field (.var v) 0)) (.ptr vblk 0) :=
-    EvE.load hfield (load_ziBlock_v s.mem zb vblk limbs.length 1 hm hb)
+    EvE.load hfield (load_ziBlock_v s.mem zb vblk limbs.length sg hm hb)
   have hsub : EvE LimbGen.prog s (.bin .sub (some ⟨64, false⟩) (.var 2)
         (.cast u64 (.const (.int i32c 1)))) (.int ⟨64, false⟩ j) := by
     have h2 : EvE LimbGen.prog s (.var 2) (.int ⟨64, false⟩ (j + 1)) := EvE.var hl2
@@ -143,25 +143,25 @@ theorem evIdxSub (s : State) (i : Nat) (h2 : s.locals 2 = some (.int ⟨64, fals
   exact EvE.bin h2' (EvE.cast hc hcast) (u64_sub_val i 1 (by omega) (by omega : i < 18446744073709551616))
 
 /-- Zi blocks for `acmp`: struct block plus limb array, all block indices < 2^32. -/
-def AcmpLoopInv (naz avblk nbz bvblk : Nat) (aLimbs bLimbs : List Nat)
+def AcmpLoopInv (naz avblk nbz bvblk : Nat) (sgA sgB : Int) (aLimbs bLimbs : List Nat)
     (n : Nat) (i : Nat) (s : State) : Prop :=
   i ≤ n ∧ i < 18446744073709551616 ∧
     s.locals 0 = some (.ptr naz 0) ∧ s.locals 1 = some (.ptr nbz 0) ∧
     s.locals 2 = some (.int ⟨64, false⟩ i) ∧
     (∀ x ∈ aLimbs, x < 2 ^ 32) ∧ (∀ x ∈ bLimbs, x < 2 ^ 32) ∧
     aLimbs.length = n ∧ bLimbs.length = n ∧
-    s.mem naz = some (ziBlock avblk n 1) ∧ s.mem nbz = some (ziBlock bvblk n 1) ∧
+    s.mem naz = some (ziBlock avblk n sgA) ∧ s.mem nbz = some (ziBlock bvblk n sgB) ∧
     s.mem avblk = some (limbBytes aLimbs) ∧ s.mem bvblk = some (limbBytes bLimbs) ∧
     aLimbs.drop i = bLimbs.drop i ∧
     naz < 4294967296 ∧ nbz < 4294967296 ∧ avblk < 4294967296 ∧ bvblk < 4294967296
 
 /-- The inner loop: either it exits normally with all limbs equal (locals 2 = 0),
 or it returns early with the comparison sign of the first limb mismatch. -/
-theorem acmp_loop_impl (naz avblk nbz bvblk : Nat)
+theorem acmp_loop_impl (naz avblk nbz bvblk : Nat) (sgA sgB : Int)
     (aLimbs bLimbs : List Nat) (n : Nat)
     (hlen : aLimbs.length = n) (hlen2 : bLimbs.length = n) :
     ∀ (k : Nat) (s : State), k ≤ n →
-    AcmpLoopInv naz avblk nbz bvblk aLimbs bLimbs n k s →
+    AcmpLoopInv naz avblk nbz bvblk sgA sgB aLimbs bLimbs n k s →
     (∃ sf, ExS LimbGen.prog s LimbGen.acmp_loop0 .normal sf ∧
         aLimbs = bLimbs ∧ sf.locals 2 = some (.int ⟨64, false⟩ 0) ∧ sf.mem = s.mem ∧
         sf.locals 0 = some (.ptr naz 0) ∧ sf.locals 1 = some (.ptr nbz 0)) ∨
@@ -221,7 +221,7 @@ theorem acmp_loop_impl (naz avblk nbz bvblk : Nat)
         have hstep : ExS LimbGen.prog s (.set 2 (.cast ⟨64, false⟩ (.bin .sub (some ⟨64, false⟩) (.cast ⟨64, false⟩ (.var 2)) (.const (.int ⟨64, false⟩ 1)))))
             .normal { s with locals := s.locals.upd 2 (.int ⟨64, false⟩ k) } :=
           ExS.set (EvE.cast subb (cast_u64_u64' k (by omega)))
-        have hinv' : AcmpLoopInv naz avblk nbz bvblk aLimbs bLimbs n k
+        have hinv' : AcmpLoopInv naz avblk nbz bvblk sgA sgB aLimbs bLimbs n k
             { s with locals := s.locals.upd 2 (.int ⟨64, false⟩ k) } := by
           refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
           · omega
@@ -293,13 +293,13 @@ theorem acmp_loop_impl (naz avblk nbz bvblk : Nat)
 /-- `acmp` for the unequal-length branch. The whole function is short-circuited
 inside the `.ite`; the loop body is unreachable. The returned value is `1` when
 `a` has more limbs than `b`, else `-1`. -/
-theorem acmp_exs_unequal (naz avblk nbz bvblk : Nat) (m : Mem)
+theorem acmp_exs_unequal (naz avblk nbz bvblk : Nat) (sgA sgB : Int) (m : Mem)
     (aLimbs bLimbs : List Nat) (na nb : Nat)
     (hna : aLimbs.length = na) (hnb : bLimbs.length = nb)
     (hna64 : na < 18446744073709551616) (hnb64 : nb < 18446744073709551616)
     (hne : na ≠ nb)
-    (hnaz : m naz = some (ziBlock avblk na 1)) (hnbz : m nbz = some (ziBlock bvblk nb 1))
-    (s0 : State) (h0 : s0 = ⟨frameLocals LimbGen.acmp.params [.ptr naz 0, .ptr nbz 0], m, false⟩) :
+    (hnaz : m naz = some (ziBlock avblk na sgA)) (hnbz : m nbz = some (ziBlock bvblk nb sgB))
+    (ro : Bool) (s0 : State) (h0 : s0 = ⟨frameLocals LimbGen.acmp.params [.ptr naz 0, .ptr nbz 0], m, ro⟩) :
     (na > nb → ∃ sf, ExS LimbGen.prog s0 LimbGen.acmp.body
         (.ret (some (.int ⟨32, true⟩ 1))) sf ∧
       sf.mem = m ∧ sf.locals 0 = some (.ptr naz 0) ∧ sf.locals 1 = some (.ptr nbz 0))
@@ -310,19 +310,19 @@ theorem acmp_exs_unequal (naz avblk nbz bvblk : Nat) (m : Mem)
   have hmem : s0.mem = m := by rw [h0]
   have l0 : s0.locals 0 = some (.ptr naz 0) := by rw [h0]; rfl
   have l1 : s0.locals 1 = some (.ptr nbz 0) := by rw [h0]; rfl
-  have hnaz' : s0.mem naz = some (ziBlock avblk na 1) := by rw [hmem]; exact hnaz
-  have hnbz' : s0.mem nbz = some (ziBlock bvblk nb 1) := by rw [hmem]; exact hnbz
+  have hnaz' : s0.mem naz = some (ziBlock avblk na sgA) := by rw [hmem]; exact hnaz
+  have hnbz' : s0.mem nbz = some (ziBlock bvblk nb sgB) := by rw [hmem]; exact hnbz
   have hloadA : EvE LimbGen.prog s0 (.load (.int ⟨64, false⟩) (.field (.var 0) 8))
       (.int ⟨64, false⟩ (na % 2 ^ 64)) := by
     have hfield : EvE LimbGen.prog s0 (.field (.var 0) 8) (.ptr naz 8) :=
       EvE.field (EvE.var l0) (by simp [ptrAddN, hnaz', ziBlock_length])
-    exact EvE.load hfield (load_u64_at s0.mem naz (ziBlock avblk na 1) 8 na
+    exact EvE.load hfield (load_u64_at s0.mem naz (ziBlock avblk na sgA) 8 na
       hnaz' (by simp [ziBlock_length]) (by simp [ziBlock, encodeLE_length]))
   have hloadB : EvE LimbGen.prog s0 (.load (.int ⟨64, false⟩) (.field (.var 1) 8))
       (.int ⟨64, false⟩ (nb % 2 ^ 64)) := by
     have hfield : EvE LimbGen.prog s0 (.field (.var 1) 8) (.ptr nbz 8) :=
       EvE.field (EvE.var l1) (by simp [ptrAddN, hnbz', ziBlock_length])
-    exact EvE.load hfield (load_u64_at s0.mem nbz (ziBlock bvblk nb 1) 8 nb
+    exact EvE.load hfield (load_u64_at s0.mem nbz (ziBlock bvblk nb sgB) 8 nb
       hnbz' (by simp [ziBlock_length]) (by simp [ziBlock, encodeLE_length]))
   have hneV : EvE LimbGen.prog s0 acmpNeU64
       (boolVal (decide (na % 2 ^ 64 ≠ nb % 2 ^ 64))) := by
@@ -376,16 +376,16 @@ theorem acmp_exs_unequal (naz avblk nbz bvblk : Nat) (m : Mem)
 /-- Top-level `acmp` refinement for equal-length limb inputs. Zero when all
 limbs are equal; `1` on the first mismatching limb with `a > b`; `-1` when
 the first mismatch has `a < b`. -/
-theorem acmp_exs (naz avblk nbz bvblk : Nat) (m : Mem)
+theorem acmp_exs (naz avblk nbz bvblk : Nat) (sgA sgB : Int) (m : Mem)
     (aLimbs bLimbs : List Nat) (n : Nat)
     (hna : aLimbs.length = n) (hnb : bLimbs.length = n)
     (hna64 : n < 18446744073709551616)
     (hlla : ∀ x ∈ aLimbs, x < 2 ^ 32) (hllb : ∀ x ∈ bLimbs, x < 2 ^ 32)
-    (hnaz : m naz = some (ziBlock avblk n 1)) (hnbz : m nbz = some (ziBlock bvblk n 1))
+    (hnaz : m naz = some (ziBlock avblk n sgA)) (hnbz : m nbz = some (ziBlock bvblk n sgB))
     (havblk : m avblk = some (limbBytes aLimbs)) (hbvblk : m bvblk = some (limbBytes bLimbs))
     (hnad : naz < 4294967296) (hnad2 : nbz < 4294967296)
     (hav : avblk < 4294967296) (hbv : bvblk < 4294967296)
-    (s0 : State) (h0 : s0 = ⟨frameLocals LimbGen.acmp.params [.ptr naz 0, .ptr nbz 0], m, false⟩) :
+    (ro : Bool) (s0 : State) (h0 : s0 = ⟨frameLocals LimbGen.acmp.params [.ptr naz 0, .ptr nbz 0], m, ro⟩) :
     (∃ sf, ExS LimbGen.prog s0 LimbGen.acmp.body (.ret (some (.int ⟨32, true⟩ 0))) sf ∧
         aLimbs = bLimbs ∧ sf.mem = m ∧ sf.locals 0 = some (.ptr naz 0) ∧
         sf.locals 1 = some (.ptr nbz 0))
@@ -399,21 +399,21 @@ theorem acmp_exs (naz avblk nbz bvblk : Nat) (m : Mem)
   have hmem : s0.mem = m := by rw [h0]
   have l0 : s0.locals 0 = some (.ptr naz 0) := by rw [h0]; rfl
   have l1 : s0.locals 1 = some (.ptr nbz 0) := by rw [h0]; rfl
-  have hnaz' : s0.mem naz = some (ziBlock avblk n 1) := by rw [hmem]; exact hnaz
-  have hnbz' : s0.mem nbz = some (ziBlock bvblk n 1) := by rw [hmem]; exact hnbz
+  have hnaz' : s0.mem naz = some (ziBlock avblk n sgA) := by rw [hmem]; exact hnaz
+  have hnbz' : s0.mem nbz = some (ziBlock bvblk n sgB) := by rw [hmem]; exact hnbz
   have havblk' : s0.mem avblk = some (limbBytes aLimbs) := by rw [hmem]; exact havblk
   have hbvblk' : s0.mem bvblk = some (limbBytes bLimbs) := by rw [hmem]; exact hbvblk
   have hloadA : EvE LimbGen.prog s0 (.load (.int ⟨64, false⟩) (.field (.var 0) 8))
       (.int ⟨64, false⟩ (n % 2 ^ 64)) := by
     have hfield : EvE LimbGen.prog s0 (.field (.var 0) 8) (.ptr naz 8) :=
       EvE.field (EvE.var l0) (by simp [ptrAddN, hnaz', ziBlock_length])
-    exact EvE.load hfield (load_u64_at s0.mem naz (ziBlock avblk n 1) 8 n
+    exact EvE.load hfield (load_u64_at s0.mem naz (ziBlock avblk n sgA) 8 n
       hnaz' (by simp [ziBlock_length]) (by simp [ziBlock, encodeLE_length]))
   have hloadB : EvE LimbGen.prog s0 (.load (.int ⟨64, false⟩) (.field (.var 1) 8))
       (.int ⟨64, false⟩ (n % 2 ^ 64)) := by
     have hfield : EvE LimbGen.prog s0 (.field (.var 1) 8) (.ptr nbz 8) :=
       EvE.field (EvE.var l1) (by simp [ptrAddN, hnbz', ziBlock_length])
-    exact EvE.load hfield (load_u64_at s0.mem nbz (ziBlock bvblk n 1) 8 n
+    exact EvE.load hfield (load_u64_at s0.mem nbz (ziBlock bvblk n sgB) 8 n
       hnbz' (by simp [ziBlock_length]) (by simp [ziBlock, encodeLE_length]))
   have hneV : EvE LimbGen.prog s0 acmpNeU64 (boolVal (decide (n % 2 ^ 64 ≠ n % 2 ^ 64))) := by
     show EvE LimbGen.prog _ (.bin .ne (some ⟨64, false⟩) (.load (.int ⟨64, false⟩) (.field (.var 0) 8))
@@ -431,7 +431,7 @@ theorem acmp_exs (naz avblk nbz bvblk : Nat) (m : Mem)
       (.set 2 (.load (.int ⟨64, false⟩) (.field (.var 0) 8)))
       .normal { s0 with locals := s0.locals.upd 2 (.int ⟨64, false⟩ (n % 2 ^ 64)) } := by
     exact ExS.set hloadA
-  have hinv' : AcmpLoopInv naz avblk nbz bvblk aLimbs bLimbs n n
+  have hinv' : AcmpLoopInv naz avblk nbz bvblk sgA sgB aLimbs bLimbs n n
       { s0 with locals := s0.locals.upd 2 (.int ⟨64, false⟩ (n % 2 ^ 64)) } := by
     have hmod : n % 2 ^ 64 = n := Nat.mod_eq_of_lt hna64
     refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
@@ -455,7 +455,7 @@ theorem acmp_exs (naz avblk nbz bvblk : Nat) (m : Mem)
     · exact hnad2
     · exact ⟨hav, hbv⟩
   let s2 : State := { s0 with locals := s0.locals.upd 2 (.int ⟨64, false⟩ (n % 2 ^ 64)) }
-  have hinv'' : AcmpLoopInv naz avblk nbz bvblk aLimbs bLimbs n n s2 := by
+  have hinv'' : AcmpLoopInv naz avblk nbz bvblk sgA sgB aLimbs bLimbs n n s2 := by
     refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · omega
     · omega
@@ -477,7 +477,7 @@ theorem acmp_exs (naz avblk nbz bvblk : Nat) (m : Mem)
     · exact hnad2
     · exact ⟨hav, hbv⟩
   -- The outer body of `acmp` = `.seq (.ite ...) (.seq (.seq (.set 2 ...) acmp_loop0) (.ret (some (.const 0))))`
-  cases acmp_loop_impl naz avblk nbz bvblk aLimbs bLimbs n hna hnb n s2 (n.le_refl) hinv'' with
+  cases acmp_loop_impl naz avblk nbz bvblk sgA sgB aLimbs bLimbs n hna hnb n s2 (n.le_refl) hinv'' with
   | inl nor =>
       obtain ⟨sf, hl, hall, hl2, hm, hl0, hl1⟩ := nor
       have hC : ExS LimbGen.prog s0
