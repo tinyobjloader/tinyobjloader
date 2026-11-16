@@ -29,6 +29,7 @@ import Tess.C.DivCmpC
 import Tess.C.DivBinLoop
 import Tess.C.QrExponent
 import Tess.C.SqrtBounds
+import Tess.C.RoundDyadic
 import Tess.C.BitLenC
 import Tess.C.OverflowModel
 import Tess.C.OrientGen
