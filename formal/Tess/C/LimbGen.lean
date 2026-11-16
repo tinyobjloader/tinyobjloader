@@ -103,6 +103,15 @@ def div_single_fill : Func where
   params := [0, 1, 2]
   body := (.seq (.set 3 (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq (.seq (.set 4 (.load (.int ⟨64, false⟩) (.field (.var 1) 8))) div_single_fill_loop0) (.ret (some (.var 3)))))
 
+/-- A loop of `div_shift_in`. -/
+def div_shift_in_loop0 : Stmt := (.loop (.ite (.bin .lt (some ⟨64, false⟩) (.var 2) (.load (.int ⟨64, false⟩) (.field (.var 0) 8))) (.seq (.set 3 (.bin .bor (some ⟨64, false⟩) (.bin .shl (some ⟨64, false⟩) (.cast ⟨64, false⟩ (.load (.int ⟨32, false⟩) (.index (.load .ptr (.field (.var 0) 0)) (.var 2) 4))) (.const (.int ⟨32, true⟩ 1))) (.var 1))) (.seq (.store (.int ⟨32, false⟩) (.index (.load .ptr (.field (.var 0) 0)) (.var 2) 4) (.cast ⟨32, false⟩ (.var 3))) (.set 1 (.bin .shr (some ⟨64, false⟩) (.var 3) (.const (.int ⟨32, true⟩ 32)))))) .brk) (.set 2 (.cast ⟨64, false⟩ (.bin .add (some ⟨64, false⟩) (.cast ⟨64, false⟩ (.var 2)) (.const (.int ⟨64, false⟩ 1))))))
+
+/-- `div_shift_in` (function id 12). Locals: 0=r, 1=k, 2=i, 3=v -/
+def fid_div_shift_in : Nat := 12
+def div_shift_in : Func where
+  params := [0, 1]
+  body := (.seq (.seq (.set 2 (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) div_shift_in_loop0) (.ret (some (.var 1))))
+
 /-- String literals referenced by the translated functions. -/
 def literals : List UInt8 := []
 
@@ -120,6 +129,7 @@ def prog : Prog := fun f =>
   | 9 => some i64_fill
   | 10 => some shift_fill
   | 11 => some div_single_fill
+  | 12 => some div_shift_in
   | _ => none
 
 end Tess.C.LimbGen

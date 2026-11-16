@@ -254,6 +254,17 @@ static uint64_t div_single_fill(zi* t, const zi* a, uint32_t d) {
   }
   return remainder;
 }
+/* In-place `r = 2*r + k` over the limbs of r (k is 0 or 1); returns the carry out of the top limb
+ * (pure; translated and proved against the Lean `siPrefix` model). */
+static uint64_t div_shift_in(zi* r, uint64_t k) {
+  size_t i;
+  for (i = 0; i < r->n; i++) {
+    uint64_t v = ((uint64_t)r->v[i] << 1) | k;
+    r->v[i] = (uint32_t)v;
+    k = v >> 32;
+  }
+  return k;
+}
 /* Binary long division; nonnegative remainder for nonnegative operands. */
 void zi_divrem(tx* c, zi* q, zi* r, const zi* a, const zi* b) {
   zi qt = {0}, rt = {0};
@@ -288,11 +299,7 @@ void zi_divrem(tx* c, zi* q, zi* r, const zi* a, const zi* b) {
     bit--;
     if (!tick(c, rt.n)) break;
     k = (a->v[bit / 32] >> (bit % 32)) & 1u;
-    for (i = 0; i < rt.n; i++) {
-      uint64_t v = ((uint64_t)rt.v[i] << 1) | k;
-      rt.v[i] = (uint32_t)v;
-      k = v >> 32;
-    }
+    (void)div_shift_in(&rt, k);
     cmp = rt.v[b->n] ? 1 : 0;
     if (!cmp) {
       for (i = b->n; i; i--)

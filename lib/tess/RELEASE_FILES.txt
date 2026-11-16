@@ -60,6 +60,7 @@ formal/Tess/C/QrModel.lean
 formal/Tess/C/DivModel.lean
 formal/Tess/C/PredModel.lean
 formal/Tess/C/SegModel.lean
+formal/Tess/C/DivShiftC.lean
 formal/Tess/C/DivSingleC.lean
 formal/Tess/C/DivSingleModel.lean
 formal/Tess/C/ShiftC.lean
