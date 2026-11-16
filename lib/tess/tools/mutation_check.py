@@ -27,6 +27,7 @@ MUTANTS = [
      'core', False),
     ('exact.c', 'borrow = x < y;', 'borrow = x <= y;', 'core', False),
     ('exact.c', 'uint64_t v = ((uint64_t)r->v[i] << 1) | k;', 'uint64_t v = ((uint64_t)r->v[i] << 1) | (k & 0);', 'core', False),
+    ('exact.c', 'cmp = r->v[i - 1] > b->v[i - 1] ? 1 : -1;', 'cmp = r->v[i - 1] > b->v[i - 1] ? -1 : 1;', 'core', False),
     ('predicates.c', 's = v.n.sign * tg_orient(m, a, b, c);', 's = v.n.sign;', 'core', False),
     ('audit.c', 'if (cross.n.sign) ok = 0;', 'if (0) ok = 0;', 'lean', False),
     ('audit.c', 'positive |= s > 0;', 'positive |= s >= 0;', 'lean', False),

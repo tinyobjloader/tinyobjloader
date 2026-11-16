@@ -277,10 +277,24 @@ static uint64_t div_sub_in(zi* r, const zi* b) {
   }
   return borrow;
 }
+/* Compare r (b->n + 1 limbs) with b: 1 if r > b, 0 if equal, -1 if r < b (pure; translated and proved
+ * against the Lean `dcCmp` model). */
+static int div_cmp(const zi* r, const zi* b) {
+  size_t i;
+  int cmp = r->v[b->n] ? 1 : 0;
+  if (!cmp) {
+    for (i = b->n; i; i--)
+      if (r->v[i - 1] != b->v[i - 1]) {
+        cmp = r->v[i - 1] > b->v[i - 1] ? 1 : -1;
+        break;
+      }
+  }
+  return cmp;
+}
 /* Binary long division; nonnegative remainder for nonnegative operands. */
 void zi_divrem(tx* c, zi* q, zi* r, const zi* a, const zi* b) {
   zi qt = {0}, rt = {0};
-  size_t bit, i;
+  size_t bit;
   if (!b->n) {
     if (!c->status) c->status = TESS_INVALID_INPUT;
     return;
@@ -312,14 +326,7 @@ void zi_divrem(tx* c, zi* q, zi* r, const zi* a, const zi* b) {
     if (!tick(c, rt.n)) break;
     k = (a->v[bit / 32] >> (bit % 32)) & 1u;
     (void)div_shift_in(&rt, k);
-    cmp = rt.v[b->n] ? 1 : 0;
-    if (!cmp) {
-      for (i = b->n; i; i--)
-        if (rt.v[i - 1] != b->v[i - 1]) {
-          cmp = rt.v[i - 1] > b->v[i - 1] ? 1 : -1;
-          break;
-        }
-    }
+    cmp = div_cmp(&rt, b);
     if (cmp >= 0) {
       (void)div_sub_in(&rt, b);
       qt.v[bit / 32] |= UINT32_C(1) << (bit % 32);

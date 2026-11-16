@@ -121,6 +121,15 @@ def div_sub_in : Func where
   params := [0, 1]
   body := (.seq (.set 2 (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq (.seq (.set 3 (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) div_sub_in_loop0) (.ret (some (.var 2)))))
 
+/-- A loop of `div_cmp`. -/
+def div_cmp_loop0 : Stmt := (.loop (.ite (.var 2) (.ite (.bin .ne (some ⟨32, false⟩) (.load (.int ⟨32, false⟩) (.index (.load .ptr (.field (.var 0) 0)) (.bin .sub (some ⟨64, false⟩) (.var 2) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 1)))) 4)) (.load (.int ⟨32, false⟩) (.index (.load .ptr (.field (.var 1) 0)) (.bin .sub (some ⟨64, false⟩) (.var 2) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 1)))) 4))) (.seq (.set 3 (.cond (.bin .gt (some ⟨32, false⟩) (.load (.int ⟨32, false⟩) (.index (.load .ptr (.field (.var 0) 0)) (.bin .sub (some ⟨64, false⟩) (.var 2) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 1)))) 4)) (.load (.int ⟨32, false⟩) (.index (.load .ptr (.field (.var 1) 0)) (.bin .sub (some ⟨64, false⟩) (.var 2) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 1)))) 4))) (.const (.int ⟨32, true⟩ 1)) (.un .neg ⟨32, true⟩ (.const (.int ⟨32, true⟩ 1))))) .brk) .skip) .brk) (.set 2 (.cast ⟨64, false⟩ (.bin .sub (some ⟨64, false⟩) (.cast ⟨64, false⟩ (.var 2)) (.const (.int ⟨64, false⟩ 1))))))
+
+/-- `div_cmp` (function id 14). Locals: 0=r, 1=b, 2=i, 3=cmp -/
+def fid_div_cmp : Nat := 14
+def div_cmp : Func where
+  params := [0, 1]
+  body := (.seq (.set 3 (.cond (.load (.int ⟨32, false⟩) (.index (.load .ptr (.field (.var 0) 0)) (.load (.int ⟨64, false⟩) (.field (.var 1) 8)) 4)) (.const (.int ⟨32, true⟩ 1)) (.const (.int ⟨32, true⟩ 0)))) (.seq (.ite (.un .lnot ⟨32, true⟩ (.var 3)) (.seq (.set 2 (.load (.int ⟨64, false⟩) (.field (.var 1) 8))) div_cmp_loop0) .skip) (.ret (some (.var 3)))))
+
 /-- String literals referenced by the translated functions. -/
 def literals : List UInt8 := []
 
@@ -140,6 +149,7 @@ def prog : Prog := fun f =>
   | 11 => some div_single_fill
   | 12 => some div_shift_in
   | 13 => some div_sub_in
+  | 14 => some div_cmp
   | _ => none
 
 end Tess.C.LimbGen

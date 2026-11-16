@@ -4,7 +4,7 @@ Implemented against `../../robust-ngon-remeshing-c11-lean4-prompt.md`.
 Release evidence below was collected on 2026-11-14. The deliverable is a bounded
 reference library, not a convergence guarantee or full C refinement proof.
 
-**Current authoritative proof-audit count: 2248 Tess declarations** (re-run
+**Current authoritative proof-audit count: 2288 Tess declarations** (re-run
 
 Sanitizer note: the full Clang ASan/UBSan suite (leak detection on) passes 25/25 after fixing a pre-existing
 leak in `domain_valid` (edge tangents were dropped by `m->ne = 0` when the domain check ran more than once,
@@ -445,8 +445,8 @@ with local leak detection disabled.
 - `BoxSeparation.boxes_separate_disjoint`: a strict gap between recorded AABB extrema excludes any common point of the two closed triangles, justifying the broadphase skip.
 - `C/SegModel.tgSegmentsM_eq`: the `tg_segments` model equals `segmentConflict` (audit count in the header is kept current).
 - The mutation campaign is reproducible: `python3 lib/tess/tools/mutation_check.py --lean
-  formal/.lake/build/bin/tesspredicates` applies the nineteen mutants to a scratch copy and reports
-  eighteen killed plus the one documented equivalent mutant (not part of default ctest). Five mutants were
+  formal/.lake/build/bin/tesspredicates` applies the twenty mutants to a scratch copy and reports
+  nineteen killed plus the one documented equivalent mutant (not part of default ctest). Five mutants were
   added for the factored `shift_fill`/`div_single_fill` kernels and the binary division path.
 - `NoncoplanarComplete.noncoplanar_gp_disjoint`: in general position, `noncoplanarTrianglesConflict = false`
   implies no common rational point of the two closed triangles (Case I: exit lemma in the plane of
