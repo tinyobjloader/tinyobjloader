@@ -28,6 +28,7 @@ import Tess.C.DivBitStep
 import Tess.C.DivCmpC
 import Tess.C.DivBinLoop
 import Tess.C.QrExponent
+import Tess.C.BitLenC
 import Tess.C.Arithmetic
 import Tess.C.Magnitude
 import Tess.Certificate

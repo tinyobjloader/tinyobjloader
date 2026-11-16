@@ -646,21 +646,22 @@ void qr_import(tx* c, qr* r, const tess_rational* input) {
   qm(c, r, &t);
 }
 
+/* Bit length of a 32-bit value (pure; translated and proved equal to the Lean `Nat.size`). */
+static unsigned bit_len32(uint32_t x) {
+  unsigned nb = 0;
+  while (x) {
+    nb++;
+    x >>= 1;
+  }
+  return nb;
+}
 int qr_exponent(const qr* a) {
   uint32_t n, d;
-  unsigned nb = 0, db = 0;
   if (!a->n.n || !a->d.n) return 0;
   n = a->n.v[a->n.n - 1];
   d = a->d.v[a->d.n - 1];
-  while (n) {
-    nb++;
-    n >>= 1;
-  }
-  while (d) {
-    db++;
-    d >>= 1;
-  }
-  return (int)(a->n.n - 1) * 32 + (int)nb - ((int)(a->d.n - 1) * 32 + (int)db);
+  return (int)(a->n.n - 1) * 32 + (int)bit_len32(n) -
+         ((int)(a->d.n - 1) * 32 + (int)bit_len32(d));
 }
 void qr_scale_pow2(tx* c, qr* r, const qr* a, int exponent) {
   qr t = {0};

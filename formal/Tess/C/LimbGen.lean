@@ -130,6 +130,15 @@ def div_cmp : Func where
   params := [0, 1]
   body := (.seq (.set 3 (.cond (.load (.int ⟨32, false⟩) (.index (.load .ptr (.field (.var 0) 0)) (.load (.int ⟨64, false⟩) (.field (.var 1) 8)) 4)) (.const (.int ⟨32, true⟩ 1)) (.const (.int ⟨32, true⟩ 0)))) (.seq (.ite (.un .lnot ⟨32, true⟩ (.var 3)) (.seq (.set 2 (.load (.int ⟨64, false⟩) (.field (.var 1) 8))) div_cmp_loop0) .skip) (.ret (some (.var 3)))))
 
+/-- A loop of `bit_len32`. -/
+def bit_len32_loop0 : Stmt := (.loop (.ite (.var 0) (.seq (.set 1 (.cast ⟨32, false⟩ (.bin .add (some ⟨32, false⟩) (.cast ⟨32, false⟩ (.var 1)) (.const (.int ⟨32, false⟩ 1))))) (.set 0 (.cast ⟨32, false⟩ (.bin .shr (some ⟨32, false⟩) (.cast ⟨32, false⟩ (.var 0)) (.const (.int ⟨32, true⟩ 1)))))) .brk) .skip)
+
+/-- `bit_len32` (function id 15). Locals: 0=x, 1=nb -/
+def fid_bit_len32 : Nat := 15
+def bit_len32 : Func where
+  params := [0]
+  body := (.seq (.set 1 (.cast ⟨32, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq bit_len32_loop0 (.ret (some (.var 1)))))
+
 /-- String literals referenced by the translated functions. -/
 def literals : List UInt8 := []
 
@@ -150,6 +159,7 @@ def prog : Prog := fun f =>
   | 12 => some div_shift_in
   | 13 => some div_sub_in
   | 14 => some div_cmp
+  | 15 => some bit_len32
   | _ => none
 
 end Tess.C.LimbGen
