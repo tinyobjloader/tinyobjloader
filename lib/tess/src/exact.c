@@ -114,14 +114,19 @@ static void move(tx* c, zi* r, zi* t) {
   *r = *t;
   memset(t, 0, sizeof(*t));
 }
+/* Limb count and limb/sign fill of an int64 magnitude (pure; translated and proved). */
+static size_t i64_limb_count(uint64_t u) { return u > UINT32_MAX ? 2 : u ? 1 : 0; }
+static void i64_fill(zi* t, int64_t x, uint64_t u) {
+  if (t->n) {
+    t->v[0] = (uint32_t)u;
+    if (t->n == 2) t->v[1] = (uint32_t)(u >> 32);
+    t->sign = x < 0 ? -1 : 1;
+  }
+}
 void zi_i64(tx* c, zi* a, int64_t x) {
   uint64_t u = tess_mag(x);
-  zi t = make(c, u > UINT32_MAX ? 2 : u ? 1 : 0);
-  if (t.n) {
-    t.v[0] = (uint32_t)u;
-    if (t.n == 2) t.v[1] = (uint32_t)(u >> 32);
-    t.sign = x < 0 ? -1 : 1;
-  }
+  zi t = make(c, i64_limb_count(u));
+  i64_fill(&t, x, u);
   move(c, a, &t);
 }
 void zi_copy(tx* c, zi* r, const zi* a) {

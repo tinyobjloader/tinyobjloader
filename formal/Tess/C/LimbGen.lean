@@ -73,6 +73,18 @@ def dbl_decode : Func where
   params := [0, 1, 2]
   body := (.seq (.set 3 (.cast ⟨32, false⟩ (.bin .band (some ⟨64, false⟩) (.bin .shr (some ⟨64, false⟩) (.var 0) (.const (.int ⟨32, true⟩ 52))) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 2047)))))) (.seq (.set 4 (.bin .band (some ⟨64, false⟩) (.var 0) (.const (.int ⟨64, false⟩ 4503599627370495)))) (.seq (.ite (.bin .eq (some ⟨32, false⟩) (.var 3) (.cast ⟨32, false⟩ (.const (.int ⟨32, true⟩ 2047)))) (.ret (some (.const (.int ⟨32, true⟩ 0)))) .skip) (.seq (.store (.int ⟨32, true⟩) (.var 2) (.cond (.var 3) (.bin .sub (some ⟨32, true⟩) (.bin .sub (some ⟨32, true⟩) (.cast ⟨32, true⟩ (.var 3)) (.const (.int ⟨32, true⟩ 1023))) (.const (.int ⟨32, true⟩ 52))) (.un .neg ⟨32, true⟩ (.const (.int ⟨32, true⟩ 1074))))) (.seq (.ite (.var 3) (.set 4 (.cast ⟨64, false⟩ (.bin .bor (some ⟨64, false⟩) (.cast ⟨64, false⟩ (.var 4)) (.cast ⟨64, false⟩ (.bin .shl (some ⟨64, false⟩) (.const (.int ⟨64, false⟩ 1)) (.const (.int ⟨32, true⟩ 52))))))) .skip) (.seq (.store (.int ⟨64, false⟩) (.var 1) (.var 4)) (.ret (some (.const (.int ⟨32, true⟩ 1))))))))))
 
+/-- `i64_limb_count` (function id 8). Locals: 0=u -/
+def fid_i64_limb_count : Nat := 8
+def i64_limb_count : Func where
+  params := [0]
+  body := (.ret (some (.cast ⟨64, false⟩ (.cond (.bin .gt (some ⟨64, false⟩) (.var 0) (.cast ⟨64, false⟩ (.const (.int ⟨32, false⟩ 4294967295)))) (.const (.int ⟨32, true⟩ 2)) (.cond (.var 0) (.const (.int ⟨32, true⟩ 1)) (.const (.int ⟨32, true⟩ 0)))))))
+
+/-- `i64_fill` (function id 9). Locals: 0=t, 1=x, 2=u -/
+def fid_i64_fill : Nat := 9
+def i64_fill : Func where
+  params := [0, 1, 2]
+  body := (.ite (.load (.int ⟨64, false⟩) (.field (.var 0) 8)) (.seq (.store (.int ⟨32, false⟩) (.index (.load .ptr (.field (.var 0) 0)) (.const (.int ⟨32, true⟩ 0)) 4) (.cast ⟨32, false⟩ (.var 2))) (.seq (.ite (.bin .eq (some ⟨64, false⟩) (.load (.int ⟨64, false⟩) (.field (.var 0) 8)) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 2)))) (.store (.int ⟨32, false⟩) (.index (.load .ptr (.field (.var 0) 0)) (.const (.int ⟨32, true⟩ 1)) 4) (.cast ⟨32, false⟩ (.bin .shr (some ⟨64, false⟩) (.var 2) (.const (.int ⟨32, true⟩ 32))))) .skip) (.store (.int ⟨32, true⟩) (.field (.var 0) 16) (.cond (.bin .lt (some ⟨64, true⟩) (.var 1) (.cast ⟨64, true⟩ (.const (.int ⟨32, true⟩ 0)))) (.un .neg ⟨32, true⟩ (.const (.int ⟨32, true⟩ 1))) (.const (.int ⟨32, true⟩ 1)))))) .skip)
+
 /-- String literals referenced by the translated functions. -/
 def literals : List UInt8 := []
 
@@ -86,6 +98,8 @@ def prog : Prog := fun f =>
   | 5 => some zi_cmp
   | 6 => some trim_len
   | 7 => some dbl_decode
+  | 8 => some i64_limb_count
+  | 9 => some i64_fill
   | _ => none
 
 end Tess.C.LimbGen

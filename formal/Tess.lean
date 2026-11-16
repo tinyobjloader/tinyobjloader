@@ -18,6 +18,7 @@ import Tess.C.ZiCmp
 import Tess.C.ZiCmpC
 import Tess.C.TrimLen
 import Tess.C.DblDecode
+import Tess.C.I64Import
 import Tess.C.Arithmetic
 import Tess.C.Magnitude
 import Tess.Certificate

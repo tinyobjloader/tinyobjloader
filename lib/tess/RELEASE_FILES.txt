@@ -48,6 +48,7 @@ formal/Tess/C/Acmp.lean
 formal/Tess/C/Arithmetic.lean
 formal/Tess/C/DblDecode.lean
 formal/Tess/C/Gen.lean
+formal/Tess/C/I64Import.lean
 formal/Tess/C/LimbGen.lean
 formal/Tess/C/Magnitude.lean
 formal/Tess/C/ZiAdd.lean
