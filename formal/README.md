@@ -244,7 +244,7 @@ Layers:
 4. **Auditor pair decision** (`PairAudit*`, `NoncoplanarComplete`, `InPlane`, `CoplanarSharedEdge`,
    `SharedVertex`, ...): an executable specification of the C 3D auditor with soundness (accepted pairs meet only
    in the permitted shared simplex), completeness (rejections are genuine) for all configurations of 0/1/2 shared
-   vertex IDs where stated.
+   vertex IDs where stated. For coplanar pairs the converse is also proved for the common valid configurations (no shared vertex, one shared vertex, an oppositely traversed shared edge; all cyclic rotations): such pairs are accepted (`PairAudit*Complete`, `PairAuditRotation`).
 
 Validation that complements the proofs (C/Lean/Fraction differential, mutation check, sanitizer runs) is
 described in `lib/tess/docs/PREDICATE_VALIDATION.md`, `lib/tess/tools/mutation_check.py` and `lib/tess/STATUS.md`.

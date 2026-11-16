@@ -90,6 +90,7 @@ import Tess.PairAuditComplete
 import Tess.PairAuditCoplanarComplete
 import Tess.PairAuditRotation
 import Tess.PairAuditVertexComplete
+import Tess.PairAuditDisjointComplete
 import Tess.PredicateFixture
 import Tess.IntersectionCompleteness
 import Tess.Orient3
