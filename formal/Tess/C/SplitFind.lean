@@ -133,4 +133,19 @@ theorem splitFind_spec (f : Nat → Nat × Nat) (n a b : Nat)
         · have := hs r j e.le hj
           rw [hjk] at this; exact this h2
 
+/-- C `split_order` comparator on `(a, b)` keys (the `qsort` order feeding `split_find`). -/
+def splitOrder (x y : Nat × Nat) : Int :=
+  if x.1 ≠ y.1 then (if x.1 > y.1 then 1 else -1)
+  else if x.2 > y.2 then 1 else if x.2 < y.2 then -1 else 0
+
+/-- The comparator is exactly the lexicographic order `ltk`: `-1`, `0`, `1` iff `<`, `=`, `>`;
+hence it satisfies the `qsort` contract (a total preorder that is antisymmetric and transitive). -/
+theorem splitOrder_spec (x y : Nat × Nat) :
+    (splitOrder x y = -1 ↔ ltk x y) ∧ (splitOrder x y = 0 ↔ x = y) ∧ (splitOrder x y = 1 ↔ ltk y x) := by
+  obtain ⟨a, b⟩ := x; obtain ⟨c, d⟩ := y
+  unfold splitOrder ltk
+  simp only [Prod.mk.injEq]
+  by_cases h1 : a = c <;> by_cases h2 : b < d <;> by_cases h3 : b > d <;> by_cases h4 : a > c <;>
+    simp [h1, h2, h3, h4] <;> omega
+
 end Tess.C
