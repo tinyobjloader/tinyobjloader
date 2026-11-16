@@ -4,7 +4,7 @@ Implemented against `../../robust-ngon-remeshing-c11-lean4-prompt.md`.
 Release evidence below was collected on 2026-11-14. The deliverable is a bounded
 reference library, not a convergence guarantee or full C refinement proof.
 
-**Current authoritative proof-audit count: 1852 Tess declarations** (re-run
+**Current authoritative proof-audit count: 1872 Tess declarations** (re-run
 2026-11-16 after `C/ZiValue`; standard axioms only). Declaration counts quoted in the dated
 sections below are historical snapshots.
 
@@ -463,3 +463,6 @@ with local leak detection disabled.
 - `SharedVertex`/`PairAuditShared.accepted_shared_vertex_only`: for noncoplanar faces sharing exactly one
   vertex, an accepted pair has no common point other than the shared vertex. `edgesAgainst_contact`
   extracts the auditor's per-edge acceptance condition in `allowed` form. Audit: 1852 declarations.
+- `PairAuditCoplanarShared.accepted_coplanar_shared_vertex_only`: coplanar faces sharing one vertex meet only
+  there when accepted; supported by `coplanar_contact_false` (an endpoint-free chord of a face forces an
+  edge/edge conflict) and `segmentConflict_symm`. Audit: 1872 declarations.
