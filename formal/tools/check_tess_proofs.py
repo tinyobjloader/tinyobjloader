@@ -16,6 +16,9 @@ commands=[
     ([sys.executable,'formal/tools/c2lean.py','--source','lib/tess/src/exact.c','--output','formal/Tess/C/LimbGen.lean',
       '--namespace','Tess.C.LimbGen','--function','tess_limb_madd','--function','acmp','--function','zi_add_equisign',
       '--function','zi_add_mixed','--function','zi_mul_accumulate','--function','zi_cmp','--function','trim_len','--function','dbl_decode','--function','i64_limb_count','--function','i64_fill','--function','shift_fill','--function','div_single_fill','--function','div_shift_in','--function','div_sub_in','--function','div_cmp','--function','bit_len32','--include','lib/tess/include','--check'],root),
+    ([sys.executable,'formal/tools/c2lean.py','--source','lib/tess/src/tess.c','--output','formal/Tess/C/OrientGen.lean',
+      '--namespace','Tess.C.OrientGen','--function','sub','--function','mag','--function','mul',
+      '--include','lib/tess/include','--check'],root),
     (['lake','build','Tess','tesscheck','tesspredicates'],root/'formal'),
     (['lake','env','lean','TessAudit.lean'],root/'formal')]
 for command,directory in commands:
