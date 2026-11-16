@@ -4,7 +4,7 @@ Implemented against `../../robust-ngon-remeshing-c11-lean4-prompt.md`.
 Release evidence below was collected on 2026-11-14. The deliverable is a bounded
 reference library, not a convergence guarantee or full C refinement proof.
 
-**Current authoritative proof-audit count: 1367 Tess declarations** (re-run
+**Current authoritative proof-audit count: 1388 Tess declarations** (re-run
 2026-11-16 after `C/ZiValue`; standard axioms only). Declaration counts quoted in the dated
 sections below are historical snapshots.
 
@@ -366,3 +366,7 @@ path has no Lean executable specification at all.
   and `ziMul_value` (a*b over a zero buffer of capacity ≥ |a|+|b|, using the
   fact that each row's overflow write replaces a zero). Audit: 1367 declarations.
   Open: composing with allocation, `norm`, sign dispatch and `move`.
+- `Tess.C.ZiOrder` adds the order/sign layer: `acmp` outcomes imply the
+  denoted-integer order (for normalized operands), `norm` trimming preserves
+  value and normalizes, and `ziAdd_signed`/`ziMixed_signed` give the signed sum
+  for the two `zi_add` branches. Audit: 1388 declarations.
