@@ -62,6 +62,7 @@ formal/Tess/C/MulC.lean
 formal/Tess/C/GrowCap.lean
 formal/Tess/C/IncidenceOrder.lean
 formal/Tess/C/InsertionSort.lean
+formal/Tess/C/MulGuard.lean
 formal/Tess/C/OrientCoreC.lean
 formal/Tess/C/OrientGen.lean
 formal/Tess/C/OverflowModel.lean

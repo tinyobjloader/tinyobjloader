@@ -36,6 +36,7 @@ import Tess.C.GrowCap
 import Tess.C.InsertionSort
 import Tess.C.IncidenceOrder
 import Tess.C.BlockedFace
+import Tess.C.MulGuard
 import Tess.C.BitLenC
 import Tess.C.OverflowModel
 import Tess.C.OrientGen
