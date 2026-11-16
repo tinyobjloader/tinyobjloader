@@ -4,7 +4,7 @@ Implemented against `../../robust-ngon-remeshing-c11-lean4-prompt.md`.
 Release evidence below was collected on 2026-11-14. The deliverable is a bounded
 reference library, not a convergence guarantee or full C refinement proof.
 
-**Current authoritative proof-audit count: 1388 Tess declarations** (re-run
+**Current authoritative proof-audit count: 1442 Tess declarations** (re-run
 2026-11-16 after `C/ZiValue`; standard axioms only). Declaration counts quoted in the dated
 sections below are historical snapshots.
 
@@ -370,3 +370,8 @@ path has no Lean executable specification at all.
   denoted-integer order (for normalized operands), `norm` trimming preserves
   value and normalizes, and `ziAdd_signed`/`ziMixed_signed` give the signed sum
   for the two `zi_add` branches. Audit: 1388 declarations.
+- `Tess.C.ZiModel` assembles functional models of `zi_add`/`zi_sub`/`zi_mul`
+  from the proved loop models and proves they denote signed integer
+  addition/subtraction/multiplication with well-formed results (no sorry).
+  Audit: 1442 declarations. Remaining gap to the C: allocation/budget/`move`
+  and whole-function MiniC refinement.
