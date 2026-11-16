@@ -391,3 +391,6 @@ with local leak detection disabled.
   specifications: `tg_orient_q` sign = sign of `Tess.orient`; `det3` equals
   `incircleDet`/`orient3`; incircle sign product ⇔ `illegalDelaunay`. `ZiM.WF`
   gained the `limbs = [] → sign = 0` field. Audit: 1539 declarations.
+- `Tess.C.ShiftModel` proves the `shift` limb carry chain denotes `a*2^bits`;
+  `QrModel.qrDoubleM_spec` proves `qr_double` returns the canonical exact value
+  of a finite binary64 pattern. Audit: 1569 declarations.

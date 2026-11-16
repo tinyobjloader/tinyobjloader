@@ -158,4 +158,57 @@ theorem qrAdd_shortcut_agrees (a b : Int × Int) (ha : Canon a) (hb : Canon b) (
   rw [div_eq_div_iff ha2 (mul_ne_zero ha2 ha2)]
   ring
 
+/-- Mantissa (with implicit bit) and unbiased exponent of a binary64 bit pattern, as in `qr_double`. -/
+def dblMant (u : Nat) : Nat := if (u / 2 ^ 52) % 2048 ≠ 0 then u % 2 ^ 52 + 2 ^ 52 else u % 2 ^ 52
+def dblExp (u : Nat) : Int := if (u / 2 ^ 52) % 2048 ≠ 0 then ((u / 2 ^ 52) % 2048 : Nat) - 1075 else -1074
+
+/-- `qr_double` for a finite pattern: numerator/denominator before `reduce`
+(`shift` is the proved limb shift model: multiplication by `2^k`). -/
+def dblPair (u : Nat) : Int × Int :=
+  let m : Int := dblMant u
+  let neg := u / 2 ^ 63 % 2 = 1
+  if dblMant u = 0 then (0, 1)
+  else if 0 < dblExp u then ((if neg then -1 else 1) * m * 2 ^ (dblExp u).toNat, 1)
+  else ((if neg then -1 else 1) * m, 2 ^ (-(dblExp u)).toNat)
+
+def qrDoubleM (u : Nat) : Int × Int := let p := dblPair u; reduceM p.1 p.2
+
+theorem dblPair_den_pos (u : Nat) : 0 < (dblPair u).2 := by
+  unfold dblPair
+  simp only []
+  by_cases hm : dblMant u = 0
+  · simp [hm]
+  · simp only [hm, if_false]
+    by_cases he : 0 < dblExp u
+    · simp [he]
+    · simp only [he, if_false]; exact pow_pos (by norm_num) _
+
+/-- `qr_double` yields the canonical form of `(-1)^s * mant * 2^exp`. -/
+theorem qrDoubleM_spec (u : Nat) :
+    Canon (qrDoubleM u) ∧
+    qv (qrDoubleM u) = (if u / 2 ^ 63 % 2 = 1 then -1 else 1) * (dblMant u : Rat) * (2 : Rat) ^ (dblExp u) := by
+  obtain ⟨c, v⟩ := reduceM_spec (dblPair u).1 (dblPair u).2 (dblPair_den_pos u).ne'
+  refine ⟨c, ?_⟩
+  unfold qrDoubleM qv
+  rw [v]
+  unfold dblPair
+  by_cases hm : dblMant u = 0
+  · simp [hm]
+  · simp only [hm, if_false]
+    split
+    · next hpos =>
+        have : (2 : Rat) ^ (dblExp u) = (2 : Rat) ^ (dblExp u).toNat := by
+          rw [← zpow_natCast, Int.toNat_of_nonneg hpos.le]
+        push_cast
+        rw [this]; split <;> simp
+    · next hneg =>
+        have hn : dblExp u = -((-(dblExp u)).toNat : Int) := by
+          rw [Int.toNat_of_nonneg (by omega)]; ring
+        have : (2 : Rat) ^ (dblExp u) = ((2 : Rat) ^ (-(dblExp u)).toNat)⁻¹ := by
+          conv_lhs => rw [hn]
+          rw [zpow_neg, zpow_natCast]
+        rw [this]
+        push_cast
+        split <;> simp [div_eq_mul_inv]
+
 end Tess.C
