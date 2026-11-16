@@ -9,6 +9,7 @@ import Tess.C.ZiMul
 import Tess.C.ZiValue
 import Tess.C.ZiOrder
 import Tess.C.ZiModel
+import Tess.C.QrModel
 import Tess.C.Arithmetic
 import Tess.C.Magnitude
 import Tess.Certificate

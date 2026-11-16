@@ -4,7 +4,7 @@ Implemented against `../../robust-ngon-remeshing-c11-lean4-prompt.md`.
 Release evidence below was collected on 2026-11-14. The deliverable is a bounded
 reference library, not a convergence guarantee or full C refinement proof.
 
-**Current authoritative proof-audit count: 1442 Tess declarations** (re-run
+**Current authoritative proof-audit count: 1469 Tess declarations** (re-run
 2026-11-16 after `C/ZiValue`; standard axioms only). Declaration counts quoted in the dated
 sections below are historical snapshots.
 
@@ -375,3 +375,7 @@ path has no Lean executable specification at all.
   addition/subtraction/multiplication with well-formed results (no sorry).
   Audit: 1442 declarations. Remaining gap to the C: allocation/budget/`move`
   and whole-function MiniC refinement.
+- `Tess.C.QrModel` proves the rational layer models: Euclid loop = gcd,
+  `reduce` canonical form and value preservation, `qr_add/sub/mul` denote
+  rational arithmetic (the equal-denominator shortcut agrees with the general
+  path). Audit: 1469 declarations. `zi_divrem` remains unproved.
