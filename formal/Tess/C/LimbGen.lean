@@ -85,6 +85,15 @@ def i64_fill : Func where
   params := [0, 1, 2]
   body := (.ite (.load (.int ⟨64, false⟩) (.field (.var 0) 8)) (.seq (.store (.int ⟨32, false⟩) (.index (.load .ptr (.field (.var 0) 0)) (.const (.int ⟨32, true⟩ 0)) 4) (.cast ⟨32, false⟩ (.var 2))) (.seq (.ite (.bin .eq (some ⟨64, false⟩) (.load (.int ⟨64, false⟩) (.field (.var 0) 8)) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 2)))) (.store (.int ⟨32, false⟩) (.index (.load .ptr (.field (.var 0) 0)) (.const (.int ⟨32, true⟩ 1)) 4) (.cast ⟨32, false⟩ (.bin .shr (some ⟨64, false⟩) (.var 2) (.const (.int ⟨32, true⟩ 32))))) .skip) (.store (.int ⟨32, true⟩) (.field (.var 0) 16) (.cond (.bin .lt (some ⟨64, true⟩) (.var 1) (.cast ⟨64, true⟩ (.const (.int ⟨32, true⟩ 0)))) (.un .neg ⟨32, true⟩ (.const (.int ⟨32, true⟩ 1))) (.const (.int ⟨32, true⟩ 1)))))) .skip)
 
+/-- A loop of `shift_fill`. -/
+def shift_fill_loop0 : Stmt := (.loop (.ite (.bin .lt (some ⟨64, false⟩) (.var 3) (.load (.int ⟨64, false⟩) (.field (.var 1) 8))) (.seq (.set 5 (.bin .bor (some ⟨64, false⟩) (.bin .shl (some ⟨64, false⟩) (.cast ⟨64, false⟩ (.load (.int ⟨32, false⟩) (.index (.load .ptr (.field (.var 1) 0)) (.var 3) 4))) (.bin .mod (some ⟨32, false⟩) (.var 2) (.cast ⟨32, false⟩ (.const (.int ⟨32, true⟩ 32))))) (.var 4))) (.seq (.store (.int ⟨32, false⟩) (.index (.load .ptr (.field (.var 0) 0)) (.bin .add (some ⟨64, false⟩) (.var 3) (.cast ⟨64, false⟩ (.bin .div (some ⟨32, false⟩) (.var 2) (.cast ⟨32, false⟩ (.const (.int ⟨32, true⟩ 32)))))) 4) (.cast ⟨32, false⟩ (.var 5))) (.set 4 (.bin .shr (some ⟨64, false⟩) (.var 5) (.const (.int ⟨32, true⟩ 32)))))) .brk) (.set 3 (.cast ⟨64, false⟩ (.bin .add (some ⟨64, false⟩) (.cast ⟨64, false⟩ (.var 3)) (.const (.int ⟨64, false⟩ 1))))))
+
+/-- `shift_fill` (function id 10). Locals: 0=t, 1=a, 2=bits, 3=i, 4=carry, 5=v -/
+def fid_shift_fill : Nat := 10
+def shift_fill : Func where
+  params := [0, 1, 2]
+  body := (.seq (.set 4 (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq (.seq (.set 3 (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) shift_fill_loop0) (.store (.int ⟨32, false⟩) (.index (.load .ptr (.field (.var 0) 0)) (.bin .add (some ⟨64, false⟩) (.load (.int ⟨64, false⟩) (.field (.var 1) 8)) (.cast ⟨64, false⟩ (.bin .div (some ⟨32, false⟩) (.var 2) (.cast ⟨32, false⟩ (.const (.int ⟨32, true⟩ 32)))))) 4) (.cast ⟨32, false⟩ (.var 4)))))
+
 /-- String literals referenced by the translated functions. -/
 def literals : List UInt8 := []
 
@@ -100,6 +109,7 @@ def prog : Prog := fun f =>
   | 7 => some dbl_decode
   | 8 => some i64_limb_count
   | 9 => some i64_fill
+  | 10 => some shift_fill
   | _ => none
 
 end Tess.C.LimbGen

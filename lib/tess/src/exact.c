@@ -367,17 +367,22 @@ void qr_copy(tx* c, qr* r, const qr* a) {
   zi_copy(c, &t.d, &a->d);
   qm(c, r, &t);
 }
-static void shift(tx* c, zi* r, const zi* a, unsigned bits) {
-  zi t = make(c, a->n + bits / 32 + 1);
+/* Limb carry chain of a left shift into a zeroed destination of a->n + bits/32 + 1
+ * limbs (pure; translated and proved against the Lean `shiftLimbs` model). */
+static void shift_fill(zi* t, const zi* a, unsigned bits) {
   size_t i;
   uint64_t carry = 0;
+  for (i = 0; i < a->n; i++) {
+    uint64_t v = ((uint64_t)a->v[i] << (bits % 32)) | carry;
+    t->v[i + bits / 32] = (uint32_t)v;
+    carry = v >> 32;
+  }
+  t->v[a->n + bits / 32] = (uint32_t)carry;
+}
+static void shift(tx* c, zi* r, const zi* a, unsigned bits) {
+  zi t = make(c, a->n + bits / 32 + 1);
   if (t.v) {
-    for (i = 0; i < a->n; i++) {
-      uint64_t v = ((uint64_t)a->v[i] << (bits % 32)) | carry;
-      t.v[i + bits / 32] = (uint32_t)v;
-      carry = v >> 32;
-    }
-    t.v[a->n + bits / 32] = (uint32_t)carry;
+    shift_fill(&t, a, bits);
     t.sign = a->sign;
   }
   norm(c, &t);
