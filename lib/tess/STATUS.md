@@ -6,13 +6,22 @@ reference library, not a convergence guarantee or full C refinement proof.
 
 **Current authoritative proof-audit count: 3882 Tess declarations** (re-run
 
-Sanitizer note: the full Clang ASan/UBSan suite (leak detection on) passes 25/25 after fixing a pre-existing
-leak in `domain_valid` (edge tangents were dropped by `m->ne = 0` when the domain check ran more than once,
-e.g. across chart-axis attempts).
 2026-11-16 after `C/I64Import`; standard axioms only). `C/I64Import` refines the pure
 kernels (`i64_limb_count`, `i64_fill`) factored out of `zi_i64` (LimbGen ids 8, 9; behavior
 unchanged, 28/28 tests pass); the written limbs denote the int64 magnitude and the sign field is ±1. Declaration counts quoted in the dated
 sections below are historical snapshots.
+
+Session summary (2026-11-16): new MiniC refinements of translated C kernels — `shift_fill`, the four
+`zi_divrem` limb loops (`div_single_fill`, `div_shift_in`, `div_cmp`, `div_sub_in`), `bit_len32`, and the
+checked int64 `sub`/`mul` of `tess_orient2i`; limb-level model of the whole binary division loop
+(`DivBinLoop.binLoop_correct`); value-level models of `qr_exponent`/`qr_sqrt_bounds`/`qr_round_dyadic`,
+`serial_add`, `grow`, `split_find`, the topology union-find and the certificate insertion sort; and
+auditor completeness for valid coplanar pairs (no shared vertex, one shared vertex, shared edge in either
+direction, all rotations). Not proved: allocating whole-function refinements (MiniC has no allocator),
+real-point (not only rational) disjointness, and a whole-function refinement of `tess_orient2i`.
+Sanitizer note: the full Clang ASan/UBSan suite (leak detection on) passes 25/25 after fixing a pre-existing
+leak in `domain_valid` (edge tangents were dropped by `m->ne = 0` when the domain check ran more than once,
+e.g. across chart-axis attempts).
 
 ## Milestones delivered
 
