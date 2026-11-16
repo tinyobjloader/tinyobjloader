@@ -79,6 +79,7 @@ The pure C11 loader additionally supports points (`p`) and free-form geometry
 ### Material
 
 * PBR material extension for .MTL. Please see [pbr-mtl.md](pbr-mtl.md) for details.
+* MaterialX node graphs in .MTL (`mtlx_*` / `connectmtl` lines), with a Lean 4 specification. Please see [mtlx-mtl.md](mtlx-mtl.md) for details.
 * Texture options
 * Unknown material attributes are returned as key-value(value is string) map.
 

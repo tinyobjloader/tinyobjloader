@@ -84,6 +84,11 @@ typedef struct TOBJ_T(tobj_material) {
   /* Unknown parameters: sorted-by-key array, binary searchable. */
   tobj_kv *unknown_params;
   size_t num_unknown_params;
+
+  /* MaterialX-in-MTL extension lines (mtlx_* / connectmtl), verbatim and in
+   * file order; parse with tobj_mtlx_parse_lines() from tobj_mtlx.h. */
+  const char **mtlx_lines;
+  size_t num_mtlx_lines;
 } TOBJ_T(tobj_material);
 
 typedef struct TOBJ_T(tobj_joint_weight) {

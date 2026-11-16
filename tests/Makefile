@@ -101,6 +101,14 @@ check_tess: tess_tester
 check_c_freestanding: tester_c_freestanding
 	./tester_c_freestanding
 
+# MaterialX-in-MTL (tobj_mtlx): loader integration on the spec fixtures.
+check_mtlx: ../tobj_mtlx.c ../tobj_mtlx.h mtlx_loader_test.c mtlx_loader_test_cxx.cc
+	$(CC) -std=c11 -g -fsanitize=address,undefined -o mtlx_loader_test mtlx_loader_test.c ../tiny_obj_c.c ../tobj_tess.c ../tobj_mtlx.c -lm
+	$(CC) -std=c11 -g -fsanitize=address,undefined -c -o tobj_mtlx.o ../tobj_mtlx.c
+	$(CXX) -std=c++11 -g -fsanitize=address,undefined -o mtlx_loader_test_cxx mtlx_loader_test_cxx.cc tobj_mtlx.o
+	./mtlx_loader_test ../formal/Mtlx/tests/*.mtl
+	./mtlx_loader_test_cxx ../formal/Mtlx/tests/*.mtl
+
 clean:
 	rm -rf tester tester_features tester_nofastfloat \
 	       tester_c tester_c_features tess_tester tester_c_freestanding

@@ -1,0 +1,79 @@
+mtlx_surface orphan standard_surface
+newmtl  spaced name   
+	mtlx_surface   s   standard_surface  
+mtlx_input s.base float  0.5
+mtlx_input s.opacity color3 1,1,1
+mtlx_input s.thin_walled boolean true
+mtlx_input s.coat float 1e-3
+mtlx_input s.coat_IOR float .5E+1
+mtlx_input s.label string "with \"quote"
+mtlx_include lib/defs.mtlx
+mtlx_include lib/defs.mtlx
+# comment
+   # indented comment
+newmtl dup
+mtlx_surface s standard_surface
+mtlx_node n image color3
+mtlx_node n image color3
+newmtl selfloop
+mtlx_surface s standard_surface
+mtlx_node a add float
+connectmtl a a.in1
+newmtl badout
+mtlx_surface s standard_surface
+mtlx_node a image float
+connectmtl a.outx s.base
+newmtl mismatch
+mtlx_surface s standard_surface
+mtlx_node a image float
+mtlx_input s.base_color color3 1 1 1
+connectmtl a s.base_color
+newmtl unterminated
+mtlx_surface s standard_surface
+mtlx_input s.file filename "abc
+newmtl 1digit-ñame
+mtlx_version 1.38
+mtlx_surface s gltf_pbr
+mtlx_node uv texcoord vector2
+mtlx_node img tiledimage color3
+mtlx_input img.file filename tex.png
+mtlx_input img.uvtiling vector2 2 2
+connectmtl uv img.texcoord
+connectmtl img s.base_color
+connectmtl img s.emissive
+newmtl 1digit-ñame
+mtlx_surface s UsdPreviewSurface
+mtlx_input s.roughness float 0.25
+newmtl 1digit-_ame
+mtlx_surface s UsdPreviewSurface
+newmtl twoversions
+mtlx_version 1.38
+mtlx_version 1.39
+mtlx_surface s standard_surface
+newmtl badver
+mtlx_version 1.3.9
+mtlx_surface s standard_surface
+newmtl arrays
+mtlx_surface s standard_surface
+mtlx_node c constant floatarray
+mtlx_input c.value floatarray 1 2 3
+mtlx_node d constant color3array
+mtlx_input d.value color3array 1 2
+mtlx_input s.base integer -3
+newmtl unknownty
+mtlx_surface s standard_surface
+mtlx_node c constant surfaceshader
+newmtl crlf
+mtlx_surface s standard_surface
+mtlx_input s.base float 1
+newmtl cs
+mtlx_surface s standard_surface
+mtlx_node t image color3
+mtlx_input t.file filename a.png
+mtlx_colorspace t.file srgb_texture
+mtlx_input s.base_color color3 1 1 1
+mtlx_colorspace s.base_color lin_rec709
+connectmtl t s.base_color
+newmtl csbad
+mtlx_surface s standard_surface
+mtlx_colorspace s.base_color srgb_texture

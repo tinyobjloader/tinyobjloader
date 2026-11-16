@@ -247,6 +247,10 @@ struct material_t {
 
   std::map<std::string, std::string> unknown_parameter;
 
+  // MaterialX-in-MTL extension lines (mtlx_* / connectmtl), verbatim and in
+  // file order. Parse with tobj_mtlx_parse_lines() (tobj_mtlx.h).
+  std::vector<std::string> mtlx_lines;
+
 #ifdef TINY_OBJ_LOADER_PYTHON_BINDING
   // For pybind11
   std::array<double, 3> GetDiffuse() {
@@ -7596,6 +7600,7 @@ static void InitMaterial(material_t *material) {
   material->normal_texname = "";
 
   material->unknown_parameter.clear();
+  material->mtlx_lines.clear();
 }
 
 // code from https://wrf.ecse.rpi.edu//Research/Short_Notes/pnpoly.html
@@ -8676,6 +8681,30 @@ static bool LoadMtlInternal(std::map<std::string, int> *material_map,
                                 &(material.normal_texopt), line_rest.c_str());
       sr.skip_line();
       continue;
+    }
+
+    // MaterialX-in-MTL extension line: kept verbatim, in order.
+    {
+      static const char *const kMtlxKeys[] = {"mtlx_version", "mtlx_surface",
+                                              "mtlx_node",    "mtlx_input",
+                                              "connectmtl",   "mtlx_include",
+                                              "mtlx_colorspace"};
+      bool is_mtlx = false;
+      for (size_t k = 0; k < sizeof(kMtlxKeys) / sizeof(kMtlxKeys[0]); k++) {
+        size_t kl = strlen(kMtlxKeys[k]);
+        if (sr.match(kMtlxKeys[k], kl) &&
+            (sr.peek_at(kl) == ' ' || sr.peek_at(kl) == '\t' ||
+             sr.peek_at(kl) == '\r' || sr.peek_at(kl) == '\n' ||
+             sr.peek_at(kl) == '\0')) {
+          is_mtlx = true;
+          break;
+        }
+      }
+      if (is_mtlx) {
+        material.mtlx_lines.push_back(trimTrailingWhitespace(sr.read_line()));
+        sr.skip_line();
+        continue;
+      }
     }
 
     // unknown parameter

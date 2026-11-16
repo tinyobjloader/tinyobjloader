@@ -36,6 +36,7 @@ typedef struct TOBJ_T(tobj_builder) {
   tobj_vec matmap_key;  /* const char* (interned) */
   tobj_vec matmap_id;   /* int */
   tobj_vec mat_unknown; /* tobj_pending_kv */
+  tobj_vec mat_mtlx;    /* tobj_pending_kv: key NULL, value = raw MaterialX-in-MTL line */
 
   /* finalized shapes */
   tobj_vec shapes; /* TOBJ_T(tobj_shape) */
@@ -834,6 +835,26 @@ static bool TOBJ_T(parse_mtl_buffer)(TOBJ_T(tobj_builder) * b,
       m->sheen_texname = TOBJ_T(parse_texopt)(b, &c, &m->sheen_texopt);
     } else if (tobj_slice_eq(tok, tl, "map_Ke")) {
       m->emissive_texname = TOBJ_T(parse_texopt)(b, &c, &m->emissive_texopt);
+    } else if (tobj_slice_eq(tok, tl, "mtlx_version") ||
+               tobj_slice_eq(tok, tl, "mtlx_surface") ||
+               tobj_slice_eq(tok, tl, "mtlx_node") ||
+               tobj_slice_eq(tok, tl, "mtlx_input") ||
+               tobj_slice_eq(tok, tl, "connectmtl") ||
+               tobj_slice_eq(tok, tl, "mtlx_include") ||
+               tobj_slice_eq(tok, tl, "mtlx_colorspace")) {
+      /* MaterialX-in-MTL line: kept verbatim, in order (see tobj_mtlx.h) */
+      tobj_pending_kv *kv = (tobj_pending_kv *)tobj_vec_push(&b->mat_mtlx, b->alloc);
+      if (!kv) {
+        TOBJ_T(b_fail)(b, TOBJ_ERR_ALLOC);
+        break;
+      }
+      kv->mat_index = (size_t)cur;
+      kv->key = NULL;
+      kv->value = tobj_intern(b->arena, base + ln->pos, ln->len);
+      if (!kv->value) {
+        TOBJ_T(b_fail)(b, TOBJ_ERR_ALLOC);
+        break;
+      }
     } else {
       /* unknown parameter: store key -> rest of line */
       if (!TOBJ_T(push_unknown)(b, (size_t)cur, tok, tl, &c)) break;
@@ -1219,6 +1240,29 @@ static bool TOBJ_T(finalize_unknowns)(TOBJ_T(tobj_builder) * b) {
   return true;
 }
 
+/* Attach the pending MaterialX-in-MTL lines to their materials, in order. */
+static bool TOBJ_T(finalize_mtlx)(TOBJ_T(tobj_builder) * b) {
+  if (b->mat_mtlx.count == 0) return true;
+  const tobj_pending_kv *pend = (const tobj_pending_kv *)b->mat_mtlx.data;
+  size_t j = 0; /* entries are in material order: lines follow their newmtl */
+  while (j < b->mat_mtlx.count) {
+    size_t mi = pend[j].mat_index, e = j;
+    while (e < b->mat_mtlx.count && pend[e].mat_index == mi) e++;
+    if (mi < b->materials.count) {
+      const char **arr = (const char **)tobj_arena_alloc(
+          b->arena, (e - j) * sizeof(const char *), 16);
+      if (!arr) return TOBJ_T(b_fail)(b, TOBJ_ERR_ALLOC);
+      for (size_t k = j; k < e; k++) arr[k - j] = pend[k].value;
+      TOBJ_T(tobj_material) *m =
+          (TOBJ_T(tobj_material) *)tobj_vec_at(&b->materials, mi);
+      m->mtlx_lines = arr;
+      m->num_mtlx_lines = e - j;
+    }
+    j = e;
+  }
+  return true;
+}
+
 static void TOBJ_T(builder_init)(TOBJ_T(tobj_builder) * b) {
   tobj_vec_init(&b->av, sizeof(TOBJ_REAL));
   tobj_vec_init(&b->avw, sizeof(TOBJ_REAL));
@@ -1230,6 +1274,7 @@ static void TOBJ_T(builder_init)(TOBJ_T(tobj_builder) * b) {
   tobj_vec_init(&b->matmap_key, sizeof(const char *));
   tobj_vec_init(&b->matmap_id, sizeof(int));
   tobj_vec_init(&b->mat_unknown, sizeof(tobj_pending_kv));
+  tobj_vec_init(&b->mat_mtlx, sizeof(tobj_pending_kv));
   tobj_vec_init(&b->shapes, sizeof(TOBJ_T(tobj_shape)));
   tobj_vec_init(&b->m_idx, sizeof(tobj_index));
   tobj_vec_init(&b->m_fv, sizeof(unsigned));
@@ -1269,6 +1314,7 @@ static void TOBJ_T(builder_dispose)(TOBJ_T(tobj_builder) * b) {
   tobj_vec_free(&b->matmap_key, a);
   tobj_vec_free(&b->matmap_id, a);
   tobj_vec_free(&b->mat_unknown, a);
+  tobj_vec_free(&b->mat_mtlx, a);
   tobj_vec_free(&b->shapes, a);
   tobj_vec_free(&b->m_idx, a);
   tobj_vec_free(&b->m_fv, a);
@@ -1644,6 +1690,7 @@ tobj_result TOBJ_T(tobj_load_obj_from_memory)(TOBJ_T(tobj_scene) * out,
   }
 
   if (b.err == TOBJ_OK) TOBJ_T(finalize_unknowns)(&b);
+  if (b.err == TOBJ_OK) TOBJ_T(finalize_mtlx)(&b);
 
   if (b.err == TOBJ_OK) {
     out->num_shapes = b.shapes.count;
@@ -1806,6 +1853,7 @@ tobj_result TOBJ_T(tobj_parse_mtl_from_memory)(TOBJ_T(tobj_material_list) * out,
 
   TOBJ_T(parse_mtl_buffer)(&b, buf, len);
   if (b.err == TOBJ_OK) TOBJ_T(finalize_unknowns)(&b);
+  if (b.err == TOBJ_OK) TOBJ_T(finalize_mtlx)(&b);
 
   if (b.err == TOBJ_OK) {
     out->count = b.materials.count;
