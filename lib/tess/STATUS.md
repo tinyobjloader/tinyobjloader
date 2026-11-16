@@ -438,3 +438,6 @@ with local leak detection disabled.
   Audit: 1732 declarations.
 - `BoxSeparation.boxes_separate_disjoint`: a strict gap between recorded AABB extrema excludes any common point of the two closed triangles, justifying the broadphase skip.
 - `C/SegModel.tgSegmentsM_eq`: the `tg_segments` model equals `segmentConflict` (audit count in the header is kept current).
+- The mutation campaign is reproducible: `python3 lib/tess/tools/mutation_check.py --lean
+  formal/.lake/build/bin/tesspredicates` applies the twelve mutants to a scratch copy and reports
+  eleven killed plus the one documented equivalent mutant (not part of default ctest).
