@@ -272,3 +272,71 @@ theorem load_i64_enc (m : Mem) (rb n : Nat) (hn : n < 2 ^ 64) (hm : m rb = some 
   simpa using hn
 
 end Tess.C
+
+namespace Tess.C
+open Obj.C
+
+/-- A statement-level call `d = sub(e1, e2, &blk)` with int64 arguments. -/
+theorem callSub (s : State) (d : Nat) (e1 e2 : Expr) (blk : Nat) (a b : Int) (ha : InI64 a)
+    (hb : InI64 b) (he1 : EvE OrientGen.prog s e1 (.int IntTy.i64 (W a)))
+    (he2 : EvE OrientGen.prog s e2 (.int IntTy.i64 (W b))) (B : Block)
+    (hm : s.mem blk = some B) (hB : B.length = 8) (hro : s.ro = false) :
+    (((0 < b ∧ a < i64min + b) ∨ (b < 0 ∧ i64max + b < a)) →
+      ∃ s', ExS OrientGen.prog s (.call (some d) 0 [e1, e2, .const (.ptr blk 0)]) .normal s' ∧
+        s'.locals = s.locals.upd d (.int ⟨32, true⟩ 0)) ∧
+    (¬ ((0 < b ∧ a < i64min + b) ∨ (b < 0 ∧ i64max + b < a)) →
+      ∃ s', ExS OrientGen.prog s (.call (some d) 0 [e1, e2, .const (.ptr blk 0)]) .normal s' ∧
+        s'.locals = s.locals.upd d (.int ⟨32, true⟩ 1) ∧
+        s'.mem blk = some (encodeLE 8 (W (a - b))) ∧ (∀ b', b' ≠ blk → s'.mem b' = s.mem b')) := by
+  have hargs : EvArgs OrientGen.prog s [e1, e2, .const (.ptr blk 0)]
+      [.int IntTy.i64 (W a), .int IntTy.i64 (W b), .ptr blk 0] :=
+    EvArgs.cons he1 (EvArgs.cons he2 (EvArgs.cons (EvE.const _) EvArgs.nil))
+  have R := sub_refines a b ha hb blk B s.mem s.ro
+    ⟨frameLocals OrientGen.sub.params [.int IntTy.i64 (W a), .int IntTy.i64 (W b), .ptr blk 0],
+      s.mem, false⟩ rfl hm hB
+  constructor
+  · intro hP
+    obtain ⟨sf, hsf⟩ := R.1 hP
+    refine ⟨_, ExS.call_dst (d := d) (f := 0) hargs rfl rfl (by rw [hro]; exact hsf), ?_⟩
+    rfl
+  · intro hP
+    obtain ⟨sf, hsf, hmem1, hfr⟩ := R.2 hP
+    refine ⟨_, ExS.call_dst (d := d) (f := 0) hargs rfl rfl (by rw [hro]; exact hsf), rfl, hmem1, ?_⟩
+    intro b' hb'
+    simpa using hfr b' hb'
+
+end Tess.C
+
+namespace Tess.C
+open Obj.C
+
+/-- A statement-level call `d = mul(e1, e2, &blk)` with int64 arguments. -/
+theorem callMul (s : State) (d : Nat) (e1 e2 : Expr) (blk : Nat) (a b : Int) (ha : InI64 a)
+    (hb : InI64 b) (he1 : EvE OrientGen.prog s e1 (.int IntTy.i64 (W a)))
+    (he2 : EvE OrientGen.prog s e2 (.int IntTy.i64 (W b))) (B : Block)
+    (hm : s.mem blk = some B) (hB : B.length = 8) (hro : s.ro = false) :
+    (mulChk a b = none →
+      ∃ s', ExS OrientGen.prog s (.call (some d) 2 [e1, e2, .const (.ptr blk 0)]) .normal s' ∧
+        s'.locals = s.locals.upd d (.int ⟨32, true⟩ 0)) ∧
+    (∀ r, mulChk a b = some r →
+      ∃ s', ExS OrientGen.prog s (.call (some d) 2 [e1, e2, .const (.ptr blk 0)]) .normal s' ∧
+        s'.locals = s.locals.upd d (.int ⟨32, true⟩ 1) ∧
+        s'.mem blk = some (encodeLE 8 (W r)) ∧ (∀ b', b' ≠ blk → s'.mem b' = s.mem b')) := by
+  have hargs : EvArgs OrientGen.prog s [e1, e2, .const (.ptr blk 0)]
+      [.int IntTy.i64 (W a), .int IntTy.i64 (W b), .ptr blk 0] :=
+    EvArgs.cons he1 (EvArgs.cons he2 (EvArgs.cons (EvE.const _) EvArgs.nil))
+  have R := mul_refines a b ha hb blk B s.mem
+    ⟨frameLocals OrientGen.mul.params [.int IntTy.i64 (W a), .int IntTy.i64 (W b), .ptr blk 0],
+      s.mem, false⟩ rfl hm hB
+  constructor
+  · intro hP
+    obtain ⟨sf, hsf⟩ := R.1 hP
+    refine ⟨_, ExS.call_dst (d := d) (f := 2) hargs rfl rfl (by rw [hro]; exact hsf), ?_⟩
+    rfl
+  · intro r hP
+    obtain ⟨sf, hsf, hmem1, hfr⟩ := R.2 r hP
+    refine ⟨_, ExS.call_dst (d := d) (f := 2) hargs rfl rfl (by rw [hro]; exact hsf), rfl, hmem1, ?_⟩
+    intro b' hb'
+    simpa using hfr b' hb'
+
+end Tess.C

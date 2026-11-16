@@ -4,7 +4,7 @@ Implemented against `../../robust-ngon-remeshing-c11-lean4-prompt.md`.
 Release evidence below was collected on 2026-11-14. The deliverable is a bounded
 reference library, not a convergence guarantee or full C refinement proof.
 
-**Current authoritative proof-audit count: 3915 Tess declarations** (re-run
+**Current authoritative proof-audit count: 3917 Tess declarations** (re-run
 2026-11-16 after `C/I64Import`; standard axioms only). `C/I64Import` refines the pure
 kernels (`i64_limb_count`, `i64_fill`) factored out of `zi_i64` (LimbGen ids 8, 9; behavior
 unchanged, 28/28 tests pass); the written limbs denote the int64 magnitude and the sign field is ±1. Declaration counts quoted in the dated
