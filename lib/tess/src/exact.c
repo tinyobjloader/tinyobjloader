@@ -265,6 +265,18 @@ static uint64_t div_shift_in(zi* r, uint64_t k) {
   }
   return k;
 }
+/* In-place `r -= b` over the limbs of r (b has no more limbs than r); returns the final borrow
+ * (pure; translated and proved against the Lean `sbPrefix` model). */
+static uint64_t div_sub_in(zi* r, const zi* b) {
+  uint64_t borrow = 0;
+  size_t i;
+  for (i = 0; i < r->n; i++) {
+    uint64_t x = r->v[i], y = (uint64_t)(i < b->n ? b->v[i] : 0) + borrow;
+    r->v[i] = (uint32_t)(x - y);
+    borrow = x < y;
+  }
+  return borrow;
+}
 /* Binary long division; nonnegative remainder for nonnegative operands. */
 void zi_divrem(tx* c, zi* q, zi* r, const zi* a, const zi* b) {
   zi qt = {0}, rt = {0};
@@ -309,12 +321,7 @@ void zi_divrem(tx* c, zi* q, zi* r, const zi* a, const zi* b) {
         }
     }
     if (cmp >= 0) {
-      uint64_t borrow = 0;
-      for (i = 0; i < rt.n; i++) {
-        uint64_t x = rt.v[i], y = (uint64_t)(i < b->n ? b->v[i] : 0) + borrow;
-        rt.v[i] = (uint32_t)(x - y);
-        borrow = x < y;
-      }
+      (void)div_sub_in(&rt, b);
       qt.v[bit / 32] |= UINT32_C(1) << (bit % 32);
     }
   }

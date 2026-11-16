@@ -112,6 +112,15 @@ def div_shift_in : Func where
   params := [0, 1]
   body := (.seq (.seq (.set 2 (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) div_shift_in_loop0) (.ret (some (.var 1))))
 
+/-- A loop of `div_sub_in`. -/
+def div_sub_in_loop0 : Stmt := (.loop (.ite (.bin .lt (some ⟨64, false⟩) (.var 3) (.load (.int ⟨64, false⟩) (.field (.var 0) 8))) (.seq (.seq (.set 4 (.cast ⟨64, false⟩ (.load (.int ⟨32, false⟩) (.index (.load .ptr (.field (.var 0) 0)) (.var 3) 4)))) (.set 5 (.bin .add (some ⟨64, false⟩) (.cast ⟨64, false⟩ (.cond (.bin .lt (some ⟨64, false⟩) (.var 3) (.load (.int ⟨64, false⟩) (.field (.var 1) 8))) (.load (.int ⟨32, false⟩) (.index (.load .ptr (.field (.var 1) 0)) (.var 3) 4)) (.cast ⟨32, false⟩ (.const (.int ⟨32, true⟩ 0))))) (.var 2)))) (.seq (.store (.int ⟨32, false⟩) (.index (.load .ptr (.field (.var 0) 0)) (.var 3) 4) (.cast ⟨32, false⟩ (.bin .sub (some ⟨64, false⟩) (.var 4) (.var 5)))) (.set 2 (.cast ⟨64, false⟩ (.bin .lt (some ⟨64, false⟩) (.var 4) (.var 5)))))) .brk) (.set 3 (.cast ⟨64, false⟩ (.bin .add (some ⟨64, false⟩) (.cast ⟨64, false⟩ (.var 3)) (.const (.int ⟨64, false⟩ 1))))))
+
+/-- `div_sub_in` (function id 13). Locals: 0=r, 1=b, 2=borrow, 3=i, 4=x, 5=y -/
+def fid_div_sub_in : Nat := 13
+def div_sub_in : Func where
+  params := [0, 1]
+  body := (.seq (.set 2 (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq (.seq (.set 3 (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) div_sub_in_loop0) (.ret (some (.var 2)))))
+
 /-- String literals referenced by the translated functions. -/
 def literals : List UInt8 := []
 
@@ -130,6 +139,7 @@ def prog : Prog := fun f =>
   | 10 => some shift_fill
   | 11 => some div_single_fill
   | 12 => some div_shift_in
+  | 13 => some div_sub_in
   | _ => none
 
 end Tess.C.LimbGen

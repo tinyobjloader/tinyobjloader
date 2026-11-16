@@ -23,6 +23,7 @@ import Tess.C.ShiftC
 import Tess.C.DivSingleModel
 import Tess.C.DivSingleC
 import Tess.C.DivShiftC
+import Tess.C.DivSubC
 import Tess.C.Arithmetic
 import Tess.C.Magnitude
 import Tess.Certificate
