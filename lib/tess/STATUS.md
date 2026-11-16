@@ -4,7 +4,7 @@ Implemented against `../../robust-ngon-remeshing-c11-lean4-prompt.md`.
 Release evidence below was collected on 2026-11-14. The deliverable is a bounded
 reference library, not a convergence guarantee or full C refinement proof.
 
-**Current authoritative proof-audit count: 1816 Tess declarations** (re-run
+**Current authoritative proof-audit count: 1822 Tess declarations** (re-run
 2026-11-16 after `C/ZiValue`; standard axioms only). Declaration counts quoted in the dated
 sections below are historical snapshots.
 
@@ -447,3 +447,7 @@ with local leak detection disabled.
   `pairOk_noncoplanar_disjoint` this gives `PairAuditNoncoplanar.accepted_noncoplanar_gp_disjoint`.
   New supporting files: `TriangleExitQ` (rational exit lemma), `PlaneTransfer` (Hull3 ↔ projected
   `Tri2` on a plane, plane injectivity via coordinate rotation). Audit: 1816 declarations.
+- `noncoplanar_edgefree_disjoint` strengthens the above: vertices of one face may lie on the other
+  face's plane (flagged through `vertex_flag`), as long as the faces are noncoplanar and no edge of
+  the first face lies in the second's plane; `accepted_noncoplanar_edgefree_disjoint` is the pair-level
+  corollary.

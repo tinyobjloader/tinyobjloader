@@ -105,6 +105,42 @@ theorem cut_flag (a b c x y r : Point3) (pa : Nat) (hpa : firstProjectionAxis a 
   rw [← hsval, ← hs]
   exact containsNondegenerate_of_hull a b c r pa hpa hr
 
+/-- Edge/triangle contact flag, allowing endpoints on the plane but not the whole edge: a
+common point `r` of the edge and the triangle is flagged by `edgeAgainstTriangle`. -/
+theorem edge_flag (a b c x y r : Point3) (pa : Nat) (hpa : firstProjectionAxis a b c = some pa)
+    (hnot : ¬ (orient3 a b c x = 0 ∧ orient3 a b c y = 0)) (hr : Hull3 a b c r)
+    (hseg : ∃ s : Rat, 0 ≤ s ∧ s ≤ 1 ∧ r = segment3Point x y s) :
+    edgeAgainstTriangle a b c x y = true := by
+  by_cases hx : orient3 a b c x = 0
+  · have hy : orient3 a b c y ≠ 0 := fun h => hnot ⟨hx, h⟩
+    obtain ⟨s, s0, s1, hs⟩ := hseg
+    have hplane := hull3_plane a b c r hr
+    rw [hs, orient3_segment, hx] at hplane
+    have hs0 : s = 0 := by
+      have : s * orient3 a b c y = 0 := by linarith
+      exact (mul_eq_zero.mp this).resolve_right hy
+    have hrx : r = x := by
+      rw [hs, hs0]; simp only [segment3Point]; cases x; simp
+    unfold edgeAgainstTriangle pointPlaneValue
+    simp only [hx, if_true]
+    rw [← hrx]
+    exact containsNondegenerate_of_hull a b c r pa hpa hr
+  · by_cases hy : orient3 a b c y = 0
+    · obtain ⟨s, s0, s1, hs⟩ := hseg
+      have hplane := hull3_plane a b c r hr
+      rw [hs, orient3_segment, hy] at hplane
+      have hs1 : s = 1 := by
+        have : (1 - s) * orient3 a b c x = 0 := by linarith
+        have := (mul_eq_zero.mp this).resolve_right hx
+        linarith
+      have hry : r = y := by
+        rw [hs, hs1]; simp only [segment3Point]; cases y; simp
+      unfold edgeAgainstTriangle pointPlaneValue
+      simp only [hx, hy, if_false, if_true]
+      rw [← hry]
+      exact containsNondegenerate_of_hull a b c r pa hpa hr
+    · exact cut_flag a b c x y r pa hpa hx hy hr hseg
+
 theorem edges_false (a b c d e f : Point3) (pa pb : Nat)
     (hA : firstProjectionAxis a b c = some pa) (hB : firstProjectionAxis d e f = some pb)
     (hgp : orient3 a b c d ≠ 0)
@@ -233,5 +269,103 @@ theorem noncoplanar_gp_disjoint (a b c d e f : Point3) (pa pb : Nat)
     · exact case2_contra a b c d e f pa hA hII d e V0 V1 g1 g2 (by nlinarith) E4
     · exact case2_contra a b c d e f pa hA hII e f V1 V2 g2 g3 (by nlinarith) E5
     · have := weighted_pos u v w _ _ _ hu hv hw hsum h1 h2 h3; linarith
+
+/-- A first endpoint on the plane and inside the triangle is flagged regardless of the other end. -/
+theorem vertex_flag (a b c x y : Point3) (pa : Nat) (hpa : firstProjectionAxis a b c = some pa)
+    (hx : orient3 a b c x = 0) (hxT : Hull3 a b c x) :
+    edgeAgainstTriangle a b c x y = true := by
+  unfold edgeAgainstTriangle pointPlaneValue
+  simp only [hx, if_true]
+  exact containsNondegenerate_of_hull a b c x pa hpa hxT
+
+theorem edges_false2 (a b c d e f : Point3) (pa pb : Nat)
+    (hA : firstProjectionAxis a b c = some pa) (hB : firstProjectionAxis d e f = some pb)
+    (hnc : ¬ (orient3 a b c d = 0 ∧ orient3 a b c e = 0 ∧ orient3 a b c f = 0))
+    (hc : noncoplanarTrianglesConflict a b c d e f = false) :
+    edgeAgainstTriangle d e f a b = false ∧ edgeAgainstTriangle d e f b c = false ∧
+    edgeAgainstTriangle d e f c a = false ∧ edgeAgainstTriangle a b c d e = false ∧
+    edgeAgainstTriangle a b c e f = false ∧ edgeAgainstTriangle a b c f d = false := by
+  unfold noncoplanarTrianglesConflict at hc
+  rw [hA, hB] at hc
+  simp only [pointPlaneValue] at hc
+  split_ifs at hc with h
+  · exfalso
+    simp only [Bool.and_eq_true, decide_eq_true_eq] at h
+    exact hnc ⟨of_decide_eq_true h.1.1, of_decide_eq_true h.1.2, of_decide_eq_true h.2⟩
+  simp only [Bool.or_eq_false_iff] at hc
+  exact ⟨hc.1.1.1.1.1, hc.1.1.1.1.2, hc.1.1.1.2, hc.1.1.2, hc.1.2, hc.2⟩
+
+theorem noncoplanar_edgefree_disjoint (a b c d e f : Point3) (pa pb : Nat)
+    (hA : firstProjectionAxis a b c = some pa) (hB : firstProjectionAxis d e f = some pb)
+    (hnc : ¬ (orient3 a b c d = 0 ∧ orient3 a b c e = 0 ∧ orient3 a b c f = 0))
+    (hedge : ¬ (orient3 d e f a = 0 ∧ orient3 d e f b = 0) ∧
+             ¬ (orient3 d e f b = 0 ∧ orient3 d e f c = 0) ∧
+             ¬ (orient3 d e f c = 0 ∧ orient3 d e f a = 0))
+    (hc : noncoplanarTrianglesConflict a b c d e f = false) :
+    ¬ ∃ p : Point3, Hull3 a b c p ∧ Hull3 d e f p := by
+  obtain ⟨E1, E2, E3, E4, E5, E6⟩ := edges_false2 a b c d e f pa pb hA hB hnc hc
+  rintro ⟨p, hpA, hpB⟩
+  obtain ⟨hlt, hnd⟩ := firstProjectionAxis_lt a b c pa hA
+  by_cases hI : ∃ s, Hull3 d e f s ∧ orient3 a b c s = 0 ∧ ¬ Hull3 a b c s
+  · obtain ⟨s, hsB, hsp, hsA⟩ := hI
+    have hpp : orient3 a b c p = 0 := hull3_plane a b c p hpA
+    have t_p := hull_tri2_axis pa hlt a b c p hpA
+    have nt_s : ¬ Tri2 (projectPoint3 pa a) (projectPoint3 pa b) (projectPoint3 pa c)
+        (projectPoint3 pa s) := fun h => hsA (tri2_hull_axis pa hlt a b c s hnd hsp h)
+    obtain ⟨t, t0, t1, hmem, s', s0, s1, hedge⟩ := tri2_exit _ _ _ _ _ hnd t_p nt_s
+    have hqB : Hull3 d e f (segment3Point p s t) := hull3_segment d e f p s hpB hsB t t0 t1
+    have hqpl : orient3 a b c (segment3Point p s t) = 0 := by
+      rw [orient3_segment, hpp, hsp]; ring
+    have hproj := projectPoint3_segment pa p s t
+    have vz := orient3_vertex_zero a b c
+    have edgeZero : ∀ x y : Point3, orient3 a b c x = 0 → orient3 a b c y = 0 →
+        ∀ r : Rat, orient3 a b c (segment3Point x y r) = 0 := by
+      intro x y h1 h2 r; rw [orient3_segment, h1, h2]; ring
+    rcases hedge with h | h | h
+    · have hE : segment3Point p s t = segment3Point a b s' :=
+        plane_inj_axis pa hlt a b c _ _ hnd hqpl (edgeZero a b vz.1 vz.2.1 s')
+          (by rw [hproj, projectPoint3_segment]; exact h)
+      have := edge_flag d e f a b _ pb hB hedge.1 hqB ⟨s', s0, s1, hE⟩
+      rw [E1] at this; exact absurd this (by decide)
+    · have hE : segment3Point p s t = segment3Point b c s' :=
+        plane_inj_axis pa hlt a b c _ _ hnd hqpl (edgeZero b c vz.2.1 vz.2.2 s')
+          (by rw [hproj, projectPoint3_segment]; exact h)
+      have := edge_flag d e f b c _ pb hB hedge.2.1 hqB ⟨s', s0, s1, hE⟩
+      rw [E2] at this; exact absurd this (by decide)
+    · have hE : segment3Point p s t = segment3Point c a s' :=
+        plane_inj_axis pa hlt a b c _ _ hnd hqpl (edgeZero c a vz.2.2 vz.1 s')
+          (by rw [hproj, projectPoint3_segment]; exact h)
+      have := edge_flag d e f c a _ pb hB hedge.2.2 hqB ⟨s', s0, s1, hE⟩
+      rw [E3] at this; exact absurd this (by decide)
+  · have hII : ∀ s, Hull3 d e f s → orient3 a b c s = 0 → Hull3 a b c s := by
+      intro s hs hp0
+      by_contra hn
+      exact hI ⟨s, hs, hp0, hn⟩
+    obtain ⟨u, v, w, hu, hv, hw, hsum, hform⟩ := hull3_affine a b c d e f p hpB
+    rw [hull3_plane a b c p hpA] at hform
+    have V0 := hull3_vertex0 d e f
+    have V1 := hull3_vertex1 d e f
+    have V2 := hull3_vertex2 d e f
+    by_cases z1 : orient3 a b c d = 0
+    · have := vertex_flag a b c d e pa hA z1 (hII d V0 z1)
+      rw [E4] at this; exact absurd this (by decide)
+    by_cases z2 : orient3 a b c e = 0
+    · have := vertex_flag a b c e f pa hA z2 (hII e V1 z2)
+      rw [E5] at this; exact absurd this (by decide)
+    by_cases z3 : orient3 a b c f = 0
+    · have := vertex_flag a b c f d pa hA z3 (hII f V2 z3)
+      rw [E6] at this; exact absurd this (by decide)
+    have g1 := z1; have g2 := z2; have g3 := z3
+    rcases lt_or_gt_of_ne g1 with h1 | h1 <;> rcases lt_or_gt_of_ne g2 with h2 | h2 <;>
+      rcases lt_or_gt_of_ne g3 with h3 | h3
+    · have := weighted_neg u v w _ _ _ hu hv hw hsum h1 h2 h3; linarith
+    · exact case2_contra a b c d e f pa hA hII e f V1 V2 g2 g3 (by nlinarith) E5
+    · exact case2_contra a b c d e f pa hA hII d e V0 V1 g1 g2 (by nlinarith) E4
+    · exact case2_contra a b c d e f pa hA hII d e V0 V1 g1 g2 (by nlinarith) E4
+    · exact case2_contra a b c d e f pa hA hII d e V0 V1 g1 g2 (by nlinarith) E4
+    · exact case2_contra a b c d e f pa hA hII d e V0 V1 g1 g2 (by nlinarith) E4
+    · exact case2_contra a b c d e f pa hA hII e f V1 V2 g2 g3 (by nlinarith) E5
+    · have := weighted_pos u v w _ _ _ hu hv hw hsum h1 h2 h3; linarith
+
 
 end Tess
