@@ -22,14 +22,33 @@ static int mul(int64_t a, int64_t b, int64_t* r) {
     *r = neg ? -(int64_t)z : (int64_t)z;
   return 1;
 }
+/* Checked orientation determinant over int64 coordinates: returns 1 and stores the sign, or 0 when an
+ * intermediate value overflows (statement-level calls so that it can be translated and proved). */
+static int orient2i_core(int64_t ax, int64_t ay, int64_t bx, int64_t by, int64_t cx, int64_t cy,
+                         int* sign) {
+  int64_t x, y, u, v, p, q, d;
+  int ok;
+  ok = sub(bx, ax, &x);
+  if (!ok) return 0;
+  ok = sub(by, ay, &y);
+  if (!ok) return 0;
+  ok = sub(cx, ax, &u);
+  if (!ok) return 0;
+  ok = sub(cy, ay, &v);
+  if (!ok) return 0;
+  ok = mul(x, v, &p);
+  if (!ok) return 0;
+  ok = mul(y, u, &q);
+  if (!ok) return 0;
+  ok = sub(p, q, &d);
+  if (!ok) return 0;
+  *sign = (d > 0) - (d < 0);
+  return 1;
+}
 tess_status tess_orient2i(tess_point2i a, tess_point2i b, tess_point2i c,
                           int* sign) {
-  int64_t x, y, u, v, p, q, d;
   if (!sign) return TESS_INVALID_INPUT;
-  if (!sub(b.x, a.x, &x) || !sub(b.y, a.y, &y) || !sub(c.x, a.x, &u) ||
-      !sub(c.y, a.y, &v) || !mul(x, v, &p) || !mul(y, u, &q) || !sub(p, q, &d))
-    return TESS_RESOURCE_LIMIT;
-  *sign = (d > 0) - (d < 0);
+  if (!orient2i_core(a.x, a.y, b.x, b.y, c.x, c.y, sign)) return TESS_RESOURCE_LIMIT;
   return TESS_OK;
 }
 const char* tess_status_string(tess_status s) {

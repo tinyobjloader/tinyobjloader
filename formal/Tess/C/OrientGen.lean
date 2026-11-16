@@ -25,6 +25,12 @@ def mul : Func where
   params := [0, 1, 2]
   body := (.seq (.seq (.set 3 (.call 1 [(.var 0)])) (.set 4 (.call 1 [(.var 1)]))) (.seq (.set 6 (.bin .ne (some ⟨32, true⟩) (.bin .lt (some ⟨64, true⟩) (.var 0) (.cast ⟨64, true⟩ (.const (.int ⟨32, true⟩ 0)))) (.bin .lt (some ⟨64, true⟩) (.var 1) (.cast ⟨64, true⟩ (.const (.int ⟨32, true⟩ 0)))))) (.seq (.set 7 (.cond (.var 6) (.bin .add (some ⟨64, false⟩) (.cast ⟨64, false⟩ (.const (.int ⟨64, true⟩ 9223372036854775807))) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 1)))) (.cast ⟨64, false⟩ (.const (.int ⟨64, true⟩ 9223372036854775807))))) (.seq (.ite (.land (.var 4) (.bin .gt (some ⟨64, false⟩) (.var 3) (.bin .div (some ⟨64, false⟩) (.var 7) (.var 4)))) (.ret (some (.const (.int ⟨32, true⟩ 0)))) .skip) (.seq (.set 5 (.bin .mul (some ⟨64, false⟩) (.var 3) (.var 4))) (.seq (.ite (.land (.var 6) (.bin .eq (some ⟨64, false⟩) (.var 5) (.bin .add (some ⟨64, false⟩) (.cast ⟨64, false⟩ (.const (.int ⟨64, true⟩ 9223372036854775807))) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 1)))))) (.store (.int ⟨64, true⟩) (.var 2) (.bin .sub (some ⟨64, true⟩) (.un .neg ⟨64, true⟩ (.const (.int ⟨64, true⟩ 9223372036854775807))) (.cast ⟨64, true⟩ (.const (.int ⟨32, true⟩ 1))))) (.store (.int ⟨64, true⟩) (.var 2) (.cond (.var 6) (.un .neg ⟨64, true⟩ (.cast ⟨64, true⟩ (.var 5))) (.cast ⟨64, true⟩ (.var 5))))) (.ret (some (.const (.int ⟨32, true⟩ 1))))))))))
 
+/-- `orient2i_core` (function id 3). Locals: 0=ax, 1=ay, 2=bx, 3=by, 4=cx, 5=cy, 6=sign, 7=x, 8=y, 9=u, 10=v, 11=p, 12=q, 13=d, 14=ok -/
+def fid_orient2i_core : Nat := 3
+def orient2i_core : Func where
+  params := [0, 1, 2, 3, 4, 5, 6]
+  body := (.seq (.call (some 14) 0 [(.var 2), (.var 0), (.const (.ptr 1007 0))]) (.seq (.ite (.un .lnot ⟨32, true⟩ (.var 14)) (.ret (some (.const (.int ⟨32, true⟩ 0)))) .skip) (.seq (.call (some 14) 0 [(.var 3), (.var 1), (.const (.ptr 1008 0))]) (.seq (.ite (.un .lnot ⟨32, true⟩ (.var 14)) (.ret (some (.const (.int ⟨32, true⟩ 0)))) .skip) (.seq (.call (some 14) 0 [(.var 4), (.var 0), (.const (.ptr 1009 0))]) (.seq (.ite (.un .lnot ⟨32, true⟩ (.var 14)) (.ret (some (.const (.int ⟨32, true⟩ 0)))) .skip) (.seq (.call (some 14) 0 [(.var 5), (.var 1), (.const (.ptr 1010 0))]) (.seq (.ite (.un .lnot ⟨32, true⟩ (.var 14)) (.ret (some (.const (.int ⟨32, true⟩ 0)))) .skip) (.seq (.call (some 14) 2 [(.load (.int ⟨64, true⟩) (.const (.ptr 1007 0))), (.load (.int ⟨64, true⟩) (.const (.ptr 1010 0))), (.const (.ptr 1011 0))]) (.seq (.ite (.un .lnot ⟨32, true⟩ (.var 14)) (.ret (some (.const (.int ⟨32, true⟩ 0)))) .skip) (.seq (.call (some 14) 2 [(.load (.int ⟨64, true⟩) (.const (.ptr 1008 0))), (.load (.int ⟨64, true⟩) (.const (.ptr 1009 0))), (.const (.ptr 1012 0))]) (.seq (.ite (.un .lnot ⟨32, true⟩ (.var 14)) (.ret (some (.const (.int ⟨32, true⟩ 0)))) .skip) (.seq (.call (some 14) 0 [(.load (.int ⟨64, true⟩) (.const (.ptr 1011 0))), (.load (.int ⟨64, true⟩) (.const (.ptr 1012 0))), (.const (.ptr 1013 0))]) (.seq (.ite (.un .lnot ⟨32, true⟩ (.var 14)) (.ret (some (.const (.int ⟨32, true⟩ 0)))) .skip) (.seq (.store (.int ⟨32, true⟩) (.var 6) (.bin .sub (some ⟨32, true⟩) (.bin .gt (some ⟨64, true⟩) (.load (.int ⟨64, true⟩) (.const (.ptr 1013 0))) (.cast ⟨64, true⟩ (.const (.int ⟨32, true⟩ 0)))) (.bin .lt (some ⟨64, true⟩) (.load (.int ⟨64, true⟩) (.const (.ptr 1013 0))) (.cast ⟨64, true⟩ (.const (.int ⟨32, true⟩ 0)))))) (.ret (some (.const (.int ⟨32, true⟩ 1)))))))))))))))))))
+
 /-- String literals referenced by the translated functions. -/
 def literals : List UInt8 := []
 
@@ -33,6 +39,7 @@ def prog : Prog := fun f =>
   | 0 => some sub
   | 1 => some mag
   | 2 => some mul
+  | 3 => some orient2i_core
   | _ => none
 
 end Tess.C.OrientGen

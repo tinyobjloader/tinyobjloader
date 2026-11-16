@@ -287,7 +287,8 @@ theorem callSub (s : State) (d : Nat) (e1 e2 : Expr) (blk : Nat) (a b : Int) (ha
     (¬ ((0 < b ∧ a < i64min + b) ∨ (b < 0 ∧ i64max + b < a)) →
       ∃ s', ExS OrientGen.prog s (.call (some d) 0 [e1, e2, .const (.ptr blk 0)]) .normal s' ∧
         s'.locals = s.locals.upd d (.int ⟨32, true⟩ 1) ∧
-        s'.mem blk = some (encodeLE 8 (W (a - b))) ∧ (∀ b', b' ≠ blk → s'.mem b' = s.mem b')) := by
+        s'.mem blk = some (encodeLE 8 (W (a - b))) ∧ (∀ b', b' ≠ blk → s'.mem b' = s.mem b') ∧
+        s'.ro = s.ro) := by
   have hargs : EvArgs OrientGen.prog s [e1, e2, .const (.ptr blk 0)]
       [.int IntTy.i64 (W a), .int IntTy.i64 (W b), .ptr blk 0] :=
     EvArgs.cons he1 (EvArgs.cons he2 (EvArgs.cons (EvE.const _) EvArgs.nil))
@@ -301,7 +302,7 @@ theorem callSub (s : State) (d : Nat) (e1 e2 : Expr) (blk : Nat) (a b : Int) (ha
     rfl
   · intro hP
     obtain ⟨sf, hsf, hmem1, hfr⟩ := R.2 hP
-    refine ⟨_, ExS.call_dst (d := d) (f := 0) hargs rfl rfl (by rw [hro]; exact hsf), rfl, hmem1, ?_⟩
+    refine ⟨_, ExS.call_dst (d := d) (f := 0) hargs rfl rfl (by rw [hro]; exact hsf), rfl, hmem1, ?_, rfl⟩
     intro b' hb'
     simpa using hfr b' hb'
 
@@ -321,7 +322,8 @@ theorem callMul (s : State) (d : Nat) (e1 e2 : Expr) (blk : Nat) (a b : Int) (ha
     (∀ r, mulChk a b = some r →
       ∃ s', ExS OrientGen.prog s (.call (some d) 2 [e1, e2, .const (.ptr blk 0)]) .normal s' ∧
         s'.locals = s.locals.upd d (.int ⟨32, true⟩ 1) ∧
-        s'.mem blk = some (encodeLE 8 (W r)) ∧ (∀ b', b' ≠ blk → s'.mem b' = s.mem b')) := by
+        s'.mem blk = some (encodeLE 8 (W r)) ∧ (∀ b', b' ≠ blk → s'.mem b' = s.mem b') ∧
+        s'.ro = s.ro) := by
   have hargs : EvArgs OrientGen.prog s [e1, e2, .const (.ptr blk 0)]
       [.int IntTy.i64 (W a), .int IntTy.i64 (W b), .ptr blk 0] :=
     EvArgs.cons he1 (EvArgs.cons he2 (EvArgs.cons (EvE.const _) EvArgs.nil))
@@ -335,7 +337,7 @@ theorem callMul (s : State) (d : Nat) (e1 e2 : Expr) (blk : Nat) (a b : Int) (ha
     rfl
   · intro r hP
     obtain ⟨sf, hsf, hmem1, hfr⟩ := R.2 r hP
-    refine ⟨_, ExS.call_dst (d := d) (f := 2) hargs rfl rfl (by rw [hro]; exact hsf), rfl, hmem1, ?_⟩
+    refine ⟨_, ExS.call_dst (d := d) (f := 2) hargs rfl rfl (by rw [hro]; exact hsf), rfl, hmem1, ?_, rfl⟩
     intro b' hb'
     simpa using hfr b' hb'
 
