@@ -4,7 +4,7 @@ Implemented against `../../robust-ngon-remeshing-c11-lean4-prompt.md`.
 Release evidence below was collected on 2026-11-14. The deliverable is a bounded
 reference library, not a convergence guarantee or full C refinement proof.
 
-**Current authoritative proof-audit count: 1932 Tess declarations** (re-run
+**Current authoritative proof-audit count: 1946 Tess declarations** (re-run
 2026-11-16 after `C/ZiValue`; standard axioms only). Declaration counts quoted in the dated
 sections below are historical snapshots.
 
@@ -477,3 +477,6 @@ disabled for the documented tracing limitation).
 - `C/TrimLen.trim_len_refines`: the length scan of `norm` was factored into the pure `trim_len` (behavior
   unchanged; GCC+Lean 28/28 still pass) and its translated loop is refined against `trimL`.
   `LimbGen` gained function id 6. Audit: 1932 declarations.
+- `PairAuditComplete`: rejected pairs without shared IDs always have a genuine common point
+  (`pairOk_false_noncoplanar_common`, `pairOk_false_coplanar_common`), giving
+  `pairOk_iff_disjoint_noncoplanar`: for noncoplanar faces the exact decision equals disjointness.
