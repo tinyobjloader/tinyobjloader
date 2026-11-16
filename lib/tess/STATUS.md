@@ -4,7 +4,7 @@ Implemented against `../../robust-ngon-remeshing-c11-lean4-prompt.md`.
 Release evidence below was collected on 2026-11-14. The deliverable is a bounded
 reference library, not a convergence guarantee or full C refinement proof.
 
-**Current authoritative proof-audit count: 1826 Tess declarations** (re-run
+**Current authoritative proof-audit count: 1840 Tess declarations** (re-run
 2026-11-16 after `C/ZiValue`; standard axioms only). Declaration counts quoted in the dated
 sections below are historical snapshots.
 
@@ -455,3 +455,8 @@ with local leak detection disabled.
   `noncoplanar_disjoint_either` / `accepted_noncoplanar_either_disjoint`: the disjointness result holds as
   soon as either face has no edge in the other's plane. Audit: 1825 declarations.
 - `SharedEdge.shared_edge_intersection`: noncoplanar triangles sharing an edge meet exactly in that edge.
+- `InPlane`/`PlaneLine`: the last degenerate configuration (an edge of each triangle in the other's
+  plane) is closed by a collinearity lemma for points on two nonparallel planes and a 1D interval
+  argument. `noncoplanar_disjoint_complete` and `PairAuditNoncoplanarFull.accepted_noncoplanar_disjoint`
+  now need no general-position hypothesis: an accepted noncoplanar pair without shared IDs has
+  disjoint closed triangles (rational points).
