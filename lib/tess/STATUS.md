@@ -466,3 +466,7 @@ with local leak detection disabled.
 - `PairAuditCoplanarShared.accepted_coplanar_shared_vertex_only`: coplanar faces sharing one vertex meet only
   there when accepted; supported by `coplanar_contact_false` (an endpoint-free chord of a face forces an
   edge/edge conflict) and `segmentConflict_symm`. Audit: 1872 declarations.
+
+Verification at HEAD of this session (2026-11-16): proof audit 1872 declarations; GCC Release with Lean
+28/28; Clang Release 25/25; Clang ASan/UBSan full native suite 25/25 (209 s, local leak detection
+disabled for the documented tracing limitation).

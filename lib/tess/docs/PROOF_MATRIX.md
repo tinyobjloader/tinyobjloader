@@ -81,3 +81,20 @@ boundary in [CERTIFICATES.md](CERTIFICATES.md).
 [Predicate validation commands and protocol](PREDICATE_VALIDATION.md) document
 the direct executable comparison, including its indexed-contact convention
 and explicit resource-exhaustion fixture.
+
+## Auditor pair-decision soundness: coverage by face configuration
+
+`PairAudit.pairOk` is the Lean executable specification of the C pair decision. For an accepted pair the
+closed triangles (exact rational points) meet only in the permitted shared simplex in these cases:
+
+| Configuration | Result |
+| --- | --- |
+| Noncoplanar, no shared vertex IDs | disjoint (`PairAuditNoncoplanarFull.accepted_noncoplanar_disjoint`; no general-position hypothesis) |
+| Coplanar, no shared vertex IDs | disjoint projected triangles (`PairAuditDisjoint.coplanar_disjoint_triangles_disjoint`) |
+| Noncoplanar, exactly one shared vertex | meet only at it (`PairAuditShared.accepted_shared_vertex_only`) |
+| Coplanar, exactly one shared vertex | meet only at it (`PairAuditCoplanarShared.accepted_coplanar_shared_vertex_only`) |
+| Noncoplanar, shared edge | meet exactly in the edge (`SharedEdge.shared_edge_intersection`, independent of acceptance) |
+| Coplanar, shared edge | not proved (only differential agreement of C, Lean, Fraction) |
+| Identical vertex sets | rejected by the three-shared-IDs rule (by definition of `pairOk`) |
+
+All results are about the Lean specification, with hypotheses recorded in the rows above; none refines the C code.
