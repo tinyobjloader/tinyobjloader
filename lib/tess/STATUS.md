@@ -382,3 +382,8 @@ path has no Lean executable specification at all.
 - `Tess.C.DivModel` proves both `zi_divrem` paths compute floor division
   (radix-2^32 and binary compare/subtract), the bit-extraction identity and the
   signed truncated-division law. Audit: 1510 declarations.
+
+Verification at commit "Prove zi_divrem long-division models" (2026-11-16): proof
+audit 1510 declarations; GCC Release with Lean 28/28; Clang Release 25/25;
+ASan/UBSan subset (zi/exact/arithmetic/predicate-resource/audit/resource) passes
+with local leak detection disabled.
