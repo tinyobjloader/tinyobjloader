@@ -67,6 +67,12 @@ def trim_len : Func where
   params := [0]
   body := (.seq (.set 1 (.load (.int ⟨64, false⟩) (.field (.var 0) 8))) (.seq trim_len_loop0 (.ret (some (.var 1)))))
 
+/-- `dbl_decode` (function id 7). Locals: 0=u, 1=mant, 2=exponent, 3=e, 4=m -/
+def fid_dbl_decode : Nat := 7
+def dbl_decode : Func where
+  params := [0, 1, 2]
+  body := (.seq (.set 3 (.cast ⟨32, false⟩ (.bin .band (some ⟨64, false⟩) (.bin .shr (some ⟨64, false⟩) (.var 0) (.const (.int ⟨32, true⟩ 52))) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 2047)))))) (.seq (.set 4 (.bin .band (some ⟨64, false⟩) (.var 0) (.const (.int ⟨64, false⟩ 4503599627370495)))) (.seq (.ite (.bin .eq (some ⟨32, false⟩) (.var 3) (.cast ⟨32, false⟩ (.const (.int ⟨32, true⟩ 2047)))) (.ret (some (.const (.int ⟨32, true⟩ 0)))) .skip) (.seq (.store (.int ⟨32, true⟩) (.var 2) (.cond (.var 3) (.bin .sub (some ⟨32, true⟩) (.bin .sub (some ⟨32, true⟩) (.cast ⟨32, true⟩ (.var 3)) (.const (.int ⟨32, true⟩ 1023))) (.const (.int ⟨32, true⟩ 52))) (.un .neg ⟨32, true⟩ (.const (.int ⟨32, true⟩ 1074))))) (.seq (.ite (.var 3) (.set 4 (.cast ⟨64, false⟩ (.bin .bor (some ⟨64, false⟩) (.cast ⟨64, false⟩ (.var 4)) (.cast ⟨64, false⟩ (.bin .shl (some ⟨64, false⟩) (.const (.int ⟨64, false⟩ 1)) (.const (.int ⟨32, true⟩ 52))))))) .skip) (.seq (.store (.int ⟨64, false⟩) (.var 1) (.var 4)) (.ret (some (.const (.int ⟨32, true⟩ 1))))))))))
+
 /-- String literals referenced by the translated functions. -/
 def literals : List UInt8 := []
 
@@ -79,6 +85,7 @@ def prog : Prog := fun f =>
   | 4 => some zi_mul_accumulate
   | 5 => some zi_cmp
   | 6 => some trim_len
+  | 7 => some dbl_decode
   | _ => none
 
 end Tess.C.LimbGen

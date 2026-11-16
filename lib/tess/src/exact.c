@@ -406,9 +406,19 @@ int tx_report_double(long double value, double* out) {
   *out = (double)value;
   return 1;
 }
+/* binary64 field decode (pure; translated and proved against the Lean `dblMant`/`dblExp`
+ * model). Returns 0 for infinities and NaNs. */
+static int dbl_decode(uint64_t u, uint64_t* mant, int* exponent) {
+  unsigned e = (unsigned)((u >> 52) & 2047);
+  uint64_t m = u & UINT64_C(0xfffffffffffff);
+  if (e == 2047) return 0;
+  *exponent = e ? (int)e - 1023 - 52 : -1074;
+  if (e) m |= UINT64_C(1) << 52;
+  *mant = m;
+  return 1;
+}
 void qr_double(tx* c, qr* r, double d) {
   uint64_t u, m;
-  unsigned e;
   int exp;
   qr t = {0};
   if (!tx_binary64_supported()) {
@@ -416,14 +426,10 @@ void qr_double(tx* c, qr* r, double d) {
     return;
   }
   memcpy(&u, &d, 8);
-  e = (unsigned)((u >> 52) & 2047);
-  m = u & UINT64_C(0xfffffffffffff);
-  if (e == 2047) {
+  if (!dbl_decode(u, &m, &exp)) {
     c->status = TESS_INVALID_INPUT;
     return;
   }
-  exp = e ? (int)e - 1023 - 52 : -1074;
-  if (e) m |= UINT64_C(1) << 52;
   zi_i64(c, &t.n, (int64_t)m);
   zi_i64(c, &t.d, 1);
   if (m) {

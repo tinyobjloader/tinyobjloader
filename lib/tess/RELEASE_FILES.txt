@@ -46,6 +46,7 @@ formal/Tess/Barycentric.lean
 formal/Tess/BoundaryCoverage2.lean
 formal/Tess/C/Acmp.lean
 formal/Tess/C/Arithmetic.lean
+formal/Tess/C/DblDecode.lean
 formal/Tess/C/Gen.lean
 formal/Tess/C/LimbGen.lean
 formal/Tess/C/Magnitude.lean
