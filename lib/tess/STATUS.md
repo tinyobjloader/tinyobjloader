@@ -347,3 +347,13 @@ build warning policy.
 These are executable differential checks. No claim is made that the C 3D
 auditor is refined by the Lean specification, and the coplanar/shared-index
 path has no Lean executable specification at all.
+
+## Big-integer limb-boundary differential (2026-11-16)
+
+- New `tess_zi_oracle` runs the real `zi_add`, `zi_sub`, `zi_mul`, `zi_cmp`
+  (via `tests/zi_probe.c`) against Python integers on limb-boundary values
+  (2^(32k)±2, all-ones carry chains, single-limb-nonzero borrow ripples,
+  zero normalization) plus 3,000 random pairs. A mutation of the borrow
+  computation in `zi_add_mixed` is detected. Full GCC suite: 25/25 native
+  tests pass without Lean. Differential evidence only; `zi_add`/`zi_mul`/`norm`
+  remain unproved in Lean.
