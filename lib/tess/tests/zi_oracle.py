@@ -26,6 +26,11 @@ for op, f in ops.items():
     for a, b in pairs:
         cmds.append(f'{op} {h(a)} {h(b)}\n')
         want.append(str(f(a, b)) if op == 'cmp' else h(f(a, b)))
+i64s = sorted({0, 1, -1, 2**31, -2**31, 2**32 - 1, 2**32, -2**32, 2**63 - 1, -2**63, -2**63 + 1,
+               *(rng.randrange(-2**63, 2**63) for _ in range(64))})
+for v in i64s:
+    cmds.append(f'i64 {v} 0\n')
+    want.append(h(v))
 p = subprocess.run([sys.argv[1]], input=''.join(cmds), text=True, capture_output=True)
 if p.returncode:
     sys.exit(f'probe exit {p.returncode}')

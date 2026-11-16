@@ -59,6 +59,14 @@ int main(void) {
   c.max_ops = (size_t)1 << 40;
   while (scanf("%7s %1023s %1023s", op, sa, sb) == 3) {
     zi a = {0}, b = {0}, r = {0};
+    if (!strcmp(op, "i64")) { /* exact int64 import: decimal in sa */
+      zi_i64(&c, &r, (int64_t)strtoll(sa, 0, 10));
+      if (c.status) return 4;
+      write_zi(&r);
+      zi_clear(&c, &r);
+      if (c.bytes) return 5;
+      continue;
+    }
     if (!read_zi(&c, &a, sa) || !read_zi(&c, &b, sb)) return 3;
     if (!strcmp(op, "add")) zi_add(&c, &r, &a, &b);
     else if (!strcmp(op, "sub")) zi_sub(&c, &r, &a, &b);
