@@ -56,6 +56,7 @@ formal/Tess/C/ZiAddMixed.lean
 formal/Tess/C/TrimLen.lean
 formal/Tess/C/ZiMem.lean
 formal/Tess/C/ZiModel.lean
+formal/Tess/C/QrExponent.lean
 formal/Tess/C/QrModel.lean
 formal/Tess/C/DivModel.lean
 formal/Tess/C/PredModel.lean
