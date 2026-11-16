@@ -89,7 +89,9 @@ formal/Tess/InPlane.lean
 formal/Tess/PairAuditNoncoplanarFull.lean
 formal/Tess/PlaneLine.lean
 formal/Tess/PlaneTransfer.lean
+formal/Tess/PairAuditShared.lean
 formal/Tess/SharedEdge.lean
+formal/Tess/SharedVertex.lean
 formal/Tess/TriangleExitQ.lean
 formal/Tess/PairAuditCoplanar.lean
 formal/Tess/PlaneCutBridge.lean

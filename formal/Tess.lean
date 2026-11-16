@@ -64,6 +64,8 @@ import Tess.SharedEdge
 import Tess.PlaneLine
 import Tess.InPlane
 import Tess.PairAuditNoncoplanarFull
+import Tess.SharedVertex
+import Tess.PairAuditShared
 import Tess.PredicateFixture
 import Tess.IntersectionCompleteness
 import Tess.Orient3
