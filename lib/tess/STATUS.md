@@ -387,3 +387,7 @@ Verification at commit "Prove zi_divrem long-division models" (2026-11-16): proo
 audit 1510 declarations; GCC Release with Lean 28/28; Clang Release 25/25;
 ASan/UBSan subset (zi/exact/arithmetic/predicate-resource/audit/resource) passes
 with local leak detection disabled.
+- `Tess.C.PredModel` ties the rational models to the Lean predicate
+  specifications: `tg_orient_q` sign = sign of `Tess.orient`; `det3` equals
+  `incircleDet`/`orient3`; incircle sign product ⇔ `illegalDelaunay`. `ZiM.WF`
+  gained the `limbs = [] → sign = 0` field. Audit: 1539 declarations.

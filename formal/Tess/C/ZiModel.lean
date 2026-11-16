@@ -46,6 +46,7 @@ structure ZiM.WF (z : ZiM) : Prop where
   bound : ∀ x ∈ z.limbs, x < 2 ^ 32
   sign : z.sign = 0 ∨ z.sign = 1 ∨ z.sign = -1
   zero : z.sign = 0 → z.limbs = []
+  nz : z.limbs = [] → z.sign = 0
 
 /-- Model of `zi_add`. -/
 def ziAddM (a b : ZiM) : ZiM :=
@@ -61,7 +62,8 @@ def ziNegM (b : ZiM) : ZiM := ⟨-b.sign, b.limbs⟩
 
 theorem ziNegM_wf (b : ZiM) (h : b.WF) : (ziNegM b).WF :=
   ⟨h.norm, h.bound, by rcases h.sign with h | h | h <;> simp [ziNegM, h], by
-    intro h0; exact h.zero (by simpa [ziNegM] using h0)⟩
+    intro h0; exact h.zero (by simpa [ziNegM] using h0),
+    by intro e; have := h.nz e; simp [ziNegM, this]⟩
 
 theorem ziAddPrefix_mem (a b : List Nat) (k : Nat) : ∀ x ∈ ziAddPrefix a b k, x < 2 ^ 32 := by
   induction k with
@@ -75,7 +77,7 @@ theorem ziAddPrefix_mem (a b : List Nat) (k : Nat) : ∀ x ∈ ziAddPrefix a b k
 
 theorem zNorm_wf (s : Int) (l : List Nat) (hl : ∀ x ∈ l, x < 2 ^ 32)
     (hs : s = 1 ∨ s = -1) : (zNorm s l).WF := by
-  refine ⟨zNorm_normalized s l, fun x hx => hl x (trimL_mem l x hx), ?_, ?_⟩
+  refine ⟨zNorm_normalized s l, fun x hx => hl x (trimL_mem l x hx), ?_, ?_, ?_⟩
   · by_cases h : trimL l = [] <;> simp [zNorm, h]
     exact Or.inr hs
   · by_cases h : trimL l = []
@@ -83,6 +85,9 @@ theorem zNorm_wf (s : Int) (l : List Nat) (hl : ∀ x ∈ l, x < 2 ^ 32)
     · intro h0
       simp only [zNorm, if_neg h] at h0
       rcases hs with rfl | rfl <;> simp at h0
+  · intro e
+    simp only [zNorm] at e ⊢
+    simp [e]
 
 theorem ziAddM_val (a b : ZiM) (ha : a.WF) (hb : b.WF) :
     (ziAddM a b).val = a.val + b.val ∧ (ziAddM a b).WF := by
@@ -163,7 +168,7 @@ theorem ziMulM_val (a b : ZiM) (ha : a.WF) (hb : b.WF) :
   unfold ziMulM
   by_cases hz : a.limbs = [] ∨ b.limbs = []
   · rw [if_pos hz]
-    refine ⟨?_, ⟨by intro h; simp at h, by simp, Or.inl rfl, fun _ => rfl⟩⟩
+    refine ⟨?_, ⟨by intro h; simp at h, by simp, Or.inl rfl, fun _ => rfl, fun _ => rfl⟩⟩
     rcases hz with h | h <;> simp [ZiM.val, sval, h, lv]
   · rw [if_neg hz]
     have hsa : a.sign = 1 ∨ a.sign = -1 := by
