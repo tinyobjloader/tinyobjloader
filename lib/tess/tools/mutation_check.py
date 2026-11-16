@@ -22,7 +22,7 @@ MUTANTS = [
      'uint64_t value = (remainder << 31) | a->v[i - 1];', 'core', False),
     ('exact.c', 'remainder = value % d;', 'remainder = (value % d) & 0x7fffffffu;', 'core', False),
     ('exact.c', 't->v[a->n + bits / 32] = (uint32_t)carry;', 't->v[a->n + bits / 32] = 0;', 'core', False),
-    ('exact.c', 'cmp = rt.v[b->n] ? 1 : 0;', 'cmp = 0;', 'core', False),
+    ('exact.c', 'int cmp = r->v[b->n] ? 1 : 0;', 'int cmp = 0;', 'core', False),
     ('exact.c', 'qt.v[bit / 32] |= UINT32_C(1) << (bit % 32);', 'qt.v[bit / 32] |= UINT32_C(1) << (bit % 31);',
      'core', False),
     ('exact.c', 'borrow = x < y;', 'borrow = x <= y;', 'core', False),
