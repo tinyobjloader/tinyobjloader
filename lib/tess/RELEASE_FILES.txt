@@ -82,7 +82,11 @@ formal/Tess/BoxSeparation.lean
 formal/Tess/PairAudit.lean
 formal/Tess/PairAuditAllowed.lean
 formal/Tess/PairAuditBridge.lean
+formal/Tess/NoncoplanarComplete.lean
 formal/Tess/PairAuditDisjoint.lean
+formal/Tess/PairAuditNoncoplanar.lean
+formal/Tess/PlaneTransfer.lean
+formal/Tess/TriangleExitQ.lean
 formal/Tess/PairAuditCoplanar.lean
 formal/Tess/PlaneCutBridge.lean
 formal/Tess/TriangleContains.lean

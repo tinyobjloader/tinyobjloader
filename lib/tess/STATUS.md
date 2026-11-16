@@ -4,7 +4,7 @@ Implemented against `../../robust-ngon-remeshing-c11-lean4-prompt.md`.
 Release evidence below was collected on 2026-11-14. The deliverable is a bounded
 reference library, not a convergence guarantee or full C refinement proof.
 
-**Current authoritative proof-audit count: 1759 Tess declarations** (re-run
+**Current authoritative proof-audit count: 1816 Tess declarations** (re-run
 2026-11-16 after `C/ZiValue`; standard axioms only). Declaration counts quoted in the dated
 sections below are historical snapshots.
 
@@ -441,3 +441,9 @@ with local leak detection disabled.
 - The mutation campaign is reproducible: `python3 lib/tess/tools/mutation_check.py --lean
   formal/.lake/build/bin/tesspredicates` applies the twelve mutants to a scratch copy and reports
   eleven killed plus the one documented equivalent mutant (not part of default ctest).
+- `NoncoplanarComplete.noncoplanar_gp_disjoint`: in general position, `noncoplanarTrianglesConflict = false`
+  implies no common rational point of the two closed triangles (Case I: exit lemma in the plane of
+  `A` for a point of `B ∩ plane A` outside `A`; Case II: strict cut of a `B` edge). Combined with
+  `pairOk_noncoplanar_disjoint` this gives `PairAuditNoncoplanar.accepted_noncoplanar_gp_disjoint`.
+  New supporting files: `TriangleExitQ` (rational exit lemma), `PlaneTransfer` (Hull3 ↔ projected
+  `Tri2` on a plane, plane injectivity via coordinate rotation). Audit: 1816 declarations.

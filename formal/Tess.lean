@@ -56,6 +56,10 @@ import Tess.PairAuditAllowed
 import Tess.PairAuditCoplanar
 import Tess.TriangleMeet
 import Tess.PairAuditDisjoint
+import Tess.TriangleExitQ
+import Tess.PlaneTransfer
+import Tess.NoncoplanarComplete
+import Tess.PairAuditNoncoplanar
 import Tess.PredicateFixture
 import Tess.IntersectionCompleteness
 import Tess.Orient3
