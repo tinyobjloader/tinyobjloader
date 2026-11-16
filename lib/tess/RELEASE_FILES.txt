@@ -66,6 +66,7 @@ formal/Tess/C/ZiValue.lean
 formal/Tess/Certificate.lean
 formal/Tess/CertificateCoverage.lean
 formal/Tess/ChainSoundness.lean
+formal/Tess/CoplanarSharedEdge.lean
 formal/Tess/Check.lean
 formal/Tess/ConstraintCoverage.lean
 formal/Tess/Coverage.lean

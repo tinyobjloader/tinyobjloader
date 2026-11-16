@@ -4,7 +4,7 @@ Implemented against `../../robust-ngon-remeshing-c11-lean4-prompt.md`.
 Release evidence below was collected on 2026-11-14. The deliverable is a bounded
 reference library, not a convergence guarantee or full C refinement proof.
 
-**Current authoritative proof-audit count: 1872 Tess declarations** (re-run
+**Current authoritative proof-audit count: 1902 Tess declarations** (re-run
 2026-11-16 after `C/ZiValue`; standard axioms only). Declaration counts quoted in the dated
 sections below are historical snapshots.
 
@@ -470,3 +470,7 @@ with local leak detection disabled.
 Verification at HEAD of this session (2026-11-16): proof audit 1872 declarations; GCC Release with Lean
 28/28; Clang Release 25/25; Clang ASan/UBSan full native suite 25/25 (209 s, local leak detection
 disabled for the documented tracing limitation).
+- `CoplanarSharedEdge.accepted_coplanar_shared_edge`: coplanar faces sharing an edge meet only in that edge when
+  accepted (either traversal direction), via `shared_edge_exit` and the ID-level reduction
+  `coplanar_shared_edge_of_conflicts`. With this the auditor spec's pairwise soundness covers every
+  configuration of 0, 1 or 2 shared vertex IDs for both coplanar and noncoplanar faces. Audit: 1902 declarations.
