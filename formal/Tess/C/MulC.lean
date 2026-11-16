@@ -58,7 +58,7 @@ theorem mul_refines (a b : Int) (ha : InI64 a) (hb : InI64 b) (rb : Nat) (blk : 
       ∃ sf, ExS OrientGen.prog s0 OrientGen.mul.body (.ret (some (.int ⟨32, true⟩ 0))) sf) ∧
     (∀ r, mulChk a b = some r →
       ∃ sf, ExS OrientGen.prog s0 OrientGen.mul.body (.ret (some (.int ⟨32, true⟩ 1))) sf ∧
-        sf.mem rb = some (encodeLE 8 (W r))) := by
+        sf.mem rb = some (encodeLE 8 (W r)) ∧ (∀ b', b' ≠ rb → sf.mem b' = m b')) := by
   have l0 : s0.locals 0 = some (.int IntTy.i64 (W a)) := by rw [h0]; rfl
   have l1 : s0.locals 1 = some (.int IntTy.i64 (W b)) := by rw [h0]; rfl
   have l2 : s0.locals 2 = some (.ptr rb 0) := by rw [h0]; rfl
@@ -201,7 +201,7 @@ theorem mul_refines (a b : Int) (ha : InI64 a) (hb : InI64 b) (rb : Nat) (blk : 
           have := Option.some.inj hr
           rw [← this, if_pos]; exact hC
         subst hrr
-        refine ⟨{ s5 with mem := m.upd rb (encodeLE 8 (W i64min)) }, ?_, by simp [Mem.upd]⟩
+        refine ⟨{ s5 with mem := m.upd rb (encodeLE 8 (W i64min)) }, ?_, ⟨by simp [Mem.upd], fun b' hb' => by simp [Mem.upd, hb']⟩⟩
         unfold OrientGen.mul
         show ExS OrientGen.prog s0 (.seq (.seq _ _) (.seq _ (.seq _ (.seq _ (.seq _ (.seq _ _)))))) _ _
         exact ExS.seq (ExS.seq hset3 hset4) (ExS.seq hset6 (ExS.seq hset7
@@ -249,11 +249,26 @@ theorem mul_refines (a b : Int) (ha : InI64 a) (hb : InI64 b) (rb : Nat) (blk : 
       · intro hn
         exfalso; unfold mulChk at hn; simp only [] at hn; rw [if_neg hF] at hn; cases hn
       · rw [hmv r hr]
-        refine ⟨{ s5 with mem := m.upd rb (encodeLE 8 (W (if negB then -(z : Int) else (z : Int)))) }, ?_, by simp [Mem.upd]⟩
+        refine ⟨{ s5 with mem := m.upd rb (encodeLE 8 (W (if negB then -(z : Int) else (z : Int)))) }, ?_, ⟨by simp [Mem.upd], fun b' hb' => by simp [Mem.upd, hb']⟩⟩
         unfold OrientGen.mul
         show ExS OrientGen.prog s0 (.seq (.seq _ _) (.seq _ (.seq _ (.seq _ (.seq _ (.seq _ _)))))) _ _
         exact ExS.seq (ExS.seq hset3 hset4) (ExS.seq hset6 (ExS.seq hset7
           (ExS.seq (ExS.ite hG (by rfl) ExS.skip) (ExS.seq hset5
             (ExS.seq (ExS.ite (bc := false) hG2 (by rfl) hst) (hrestRet _))))))
+
+end Tess.C
+
+namespace Tess.C
+open Obj.C
+
+theorem load_i64_enc (m : Mem) (rb n : Nat) (hn : n < 2 ^ 64) (hm : m rb = some (encodeLE 8 n)) :
+    load m (.int IntTy.i64) (.ptr rb 0) = .ok (.int IntTy.i64 n) := by
+  have hlen : (encodeLE 8 n).length = 8 := encodeLE_length 8 n
+  have hsz : Ty.size (.int IntTy.i64) = 8 := rfl
+  simp only [load, hsz, readBytes, hm]
+  rw [if_pos (by rw [hlen])]
+  rw [List.drop_zero, List.take_of_length_le (by rw [hlen])]
+  simp [decodeLE_encodeLE]
+  simpa using hn
 
 end Tess.C

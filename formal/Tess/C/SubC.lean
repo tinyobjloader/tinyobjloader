@@ -140,7 +140,7 @@ theorem sub_refines (a b : Int) (ha : InI64 a) (hb : InI64 b) (rb : Nat) (blk : 
       ∃ sf, ExS OrientGen.prog s0 OrientGen.sub.body (.ret (some (.int ⟨32, true⟩ 0))) sf) ∧
     (¬ ((0 < b ∧ a < i64min + b) ∨ (b < 0 ∧ i64max + b < a)) →
       ∃ sf, ExS OrientGen.prog s0 OrientGen.sub.body (.ret (some (.int ⟨32, true⟩ 1))) sf ∧
-        sf.mem rb = some (encodeLE 8 (W (a - b)))) := by
+        sf.mem rb = some (encodeLE 8 (W (a - b))) ∧ (∀ b', b' ≠ rb → sf.mem b' = m b')) := by
   have l0 : s0.locals 0 = some (.int IntTy.i64 (W a)) := by rw [h0]; rfl
   have l1 : s0.locals 1 = some (.int IntTy.i64 (W b)) := by rw [h0]; rfl
   have l2 : s0.locals 2 = some (.ptr rb 0) := by rw [h0]; rfl
@@ -189,6 +189,7 @@ theorem sub_refines (a b : Int) (ha : InI64 a) (hb : InI64 b) (rb : Nat) (blk : 
     have hstore := ExS.store (ty := .int IntTy.i64) (EvE.var l2) hval hro hst
     refine ⟨{ s0 with mem := s0.mem.upd rb (encodeLE 8 (W (a - b))) }, ?_, ?_⟩
     · exact ExS.seq (ExS.ite hor (by rfl) ExS.skip) (ExS.seq hstore (ExS.ret (EvE.const _)))
-    · simp [Mem.upd]
+    · refine ⟨by simp [Mem.upd], fun b' hb' => ?_⟩
+      simp [Mem.upd, hb', hmem]
 
 end Tess.C
