@@ -59,6 +59,7 @@ formal/Tess/C/ZiMem.lean
 formal/Tess/C/ZiModel.lean
 formal/Tess/C/MulC.lean
 formal/Tess/C/GrowCap.lean
+formal/Tess/C/IncidenceOrder.lean
 formal/Tess/C/InsertionSort.lean
 formal/Tess/C/OrientGen.lean
 formal/Tess/C/OverflowModel.lean

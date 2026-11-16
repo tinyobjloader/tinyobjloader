@@ -34,6 +34,7 @@ import Tess.C.SplitFind
 import Tess.C.UnionFind
 import Tess.C.GrowCap
 import Tess.C.InsertionSort
+import Tess.C.IncidenceOrder
 import Tess.C.BitLenC
 import Tess.C.OverflowModel
 import Tess.C.OrientGen
