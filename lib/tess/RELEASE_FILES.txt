@@ -76,6 +76,8 @@ formal/Tess/Lift.lean
 formal/Tess/Orient3.lean
 formal/Tess/Orient3Bridge.lean
 formal/Tess/Plane.lean
+formal/Tess/PairAudit.lean
+formal/Tess/PairAuditBridge.lean
 formal/Tess/PlaneCutBridge.lean
 formal/Tess/TriangleContains.lean
 formal/Tess/TriangleContainsBridge.lean

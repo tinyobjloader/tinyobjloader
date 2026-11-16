@@ -107,7 +107,7 @@ Python oracle computes the three exact edge signs and accepts either all-
 nonnegative or all-nonpositive. Coplanar degenerate faces are rejected by the
 auditor separately and are not part of the fixture set.
 
-`triaudit` is a separate C-only diagnostic mode covering the two paths that
+`triaudit` is a diagnostic mode covering the two paths that
 `tricontact` deliberately excludes: coplanar face pairs (including identical,
 reversed and shared-edge/vertex faces whose IDs are expected shared simplices,
 and the identical-triangle rejection) and indexed shared-index fixtures. C
@@ -117,9 +117,12 @@ Python oracle replicates the auditor's exact algorithm: coplanarity from
 axis, per-ID shared-simplex allowance (point equality, and on-segment +
 collinearity for two shared IDs), projected segment-conflict detection with the
 indexed exception, and the identical-triangle (three shared IDs) rejection.
-The Lean fixture has no executable specification for this path and rejects the
-`triaudit` operation explicitly; the differential compares C against the
-Fraction oracle only, and six hand-verified fixtures (nested coplanar,
+The Lean fixture evaluates the same decision with `Tess.PairAudit.pairOk`, a
+statement-by-statement executable specification of the C pair logic, so the
+differential compares C, Lean and the Fraction oracle. For noncoplanar faces
+with no shared vertex IDs, `PairAuditBridge.pairOk_noncoplanar_disjoint` proves
+`pairOk` is exactly the negation of the proved `noncoplanarTrianglesConflict`.
+Six hand-verified fixtures (nested coplanar,
 disjoint, bottomed-out edge touch, shared edge, noncoplanar pierce, parallel
 sheet) are asserted before the 195 random/constructed pairs.
 

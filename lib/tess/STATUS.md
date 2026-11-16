@@ -346,7 +346,7 @@ build warning policy.
 
 These are executable differential checks. No claim is made that the C 3D
 auditor is refined by the Lean specification, and the coplanar/shared-index
-path has no Lean executable specification at all.
+path now has the Lean executable specification `PairAudit.pairOk`.
 
 ## Big-integer limb-boundary differential (2026-11-16)
 
@@ -396,3 +396,14 @@ with local leak detection disabled.
   of a finite binary64 pattern. Audit: 1569 declarations.
 - `Tess.C.ZiCmp` proves `acmp`/`zi_cmp` models equal the order of the denoted
   integers. Audit: 1636 declarations.
+
+## Auditor pair specification and rational compare/divide (2026-11-16)
+
+- `Tess.PairAudit.pairOk` is a Lean executable specification of the C auditor's
+  pair decision (coplanar branch, `allowed`, `edges_against`). `tesspredicates`
+  now evaluates `triaudit`, so the differential compares C, Lean and Fraction on
+  all 201 pairs (21,923 total comparisons pass). `pairOk_noncoplanar_disjoint`
+  proves it equals the negation of `noncoplanarTrianglesConflict` for
+  noncoplanar faces without shared vertex IDs.
+- `PredModel` gained `qrDivM_spec` and `qrCmpM_spec` (cmp = sign of the exact
+  difference). Audit: 1675 declarations; GCC+Lean predicate/segment tests pass.

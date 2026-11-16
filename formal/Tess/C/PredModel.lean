@@ -139,4 +139,88 @@ theorem orient_C_sign (ax ay bx by_ cx cy : Int × Int)
   obtain ⟨c, v⟩ := orientQM_spec ax ay bx by_ cx cy h1 h2 h3 h4 h5 h6
   rw [← v, qsign_qv _ c.1]
 
+/-- `qr_div` on a nonzero divisor: cross-multiply and reduce (`reduce` fixes the sign). -/
+def qrDivM (a b : Int × Int) : Int × Int := reduceM (a.1 * b.2) (a.2 * b.1)
+
+theorem qrDivM_spec (a b : Int × Int) (ha : Canon a) (hb : Canon b) (hn : b.1 ≠ 0) :
+    Canon (qrDivM a b) ∧ qv (qrDivM a b) = qv a / qv b := by
+  have ha2 : (a.2 : Rat) ≠ 0 := by exact_mod_cast ha.1.ne'
+  have hb2 : (b.2 : Rat) ≠ 0 := by exact_mod_cast hb.1.ne'
+  have hb1 : (b.1 : Rat) ≠ 0 := by exact_mod_cast hn
+  obtain ⟨c1, c2⟩ := reduceM_spec (a.1 * b.2) (a.2 * b.1) (Int.mul_ne_zero ha.1.ne' hn)
+  refine ⟨c1, ?_⟩
+  unfold qrDivM qv at *
+  rw [c2]; push_cast
+  rw [div_div_div_eq]
+
+/-- The `Int.sign`-style three-way comparison used by `zi_cmp`. -/
+def cmpI (x y : Int) : Int := if y < x then 1 else if x < y then -1 else 0
+
+/-- `qr_cmp` on canonical operands. -/
+def qrCmpM (a b : Int × Int) : Int :=
+  if Int.sign a.1 ≠ Int.sign b.1 then (if Int.sign b.1 < Int.sign a.1 then 1 else -1)
+  else if a.2 = b.2 then cmpI a.1 b.1 else cmpI (a.1 * b.2) (b.1 * a.2)
+
+theorem qsign_sub_qv (a b : Int × Int) (ha : 0 < a.2) (hb : 0 < b.2) :
+    qsign (qv a - qv b) = Int.sign (a.1 * b.2 - b.1 * a.2) := by
+  have hd : 0 < a.2 * b.2 := Int.mul_pos ha hb
+  have h := qsign_qv (a.1 * b.2 - b.1 * a.2, a.2 * b.2) hd
+  have ha2 : (a.2 : Rat) ≠ 0 := by exact_mod_cast ha.ne'
+  have hb2 : (b.2 : Rat) ≠ 0 := by exact_mod_cast hb.ne'
+  have : qv a - qv b = qv (a.1 * b.2 - b.1 * a.2, a.2 * b.2) := by
+    unfold qv; push_cast
+    rw [div_sub_div _ _ ha2 hb2]
+    congr 1; ring
+  rw [this, h]
+
+theorem qrCmpM_spec (a b : Int × Int) (ha : Canon a) (hb : Canon b) :
+    qrCmpM a b = qsign (qv a - qv b) := by
+  rw [qsign_sub_qv a b ha.1 hb.1]
+  have pa := ha.1
+  have pb := hb.1
+  unfold qrCmpM cmpI
+  have e : ∀ x : Int, Int.sign x = 1 ∨ Int.sign x = 0 ∨ Int.sign x = -1 := by
+    intro x; rcases lt_trichotomy x 0 with h | h | h
+    · right; right; exact Int.sign_eq_neg_one_of_neg h
+    · right; left; simp [h]
+    · left; exact Int.sign_eq_one_of_pos h
+  by_cases hs : Int.sign a.1 = Int.sign b.1
+  · rw [if_neg (by simpa using hs)]
+    by_cases hd : a.2 = b.2
+    · rw [if_pos hd, ← hd]
+      have : a.1 * a.2 - b.1 * a.2 = (a.1 - b.1) * a.2 := by ring
+      rw [this, Int.sign_mul, Int.sign_eq_one_of_pos pa, mul_one]
+      rcases lt_trichotomy a.1 b.1 with h | h | h
+      · simp [h, not_lt_of_gt h, Int.sign_eq_neg_one_of_neg (by omega : a.1 - b.1 < 0)]
+      · simp [h]
+      · simp [h, not_lt_of_gt h, Int.sign_eq_one_of_pos (by omega : 0 < a.1 - b.1)]
+    · rw [if_neg hd]
+      rcases lt_trichotomy (a.1 * b.2) (b.1 * a.2) with h | h | h
+      · simp [h, not_lt_of_gt h, Int.sign_eq_neg_one_of_neg (by omega : a.1 * b.2 - b.1 * a.2 < 0)]
+      · simp [h]
+      · simp [h, not_lt_of_gt h, Int.sign_eq_one_of_pos (by omega : 0 < a.1 * b.2 - b.1 * a.2)]
+  · rw [if_pos (by simpa using hs)]
+    have pa' : (0 : Int) < a.2 := pa
+    have pb' : (0 : Int) < b.2 := pb
+    rcases lt_trichotomy a.1 0 with h1 | h1 | h1 <;> rcases lt_trichotomy b.1 0 with h2 | h2 | h2
+    · exfalso; exact hs (by rw [Int.sign_eq_neg_one_of_neg h1, Int.sign_eq_neg_one_of_neg h2])
+    · have z : b.1 * a.2 = 0 := by simp [h2]
+      have : a.1 * b.2 - b.1 * a.2 < 0 := by nlinarith [mul_neg_of_neg_of_pos h1 pb']
+      rw [Int.sign_eq_neg_one_of_neg this, Int.sign_eq_neg_one_of_neg h1, h2]; simp
+    · have : a.1 * b.2 - b.1 * a.2 < 0 := by nlinarith [mul_neg_of_neg_of_pos h1 pb', mul_pos h2 pa']
+      rw [Int.sign_eq_neg_one_of_neg this, Int.sign_eq_neg_one_of_neg h1, Int.sign_eq_one_of_pos h2]; simp
+    · have z : a.1 * b.2 = 0 := by simp [h1]
+      have : 0 < a.1 * b.2 - b.1 * a.2 := by nlinarith [mul_neg_of_neg_of_pos h2 pa']
+      rw [Int.sign_eq_one_of_pos this, Int.sign_eq_neg_one_of_neg h2, h1]; simp
+    · exfalso; exact hs (by rw [h1, h2])
+    · have z : a.1 * b.2 = 0 := by simp [h1]
+      have : a.1 * b.2 - b.1 * a.2 < 0 := by nlinarith [mul_pos h2 pa']
+      rw [Int.sign_eq_neg_one_of_neg this, Int.sign_eq_one_of_pos h2, h1]; simp
+    · have : 0 < a.1 * b.2 - b.1 * a.2 := by nlinarith [mul_pos h1 pb', mul_neg_of_neg_of_pos h2 pa']
+      rw [Int.sign_eq_one_of_pos this, Int.sign_eq_one_of_pos h1, Int.sign_eq_neg_one_of_neg h2]; simp
+    · have z : b.1 * a.2 = 0 := by simp [h2]
+      have : 0 < a.1 * b.2 - b.1 * a.2 := by nlinarith [mul_pos h1 pb']
+      rw [Int.sign_eq_one_of_pos this, Int.sign_eq_one_of_pos h1, h2]; simp
+    · exfalso; exact hs (by rw [Int.sign_eq_one_of_pos h1, Int.sign_eq_one_of_pos h2])
+
 end Tess.C

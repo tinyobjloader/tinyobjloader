@@ -518,11 +518,12 @@ for index, (operation, points, ids) in enumerate(cases):
         commands_lean.append(f'contains2 {rational_text}\n')
         answers.append(expected_contains2(points))
     elif operation == 'triaudit':
-        # C's diagnostic auditor is compared against the Fraction oracle; the
-        # Lean fixture has no executable for the coplanar/shared-index path.
+        # C's diagnostic auditor, Lean's PairAudit.pairOk and the Fraction oracle agree.
         id_text = ' '.join(str(index) for index in ids)
         commands_c.append(f'triaudit {coordinate_text} {id_text}\n')
-        commands_lean.append(None)
+        coordinates = [Q(x) for p in points for x in p]
+        rational_text_3d = ' '.join(f'{q.numerator}/{q.denominator}' for q in coordinates)
+        commands_lean.append(f'triaudit {rational_text_3d} {id_text}\n')
         answers.append(int(audit3(points, ids[:3], ids[3:])))
     else:
         commands_c.append(operation+' '+coordinate_text+'\n')

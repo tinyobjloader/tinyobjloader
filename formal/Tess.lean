@@ -47,6 +47,8 @@ import Tess.Validity2
 import Tess.Schedule2
 import Tess.PredicateGeometry
 import Tess.SegmentSoundness
+import Tess.PairAudit
+import Tess.PairAuditBridge
 import Tess.PredicateFixture
 import Tess.IntersectionCompleteness
 import Tess.Orient3

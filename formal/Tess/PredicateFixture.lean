@@ -2,6 +2,7 @@ import Tess.SegmentConflict
 import Tess.Orient3
 import Tess.TriangleContact
 import Tess.Plane
+import Tess.PairAudit
 
 /-! Bounded exact-rational validation protocol, separate from certificates.
 Ordinary records have an operation and eight signed-decimal numerator/denominator
@@ -14,8 +15,8 @@ fifteen coordinates and prints `1` with the three rational cut coordinates, or
 closed triangle, `0` otherwise. `contains2` output is orientation-independent.
 `indexedsegments` carries eight 2D coordinates plus four nonnegative vertex IDs;
 repeated IDs denote the same vertex and must carry the same coordinates.
-`triaudit` (coplanar/shared-index triangle pairs) is deliberately C-only; the
-Lean fixture rejects it.
+`triaudit` (coplanar/shared-index triangle pairs) is evaluated by `PairAudit.pairOk`; the
+It carries eighteen coordinates and six indices (< 6).
 This parser is a test boundary, not a verified C refinement. -/
 namespace Tess.PredicateFixture
 
@@ -184,7 +185,25 @@ def decodeLine (line : String) : Except String String := do
       let value ← evaluateIndexed operation coordinates ids
       return toString value
     else if operation="triaudit" then
-      throw "triaudit has no Lean executable specification"
+      if fields.length≠24 then throw "expected eighteen coordinates and six indices"
+      let points ← decodePointArray (fields.take 18).toArray 6
+      let mut ids := #[]
+      for field in fields.drop 18 do
+        let index ← decodeIndex field
+        if index≥6 then throw "triaudit index out of range"
+        ids:=ids.push index
+      let mesh : ExactMesh := {
+        points
+        sources := Array.replicate 6 0
+        pinned := Array.replicate 6 false
+        faces := #[]
+        constraints := #[]
+        axis := 2
+        u := 0
+        w := 1
+        orientation := true
+        planar := false }
+      return toString (if PairAudit.pairOk mesh ⟨ids[0]!, ids[1]!, ids[2]!⟩ ⟨ids[3]!, ids[4]!, ids[5]!⟩ then 1 else 0)
     else
       if fields.length≠8 then throw "expected eight coordinates"
       let mut coordinates := #[]
