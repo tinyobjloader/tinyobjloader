@@ -58,6 +58,15 @@ def zi_cmp : Func where
   params := [0, 1]
   body := (.seq (.ite (.bin .ne (some ⟨32, true⟩) (.load (.int ⟨32, true⟩) (.field (.var 0) 16)) (.load (.int ⟨32, true⟩) (.field (.var 1) 16))) (.ret (some (.cond (.bin .gt (some ⟨32, true⟩) (.load (.int ⟨32, true⟩) (.field (.var 0) 16)) (.load (.int ⟨32, true⟩) (.field (.var 1) 16))) (.const (.int ⟨32, true⟩ 1)) (.un .neg ⟨32, true⟩ (.const (.int ⟨32, true⟩ 1)))))) .skip) (.ret (some (.bin .mul (some ⟨32, true⟩) (.load (.int ⟨32, true⟩) (.field (.var 0) 16)) (.call 1 [(.var 0), (.var 1)])))))
 
+/-- A loop of `trim_len`. -/
+def trim_len_loop0 : Stmt := (.loop (.ite (.land (.var 1) (.un .lnot ⟨32, true⟩ (.load (.int ⟨32, false⟩) (.index (.load .ptr (.field (.var 0) 0)) (.bin .sub (some ⟨64, false⟩) (.var 1) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 1)))) 4)))) (.set 1 (.cast ⟨64, false⟩ (.bin .sub (some ⟨64, false⟩) (.cast ⟨64, false⟩ (.var 1)) (.const (.int ⟨64, false⟩ 1))))) .brk) .skip)
+
+/-- `trim_len` (function id 6). Locals: 0=a, 1=n -/
+def fid_trim_len : Nat := 6
+def trim_len : Func where
+  params := [0]
+  body := (.seq (.set 1 (.load (.int ⟨64, false⟩) (.field (.var 0) 8))) (.seq trim_len_loop0 (.ret (some (.var 1)))))
+
 /-- String literals referenced by the translated functions. -/
 def literals : List UInt8 := []
 
@@ -69,6 +78,7 @@ def prog : Prog := fun f =>
   | 3 => some zi_add_mixed
   | 4 => some zi_mul_accumulate
   | 5 => some zi_cmp
+  | 6 => some trim_len
   | _ => none
 
 end Tess.C.LimbGen

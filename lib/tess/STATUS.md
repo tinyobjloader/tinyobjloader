@@ -4,7 +4,7 @@ Implemented against `../../robust-ngon-remeshing-c11-lean4-prompt.md`.
 Release evidence below was collected on 2026-11-14. The deliverable is a bounded
 reference library, not a convergence guarantee or full C refinement proof.
 
-**Current authoritative proof-audit count: 1902 Tess declarations** (re-run
+**Current authoritative proof-audit count: 1932 Tess declarations** (re-run
 2026-11-16 after `C/ZiValue`; standard axioms only). Declaration counts quoted in the dated
 sections below are historical snapshots.
 
@@ -474,3 +474,6 @@ disabled for the documented tracing limitation).
   accepted (either traversal direction), via `shared_edge_exit` and the ID-level reduction
   `coplanar_shared_edge_of_conflicts`. With this the auditor spec's pairwise soundness covers every
   configuration of 0, 1 or 2 shared vertex IDs for both coplanar and noncoplanar faces. Audit: 1902 declarations.
+- `C/TrimLen.trim_len_refines`: the length scan of `norm` was factored into the pure `trim_len` (behavior
+  unchanged; GCC+Lean 28/28 still pass) and its translated loop is refined against `trimL`.
+  `LimbGen` gained function id 6. Audit: 1932 declarations.

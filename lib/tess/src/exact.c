@@ -70,9 +70,15 @@ void zi_clear(tx* c, zi* a) {
 }
 /* Allocated length equals n; normalization shrinks accounting only after a
  * copy. */
-static void norm(tx* c, zi* a) {
+/* Number of limbs after dropping most-significant zero limbs. Pure; translated and proved
+ * against the Lean `trimL` model. */
+static size_t trim_len(const zi* a) {
   size_t n = a->n;
   while (n && !a->v[n - 1]) n--;
+  return n;
+}
+static void norm(tx* c, zi* a) {
+  size_t n = trim_len(a);
   if (n != a->n) {
     zi t = {0};
     if (n) {
