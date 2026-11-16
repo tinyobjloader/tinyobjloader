@@ -6,6 +6,7 @@ import Tess.C.Acmp
 import Tess.C.ZiAdd
 import Tess.C.ZiAddMixed
 import Tess.C.ZiMul
+import Tess.C.ZiValue
 import Tess.C.Arithmetic
 import Tess.C.Magnitude
 import Tess.Certificate

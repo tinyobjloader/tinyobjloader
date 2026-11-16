@@ -53,6 +53,7 @@ formal/Tess/C/ZiAdd.lean
 formal/Tess/C/ZiAddMixed.lean
 formal/Tess/C/ZiMem.lean
 formal/Tess/C/ZiMul.lean
+formal/Tess/C/ZiValue.lean
 formal/Tess/Certificate.lean
 formal/Tess/CertificateCoverage.lean
 formal/Tess/ChainSoundness.lean

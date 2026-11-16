@@ -4,8 +4,8 @@ Implemented against `../../robust-ngon-remeshing-c11-lean4-prompt.md`.
 Release evidence below was collected on 2026-11-14. The deliverable is a bounded
 reference library, not a convergence guarantee or full C refinement proof.
 
-**Current authoritative proof-audit count: 1302 Tess declarations** (re-run
-2026-11-16; standard axioms only). Declaration counts quoted in the dated
+**Current authoritative proof-audit count: 1367 Tess declarations** (re-run
+2026-11-16 after `C/ZiValue`; standard axioms only). Declaration counts quoted in the dated
 sections below are historical snapshots.
 
 ## Milestones delivered
@@ -357,3 +357,12 @@ path has no Lean executable specification at all.
   computation in `zi_add_mixed` is detected. Full GCC suite: 25/25 native
   tests pass without Lean. Differential evidence only; `zi_add`/`zi_mul`/`norm`
   remain unproved in Lean.
+
+## Integer semantics of limb models (2026-11-16)
+
+- `Tess.C.ZiValue` proves, with no new axioms, that the limb models behind the
+  translated loops denote integer arithmetic: `ziAdd_value` (a+b including
+  the overflow limb), `ziMixed_value` (a-b and zero final borrow when b ≤ a)
+  and `ziMul_value` (a*b over a zero buffer of capacity ≥ |a|+|b|, using the
+  fact that each row's overflow write replaces a zero). Audit: 1367 declarations.
+  Open: composing with allocation, `norm`, sign dispatch and `move`.
