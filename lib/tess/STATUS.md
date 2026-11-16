@@ -436,3 +436,4 @@ with local leak detection disabled.
   `acmp_exs`/`acmp_exs_unequal` were generalized over the struct signs and the read-only flag
   (expression calls run read-only). `LimbGen` now also contains `zi_cmp` (function id 5).
   Audit: 1732 declarations.
+- `BoxSeparation.boxes_separate_disjoint`: a strict gap between recorded AABB extrema excludes any common point of the two closed triangles, justifying the broadphase skip.

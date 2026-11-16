@@ -49,6 +49,7 @@ import Tess.Schedule2
 import Tess.PredicateGeometry
 import Tess.SegmentSoundness
 import Tess.PairAudit
+import Tess.BoxSeparation
 import Tess.PairAuditBridge
 import Tess.PairAuditAllowed
 import Tess.PairAuditCoplanar
