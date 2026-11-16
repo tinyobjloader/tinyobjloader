@@ -4,7 +4,7 @@ Implemented against `../../robust-ngon-remeshing-c11-lean4-prompt.md`.
 Release evidence below was collected on 2026-11-14. The deliverable is a bounded
 reference library, not a convergence guarantee or full C refinement proof.
 
-**Current authoritative proof-audit count: 3770 Tess declarations** (re-run
+**Current authoritative proof-audit count: 3787 Tess declarations** (re-run
 
 Sanitizer note: the full Clang ASan/UBSan suite (leak detection on) passes 25/25 after fixing a pre-existing
 leak in `domain_valid` (edge tangents were dropped by `m->ne = 0` when the domain check ran more than once,

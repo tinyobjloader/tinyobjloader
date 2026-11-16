@@ -63,6 +63,7 @@ formal/Tess/C/OverflowModel.lean
 formal/Tess/C/SubC.lean
 formal/Tess/C/QrExponent.lean
 formal/Tess/C/SerialModel.lean
+formal/Tess/C/SqrtBounds.lean
 formal/Tess/C/QrModel.lean
 formal/Tess/C/DivModel.lean
 formal/Tess/C/PredModel.lean
