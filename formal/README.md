@@ -233,8 +233,11 @@ Layers:
 1. **Certificate soundness** (`Check`, `Validity`, `Validity2`, ...): an accepted V1/V2 certificate implies
    coverage, embedding, feature preservation and the height bound.
 2. **MiniC refinements of translated C kernels** (`Tess/C/*`, generated `LimbGen.lean`): limb multiply-add,
-   magnitude, `acmp`, `zi_cmp`, the add/sub/mul loops, `trim_len`, `dbl_decode`, `i64_limb_count`/`i64_fill`.
-   Kernels that needed factoring out of allocating functions are marked in `exact.c`.
+   magnitude, `acmp`, `zi_cmp`, the add/sub/mul loops, `trim_len`, `dbl_decode`, `i64_limb_count`/`i64_fill`,
+   the `shift` carry chain (`shift_fill`) and every limb loop of `zi_divrem` (`div_single_fill`,
+   `div_shift_in`, `div_cmp`, `div_sub_in`; `DivBinLoop.binLoop_correct` composes the binary-path kernels
+   into floor division on limb lists). Kernels that needed factoring out of allocating functions are
+   marked in `exact.c`.
 3. **Functional models** of the allocating arithmetic (`ZiModel`, `QrModel`, `DivModel`, `ShiftModel`,
    `PredModel`, `SegModel`, `ZiCmp`): they denote integer/rational arithmetic and the exact predicates; they are
    tied to the C only through layer 2 and differential tests (the MiniC subset has no allocator).
