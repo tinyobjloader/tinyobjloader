@@ -409,6 +409,9 @@ with local leak detection disabled.
   difference). Audit: 1675 declarations; GCC+Lean predicate/segment tests pass.
 - `PairAuditAllowed.allowed_sound` proves the shared-simplex exception admits only
   shared vertices and exact rational points of the shared edge. Audit: 1682.
+- `PairAuditCoplanar.coplanar_disjoint_accepted`: an accepted coplanar pair without
+  shared IDs has no vertex inside the other projected triangle and no closed edge
+  intersections. Audit: 1690.
 
 ## Targeted mutation check (2026-11-16)
 

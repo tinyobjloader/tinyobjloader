@@ -50,6 +50,7 @@ import Tess.SegmentSoundness
 import Tess.PairAudit
 import Tess.PairAuditBridge
 import Tess.PairAuditAllowed
+import Tess.PairAuditCoplanar
 import Tess.PredicateFixture
 import Tess.IntersectionCompleteness
 import Tess.Orient3
