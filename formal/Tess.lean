@@ -32,6 +32,7 @@ import Tess.C.BitLenC
 import Tess.C.OverflowModel
 import Tess.C.OrientGen
 import Tess.C.SubC
+import Tess.C.MulC
 import Tess.C.Arithmetic
 import Tess.C.Magnitude
 import Tess.Certificate

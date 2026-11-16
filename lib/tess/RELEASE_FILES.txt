@@ -57,6 +57,7 @@ formal/Tess/C/ZiAddMixed.lean
 formal/Tess/C/TrimLen.lean
 formal/Tess/C/ZiMem.lean
 formal/Tess/C/ZiModel.lean
+formal/Tess/C/MulC.lean
 formal/Tess/C/OrientGen.lean
 formal/Tess/C/OverflowModel.lean
 formal/Tess/C/SubC.lean

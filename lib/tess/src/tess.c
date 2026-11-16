@@ -8,7 +8,7 @@ static int sub(int64_t a, int64_t b, int64_t* r) {
   return 1;
 }
 static uint64_t mag(int64_t a) {
-  return a < 0 ? (uint64_t)(-(a + 1)) + 1 : (uint64_t)a;
+  return a < 0 ? (uint64_t)(-(a + 1)) + UINT64_C(1) : (uint64_t)a;
 }
 static int mul(int64_t a, int64_t b, int64_t* r) {
   uint64_t x = mag(a), y = mag(b), z;

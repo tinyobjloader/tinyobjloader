@@ -17,7 +17,7 @@ def sub : Func where
 def fid_mag : Nat := 1
 def mag : Func where
   params := [0]
-  body := (.ret (some (.cond (.bin .lt (some ⟨64, true⟩) (.var 0) (.cast ⟨64, true⟩ (.const (.int ⟨32, true⟩ 0)))) (.bin .add (some ⟨64, false⟩) (.cast ⟨64, false⟩ (.un .neg ⟨64, true⟩ (.bin .add (some ⟨64, true⟩) (.var 0) (.cast ⟨64, true⟩ (.const (.int ⟨32, true⟩ 1)))))) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 1)))) (.cast ⟨64, false⟩ (.var 0)))))
+  body := (.ret (some (.cond (.bin .lt (some ⟨64, true⟩) (.var 0) (.cast ⟨64, true⟩ (.const (.int ⟨32, true⟩ 0)))) (.bin .add (some ⟨64, false⟩) (.cast ⟨64, false⟩ (.un .neg ⟨64, true⟩ (.bin .add (some ⟨64, true⟩) (.var 0) (.cast ⟨64, true⟩ (.const (.int ⟨32, true⟩ 1)))))) (.const (.int ⟨64, false⟩ 1))) (.cast ⟨64, false⟩ (.var 0)))))
 
 /-- `mul` (function id 2). Locals: 0=a, 1=b, 2=r, 3=x, 4=y, 5=z, 6=neg, 7=cap -/
 def fid_mul : Nat := 2
