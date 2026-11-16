@@ -4,7 +4,7 @@ Implemented against `../../robust-ngon-remeshing-c11-lean4-prompt.md`.
 Release evidence below was collected on 2026-11-14. The deliverable is a bounded
 reference library, not a convergence guarantee or full C refinement proof.
 
-**Current authoritative proof-audit count: 1949 Tess declarations** (re-run
+**Current authoritative proof-audit count: 1952 Tess declarations** (re-run
 2026-11-16 after `C/ZiValue`; standard axioms only). Declaration counts quoted in the dated
 sections below are historical snapshots.
 
@@ -483,3 +483,4 @@ disabled for the documented tracing limitation).
 - `pairOk_of_shared_edge_noncoplanar`: no false rejection for noncoplanar faces sharing an edge (their common
   points are on the edge and `allowed_of_edge_point` admits them); `edgesAgainst_false_contact'` extracts the
   non-allowed contact point of a rejected edge check.
+- `pairOk_iff_shared_vertex_noncoplanar`: for noncoplanar faces with one shared vertex the auditor accepts exactly when the triangles meet only there.

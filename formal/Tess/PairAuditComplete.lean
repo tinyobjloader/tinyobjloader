@@ -438,5 +438,82 @@ theorem pairOk_of_shared_edge_noncoplanar (m : ExactMesh) (fa fb : Face) (pa pb 
     rw [ht, allowed_of_edge_point m fb fa ix iy hd2 t t0 t1] at hal
     exact absurd hal (by decide)
 
+/-- Noncoplanar faces are accepted as soon as every common point is admitted by `allowed` (in both
+argument orders). -/
+theorem pairOk_of_common_allowed (m : ExactMesh) (fa fb : Face) (pa pb : Nat)
+    (hpa : projAxis m fa = some pa) (hpb : projAxis m fb = some pb)
+    (hnc : ¬ ((List.range 3).all fun k => decide (planeValue m fa (facePoint m fb k) = 0)) = true)
+    (h1 : ∀ r : Point3, Hull3 (m.point fa.a) (m.point fa.b) (m.point fa.c) r →
+      Hull3 (m.point fb.a) (m.point fb.b) (m.point fb.c) r → allowed m fa fb r = true)
+    (h2 : ∀ r : Point3, Hull3 (m.point fa.a) (m.point fa.b) (m.point fa.c) r →
+      Hull3 (m.point fb.a) (m.point fb.b) (m.point fb.c) r → allowed m fb fa r = true) :
+    pairOk m fa fb = true := by
+  by_contra hrej
+  have hrej' : pairOk m fa fb = false := by simpa using hrej
+  unfold pairOk at hrej'
+  rw [hpa, hpb] at hrej'
+  have hcop : ((List.range 3).all fun k => decide (planeValue m fa (facePoint m fb k) = 0)) = false := by
+    cases h : (List.range 3).all fun k => decide (planeValue m fa (facePoint m fb k) = 0)
+    · rfl
+    · exact absurd h hnc
+  simp only [hcop, Bool.false_eq_true, if_false, Bool.and_eq_false_iff] at hrej'
+  rcases hrej' with h | h
+  · obtain ⟨i, hi, r, s, s0, s1, hr, hH, hal⟩ := edgesAgainst_false_contact' m fa fb pb hpb h
+    have hrA : Hull3 (m.point fa.a) (m.point fa.b) (m.point fa.c) r := by
+      rw [hr]; exact hull3_face_edge m fa i hi s s0 s1
+    rw [h1 r hrA hH] at hal; exact absurd hal (by decide)
+  · obtain ⟨i, hi, r, s, s0, s1, hr, hH, hal⟩ := edgesAgainst_false_contact' m fb fa pa hpa h
+    have hrB : Hull3 (m.point fb.a) (m.point fb.b) (m.point fb.c) r := by
+      rw [hr]; exact hull3_face_edge m fb i hi s s0 s1
+    rw [h2 r hH hrB] at hal; exact absurd hal (by decide)
+
+theorem allowed_of_vertex (m : ExactMesh) (fa fb : Face) (vid : Nat) (hd : commonIds fa fb = [vid]) :
+    allowed m fa fb (m.point vid) = true := by
+  unfold allowed
+  rw [hd]
+  simp
+
+/-- Noncoplanar faces whose only common point is the single shared vertex are accepted. -/
+theorem pairOk_of_shared_vertex_noncoplanar (m : ExactMesh) (fa fb : Face) (pa pb : Nat)
+    (hpa : projAxis m fa = some pa) (hpb : projAxis m fb = some pb) (vid : Nat)
+    (hd1 : commonIds fa fb = [vid]) (hd2 : commonIds fb fa = [vid])
+    (hnc : ¬ ((List.range 3).all fun k => decide (planeValue m fa (facePoint m fb k) = 0)) = true)
+    (honly : ∀ r : Point3, Hull3 (m.point fa.a) (m.point fa.b) (m.point fa.c) r →
+      Hull3 (m.point fb.a) (m.point fb.b) (m.point fb.c) r → r = m.point vid) :
+    pairOk m fa fb = true :=
+  pairOk_of_common_allowed m fa fb pa pb hpa hpb hnc
+    (fun r hA hB => by rw [honly r hA hB]; exact allowed_of_vertex m fa fb vid hd1)
+    (fun r hA hB => by rw [honly r hA hB]; exact allowed_of_vertex m fb fa vid hd2)
+
+/-- Noncoplanar faces sharing exactly one vertex: the auditor accepts exactly when the triangles
+meet only at that vertex. -/
+theorem pairOk_iff_shared_vertex_noncoplanar (m : ExactMesh) (fa fb : Face) (pa pb : Nat)
+    (hpa : projAxis m fa = some pa) (hpb : projAxis m fb = some pb)
+    (vid j l : Nat) (hj : j < 3) (hl : l < 3)
+    (hvj : faceId fa j = vid) (hvl : faceId fb l = vid)
+    (hd1 : commonIds fa fb = [vid]) (hd2 : commonIds fb fa = [vid])
+    (hnc' : ¬ (orient3 (m.point fa.a) (m.point fa.b) (m.point fa.c) (m.point fb.a) = 0 ∧
+               orient3 (m.point fa.a) (m.point fa.b) (m.point fa.c) (m.point fb.b) = 0 ∧
+               orient3 (m.point fa.a) (m.point fa.b) (m.point fa.c) (m.point fb.c) = 0))
+    (hnc'' : ¬ (orient3 (m.point fb.a) (m.point fb.b) (m.point fb.c) (m.point fa.a) = 0 ∧
+                orient3 (m.point fb.a) (m.point fb.b) (m.point fb.c) (m.point fa.b) = 0 ∧
+                orient3 (m.point fb.a) (m.point fb.b) (m.point fb.c) (m.point fa.c) = 0)) :
+    pairOk m fa fb = true ↔
+      ∀ r : Point3, Hull3 (m.point fa.a) (m.point fa.b) (m.point fa.c) r →
+        Hull3 (m.point fb.a) (m.point fb.b) (m.point fb.c) r → r = m.point vid := by
+  have hnc : ¬ ((List.range 3).all fun k => decide (planeValue m fa (facePoint m fb k) = 0)) = true := by
+    intro h
+    apply hnc'
+    simp only [List.range_succ, List.range_zero, List.nil_append, List.all_append, List.all_cons,
+      List.all_nil, Bool.and_true, facePoint, planeValue_eq_orient3] at h
+    simp only [Nat.reduceEqDiff, if_true, if_false, ite_true, ite_false, decide_eq_true_eq,
+      Bool.and_eq_true] at h
+    exact ⟨h.1.1, h.1.2, h.2⟩
+  constructor
+  · intro hok r hA hB
+    exact accepted_shared_vertex_only m fa fb pa pb hpa hpb vid j l hj hl hvj hvl hd1 hd2 hnc' hnc'' hok r hA hB
+  · intro honly
+    exact pairOk_of_shared_vertex_noncoplanar m fa fb pa pb hpa hpb vid hd1 hd2 hnc honly
+
 end PairAudit
 end Tess
