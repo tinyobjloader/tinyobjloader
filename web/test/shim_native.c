@@ -250,6 +250,27 @@ static void test_texture_names(void) {
   free(mtl);
 }
 
+static void test_corner_vertices(void) {
+  size_t obj_len = 0;
+  uint8_t *obj = read_file("models/skin-weight.obj", &obj_len);
+  uint32_t corner = 99;
+  int h;
+
+  CHECK(obj, "skin-weight.obj missing");
+  if (!obj) return;
+  h = tobjw_load_memory(obj, obj_len, NULL, 0, NULL, 0);
+  CHECK(h > 0, "skin: load failed: %s", tobjw_last_message());
+  if (h <= 0) return;
+  CHECK(tobjw_corner_vertex(h, 0, 0, &corner) == 1 && corner == 0,
+        "skin: corner 0 vertex id %u", corner);
+  CHECK(tobjw_corner_vertex(h, 0, 1, &corner) == 1 && corner == 1,
+        "skin: corner 1 vertex id %u", corner);
+  CHECK(tobjw_corner_vertex(h, 0, 99999, &corner) == 0,
+        "skin: out-of-range corner accepted");
+  tobjw_destroy(h);
+  free(obj);
+}
+
 static void test_bad_input(void) {
   const uint8_t junk[] = "this is not an obj file\nf 1 2\nv \n###\n";
   const int h = tobjw_load_memory(junk, sizeof junk - 1u, NULL, 0, NULL, 0);
@@ -271,6 +292,7 @@ int main(void) {
   test_ngon();
   test_uv();
   test_texture_names();
+  test_corner_vertices();
   test_bad_input();
   if (failures) {
     fprintf(stderr, "%d check(s) failed\n", failures);

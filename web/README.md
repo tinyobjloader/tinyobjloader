@@ -137,6 +137,13 @@ from a CDN. The demo supports:
 - **Shape selection** — click a shape in the 3D view or in the Shapes list to
   highlight it (wireframe + bounding box) and see its name, triangle count,
   bounds and the materials it uses. The panel has Shapes / Materials tabs.
+- **Subdivision** — a level selector (0–2) applies a linear midpoint refinement
+  preview; the shape detail shows the scheme and crease count from the `t` tags.
+  Large meshes are capped so the preview never exhausts memory.
+- **Skinning** — `vw` weights (parsed in JS; the C11 loader does not decode them)
+  and `skel_*` joints drive a `SkinnedMesh`. Pick a bone in the Heatmap selector
+  to colour vertices by that bone's weight (blue → red). Play/pause or scrub the
+  timeline to preview a procedural bone animation.
 - **Large scenes** — the wasm build starts with 512 MB of memory (2 GB maximum)
   and the loader caps are raised, so `models/dragon.obj` (~71 MB, 871k triangles)
   loads in the browser.

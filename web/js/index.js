@@ -39,6 +39,32 @@ export const TEXTURE_SLOTS = [
  */
 export default createTinyObjWasm;
 
+/** `vw` skin weights and `skel_*` lines are not parsed by the C11 loader. */
+function parseSkinFromSource(bytes) {
+  const text = new TextDecoder().decode(bytes);
+  const skinWeights = [];
+  const skelLines = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (line.startsWith('skel_')) {
+      skelLines.push(line);
+    } else if (line.startsWith('vw ')) {
+      const tokens = line.split(/\s+/);
+      const vertexId = Number(tokens[1]);
+      const joints = [];
+      for (let i = 2; i + 1 < tokens.length; i += 2) {
+        const id = Number(tokens[i]);
+        const weight = Number(tokens[i + 1]);
+        if (Number.isFinite(id) && Number.isFinite(weight)) {
+          joints.push({ id: id | 0, weight });
+        }
+      }
+      if (Number.isInteger(vertexId)) skinWeights.push({ vertexId, joints });
+    }
+  }
+  return { skinWeights, skelLines };
+}
+
 /**
  * Instantiates the wasm module once and returns a loader around it.
  *
@@ -121,6 +147,10 @@ export class TinyObj {
     let namePtr = 0;
     let descPtr = 0;
     let matPtr = 0;
+    let cornerPtr = 0;
+    let skinVidPtr = 0;
+    let skinJointPtr = 0;
+    let skinWPtr = 0;
     let handle = 0;
 
     try {
@@ -141,6 +171,10 @@ export class TinyObj {
 
       descPtr = module._malloc(DESC_SLOTS * 4);
       matPtr = module._malloc(MAT_SLOTS * 4);
+      cornerPtr = module._malloc(4);
+      skinVidPtr = module._malloc(4);
+      skinJointPtr = module._malloc(16);
+      skinWPtr = module._malloc(16);
 
       const shapes = [];
       for (let s = 0; s < numShapes; s++) {
@@ -155,13 +189,28 @@ export class TinyObj {
         const groupCount = desc[base + DESC_GROUP_COUNT];
         const namePtr2 = desc[base + DESC_NAME];
 
+        const cornerVertices = new Uint32Array(vertCount / STRIDE);
+        for (let c = 0; c < cornerVertices.length; c++) {
+          cornerVertices[c] = module._tobjw_corner_vertex(handle, s, c, cornerPtr)
+            ? module.HEAPU32[cornerPtr >>> 2]
+            : 0xffffffff;
+        }
+        const tagLines = [];
+        const numTags = module._tobjw_num_tag_lines(handle, s);
+        for (let t = 0; t < numTags; t++) {
+          const tagPtr = module._tobjw_tag_line(handle, s, t);
+          if (tagPtr) tagLines.push(module.UTF8ToString(tagPtr));
+        }
+
         shapes.push({
           name: namePtr2 ? module.UTF8ToString(namePtr2) : '',
           vertices: new Float32Array(
             module.HEAPF32.buffer, vertPtr, vertCount,
           ).slice(),
+          cornerVertices,
           triangleCount: desc[base + DESC_TRI_COUNT],
           groups: readGroups(module, groupPtr, groupCount),
+          tagLines,
         });
       }
 
@@ -193,13 +242,47 @@ export class TinyObj {
         });
       }
 
+      const skinWeights = [];
+      const numSkin = module._tobjw_num_skin_weights(handle);
+      for (let i = 0; i < numSkin; i++) {
+        const count = module._tobjw_skin_weight(
+          handle, i, skinVidPtr, skinJointPtr, skinWPtr, 4,
+        );
+        if (count < 0) continue;
+        const joints = [];
+        for (let j = 0; j < Math.min(count, 4); j++) {
+          joints.push({
+            id: module.HEAPU32[(skinJointPtr >>> 2) + j] | 0,
+            weight: module.HEAPF32[(skinWPtr >>> 2) + j],
+          });
+        }
+        skinWeights.push({
+          vertexId: module.HEAPU32[skinVidPtr >>> 2],
+          joints,
+        });
+      }
+      const skelLines = [];
+      const numSkel = module._tobjw_num_skel_lines(handle);
+      for (let i = 0; i < numSkel; i++) {
+        const skelPtr = module._tobjw_skel_line(handle, i);
+        if (skelPtr) skelLines.push(module.UTF8ToString(skelPtr));
+      }
+      const sourceSkin = parseSkinFromSource(objBytes);
+      if (!skinWeights.length) skinWeights.push(...sourceSkin.skinWeights);
+      if (!skelLines.length) skelLines.push(...sourceSkin.skelLines);
+
       return {
         shapes,
         materials,
+        skinWeights,
+        skelLines,
         message: module.UTF8ToString(module._tobjw_last_message()),
       };
     } finally {
-      for (const ptr of [descPtr, matPtr, namePtr, mtlPtr, objPtr]) {
+      for (const ptr of [
+        descPtr, matPtr, cornerPtr, skinVidPtr, skinJointPtr, skinWPtr,
+        namePtr, mtlPtr, objPtr,
+      ]) {
         if (ptr) module._free(ptr);
       }
       if (handle > 0) module._tobjw_destroy(handle);

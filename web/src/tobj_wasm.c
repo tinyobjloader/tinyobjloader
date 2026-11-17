@@ -28,10 +28,13 @@ typedef struct tobjw_group {
 
 typedef struct tobjw_shape_out {
   float *vertices;
+  uint32_t *corner_vertices; /* original file vertex id of each corner */
   uint32_t vert_count;
   uint32_t tri_count;
   tobjw_group *groups;
   uint32_t group_count;
+  const char **tag_lines; /* subd `t` lines of this mesh */
+  uint32_t num_tag_lines;
   const char *name; /* interned in the scene arena; valid until destroy */
 } tobjw_shape_out;
 
@@ -181,12 +184,16 @@ static int tobjw_copy_buf(const tobj_real_buf_f *buf, size_t first, size_t n,
 
 /* Writes one triangle (three corners) at `corner_base`. */
 static void tobjw_emit_tri(const tobj_attrib_f *attrib, const tobj_mesh_f *mesh,
-                           size_t face, float *corner_base) {
+                           size_t face, float *corner_base,
+                           uint32_t *corner_vertices) {
   const tobj_index *idx = &mesh->indices[3u * face];
   int have_normal = 1;
 
   for (int k = 0; k < 3; k++) {
     float *corner = corner_base + (size_t)k * TOBJ_W_STRIDE;
+    corner_vertices[k] = idx[k].vertex_index >= 0
+                             ? (uint32_t)idx[k].vertex_index
+                             : 0xFFFFFFFFu;
     corner[0] = corner[1] = corner[2] = 0.0f;
     corner[3] = corner[4] = corner[5] = 0.0f;
     corner[6] = corner[7] = 0.0f;
@@ -234,10 +241,13 @@ static tobj_result tobjw_emit_shape(const tobj_scene_f *scene,
   tobj_result r = TOBJ_OK;
 
   out->vertices = NULL;
+  out->corner_vertices = NULL;
   out->vert_count = 0;
   out->tri_count = 0;
   out->groups = NULL;
   out->group_count = 0;
+  out->tag_lines = mesh->tag_lines;
+  out->num_tag_lines = (uint32_t)mesh->num_tag_lines;
   out->name = shape->name ? shape->name : "";
 
   if (num_faces == 0) return TOBJ_OK;
@@ -278,9 +288,11 @@ static tobj_result tobjw_emit_shape(const tobj_scene_f *scene,
 
   out->vertices =
       (float *)malloc((size_t)ntris * 3u * TOBJ_W_STRIDE * sizeof(float));
+  out->corner_vertices =
+      (uint32_t *)malloc((size_t)ntris * 3u * sizeof *out->corner_vertices);
   out->groups =
       (tobjw_group *)malloc((size_t)num_buckets * sizeof *out->groups);
-  if (!out->vertices || !out->groups) {
+  if (!out->vertices || !out->corner_vertices || !out->groups) {
     r = TOBJ_ERR_ALLOC;
     goto done;
   }
@@ -288,7 +300,8 @@ static tobj_result tobjw_emit_shape(const tobj_scene_f *scene,
   for (uint32_t t = 0; t < ntris; t++) {
     const uint32_t slot = bucket_fill[tri_bucket[t]]++;
     tobjw_emit_tri(&scene->attrib, mesh, tri_face[t],
-                   out->vertices + (size_t)slot * 3u * TOBJ_W_STRIDE);
+                   out->vertices + (size_t)slot * 3u * TOBJ_W_STRIDE,
+                   out->corner_vertices + (size_t)slot * 3u);
   }
 
   for (uint32_t i = 0; i < num_buckets; i++) {
@@ -310,8 +323,10 @@ done:
   free(bucket_fill);
   if (r != TOBJ_OK) {
     free(out->vertices);
+    free(out->corner_vertices);
     free(out->groups);
     out->vertices = NULL;
+    out->corner_vertices = NULL;
     out->groups = NULL;
     out->vert_count = 0;
     out->tri_count = 0;
@@ -352,6 +367,7 @@ static void tobjw_model_free(tobjw_model *m) {
   if (m->shapes) {
     for (int i = 0; i < m->num_shapes; i++) {
       free(m->shapes[i].vertices);
+      free(m->shapes[i].corner_vertices);
       free(m->shapes[i].groups);
     }
     free(m->shapes);
@@ -542,4 +558,72 @@ const char *tobjw_material_texname(int handle, int material, int slot) {
     default: return NULL;
   }
   return name ? name : "";
+}
+
+int tobjw_corner_vertex(int handle, int shape, uint32_t corner, uint32_t *out) {
+  const tobjw_model *m;
+  const tobjw_shape_out *s;
+  if (!out || !tobjw_handle_valid(handle)) return 0;
+  m = tobjw_models[handle - 1];
+  if (shape < 0 || shape >= m->num_shapes) return 0;
+  s = &m->shapes[shape];
+  if (corner >= s->tri_count * 3u) return 0;
+  *out = s->corner_vertices[corner];
+  return 1;
+}
+
+int tobjw_num_skin_weights(int handle) {
+  if (!tobjw_handle_valid(handle)) return 0;
+  return (int)tobjw_models[handle - 1]->scene.attrib.num_skin_weights;
+}
+
+int tobjw_skin_weight(int handle, int index, uint32_t *vertex_id,
+                      int32_t *joint_ids, float *weights, int max_joints) {
+  const tobjw_model *m;
+  const tobj_skin_weight_f *sw;
+  int n, i;
+  if (!vertex_id || !joint_ids || !weights || max_joints < 0) return -1;
+  if (!tobjw_handle_valid(handle)) return -1;
+  m = tobjw_models[handle - 1];
+  if (index < 0 || (size_t)index >= m->scene.attrib.num_skin_weights) return -1;
+  sw = &m->scene.attrib.skin_weights[index];
+  *vertex_id = (uint32_t)sw->vertex_id;
+  n = (int)sw->num_weights;
+  if (n > max_joints) n = max_joints;
+  for (i = 0; i < n; i++) {
+    joint_ids[i] = (int32_t)sw->weights[i].joint_id;
+    weights[i] = sw->weights[i].weight;
+  }
+  return (int)sw->num_weights;
+}
+
+int tobjw_num_skel_lines(int handle) {
+  if (!tobjw_handle_valid(handle)) return 0;
+  return (int)tobjw_models[handle - 1]->scene.attrib.num_skel_lines;
+}
+
+const char *tobjw_skel_line(int handle, int index) {
+  const tobjw_model *m;
+  if (!tobjw_handle_valid(handle)) return NULL;
+  m = tobjw_models[handle - 1];
+  if (index < 0 || (size_t)index >= m->scene.attrib.num_skel_lines) return NULL;
+  return m->scene.attrib.skel_lines[index];
+}
+
+int tobjw_num_tag_lines(int handle, int shape) {
+  const tobjw_model *m;
+  if (!tobjw_handle_valid(handle)) return 0;
+  m = tobjw_models[handle - 1];
+  if (shape < 0 || shape >= m->num_shapes) return 0;
+  return (int)m->shapes[shape].num_tag_lines;
+}
+
+const char *tobjw_tag_line(int handle, int shape, int index) {
+  const tobjw_model *m;
+  if (!tobjw_handle_valid(handle)) return NULL;
+  m = tobjw_models[handle - 1];
+  if (shape < 0 || shape >= m->num_shapes) return NULL;
+  if (index < 0 || (uint32_t)index >= m->shapes[shape].num_tag_lines)
+    return NULL;
+  return m->shapes[shape].tag_lines[index];
 }

@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 import { initTinyObj, STRIDE, NO_MATERIAL } from '../js/index.js';
+import { parseSubdTags, subdivideShape } from './subd.js';
 
 const canvas = document.getElementById('view');
 const status = document.getElementById('status');
@@ -29,6 +30,11 @@ const materialsView = document.getElementById('materials-view');
 const shadingSelect = document.getElementById('shading');
 const texturesCheck = document.getElementById('textures');
 const resetButton = document.getElementById('reset');
+const subdivSelect = document.getElementById('subdiv');
+const boneSelect = document.getElementById('bone');
+const playButton = document.getElementById('play');
+const timelineInput = document.getElementById('timeline');
+const timeLabel = document.getElementById('time');
 
 const IMAGE_RE = /\.(png|jpe?g|webp|gif|bmp)$/i;
 
@@ -66,10 +72,18 @@ const pointer = new THREE.Vector2();
 let current = null;
 let currentModel = null;
 let currentMaterials = [];
+let currentMaps = [];
 let selectedIndex = -1;
 let highlightBox = null;
 let highlightWire = null;
 let pointerStart = null;
+let subdivLevel = 0;
+let boneIndex = -1;
+let skinData = null; // { root, bones, skeleton, weightByVertex }
+let heatMaterial = null;
+let playing = false;
+let timelineValue = 0;
+let lastFrameTime = 0;
 let tinyobj = null;
 let textureUrls = [];
 let textureFiles = new Map();
@@ -148,6 +162,152 @@ function clamp01(v) {
 
 function baseName(path) {
   return String(path).replace(/\\/g, '/').split('/').pop().toLowerCase();
+}
+
+function populateBoneSelect() {
+  boneSelect.replaceChildren();
+  const off = document.createElement('option');
+  off.value = '-1';
+  off.textContent = 'Off';
+  boneSelect.append(off);
+  if (skinData) {
+    skinData.joints.forEach((joint, index) => {
+      const option = document.createElement('option');
+      option.value = String(index);
+      option.textContent = joint.name;
+      boneSelect.append(option);
+    });
+  }
+  boneSelect.disabled = !skinData;
+  playButton.disabled = !skinData;
+  timelineInput.disabled = !skinData;
+  boneSelect.value = '-1';
+}
+
+function parseSkeleton(lines) {
+  const joints = [];
+  for (const line of lines) {
+    const token = String(line).split(/\s+/);
+    if (token[0] === 'skel_joint' && token.length >= 3) {
+      const bind = token.length >= 19 ? token.slice(3, 19).map(Number) : null;
+      joints.push({
+        name: token[1],
+        parentName: token[2] === '-' ? null : token[2],
+        bind,
+        rest: null,
+      });
+    } else if (token[0] === 'skel_rest' && token.length >= 18 && joints.length) {
+      const joint = joints.find((j) => j.name === token[1]);
+      if (joint) joint.rest = token.slice(2, 18).map(Number);
+    }
+  }
+  for (const joint of joints) {
+    joint.parent = joint.parentName
+      ? joints.findIndex((j) => j.name === joint.parentName)
+      : -1;
+  }
+  return joints;
+}
+
+function buildSkinData(model) {
+  if (!model.skinWeights?.length || !model.skelLines?.length) return null;
+  const joints = parseSkeleton(model.skelLines);
+  if (!joints.length) return null;
+  const bones = joints.map((joint) => {
+    const bone = new THREE.Bone();
+    bone.name = joint.name;
+    const matrix = joint.bind || joint.rest;
+    bone.userData.world = matrix?.length === 16
+      ? new THREE.Vector3(matrix[12], matrix[13], matrix[14])
+      : new THREE.Vector3();
+    return bone;
+  });
+  bones.forEach((bone, i) => {
+    const parent = joints[i].parent;
+    if (parent >= 0) {
+      bone.position.copy(bone.userData.world).sub(bones[parent].userData.world);
+      bones[parent].add(bone);
+    } else {
+      bone.position.copy(bone.userData.world);
+    }
+  });
+  const root = bones.find((bone) => bone.parent === null) || bones[0];
+  root.updateMatrixWorld(true);
+  return {
+    joints,
+    bones,
+    root,
+    skeleton: new THREE.Skeleton(bones),
+    weightByVertex: new Map(
+      model.skinWeights.map((weight) => [weight.vertexId, weight.joints]),
+    ),
+  };
+}
+
+function attachSkinAttributes(geometry, shape) {
+  if (!skinData) return;
+  const corners = shape.cornerVertices.length;
+  const indices = new Uint16Array(corners * 4);
+  const weights = new Float32Array(corners * 4);
+  for (let c = 0; c < corners; c++) {
+    const joints = skinData.weightByVertex.get(shape.cornerVertices[c]) || [];
+    for (let j = 0; j < 4; j++) {
+      const src = joints[j];
+      const id = src ? src.id : 0;
+      indices[c * 4 + j] = id >= 0 && id < skinData.bones.length ? id : 0;
+      weights[c * 4 + j] = src ? src.weight : 0;
+    }
+  }
+  geometry.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(indices, 4));
+  geometry.setAttribute('skinWeight', new THREE.BufferAttribute(weights, 4));
+}
+
+function applyHeatmap() {
+  for (const mesh of current?.children || []) {
+    const geometry = mesh.geometry;
+    mesh.userData.baseMaterials ||= mesh.material;
+    if (boneIndex < 0 || !geometry.getAttribute('skinWeight')) {
+      mesh.material = mesh.userData.baseMaterials;
+      geometry.deleteAttribute('color');
+      continue;
+    }
+    const ia = geometry.getAttribute('skinIndex').array;
+    const wa = geometry.getAttribute('skinWeight').array;
+    const colors = new Float32Array((ia.length / 4) * 3);
+    for (let c = 0; c < colors.length / 3; c++) {
+      let weight = 0;
+      for (let j = 0; j < 4; j++) {
+        if (ia[c * 4 + j] === boneIndex) weight += wa[c * 4 + j];
+      }
+      const color = new THREE.Color().setHSL((1 - Math.min(weight, 1)) * 0.66, 1, 0.5);
+      colors[c * 3] = color.r;
+      colors[c * 3 + 1] = color.g;
+      colors[c * 3 + 2] = color.b;
+    }
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    heatMaterial ||= new THREE.MeshPhongMaterial({
+      vertexColors: true,
+      side: THREE.DoubleSide,
+    });
+    const maxIndex = geometry.groups.reduce((n, g) => Math.max(n, g.materialIndex), 0);
+    mesh.material = Array.from({ length: maxIndex + 1 }, () => heatMaterial);
+  }
+}
+
+function applyPose() {
+  if (!skinData) return;
+  const t = timelineValue * Math.PI * 2;
+  for (let i = 0; i < skinData.bones.length; i++) {
+    skinData.bones[i].rotation.set(
+      Math.sin(t + i * 0.7) * 0.12,
+      Math.sin(t * 0.5 + i * 1.1) * 0.3,
+      Math.cos(t * 0.7 + i * 0.5) * 0.08,
+    );
+  }
+  skinData.root.updateMatrixWorld(true);
+  skinData.skeleton.update();
+  timelineInput.value = String(Math.round(timelineValue * 1000));
+  timeLabel.textContent = `${(timelineValue * 2).toFixed(2)}s`;
 }
 
 function loadImageTexture(file, srgb) {
@@ -250,6 +410,7 @@ function buildGroup(model, maps) {
       'uv',
       new THREE.InterleavedBufferAttribute(buffer, 2, 6),
     );
+    attachSkinAttributes(geometry, shape);
 
     const materials = model.materials.map((entry, i) =>
       materialFor(entry, maps[i]),
@@ -266,7 +427,10 @@ function buildGroup(model, maps) {
     }
 
     geometry.computeBoundingSphere();
-    const mesh = new THREE.Mesh(geometry, materials);
+    const mesh = skinData
+      ? new THREE.SkinnedMesh(geometry, materials)
+      : new THREE.Mesh(geometry, materials);
+    if (skinData) mesh.bind(skinData.skeleton);
     mesh.userData.shapeIndex = shapeIndex;
     group.add(mesh);
     if (shape.name) group.name = shape.name;
@@ -417,6 +581,10 @@ function renderSelection() {
   row('name', shape.name || `shape ${selectedIndex}`);
   row('tris', String(shape.triangleCount));
   row('groups', String(shape.groups.length));
+  if (shape.tagLines?.length) {
+    const tags = parseSubdTags(shape.tagLines);
+    row('subd', `${tags.scheme}${tags.creases ? ` · ${tags.creases} creases` : ''}`);
+  }
   row('size', `${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)}`);
   selectionDetailEl.append(list);
 
@@ -452,11 +620,44 @@ function renderPanel(model) {
   renderSelection();
 }
 
+function rebuildSubdivision() {
+  if (!currentModel || !current) return;
+  boneIndex = -1;
+  boneSelect.value = '-1';
+  applyHeatmap();
+  clearHighlight();
+  selectedIndex = -1;
+
+  const model = {
+    ...currentModel,
+    shapes: currentModel.shapes.map((shape) =>
+      subdivideShape(shape, subdivLevel),
+    ),
+  };
+  const group = buildGroup(model, currentMaps);
+  scene.remove(current);
+  disposeObject(current);
+  current = group;
+  currentMaterials = group.children.flatMap((child) => child.material).filter(
+    (material) => material !== fallbackMaterial,
+  );
+  scene.add(group);
+  applyShading();
+  applyHeatmap();
+  applyPose();
+  frame(group);
+  renderPanel(model);
+}
+
 async function showModel(objFile, mtl, extra) {
   setStatus(`Parsing ${objFile.name}…`);
 
   const obj = await objFile.arrayBuffer();
   const model = tinyobj.parse(obj, mtl);
+
+  if (skinData?.root) scene.remove(skinData.root);
+  skinData?.skeleton.dispose();
+  skinData = buildSkinData(model);
 
   // New textures get their own URL batch; old ones stay alive until the new
   // model is ready so a failed load leaves the current view intact.
@@ -471,6 +672,7 @@ async function showModel(objFile, mtl, extra) {
     throw error;
   }
   const group = buildGroup(model, maps);
+  currentMaps = maps;
   if (!group.children.length) {
     revokeUrls(textureUrls);
     textureUrls = oldUrls;
@@ -492,8 +694,14 @@ async function showModel(objFile, mtl, extra) {
     (material) => material !== fallbackMaterial,
   );
   scene.add(group);
+  if (skinData) scene.add(skinData.root);
+  boneIndex = -1;
+  populateBoneSelect();
   applyShading();
-  frame(group);
+  applyHeatmap();
+  applyPose();
+  if (subdivLevel > 0) rebuildSubdivision();
+  else frame(group);
   renderPanel(model);
 
   const triangles = model.shapes.reduce((n, s) => n + s.triangleCount, 0);
@@ -502,6 +710,7 @@ async function showModel(objFile, mtl, extra) {
     `${model.shapes.length} shape${model.shapes.length === 1 ? '' : 's'}`,
     `${model.materials.length} material${model.materials.length === 1 ? '' : 's'}`,
     ...extra,
+    ...(skinData ? [`${skinData.joints.length} bones`] : []),
   ];
   const warnings = model.message.trim();
   setStatus(
@@ -641,6 +850,22 @@ texturesCheck.addEventListener('change', () => {
 resetButton.addEventListener('click', () => {
   if (current) frame(current);
 });
+subdivSelect.addEventListener('change', () => {
+  subdivLevel = Number(subdivSelect.value);
+  rebuildSubdivision();
+});
+boneSelect.addEventListener('change', () => {
+  boneIndex = Number(boneSelect.value);
+  applyHeatmap();
+});
+playButton.addEventListener('click', () => {
+  playing = !playing;
+  playButton.textContent = playing ? '❚❚' : '▶';
+});
+timelineInput.addEventListener('input', () => {
+  timelineValue = Number(timelineInput.value) / 1000;
+  applyPose();
+});
 
 canvas.addEventListener('pointerdown', (event) => {
   pointerStart = { x: event.clientX, y: event.clientY };
@@ -681,6 +906,13 @@ document.addEventListener('keydown', (event) => {
 window.addEventListener('resize', resize);
 
 renderer.setAnimationLoop(() => {
+  const now = performance.now();
+  if (playing && skinData) {
+    const delta = lastFrameTime ? (now - lastFrameTime) / 1000 : 0;
+    timelineValue = (timelineValue + delta / 2) % 1;
+    applyPose();
+  }
+  lastFrameTime = now;
   controls.update();
   renderer.render(scene, camera);
 });

@@ -100,6 +100,22 @@ const char *tobjw_material_name(int handle, int material);
  * handle/material/slot. Valid until the handle is destroyed. */
 const char *tobjw_material_texname(int handle, int material, int slot);
 
+/* Original file vertex id (0-based) of one emitted corner. */
+int tobjw_corner_vertex(int handle, int shape, uint32_t corner, uint32_t *out);
+
+/* Skin weights from `vw` records. tobjw_skin_weight writes up to max_joints
+ * (joint id, weight) pairs and returns the total count for that vertex, or -1
+ * on a bad handle/index. */
+int tobjw_num_skin_weights(int handle);
+int tobjw_skin_weight(int handle, int index, uint32_t *vertex_id,
+                      int32_t *joint_ids, float *weights, int max_joints);
+
+/* Verbatim `skel_*` lines and per-mesh subdivision `t` lines. */
+int tobjw_num_skel_lines(int handle);
+const char *tobjw_skel_line(int handle, int index);
+int tobjw_num_tag_lines(int handle, int shape);
+const char *tobjw_tag_line(int handle, int shape, int index);
+
 #ifdef __cplusplus
 }
 #endif

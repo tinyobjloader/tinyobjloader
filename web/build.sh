@@ -33,7 +33,10 @@ root=$(cd .. && pwd)
 exports='["_malloc","_free"'
 for sym in tobjw_load_memory tobjw_destroy tobjw_last_message tobjw_version \
            tobjw_num_shapes tobjw_num_materials tobjw_shape_desc \
-           tobjw_material tobjw_material_name tobjw_material_texname; do
+           tobjw_material tobjw_material_name tobjw_material_texname \
+           tobjw_corner_vertex tobjw_num_skin_weights tobjw_skin_weight \
+           tobjw_num_skel_lines tobjw_skel_line tobjw_num_tag_lines \
+           tobjw_tag_line; do
   exports="$exports,\"_$sym\""
 done
 exports="$exports]"

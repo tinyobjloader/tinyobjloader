@@ -32,6 +32,13 @@ export interface TinyObjModule {
   _tobjw_material(handle: number, material: number, out: number): number;
   _tobjw_material_name(handle: number, material: number): number;
   _tobjw_material_texname(handle: number, material: number, slot: number): number;
+  _tobjw_corner_vertex(handle: number, shape: number, corner: number, out: number): number;
+  _tobjw_num_skin_weights(handle: number): number;
+  _tobjw_skin_weight(handle: number, index: number, vertexOut: number, jointsOut: number, weightsOut: number, maxJoints: number): number;
+  _tobjw_num_skel_lines(handle: number): number;
+  _tobjw_skel_line(handle: number, index: number): number;
+  _tobjw_num_tag_lines(handle: number, shape: number): number;
+  _tobjw_tag_line(handle: number, shape: number, index: number): number;
 }
 
 /** Options forwarded to the Emscripten factory. */
@@ -65,13 +72,27 @@ export interface Group {
   count: number;
 }
 
+export interface JointWeight {
+  id: number;
+  weight: number;
+}
+
+export interface SkinWeight {
+  vertexId: number;
+  joints: JointWeight[];
+}
+
 export interface Shape {
   name: string;
   /** Non-indexed interleaved corners, `STRIDE` floats each. */
   vertices: Float32Array;
+  /** Original file vertex id for each emitted corner. */
+  cornerVertices: Uint32Array;
   triangleCount: number;
   /** Contiguous, ascending, covering every triangle exactly once. */
   groups: Group[];
+  /** Verbatim subdivision `t` tag lines of this mesh. */
+  tagLines: string[];
 }
 
 /** Texture filenames by map kind, only for slots present in the .mtl. */
@@ -100,6 +121,10 @@ export interface Material {
 export interface Model {
   shapes: Shape[];
   materials: Material[];
+  /** `vw` skin weights, file-global vertex ids. */
+  skinWeights: SkinWeight[];
+  /** Verbatim `skel_*` lines describing the skeleton. */
+  skelLines: string[];
   /** Parser warnings, "" when the load was clean. */
   message: string;
 }

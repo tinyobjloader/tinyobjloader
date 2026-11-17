@@ -91,6 +91,34 @@ const tinyobj = await initTinyObj();
     'texture: has_kd should have no map');
 }
 
+/* --- skin weights, skeleton lines, subd tags and corner vertex ids ------ */
+{
+  const obj = await load('skin-weight.obj');
+  const model = tinyobj.parse(obj);
+  check(model.skinWeights.length === 7,
+    `skin: ${model.skinWeights.length} vw records, want 7`);
+  check(model.skinWeights[1].joints.length === 2 &&
+        model.skinWeights[1].joints[0].id === 0 &&
+        Math.abs(model.skinWeights[1].joints[0].weight - 0.5) < 1e-6,
+    `skin: vw 1 ${JSON.stringify(model.skinWeights[1])}`);
+  check(Array.from(model.shapes[0].cornerVertices.slice(0, 3)).join(',') === '0,1,2',
+    'skin: corner vertex ids');
+
+  const rig = tinyobj.parse(
+    await readFile(path.join(repo, 'fuzzer', 'corpus', 'skel', 'rig.obj')),
+  );
+  check(rig.skelLines.length === 6,
+    `skel: ${rig.skelLines.length} lines, want 6`);
+  check(rig.skelLines[0].startsWith('skel_joint hips'),
+    `skel: first line ${rig.skelLines[0]}`);
+
+  const sub = tinyobj.parse(
+    await readFile(path.join(repo, 'fuzzer', 'corpus', 'subd', 'box.obj')),
+  );
+  check(sub.shapes[0].tagLines.some((line) => line.startsWith('t interpolateboundary')),
+    'subd: tag lines missing');
+}
+
 /* --- cornell_box.obj, mtl name omitted ---------------------------------- */
 {
   const obj = await load('cornell_box.obj');

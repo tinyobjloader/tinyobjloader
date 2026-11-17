@@ -283,6 +283,21 @@
         </select>
       </label>
       <label><input id="textures" type="checkbox" checked /> Textures</label>
+      <label>
+        Subdiv
+        <select id="subdiv">
+          <option value="0">0</option>
+          <option value="1">1</option>
+          <option value="2">2</option>
+        </select>
+      </label>
+      <label>
+        Heatmap
+        <select id="bone" disabled><option value="-1">Off</option></select>
+      </label>
+      <button id="play" type="button" disabled>▶</button>
+      <input id="timeline" type="range" min="0" max="1000" value="0" disabled />
+      <span id="time">0.00s</span>
       <button id="reset" type="button">Reset view</button>
     </div>
 
