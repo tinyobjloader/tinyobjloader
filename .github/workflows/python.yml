@@ -154,6 +154,15 @@ jobs:
         uses: pypa/cibuildwheel@v4.3.5
         env:
             CIBW_ARCHS_WINDOWS: "ARM64"
+            # cibuildwheel v4.0.0 made delvewheel the default repair command on
+            # Windows. This job cross-compiles ARM64 on an x64 runner, so
+            # delvewheel looks for an arm64 msvcp140.dll that does not exist
+            # here and aborts with:
+            #   FileNotFoundError: Unable to find library: msvcp140.dll
+            # The wheel does not need vendoring (v3.3.1 shipped these unmodified,
+            # and the AMD64 job still repairs normally), so clear the command
+            # for this job only.
+            CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: ""
 
       - uses: actions/upload-artifact@v4
         with:
