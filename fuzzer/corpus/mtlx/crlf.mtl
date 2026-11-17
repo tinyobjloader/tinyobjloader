@@ -1,0 +1,3 @@
+newmtl crlf2
+mtlx_surface s standard_surface
+mtlx_input s.base float 1

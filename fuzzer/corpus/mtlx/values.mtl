@@ -1,0 +1,8 @@
+newmtl m
+mtlx_surface s open_pbr_surface
+mtlx_node t image color3
+mtlx_input t.file filename "unterminated
+mtlx_input s.base_color color3 1 @t
+mtlx_input s.x matrix44 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1
+mtlx_input s.y floatarray 1 2 3
+mtlx_input s.z boolean maybe

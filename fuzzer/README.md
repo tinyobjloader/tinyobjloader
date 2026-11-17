@@ -49,3 +49,14 @@ $ ./fuzz_ParseFromString -rss_limit_mb=2000
 ## Regression tests
 
 See `regression_runner/`
+
+## MaterialX-in-MTL parser
+
+`fuzz_tobj_mtlx.c` fuzzes `tobj_mtlx.c` (whole-file parse, the per-material
+line API and both writers). Seeds are in `corpus/mtlx/`.
+
+```
+$ clang -std=c11 -g -O1 -fsanitize=address,undefined,fuzzer -I.. \
+    fuzz_tobj_mtlx.c ../tobj_mtlx.c -o fuzz_tobj_mtlx
+$ mkdir -p work && ./fuzz_tobj_mtlx work corpus/mtlx
+```

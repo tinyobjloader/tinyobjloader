@@ -1,0 +1,9 @@
+mtlx_surface early standard_surface
+newmtl été 1
+mtlx_version 1.38
+mtlx_version 1.39
+mtlx_surface s standard_surface
+mtlx_include lib/a.mtlx
+newmtl été 1
+mtlx_surface s standard_surface
+mtlx_include lib/a.mtlx
