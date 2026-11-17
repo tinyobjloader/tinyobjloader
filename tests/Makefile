@@ -102,12 +102,14 @@ check_c_freestanding: tester_c_freestanding
 	./tester_c_freestanding
 
 # MaterialX-in-MTL (tobj_mtlx): loader integration on the spec fixtures.
-check_mtlx: ../tobj_mtlx.c ../tobj_mtlx.h mtlx_loader_test.c mtlx_loader_test_cxx.cc
+check_mtlx: ../tobj_mtlx.c ../tobj_mtlx.h mtlx_loader_test.c mtlx_loader_test_cxx.cc mtlx_roundtrip.c
 	$(CC) -std=c11 -g -fsanitize=address,undefined -o mtlx_loader_test mtlx_loader_test.c ../tiny_obj_c.c ../tobj_tess.c ../tobj_mtlx.c -lm
 	$(CC) -std=c11 -g -fsanitize=address,undefined -c -o tobj_mtlx.o ../tobj_mtlx.c
 	$(CXX) -std=c++11 -g -fsanitize=address,undefined -o mtlx_loader_test_cxx mtlx_loader_test_cxx.cc tobj_mtlx.o
 	./mtlx_loader_test ../formal/Mtlx/tests/*.mtl
 	./mtlx_loader_test_cxx ../formal/Mtlx/tests/*.mtl
+	$(CC) -std=c11 -g -Wall -Wextra -fsanitize=address,undefined -o mtlx_roundtrip mtlx_roundtrip.c ../tobj_mtlx.c
+	./mtlx_roundtrip ../formal/Mtlx/tests/*.mtl ../fuzzer/corpus/mtlx/*.mtl
 
 clean:
 	rm -rf tester tester_features tester_nofastfloat \

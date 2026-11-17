@@ -940,6 +940,120 @@ char *tobj_mtlx_dump(const tobj_mtlx_doc *doc, size_t *out_len) {
   return b.p;
 }
 
+/* ---------------------------------------------------------------- .mtl writer
+ * Canonical extension lines; parse(to_mtl(doc)) has the same XML as doc. */
+
+/* One token. `esc` re-adds the `@@` escape removed by the parser (values). */
+static void put_tok(sb *b, const char *s, int esc) {
+  int quote = *s == '\0' || *s == '"';
+  for (const char *c = s; *c; c++)
+    if (is_blank(*c) || *c == '\r') quote = 1;
+  sb_puts(b, " ");
+  if (quote) sb_puts(b, "\"");
+  if (esc && *s == '@') sb_puts(b, "@");
+  sb_puts(b, s);
+  if (quote) sb_puts(b, "\"");
+}
+
+static void put_ep(sb *b, const char *kw, const char *node, const char *port) {
+  sb_puts(b, kw);
+  sb_puts(b, " ");
+  sb_puts(b, node);
+  sb_puts(b, ".");
+  sb_puts(b, port);
+}
+
+static void mat_mtl(sb *b, const tobj_mtlx_material *m) {
+  sb_puts(b, "newmtl ");
+  sb_puts(b, m->name);
+  /* the reader drops one trailing '\r' */
+  size_t nl = strlen(m->name);
+  if (nl && m->name[nl - 1] == '\r') sb_puts(b, "\r");
+  sb_puts(b, "\n");
+  if (!accepted(m)) return;
+  for (size_t i = 0; i < m->num_versions; i++) {
+    sb_puts(b, "mtlx_version");
+    put_tok(b, m->versions[i], 0);
+    sb_puts(b, "\n");
+  }
+  sb_puts(b, "mtlx_surface ");
+  sb_puts(b, m->surface[0]);
+  sb_puts(b, " ");
+  sb_puts(b, m->surface[1]);
+  sb_puts(b, "\n");
+  for (size_t i = 0; i < m->num_nodes; i++) {
+    sb_puts(b, "mtlx_node ");
+    sb_puts(b, m->nodes[i].name);
+    sb_puts(b, " ");
+    sb_puts(b, m->nodes[i].category);
+    sb_puts(b, " ");
+    sb_puts(b, m->nodes[i].type);
+    sb_puts(b, "\n");
+  }
+  for (size_t i = 0; i < m->num_inputs; i++) {
+    const tobj_mtlx_input *in = &m->inputs[i];
+    put_ep(b, "mtlx_input", in->node, in->port);
+    sb_puts(b, " ");
+    sb_puts(b, in->type);
+    if (str_eq(in->type, "string") || str_eq(in->type, "filename")) {
+      put_tok(b, in->value, 1);
+    } else { /* value text is the tokens joined with ", " */
+      const char *p = in->value;
+      for (;;) {
+        const char *e = strstr(p, ", ");
+        size_t n = e ? (size_t)(e - p) : strlen(p);
+        sl piece = {p, n};
+        char *t = dup_sl(piece);
+        if (!t) {
+          b->oom = 1;
+          return;
+        }
+        put_tok(b, t, 1);
+        free(t);
+        if (!e) break;
+        p = e + 2;
+      }
+    }
+    sb_puts(b, "\n");
+  }
+  for (size_t i = 0; i < m->num_colorspaces; i++) {
+    const tobj_mtlx_colorspace *c = &m->colorspaces[i];
+    put_ep(b, "mtlx_colorspace", c->node, c->port);
+    put_tok(b, c->colorspace, 0);
+    sb_puts(b, "\n");
+  }
+  for (size_t i = 0; i < m->num_conns; i++) {
+    const tobj_mtlx_conn *c = &m->conns[i];
+    put_ep(b, "mtlx_input", c->dst, c->port);
+    sb_puts(b, " ");
+    sb_puts(b, c->type);
+    sb_puts(b, " @");
+    sb_puts(b, c->src);
+    if (c->src_out) {
+      sb_puts(b, ".");
+      sb_puts(b, c->src_out);
+    }
+    sb_puts(b, "\n");
+  }
+  for (size_t i = 0; i < m->num_includes; i++) {
+    sb_puts(b, "mtlx_include");
+    put_tok(b, m->includes[i], 0);
+    sb_puts(b, "\n");
+  }
+}
+
+char *tobj_mtlx_to_mtl(const tobj_mtlx_doc *doc, size_t *out_len) {
+  sb b = {0};
+  for (size_t i = 0; i < doc->num_materials; i++) mat_mtl(&b, &doc->materials[i]);
+  if (!b.p && !b.oom) sb_puts(&b, "");
+  if (b.oom) {
+    free(b.p);
+    return NULL;
+  }
+  if (out_len) *out_len = b.n;
+  return b.p;
+}
+
 int tobj_mtlx_parse_lines(const char *name, const char *const *lines,
                           size_t num_lines, tobj_mtlx_doc *out) {
   sb b = {0};

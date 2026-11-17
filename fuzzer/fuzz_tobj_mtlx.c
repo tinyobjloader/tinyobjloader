@@ -8,7 +8,7 @@
  *   ./fuzz_tobj_mtlx corpus/mtlx
  *
  * Exercises the whole-file parse, the per-material line API used by the
- * loaders, and both writers. The harness asserts only that nothing crashes,
+ * loaders, the XML/dump writers and the .mtl writer (which must round-trip). The harness asserts only that nothing crashes,
  * hangs, leaks or hits UB.
  */
 #include <stdint.h>
@@ -16,6 +16,9 @@
 #include <string.h>
 
 #include "tobj_mtlx.h"
+
+#define TOBJ_MTLX_ROUNDTRIP_NO_MAIN
+#include "../tests/mtlx_roundtrip.c"
 
 static void exercise(const tobj_mtlx_doc *doc) {
   size_t n = 0;
@@ -28,6 +31,12 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   memset(&doc, 0, sizeof(doc));
   if (tobj_mtlx_parse((const char *)data, size, &doc) == 0) exercise(&doc);
   tobj_mtlx_free(&doc);
+
+  /* The canonical .mtl writer must round-trip. */
+  /* (Strings are NUL-terminated, so text with NUL bytes is out of scope.) */
+  if (!memchr(data, 0, size) &&
+      tobj_mtlx_roundtrip_check((const char *)data, size) > 0)
+    abort();
 
   /* Line API: first line is the material name, the rest are its lines. */
   char *buf = (char *)malloc(size + 1);

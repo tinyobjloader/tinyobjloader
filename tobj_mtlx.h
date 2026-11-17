@@ -60,7 +60,8 @@ typedef struct tobj_mtlx_doc {
   size_t num_materials;
 } tobj_mtlx_doc;
 
-/* Parse a whole .mtl text. Returns 0 on success, -1 on allocation failure. */
+/* Parse a whole .mtl text (which must not contain NUL bytes: names and
+ * values are returned as C strings). Returns 0 on success, -1 on allocation failure. */
 int tobj_mtlx_parse(const char *text, size_t len, tobj_mtlx_doc *out);
 void tobj_mtlx_free(tobj_mtlx_doc *doc);
 
@@ -73,6 +74,13 @@ int tobj_mtlx_parse_lines(const char *name, const char *const *lines,
 /* MaterialX document for the accepted materials. Returns a malloc'd
  * NUL-terminated string (caller frees) or NULL on allocation failure. */
 char *tobj_mtlx_to_xml(const tobj_mtlx_doc *doc, size_t *out_len);
+
+/* Canonical .mtl text: a `newmtl` line per material, followed, for accepted
+ * materials, by their extension lines (version, surface, nodes, constant
+ * inputs, colorspaces, connections, includes). Classic keys are not written.
+ * Parsing the result gives the same tobj_mtlx_to_xml document. Returns a
+ * malloc'd NUL-terminated string (caller frees) or NULL on allocation failure. */
+char *tobj_mtlx_to_mtl(const tobj_mtlx_doc *doc, size_t *out_len);
 
 /* `mat <name> ext=<0|1> ok=<0|1>` lines followed by the XML document. */
 char *tobj_mtlx_dump(const tobj_mtlx_doc *doc, size_t *out_len);

@@ -119,6 +119,10 @@ none.
   - `tobj_mtlx_parse` parses a whole `.mtl`.
   - `tobj_mtlx_parse_lines` parses one material from a loader's lines.
   - `tobj_mtlx_to_xml` writes the `.mtlx` document.
+  - `tobj_mtlx_to_mtl` writes the canonical `.mtl` form: a `newmtl` line per
+    material and, for accepted materials, their extension lines (version,
+    surface, nodes, constants, colorspaces, connections, includes). Classic
+    keys are not written. Parsing the output gives the same `.mtlx` document.
   - `tobj_mtlx_dump` writes the verdicts plus the XML, for differential testing.
 
 ## Verification
@@ -134,6 +138,9 @@ none.
   There is no `sorry`, and only the standard axioms are used.
 - `formal/Mtlx/tools/diff.sh N` compares the Lean reference executable with the C
   implementation on the fixtures plus N random files, under ASan and UBSan.
+- `tests/mtlx_roundtrip.c` checks that `tobj_mtlx_to_mtl` output parses back to
+  the same document and is a fixpoint. The fuzz target
+  `fuzzer/fuzz_tobj_mtlx.c` checks the same property on random input.
 - `tests/mtlx_loader_test.c` and `tests/mtlx_loader_test_cxx.cc` check that the
   per-material lines from the C11 and C++ loaders give the same verdicts as the
   whole-file parse.
