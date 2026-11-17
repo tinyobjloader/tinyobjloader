@@ -319,3 +319,42 @@ def test_subd_tags():
     b = tinyobjloader.subd(bad.mesh)
     assert not b["ok"]
     assert b["errors"] == ["crease: not an edge of the mesh"]  # 0-3 is not an edge of 1 2 3
+
+
+SKEL_OBJ = """
+skel_joint hips - 1 0 0 0 0 1 0 0 0 0 1 0 0 1 0 1
+skel_joint head hips
+skel_rest head 1 0 0 0 0 1 0 0 0 0 1 0 0 0.5 0 1
+skel_lib rig.fbx
+v 0 0 0
+v 0 1 0
+v 1 0 0
+vw 0 0 1
+vw 1 1 1
+f 1 2 3
+"""
+
+
+def test_skel_lines():
+    """Skeleton lines: kept on attrib, checked against the vw joint ids."""
+    import tinyobjloader
+
+    reader = tinyobjloader.ObjReader()
+    assert reader.ParseFromString(SKEL_OBJ, "", tinyobjloader.ObjReaderConfig())
+    attrib = reader.GetAttrib()
+    assert attrib.skel_lines[0].startswith("skel_joint hips -")
+    s = tinyobjloader.skel(attrib)
+    assert s["ok"] and s["errors"] == []
+    assert [j["name"] for j in s["joints"]] == ["hips", "head"]
+    assert s["joints"][1]["parent"] == 0
+    assert s["joints"][0]["bind"][13] == 1.0  # translation y (row-major, last row)
+    assert s["joints"][1]["bind"] is None  # from the skel_lib sidecar
+    assert s["joints"][1]["rest"][13] == 0.5
+    assert s["lib"] == "rig.fbx" and s["anim"] is None
+
+    # a vw joint id without a joint
+    reader = tinyobjloader.ObjReader()
+    assert reader.ParseFromString(SKEL_OBJ.replace("vw 1 1 1", "vw 1 2 1"), "",
+                                  tinyobjloader.ObjReaderConfig())
+    s = tinyobjloader.skel(reader.GetAttrib())
+    assert not s["ok"] and s["errors"] == ["vw: joint id without a skel_joint"]

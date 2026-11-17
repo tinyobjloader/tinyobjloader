@@ -121,6 +121,9 @@ typedef struct TOBJ_T(tobj_attrib) {
   TOBJ_T(tobj_real_buf) colors;          /* rgb (empty unless present/forced) */
   TOBJ_T(tobj_skin_weight) * skin_weights;
   size_t num_skin_weights;
+  /* `skel_*` lines verbatim, in file order (skeleton: see tobj_skel.h) */
+  const char **skel_lines;
+  size_t num_skel_lines;
 } TOBJ_T(tobj_attrib);
 
 typedef struct TOBJ_T(tobj_mesh) {

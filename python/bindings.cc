@@ -10,6 +10,7 @@
 #define TINY_OBJ_LOADER_PYTHON_BINDING
 #include "../tiny_obj_loader.h"
 #include "../tobj_subd.h"
+#include "../tobj_skel.h"
 
 namespace py = pybind11;
 
@@ -41,6 +42,7 @@ PYBIND11_MODULE(tinyobjloader, tobj_module)
     .def_readonly("vertices", &attrib_t::vertices)
     .def_readonly("vertex_weights", &attrib_t::vertex_weights)
     .def_readonly("skin_weights", &attrib_t::skin_weights)
+    .def_readwrite("skel_lines", &attrib_t::skel_lines)
     .def_readonly("normals", &attrib_t::normals)
     .def_readonly("texcoords", &attrib_t::texcoords)
     .def_readonly("colors", &attrib_t::colors)
@@ -299,5 +301,51 @@ PYBIND11_MODULE(tinyobjloader, tobj_module)
     tobj_subd_free(&s);
     return d;
   }, "Typed, checked subdivision tags of a mesh (see subd-obj.md).");
+
+  // Skeleton lines (skel-obj.md), checked against the vw joint ids.
+  tobj_module.def("skel", [](const attrib_t &a) {
+    long max_id = -1;
+    for (const auto &sw : a.skin_weights)
+      for (const auto &jw : sw.weightValues)
+        if (jw.joint_id > max_id) max_id = jw.joint_id;
+    std::vector<const char *> lines;
+    for (const std::string &l : a.skel_lines) lines.push_back(l.c_str());
+    tobj_skel s;
+    if (tobj_skel_parse_lines(lines.data(), lines.size(), max_id, &s)) throw std::bad_alloc();
+    auto matrix = [](char **m) -> py::object {
+      if (!m) return py::none();
+      py::list v;
+      for (int k = 0; k < 16; k++) v.append(tobj_skel_number(m[k]));
+      return v;
+    };
+    auto opt = [](const char *t) -> py::object {
+      return t ? py::object(py::str(t)) : py::object(py::none());
+    };
+    py::dict d;
+    d["ext"] = bool(s.ext);
+    d["ok"] = bool(s.ok);
+    py::list errors, joints;
+    for (size_t i = 0; i < s.num_errors; i++) errors.append(s.errors[i]);
+    for (size_t i = 0; i < s.num_joints; i++) {
+      py::dict j;
+      j["name"] = s.joints[i].name;
+      j["parent"] = s.joints[i].parent < 0 ? py::object(py::none())
+                                           : py::object(py::int_(s.joints[i].parent));
+      j["bind"] = matrix(s.joints[i].bind);
+      j["rest"] = matrix(s.joints[i].rest);
+      joints.append(j);
+    }
+    d["errors"] = errors;
+    d["joints"] = joints;
+    d["lib"] = opt(s.lib);
+    d["lib_skeleton"] = opt(s.lib_skeleton);
+    d["anim"] = opt(s.anim);
+    d["anim_name"] = opt(s.anim_name);
+    char *canon = tobj_skel_to_lines(&s, nullptr);
+    d["canonical"] = canon ? std::string(canon) : std::string();
+    std::free(canon);
+    tobj_skel_free(&s);
+    return d;
+  }, "Typed, checked skeleton of a file (see skel-obj.md).");
 }
 

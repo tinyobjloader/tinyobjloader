@@ -1,0 +1,7 @@
+skel ext=1 ok=0 joints=2 lines=8
+  error: skel_joint: invalid name
+  error: skel_joint: parent not declared earlier
+  error: skel_joint: repeated name
+  error: skel_rest: joint not declared earlier
+  error: skel_lib: repeated
+  error: vw: joint id without a skel_joint

@@ -53,6 +53,7 @@ typedef struct TOBJ_T(tobj_builder) {
   tobj_vec p_idx;    /* tobj_index */
   tobj_vec t_lines;  /* const char* (interned `t` lines) */
   tobj_vec t_tags;   /* TOBJ_T(tobj_tag) */
+  tobj_vec skel_lines; /* const char* (interned `skel_*` lines, file scope) */
 
   /* per-face scratch (reused) */
   tobj_vec corners;  /* tobj_index */
@@ -1289,6 +1290,17 @@ static bool TOBJ_T(dispatch_line)(TOBJ_T(tobj_builder) * b, const char *p,
   }
   if (tobj_slice_eq(tok, tl, "mtllib")) return TOBJ_T(handle_mtllib)(b, &c);
   if (tobj_slice_eq(tok, tl, "t")) return TOBJ_T(handle_t)(b, p, len, &c);
+  if (tobj_slice_eq(tok, tl, "skel_joint") || tobj_slice_eq(tok, tl, "skel_rest") ||
+      tobj_slice_eq(tok, tl, "skel_lib") || tobj_slice_eq(tok, tl, "skel_anim")) {
+    /* skeleton line (skel-obj.md): kept verbatim, file scope */
+    while (len && tobj_is_space(p[len - 1])) len--;
+    while (len && tobj_is_space(*p)) p++, len--;
+    const char *raw = tobj_intern(b->arena, p, len);
+    const char **slot = (const char **)tobj_vec_push(&b->skel_lines, b->alloc);
+    if (!raw || !slot) return TOBJ_T(b_fail)(b, TOBJ_ERR_ALLOC);
+    *slot = raw;
+    return true;
+  }
   if (b->cfg->parse_freeform) return TOBJ_T(handle_freeform)(b, tok, tl, &c);
   /* unrecognized directive: silently skipped */
   return true;
@@ -1376,6 +1388,7 @@ static void TOBJ_T(builder_init)(TOBJ_T(tobj_builder) * b) {
   tobj_vec_init(&b->p_idx, sizeof(tobj_index));
   tobj_vec_init(&b->t_lines, sizeof(const char *));
   tobj_vec_init(&b->t_tags, sizeof(TOBJ_T(tobj_tag)));
+  tobj_vec_init(&b->skel_lines, sizeof(const char *));
   tobj_vec_init(&b->corners, sizeof(tobj_index));
   tobj_vec_init(&b->ringpos, sizeof(TOBJ_REAL));
   tobj_vec_init(&b->tris, sizeof(uint32_t));
@@ -1418,6 +1431,7 @@ static void TOBJ_T(builder_dispose)(TOBJ_T(tobj_builder) * b) {
   tobj_vec_free(&b->p_idx, a);
   tobj_vec_free(&b->t_lines, a);
   tobj_vec_free(&b->t_tags, a);
+  tobj_vec_free(&b->skel_lines, a);
   tobj_vec_free(&b->corners, a);
   tobj_vec_free(&b->ringpos, a);
   tobj_vec_free(&b->tris, a);
@@ -1782,6 +1796,10 @@ tobj_result TOBJ_T(tobj_load_obj_from_memory)(TOBJ_T(tobj_scene) * out,
     TOBJ_FIN_BUF(texcoord_ws, b.avtw);
     TOBJ_FIN_BUF(colors, b.acol);
 #undef TOBJ_FIN_BUF
+    out->attrib.num_skel_lines = b.skel_lines.count;
+    out->attrib.skel_lines =
+        (const char **)tobj_vec_finalize(&b.skel_lines, arena, 16);
+    if (b.skel_lines.count && !out->attrib.skel_lines) b.err = TOBJ_ERR_ALLOC;
   }
 
   if (b.err == TOBJ_OK) TOBJ_T(finalize_unknowns)(&b);

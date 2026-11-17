@@ -512,6 +512,10 @@ struct attrib_t {
   // (e.g. using std::map, std::unordered_map)
   std::vector<skin_weight_t> skin_weights;
 
+  // `skel_*` lines verbatim, in file order (skeleton for skin_weights; see
+  // skel-obj.md and tobj_skel.h).
+  std::vector<std::string> skel_lines;
+
   attrib_t() {}
 
   //
@@ -968,6 +972,7 @@ struct basic_attrib_t {
   std::vector<real_t, real_alloc> texcoord_ws;  // optional w for `vt`
   std::vector<real_t, real_alloc> colors;     // rgb (optional)
   std::vector<basic_skin_weight_t<Alloc>, skin_weight_alloc> skin_weights;
+  std::vector<std::string> skel_lines;  // see attrib_t::skel_lines
   std::vector<index_t, index_alloc> indices;  // face indices
   std::vector<int, int_alloc> face_num_verts; // verts per face
   std::vector<int, int_alloc> material_ids;   // per-face material
@@ -8949,6 +8954,7 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
   std::vector<skin_weight_t> vw;
   std::vector<tag_t> tags;            // tags of the current group
   std::vector<std::string> tag_lines;
+  std::vector<std::string> skel_lines;  // file scope
   PrimGroup prim_group;
   std::string name;
 
@@ -9363,6 +9369,18 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
       continue;
     }
 
+    if (sr.peek() == 's' && sr.peek_at(1) == 'k' && sr.peek_at(2) == 'e' &&
+        sr.peek_at(3) == 'l' && sr.peek_at(4) == '_') {
+      std::string raw = sr.peek_line();
+      while (!raw.empty() && (raw.back() == ' ' || raw.back() == '\t')) raw.pop_back();
+      const std::string kw = raw.substr(0, raw.find_first_of(" \t"));
+      if (kw == "skel_joint" || kw == "skel_rest" || kw == "skel_lib" || kw == "skel_anim") {
+        skel_lines.push_back(raw);  // skeleton line (skel-obj.md)
+        sr.skip_line();
+        continue;
+      }
+    }
+
     if (sr.peek() == 't' && (sr.peek_at(1) == '\n' || sr.peek_at(1) == '\r' ||
                              sr.peek_at(1) == '\0' || sr.tell() + 1 >= sr.size())) {
       tag_lines.push_back("t");  // malformed: no name or counts
@@ -9510,6 +9528,7 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
   attrib->texcoord_ws.swap(vt_w);
   attrib->colors.swap(vc);
   attrib->skin_weights.swap(vw);
+  attrib->skel_lines.swap(skel_lines);
 
   return true;
 }
@@ -9525,6 +9544,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   attrib->texcoord_ws.clear();
   attrib->colors.clear();
   attrib->skin_weights.clear();
+  attrib->skel_lines.clear();
   shapes->clear();
 
   std::string baseDir = mtl_basedir ? mtl_basedir : "";
@@ -9599,6 +9619,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   attrib->texcoord_ws.clear();
   attrib->colors.clear();
   attrib->skin_weights.clear();
+  attrib->skel_lines.clear();
   shapes->clear();
 
   StreamReader sr(*inStream);
@@ -11486,6 +11507,7 @@ static void ConvertLegacyResultToBasic(
     opt_assign_vector(&dst_attrib->texcoord_ws, src_attrib.texcoord_ws);
     opt_assign_vector(&dst_attrib->colors, src_attrib.colors);
     dst_attrib->skin_weights = src_attrib.skin_weights;
+    dst_attrib->skel_lines = src_attrib.skel_lines;
     dst_attrib->indices.clear();
     dst_attrib->face_num_verts.clear();
     dst_attrib->material_ids.clear();
@@ -11525,6 +11547,9 @@ static inline bool opt_line_start_is_legacy(const char *p, size_t rem) {
   if (rem >= 2 &&
       ((p[0] == 'l' || p[0] == 'p' || p[0] == 't') &&
        (p[1] == ' ' || p[1] == '\t')))
+    return true;
+  // skeleton lines (skel_joint/skel_rest/skel_lib/skel_anim)
+  if (rem >= 5 && p[0] == 's' && p[1] == 'k' && p[2] == 'e' && p[3] == 'l' && p[4] == '_')
     return true;
   return false;
 }

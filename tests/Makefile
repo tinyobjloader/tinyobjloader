@@ -126,6 +126,21 @@ check_subd: ../tobj_subd.c ../tobj_subd.h subd_test.c subd_test_cxx.cc subd_roun
 	./subd_roundtrip $(SUBD_FIXTURES) ../fuzzer/corpus/subd/*.obj
 	@echo "check_subd: ok"
 
+# Skeleton lines (tobj_skel): C11 and C++ loaders vs golden files, and the
+# canonical round trip.
+SKEL_FIXTURES = ../formal/Skel/tests/bad.obj ../formal/Skel/tests/inline.obj \
+                ../formal/Skel/tests/norig.obj ../formal/Skel/tests/rig.obj
+check_skel: ../tobj_skel.c ../tobj_skel.h skel_test.c skel_test_cxx.cc skel_roundtrip.c
+	$(CC) -std=c11 -g -fsanitize=address,undefined -o skel_test skel_test.c ../tiny_obj_c.c ../tobj_tess.c ../tobj_skel.c -lm
+	$(CC) -std=c11 -g -fsanitize=address,undefined -c -o tobj_skel.o ../tobj_skel.c
+	$(CXX) -std=c++11 -g -fsanitize=address,undefined -o skel_test_cxx skel_test_cxx.cc tobj_skel.o
+	$(CC) -std=c11 -g -Wall -Wextra -fsanitize=address,undefined -o skel_roundtrip skel_roundtrip.c ../tobj_skel.c
+	for f in $(SKEL_FIXTURES); do b=$$(basename $$f .obj); \
+	  ./skel_test $$f | diff -u skel/$$b.expected - || exit 1; \
+	  ./skel_test_cxx $$f | diff -u skel/$$b.expected - || exit 1; done
+	./skel_roundtrip $(SKEL_FIXTURES) ../fuzzer/corpus/skel/*.obj
+	@echo "check_skel: ok"
+
 clean:
 	rm -rf tester tester_features tester_nofastfloat \
 	       tester_c tester_c_features tess_tester tester_c_freestanding

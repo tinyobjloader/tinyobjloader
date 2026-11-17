@@ -123,6 +123,11 @@ static void w_shape(wsink *w, const tobj_index *indices,
 #define TOBJ_WRITE_BODY(SUF, IS_DOUBLE)                                      \
   wsink w = {buf, cap, 0};                                                   \
   if (!sc) return 0;                                                         \
+  /* `skel_*` lines (file scope, skel-obj.md) verbatim */                    \
+  for (size_t i = 0; i < sc->attrib.num_skel_lines; i++) {                   \
+    w_str(&w, sc->attrib.skel_lines[i]);                                     \
+    w_bytes(&w, "\n", 1);                                                    \
+  }                                                                          \
   w_rows(&w, "v", sc->attrib.vertices.ptr, sc->attrib.vertices.count, 3,      \
          IS_DOUBLE);                                                          \
   w_rows(&w, "vt", sc->attrib.texcoords.ptr, sc->attrib.texcoords.count, 2,   \

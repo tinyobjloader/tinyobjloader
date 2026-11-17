@@ -24,7 +24,7 @@ except:
 ext_modules = [
     Pybind11Extension(
         "tinyobjloader",
-        sorted(["python/bindings.cc", "python/tiny_obj_loader.cc", "python/tobj_subd.cc"]),
+        sorted(["python/bindings.cc", "python/tiny_obj_loader.cc", "python/tobj_skel.cc", "python/tobj_subd.cc"]),
         # Example: passing in the version to the compiled code
         define_macros=[("VERSION_INFO", __version__)],
         cxx_std=11,

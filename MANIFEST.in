@@ -9,3 +9,6 @@ include python/tobj_subd.cc
 include tiny_obj_loader.h
 include tobj_subd.c
 include tobj_subd.h
+include python/tobj_skel.cc
+include tobj_skel.c
+include tobj_skel.h
