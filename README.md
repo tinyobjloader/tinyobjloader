@@ -485,10 +485,13 @@ the npm module `tinyobj`:
   TypeScript declarations.
 * `web/build.sh` — `emcc -std=c11` build of `tiny_obj_c.c`, `tobj_tess.c` and the
   shim into `web/dist/tinyobj.{js,wasm}`.
-* `web/demo/` — a Three.js viewer: drop an `.obj` (and its `.mtl`) onto the page.
+* `web/demo/` — a Three.js viewer: drop an `.obj`, a whole folder, or images;
+  textured/shaded rendering with a material-parameter panel.
 
 ```sh
 cd web && ./build.sh
+npm install && npm run dev     # Vite live demo at http://localhost:5173/demo/
+# or, without a bundler:
 python3 -m http.server 8000   # then open http://localhost:8000/demo/
 ```
 

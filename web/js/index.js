@@ -25,6 +25,12 @@ const DESC_NAME = 5;
 const DESC_SLOTS = 8;
 const MAT_SLOTS = 12;
 
+/** Slot order of tobjw_material_texname() (matches TOBJ_W_TEX_* in the shim). */
+export const TEXTURE_SLOTS = [
+  'diffuse', 'ambient', 'specular', 'specularHighlight', 'emissive', 'normal',
+  'bump', 'alpha', 'roughness', 'metallic', 'displacement', 'reflection',
+];
+
 /**
  * Raw Emscripten module factory. Call it to get the module instance that the
  * wrapper below uses, or to drive the C ABI yourself.
@@ -167,6 +173,12 @@ export class TinyObj {
         const f = module.HEAPF32;
         const b = matPtr >>> 2;
         const namePtr2 = module._tobjw_material_name(handle, m);
+        const textures = {};
+        for (let s = 0; s < TEXTURE_SLOTS.length; s++) {
+          const texPtr = module._tobjw_material_texname(handle, m, s);
+          const texName = texPtr ? module.UTF8ToString(texPtr) : '';
+          if (texName) textures[TEXTURE_SLOTS[s]] = texName;
+        }
         materials.push({
           name: namePtr2 ? module.UTF8ToString(namePtr2) : '',
           diffuse: [f[b], f[b + 1], f[b + 2]],
@@ -177,6 +189,7 @@ export class TinyObj {
           illum: f[b + 9],
           roughness: f[b + 10],
           metallic: f[b + 11],
+          textures,
         });
       }
 

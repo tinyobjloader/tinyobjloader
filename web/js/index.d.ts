@@ -4,6 +4,9 @@ export declare const STRIDE: 8;
 /** Material id for faces without a valid `usemtl`. */
 export declare const NO_MATERIAL: number;
 
+/** Texture slot names, in the order used by the C ABI. */
+export declare const TEXTURE_SLOTS: readonly string[];
+
 /** Emscripten module instance produced by the factory. */
 export interface TinyObjModule {
   _malloc(size: number): number;
@@ -28,6 +31,7 @@ export interface TinyObjModule {
   _tobjw_shape_desc(handle: number, shape: number, out: number): number;
   _tobjw_material(handle: number, material: number, out: number): number;
   _tobjw_material_name(handle: number, material: number): number;
+  _tobjw_material_texname(handle: number, material: number, slot: number): number;
 }
 
 /** Options forwarded to the Emscripten factory. */
@@ -70,6 +74,16 @@ export interface Shape {
   groups: Group[];
 }
 
+/** Texture filenames by map kind, only for slots present in the .mtl. */
+export type MaterialTextures = Partial<
+  Record<
+    | 'diffuse' | 'ambient' | 'specular' | 'specularHighlight' | 'emissive'
+    | 'normal' | 'bump' | 'alpha' | 'roughness' | 'metallic'
+    | 'displacement' | 'reflection',
+    string
+  >
+>;
+
 export interface Material {
   name: string;
   diffuse: [number, number, number];
@@ -80,6 +94,7 @@ export interface Material {
   illum: number;
   roughness: number;
   metallic: number;
+  textures: MaterialTextures;
 }
 
 export interface Model {

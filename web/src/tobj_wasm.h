@@ -80,6 +80,26 @@ int tobjw_material(int handle, int material, float *out);
 /* Material name; "" when unnamed. NULL on bad handle/material. */
 const char *tobjw_material_name(int handle, int material);
 
+/* Texture-file slots exposed by tobjw_material_texname(). Values match the
+ * classic and PBR map names in tiny_obj_c.h. */
+#define TOBJ_W_TEX_DIFFUSE 0            /* map_Kd */
+#define TOBJ_W_TEX_AMBIENT 1            /* map_Ka */
+#define TOBJ_W_TEX_SPECULAR 2           /* map_Ks */
+#define TOBJ_W_TEX_SPECULAR_HIGHLIGHT 3 /* map_Ns */
+#define TOBJ_W_TEX_EMISSIVE 4           /* map_Ke */
+#define TOBJ_W_TEX_NORMAL 5             /* norm */
+#define TOBJ_W_TEX_BUMP 6               /* map_bump / bump */
+#define TOBJ_W_TEX_ALPHA 7              /* map_d */
+#define TOBJ_W_TEX_ROUGHNESS 8          /* map_Pr */
+#define TOBJ_W_TEX_METALLIC 9           /* map_Pm */
+#define TOBJ_W_TEX_DISPLACEMENT 10      /* disp */
+#define TOBJ_W_TEX_REFLECTION 11        /* refl */
+#define TOBJ_W_TEX_COUNT 12
+
+/* Interned texture filename for one slot; "" when unset, NULL on bad
+ * handle/material/slot. Valid until the handle is destroyed. */
+const char *tobjw_material_texname(int handle, int material, int slot);
+
 #ifdef __cplusplus
 }
 #endif

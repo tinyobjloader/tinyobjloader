@@ -78,6 +78,19 @@ const tinyobj = await initTinyObj();
   checkShape(model.shapes, 'cube');
 }
 
+/* --- texture filenames are surfaced from the .mtl ------------------------ */
+{
+  const obj = await load('issue-391.obj');
+  const mtl = await load('issue-391.mtl');
+  const model = tinyobj.parse(obj, { mtl, mtlName: 'issue-391.mtl' });
+  const hasMap = model.materials.find((m) => m.name === 'has_map');
+  check(hasMap?.textures.diffuse === 'test.png',
+    `texture: has_map diffuse ${hasMap?.textures.diffuse}, want test.png`);
+  const hasKd = model.materials.find((m) => m.name === 'has_kd');
+  check(hasKd && Object.keys(hasKd.textures).length === 0,
+    'texture: has_kd should have no map');
+}
+
 /* --- cornell_box.obj, mtl name omitted ---------------------------------- */
 {
   const obj = await load('cornell_box.obj');

@@ -225,6 +225,31 @@ static void test_uv(void) {
   free(obj);
 }
 
+static void test_texture_names(void) {
+  size_t obj_len = 0, mtl_len = 0;
+  uint8_t *obj = read_file("models/issue-391.obj", &obj_len);
+  uint8_t *mtl = read_file("models/issue-391.mtl", &mtl_len);
+  int h;
+
+  CHECK(obj && mtl, "issue-391 files missing");
+  if (!obj || !mtl) return;
+
+  h = tobjw_load_memory(obj, obj_len, mtl, mtl_len, "issue-391.mtl", 0);
+  CHECK(h > 0, "issue-391: load failed: %s", tobjw_last_message());
+  if (h <= 0) return;
+  CHECK(tobjw_num_materials(h) == 2, "issue-391: materials != 2");
+  CHECK(strcmp(tobjw_material_texname(h, 0, TOBJ_W_TEX_DIFFUSE), "") == 0,
+        "issue-391: has_kd has a diffuse map");
+  CHECK(strcmp(tobjw_material_texname(h, 1, TOBJ_W_TEX_DIFFUSE), "test.png") == 0,
+        "issue-391: has_map diffuse map wrong");
+  CHECK(tobjw_material_texname(h, 1, TOBJ_W_TEX_NORMAL) &&
+            tobjw_material_texname(h, 1, TOBJ_W_TEX_NORMAL)[0] == '\0',
+        "issue-391: has_map has an unexpected normal map");
+  tobjw_destroy(h);
+  free(obj);
+  free(mtl);
+}
+
 static void test_bad_input(void) {
   const uint8_t junk[] = "this is not an obj file\nf 1 2\nv \n###\n";
   const int h = tobjw_load_memory(junk, sizeof junk - 1u, NULL, 0, NULL, 0);
@@ -245,6 +270,7 @@ int main(void) {
   test_cornell();
   test_ngon();
   test_uv();
+  test_texture_names();
   test_bad_input();
   if (failures) {
     fprintf(stderr, "%d check(s) failed\n", failures);

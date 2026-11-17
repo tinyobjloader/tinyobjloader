@@ -384,6 +384,17 @@ int tobjw_load_memory(const uint8_t *obj, size_t obj_len, const uint8_t *mtl,
   if (!m) return -TOBJ_ERR_ALLOC;
 
   cfg = tobj_default_config();
+  /* wasm32 size_t defaults to (size_t)-1/64 (~67 MB), which rejects large
+   * real-world scenes such as dragon.obj. Keep explicit, still-bounded caps:
+   * the wasm maximum memory (2 GB) remains the hard ceiling. */
+  cfg.max_vertices = 200000000u;
+  cfg.max_indices = 500000000u;
+  cfg.max_faces = 200000000u;
+  cfg.max_face_arity = 1000000u;
+  cfg.max_materials = 1000000u;
+  cfg.max_shapes = 1000000u;
+  cfg.max_line_bytes = 1u << 26;
+  cfg.max_input_bytes = 1u << 30;
   if (mtl && mtl_len) {
     slot.data = mtl;
     slot.len = mtl_len;
@@ -505,4 +516,30 @@ const char *tobjw_material_name(int handle, int material) {
   if (material < 0 || material >= m->num_materials) return NULL;
   return m->scene.materials[material].name ? m->scene.materials[material].name
                                            : "";
+}
+
+const char *tobjw_material_texname(int handle, int material, int slot) {
+  const tobjw_model *m;
+  const tobj_material_f *mat;
+  const char *name;
+  if (!tobjw_handle_valid(handle)) return NULL;
+  m = tobjw_models[handle - 1];
+  if (material < 0 || material >= m->num_materials) return NULL;
+  mat = &m->scene.materials[material];
+  switch (slot) {
+    case TOBJ_W_TEX_DIFFUSE: name = mat->diffuse_texname; break;
+    case TOBJ_W_TEX_AMBIENT: name = mat->ambient_texname; break;
+    case TOBJ_W_TEX_SPECULAR: name = mat->specular_texname; break;
+    case TOBJ_W_TEX_SPECULAR_HIGHLIGHT: name = mat->specular_highlight_texname; break;
+    case TOBJ_W_TEX_EMISSIVE: name = mat->emissive_texname; break;
+    case TOBJ_W_TEX_NORMAL: name = mat->normal_texname; break;
+    case TOBJ_W_TEX_BUMP: name = mat->bump_texname; break;
+    case TOBJ_W_TEX_ALPHA: name = mat->alpha_texname; break;
+    case TOBJ_W_TEX_ROUGHNESS: name = mat->roughness_texname; break;
+    case TOBJ_W_TEX_METALLIC: name = mat->metallic_texname; break;
+    case TOBJ_W_TEX_DISPLACEMENT: name = mat->displacement_texname; break;
+    case TOBJ_W_TEX_REFLECTION: name = mat->reflection_texname; break;
+    default: return NULL;
+  }
+  return name ? name : "";
 }

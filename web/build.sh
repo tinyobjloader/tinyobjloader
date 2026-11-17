@@ -31,7 +31,7 @@ root=$(cd .. && pwd)
 exports='["_malloc","_free"'
 for sym in tobjw_load_memory tobjw_destroy tobjw_last_message tobjw_version \
            tobjw_num_shapes tobjw_num_materials tobjw_shape_desc \
-           tobjw_material tobjw_material_name; do
+           tobjw_material tobjw_material_name tobjw_material_texname; do
   exports="$exports,\"_$sym\""
 done
 exports="$exports]"
@@ -48,7 +48,8 @@ emcc -std=c11 $OPT \
   -sEXPORT_NAME=createTinyObj \
   -sENVIRONMENT=web,worker,node \
   -sALLOW_MEMORY_GROWTH=1 \
-  -sINITIAL_MEMORY=16777216 \
+  -sINITIAL_MEMORY=536870912 \
+  -sMAXIMUM_MEMORY=2147483648 \
   -sSTACK_SIZE=1048576 \
   -sFILESYSTEM=0 \
   -sEXPORTED_FUNCTIONS="$exports" \

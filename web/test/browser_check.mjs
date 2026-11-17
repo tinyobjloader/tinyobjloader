@@ -183,7 +183,8 @@ async function main() {
     for (let i = 0; i < 120 && !target; i++) {
       try {
         const list = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
-        target = list.find((t) => t.type === 'page');
+        const pages = list.filter((t) => t.type === 'page');
+        target = pages.find((t) => t.url.startsWith(origin)) ?? pages[0];
       } catch {
         /* chrome still starting */
       }
@@ -229,8 +230,10 @@ async function main() {
       return res.result.value;
     };
 
-    const statusText = () => evaluate("document.getElementById('status').textContent");
-    const statusKind = () => evaluate("document.getElementById('status').dataset.kind");
+    const statusText = () =>
+      evaluate("document.getElementById('status')?.textContent ?? ''");
+    const statusKind = () =>
+      evaluate("document.getElementById('status')?.dataset.kind ?? ''");
 
     const waitForStatus = async (predicate, label, attempts = 200) => {
       for (let i = 0; i < attempts; i++) {
@@ -240,6 +243,22 @@ async function main() {
       }
       return { text: await statusText(), kind: await statusKind(), timeout: label };
     };
+
+    // The first CDP page target can still be about:blank or mid-navigation;
+    // querying #status before the demo document commits throws a TypeError.
+    let loaded = false;
+    for (let i = 0; i < 100 && !loaded; i++) {
+      try {
+        loaded = await evaluate(
+          "document.readyState === 'complete' && !!document.getElementById('status')",
+        );
+      } catch {
+        /* page still navigating */
+      }
+      if (!loaded) await sleep(100);
+    }
+    check(loaded, 'demo document never finished loading');
+    if (!loaded) throw new Error('demo document never finished loading');
 
     const ready = await waitForStatus((t) => t.startsWith('Ready'), 'wasm load');
     check(!ready.timeout, `demo never became ready: ${ready.text}`);

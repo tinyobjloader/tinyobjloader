@@ -61,6 +61,7 @@ for (const shape of model.shapes) {
     diffuse: [1, 1, 1],       // Kd
     emissive: [0, 0, 0],      // Ke
     dissolve: 1, shininess: 0, ior: 1, illum: 2, roughness: 1, metallic: 0,
+    textures: { diffuse: 'wood.png' },  // filenames from map_Kd, map_Ka, ...
   }],
   message: '',                // loader warnings, "" when clean
 }
@@ -97,6 +98,24 @@ for (const run of shape.groups) {
 
 ## Demo
 
+The Three.js viewer in `demo/` can be developed with Vite (hot reload) or served
+statically without any bundler.
+
+Live development (recommended):
+
+```sh
+cd web
+./build.sh            # once, to produce dist/tinyobj.{js,wasm}
+npm install           # installs the Vite + Three.js dev dependencies
+npm run dev           # http://localhost:5173/demo/ (hot reload)
+```
+
+`npm run dev` resolves `three` from `node_modules` and rewrites the Emscripten
+wasm path automatically. `npm run dev:build` emits a bundled, static copy to
+`.vite-demo-dist/` and `npm run preview` serves that build.
+
+Static (no Vite, no install):
+
 ```sh
 cd web
 ./build.sh
@@ -104,8 +123,25 @@ python3 -m http.server 8000
 # open http://localhost:8000/demo/
 ```
 
-The demo pulls Three.js from a CDN via an import map. Drop an `.obj` (and its
-`.mtl`) onto the page, or use “Choose .obj”. Rotate with the mouse.
+This path relies on the import map in `demo/index.html`, which pulls Three.js
+from a CDN. The demo supports:
+
+- **Multiple files and folders** — drop several files, a whole folder, or use
+  “Choose folder”. `.obj`, `.mtl` and images (`.png/.jpg/.webp/.gif/.bmp`) are
+  recognised; multiple `.mtl` files are combined.
+- **Texturing** — texture filenames from `map_Kd`, `map_Ka`, `map_Ks`, `map_Ke`,
+  `norm`, `map_bump`, `map_d`, `map_Pr`, `map_Pm`, … are matched (by basename,
+  case-insensitively) against uploaded images.
+- **Shading** — smooth/flat/wireframe selector, a texture on/off toggle, and a
+  material panel showing Kd, Ke, Ns, d, Ni, illum, Pr/Pm and texture maps.
+- **Shape selection** — click a shape in the 3D view or in the Shapes list to
+  highlight it (wireframe + bounding box) and see its name, triangle count,
+  bounds and the materials it uses. The panel has Shapes / Materials tabs.
+- **Large scenes** — the wasm build starts with 512 MB of memory (2 GB maximum)
+  and the loader caps are raised, so `models/dragon.obj` (~71 MB, 871k triangles)
+  loads in the browser.
+
+Rotate with the mouse; “Reset view” re-frames the model.
 
 ## Raw ABI
 
@@ -133,6 +169,7 @@ driving the C shim yourself. The ABI lives in `src/tobj_wasm.h`:
 | `MODULARIZE` + `EXPORT_ES6` | ES module factory, no globals |
 | `ENVIRONMENT=web,worker,node` | browser, web worker and Node |
 | `ALLOW_MEMORY_GROWTH` | the scene arena grows with model size |
+| `INITIAL_MEMORY=512MB`, `MAXIMUM_MEMORY=2GB` | large scenes (e.g. `dragon.obj`) start without repeated growth |
 | `FILESYSTEM=0` | inputs come from memory, no emscripten FS |
 | `--no-entry` | library build |
 

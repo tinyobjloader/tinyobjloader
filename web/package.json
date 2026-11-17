@@ -57,7 +57,14 @@
     "test": "node test/smoke.mjs",
     "test:native": "bash test/run_native.sh",
     "test:browser": "node test/browser_check.mjs",
-    "demo": "node --version >/dev/null && python3 -m http.server 8000"
+    "demo": "node --version >/dev/null && python3 -m http.server 8000",
+    "dev": "vite",
+    "dev:build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "three": "0.170.0",
+    "vite": "^6.4.6"
   },
   "engines": {
     "node": ">=18"
