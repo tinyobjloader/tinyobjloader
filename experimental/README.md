@@ -1,27 +1,31 @@
 # Experimental code for .obj loader.
 
-* Multi-threaded optimized parser : tinyobj_loader_opt.h
-* Streaming experimental parser : stream/stream_obj_loader.h
+* Streaming experimental parser : `stream/stream_obj_loader.h`
 
 ## Requirements
 
 * C++-11 compiler
 
-## How to build
+## Streaming parser
+
+`stream/` holds a line-by-line OBJ parser that reduces peak input buffering
+compared with the whole-buffer optimized parser: it reads from a
+`std::istream` instead of materialising the entire file. See
+[stream/README.md](stream/README.md) for its scope and design.
+
+It is consumed by the C++ test suite and the fuzzers:
+
+* `tests/tester.cc`
+* `tests/obj-fuzz/obj_fuzz.cc`
+* `tests/llvm-fuzz/fuzz_loaders.cc`
+
+Build it through the test harness rather than standalone:
 
 ```
-$ premak5 gmake
+cd tests && make
 ```
 
-## Compile options
-
-* zstd compressed .obj support. `--with-zstd` premake option.
-* gzip compressed .obj support. `--with-zlib` premake option.
-
-## Notes on AMD GPU + Linux
-
-You may need to link with libdrm(`-ldrm`).
-
-## Licenses
-
-* lfpAlloc : MIT license.
+The multi-threaded optimized parser that used to live here
+(`tinyobj_loader_opt.h`, plus its viewer and `lfpAlloc` dependency) has been
+removed; use `LoadObjOpt` / `LoadObjOptTyped` from `tiny_obj_loader.h` instead
+(see the "Optimized loader" section of the top-level README).
