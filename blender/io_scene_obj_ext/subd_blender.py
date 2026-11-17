@@ -38,6 +38,14 @@ def sharp_text(x):
     return "10" if x >= 10.0 else f"{x:.6g}"
 
 
+def _has_boundary(me):
+    count = {}
+    for p in me.polygons:
+        for k in p.edge_keys:
+            count[k] = count.get(k, 0) + 1
+    return any(n == 1 for n in count.values())
+
+
 def apply_to_object(ob, s, local_of, warn):
     """Set up `ob` (mesh object) from an accepted subd.Subd; `local_of` maps
     file vertex numbers to the object's vertex indices."""
@@ -60,6 +68,9 @@ def apply_to_object(ob, s, local_of, warn):
             warn(f"{ob.name}: vertex boundary 'none' has no Blender equivalent")
         else:
             mod.boundary_smooth = BOUNDARY_TO_SMOOTH[s.interp_boundary]
+    elif _has_boundary(me):
+        warn(f"{ob.name}: no interpolateboundary tag; OpenSubdiv's default (none) has no Blender "
+             "equivalent, using edge-only")
     if s.fvar_interp_boundary is not None:
         present.append("facevaryinginterpolateboundary")
         mod.uv_smooth = FVAR_TO_UV_SMOOTH[s.fvar_interp_boundary]

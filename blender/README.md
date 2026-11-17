@@ -83,4 +83,48 @@ The tests need `cc` to build the C checkers. They cover:
 - rejected tags;
 - the Python port against C on random files;
 - MaterialX node trees through export and re-import;
-- the registered operators.
+- the registered operators;
+- an OpenSubdiv cross-check (below).
+
+### OpenSubdiv cross-check
+
+Set `OSD_ROOT` to an OpenSubdiv install prefix. The CPU backend is enough:
+`include/` and `lib/libosdCPU`. For example, build OpenSubdiv 3.8 with every
+`NO_*` option on (OpenGL, CUDA, OpenCL, Metal, DX, TBB, OpenMP, Ptex, examples,
+tutorials, regression, docs).
+
+```
+OSD_ROOT=/path/to/osd/install blender -b --factory-startup --python-exit-code 1 \
+    --python blender/tests/run.py -- /path/to/workdir
+```
+
+`tests/osd_refine.cc` is the reference. It loads the OBJ with tinyobjloader,
+checks the tags with `tobj_subd`, and builds an OpenSubdiv `Far` refiner with
+the same scheme, boundary rule, creases, corners and holes. For limit points it
+refines until every finite sharpness has decayed, then applies `Far` limit
+masks, which are exact there.
+
+The test compares Blender's evaluated Subdivision Surface with these points at
+levels 1–3, with "Use Limit Surface" off and on (quality 10). The fixtures are
+`tests/osd_cross.obj` and the creased torus:
+- open grids with both boundary rules;
+- semi-sharp and infinite creases;
+- corners;
+- bilinear;
+- a cube with semi-sharp creases and a corner.
+
+Results:
+- Refined points match to 1e-5 or better.
+- Limit points match to 1e-6, except near an infinitely sharp crease that ends
+  at a boundary. There, Blender's adaptive patch evaluation is approximate:
+  3.4e-3 at level 1 and 1.1e-3 at levels 2–3, even at quality 10.
+- At Blender's default quality (3), limit points near semi-sharp creases are
+  off by up to about 1e-2.
+
+Tag values follow OpenSubdiv's OBJ reader (`regression/common/far_utils.h`),
+which is not the `Sdc` enum order: `interpolateboundary 1` is edge-and-corner
+and `2` is edge-only.
+
+When a file has tags but no `interpolateboundary`, OpenSubdiv uses "none".
+Blender has no equivalent, so the importer warns and uses edge-only for meshes
+that have a boundary.

@@ -5,6 +5,11 @@
 
 Builds the reference C checkers (tests/subd_dump, tests/mtlx_dump) with `cc`
 and uses them to check what the add-on writes.
+
+OpenSubdiv cross-check: with OSD_ROOT set to an OpenSubdiv install prefix
+(CPU backend is enough: include/ and lib/libosdCPU), blender/tests/osd_refine.cc
+is built and Blender's subdivided surfaces are compared with OpenSubdiv's
+(refined points and limit points). Without OSD_ROOT the check is skipped.
 """
 import math
 import os
@@ -271,6 +276,77 @@ def test_materialx():
         check(graph(mats[n]) == before[n], f"{n}: node tree survives export + re-import")
 
 
+def build_osd_refine():
+    root = os.environ.get("OSD_ROOT")
+    if not root:
+        return None
+    obj = os.path.join(WORK, "tobj_subd.o")
+    exe = os.path.join(WORK, "osd_refine")
+    subprocess.run(["cc", "-std=c11", "-O1", "-c", os.path.join(ROOT, "tobj_subd.c"), "-o", obj],
+                   check=True)
+    subprocess.run(["c++", "-std=c++17", "-O1", f"-I{root}/include",
+                    os.path.join(HERE, "osd_refine.cc"), obj, f"-L{root}/lib", "-losdCPU",
+                    f"-Wl,-rpath,{root}/lib", "-o", exe], check=True)
+    return exe
+
+
+def osd_points(exe, path, level, limit):
+    out = subprocess.run([exe, path, str(level)] + (["--limit"] if limit else []),
+                         capture_output=True, text=True, check=True).stdout
+    shapes, cur = {}, None
+    for line in out.splitlines():
+        t = line.split()
+        if t[0] == "shape":
+            cur = shapes.setdefault(t[1] if len(t) == 3 else "", [])
+        else:
+            cur.append(tuple(map(float, t)))
+    return shapes
+
+
+def test_opensubdiv():
+    """Blender's evaluated Subdivision Surface vs OpenSubdiv (Far, CPU), same tags."""
+    exe = build_osd_refine()
+    if exe is None:
+        print("skip OpenSubdiv cross-check (set OSD_ROOT to an OpenSubdiv install)")
+        return
+    from mathutils import kdtree
+    files = [os.path.join(HERE, "osd_cross.obj"),
+             os.path.join(ROOT, "models", "catmark_torus_creases0.obj")]
+    # Limit points near an infinitely sharp crease that ends at a boundary: Blender's
+    # adaptive patch evaluation is approximate there even at quality 10 (measured
+    # 3.4e-3 at level 1, 1.1e-3 at levels 2 and 3), while OpenSubdiv's limit masks
+    # are exact. All other limit points, and all refined points, match to 1e-5.
+    limit_tol = {"grid_edge_corner": 5e-3, "grid_edge_only": 5e-3}
+    for path in files:
+        for limit in (False, True):
+            for level in (1, 2, 3):
+                ref = osd_points(exe, path, level, limit)
+                reset()
+                obs, _ = addon.import_obj(bpy.context, path, convert_axes=False)
+                worst, counts, within = 0.0, True, True
+                for ob in obs:
+                    mod = ob.modifiers["Subdivision"]
+                    mod.levels = level
+                    mod.use_limit_surface = limit
+                    # Blender evaluates the limit surface with adaptive patches; its
+                    # default quality (3) is approximate near semi-sharp creases
+                    # (up to 1.3e-2 on the torus), the maximum (10) is exact here.
+                    mod.quality = 10
+                    me = ob.evaluated_get(bpy.context.evaluated_depsgraph_get()).to_mesh()
+                    pts = ref[ob.data.name if ob.data.name in ref else ""]
+                    counts &= len(pts) == len(me.vertices)
+                    kd = kdtree.KDTree(len(pts))
+                    for i, p in enumerate(pts):
+                        kd.insert(p, i)
+                    kd.balance()
+                    d = max(kd.find(v.co)[2] for v in me.vertices)
+                    within &= d < (limit_tol.get(ob.name, 1e-4) if limit else 1e-4)
+                    worst = max(worst, d)
+                check(counts and within,
+                      f"OpenSubdiv: {os.path.basename(path)} level {level} "
+                      f"{'limit' if limit else 'refined'} (max distance {worst:.1e})")
+
+
 def test_operators():
     """The registered File > Import/Export operators."""
     reset()
@@ -288,7 +364,7 @@ def test_operators():
 
 def main():
     for t in (test_operators, test_subd_import, test_crease_mapping, test_subd_roundtrips, test_bad_tags,
-              test_python_port_matches_c, test_materialx):
+              test_python_port_matches_c, test_materialx, test_opensubdiv):
         print(f"== {t.__name__}")
         try:
             t()
