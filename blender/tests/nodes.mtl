@@ -1,0 +1,51 @@
+# MaterialX-in-MTL fixture covering every node the Blender add-on converts.
+newmtl graph
+Kd 0.5 0.5 0.5
+mtlx_version 1.39
+mtlx_surface shader open_pbr_surface
+mtlx_node uv texcoord vector2
+mtlx_node albedo image color3
+mtlx_node tint constant color3
+mtlx_node tinted multiply color3
+mtlx_node rough image float
+mtlx_node rscale multiply float
+mtlx_node nrm_tex image vector3
+mtlx_node nrm normalmap vector3
+mtlx_node blend mix color3
+mtlx_input albedo.file filename "tex/albedo map.png"
+mtlx_colorspace albedo.file srgb_texture
+mtlx_input albedo.texcoord vector2 @uv
+mtlx_input tint.value color3 0.9 0.5 0.25
+mtlx_input tinted.in1 color3 @albedo
+mtlx_input tinted.in2 color3 @tint
+mtlx_input rough.file filename tex/rough.png
+mtlx_input rscale.in1 float @rough
+mtlx_input rscale.in2 float 0.5
+mtlx_input nrm_tex.file filename tex/normal.png
+mtlx_input nrm.in vector3 @nrm_tex
+mtlx_input nrm.scale float 0.8
+mtlx_input blend.fg color3 @tinted
+mtlx_input blend.bg color3 0.1 0.2 0.3
+mtlx_input blend.mix float 0.75
+mtlx_input shader.base_color color3 @blend
+mtlx_input shader.specular_roughness float @rscale
+mtlx_input shader.geometry_normal vector3 @nrm
+mtlx_input shader.base_metalness float 0.25
+mtlx_input shader.coat_weight float 0.5
+
+newmtl std
+Kd 0.2 0.4 0.6
+mtlx_surface s standard_surface
+mtlx_input s.base_color color3 0.2 0.4 0.6
+mtlx_input s.specular_roughness float 0.6
+mtlx_input s.metalness float 1
+
+newmtl preview
+mtlx_surface p UsdPreviewSurface
+mtlx_input p.diffuseColor color3 0.7 0.1 0.1
+mtlx_input p.opacity float 0.5
+
+newmtl classic_only
+Kd 0.1 0.8 0.1
+Pr 0.4
+Pm 0.2
