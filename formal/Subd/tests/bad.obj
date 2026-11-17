@@ -1,0 +1,48 @@
+v 0 0 0
+v 1 0 0
+v 1 1 0
+v 0 1 0
+g counts
+f 1 2 3 4
+t crease 2/1/0 0 1
+g notedge
+f 1 2 3 4
+t crease 2/1/0 0 2 1
+g dup
+f 1 2 3 4
+t interpolateboundary 1/0/0 1
+t interpolateboundary 1/0/0 1
+g range
+f 1 2 3 4
+t facevaryinginterpolateboundary 1/0/0 6
+g loopquad
+f 1 2 3 4
+t scheme 0/0/1 loop
+g smoothbilinear
+f 1 2 3 4
+t scheme 0/0/1 bilinear
+t smoothtriangles 0/0/1 smooth
+g badnum
+f 1 2 3 4
+t corner 1/1/0 0 inf
+g badint
+f 1 2 3 4
+t hole 1/0/0 x
+g hole
+f 1 2 3 4
+t hole 1/0/0 1
+g corner
+f 1 2 3
+t corner 1/1/0 3 1
+g selfedge
+f 1 2 3 4
+t crease 2/1/0 1 1 1
+g bigcount
+f 1 2 3 4
+t foo 9000/0/0
+g emptyname
+f 1 2 3 4
+t
+g string
+f 1 2 3 4
+t creasemethod 0/0/1 uniform

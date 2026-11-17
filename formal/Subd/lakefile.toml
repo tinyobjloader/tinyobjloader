@@ -1,0 +1,9 @@
+name = "tobjsubd"
+defaultTargets = ["TobjSubd", "subdobj"]
+
+[[lean_lib]]
+name = "TobjSubd"
+
+[[lean_exe]]
+name = "subdobj"
+root = "Main"
