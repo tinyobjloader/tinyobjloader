@@ -10,6 +10,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 import { initTinyObj, STRIDE, NO_MATERIAL } from '../js/index.js';
 import { parseSubdTags, subdivideShape } from './subd.js';
+import { resolveMtlx } from './mtlx.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 
 const canvas = document.getElementById('view');
 const status = document.getElementById('status');
@@ -35,6 +37,7 @@ const boneSelect = document.getElementById('bone');
 const playButton = document.getElementById('play');
 const timelineInput = document.getElementById('timeline');
 const timeLabel = document.getElementById('time');
+const envCheck = document.getElementById('envmap');
 
 const IMAGE_RE = /\.(png|jpe?g|webp|gif|bmp)$/i;
 
@@ -73,6 +76,7 @@ let current = null;
 let currentModel = null;
 let currentMaterials = [];
 let currentMaps = [];
+let currentPbr = [];
 let selectedIndex = -1;
 let highlightBox = null;
 let highlightWire = null;
@@ -84,6 +88,7 @@ let heatMaterial = null;
 let playing = false;
 let timelineValue = 0;
 let lastFrameTime = 0;
+let envTexture = null;
 let tinyobj = null;
 let textureUrls = [];
 let textureFiles = new Map();
@@ -329,7 +334,7 @@ function loadImageTexture(file, srgb) {
   });
 }
 
-async function loadMaps(entry) {
+async function loadMaps(entry, pbr) {
   const maps = {};
   await Promise.all(
     Object.entries(entry.textures || {}).map(async ([kind, name]) => {
@@ -342,6 +347,19 @@ async function loadMaps(entry) {
       if (texture) maps[kind] = texture;
     }),
   );
+  if (pbr) {
+    await Promise.all(
+      Object.entries(pbr.images || {}).map(async ([role, name]) => {
+        const file = textureFiles.get(baseName(name));
+        if (!file) return;
+        const texture = await loadImageTexture(
+          file,
+          role === 'baseColor' || role === 'emissive',
+        );
+        if (texture) maps[`mtlx:${role}`] = texture;
+      }),
+    );
+  }
   return maps;
 }
 
@@ -354,6 +372,12 @@ function applyMaps(material) {
   material.normalMap = pickMap('normal');
   material.bumpMap = pickMap('bump');
   material.alphaMap = pickMap('alpha');
+  if (material.isMeshPhysicalMaterial) {
+    material.map = pickMap('mtlx:baseColor') || material.map;
+    material.roughnessMap = pickMap('mtlx:roughness');
+    material.metalnessMap = pickMap('mtlx:metallic');
+    material.clearcoatMap = pickMap('mtlx:clearcoat');
+  }
 }
 
 function applyShading() {
@@ -365,27 +389,52 @@ function applyShading() {
   }
 }
 
-function materialFor(entry, maps) {
-  const material = new THREE.MeshPhongMaterial({
-    color: new THREE.Color(
-      clamp01(entry.diffuse[0]),
-      clamp01(entry.diffuse[1]),
-      clamp01(entry.diffuse[2]),
-    ),
-    emissive: new THREE.Color(
-      clamp01(entry.emissive[0]),
-      clamp01(entry.emissive[1]),
-      clamp01(entry.emissive[2]),
-    ),
-    shininess: Math.max(entry.shininess, 0) * 2,
-    specular: new THREE.Color(0x1a1a1a),
-    side: THREE.DoubleSide,
-  });
+function materialFor(entry, maps, pbr) {
+  const values = pbr?.values || {};
+  const color3 = (value, fallback) =>
+    Array.isArray(value)
+      ? new THREE.Color(clamp01(value[0]), clamp01(value[1]), clamp01(value[2]))
+      : new THREE.Color(fallback[0], fallback[1], fallback[2]);
+  const number = (key, fallback) =>
+    Number.isFinite(values[key]) ? values[key] : fallback;
+
+  let material;
+  if (pbr) {
+    material = new THREE.MeshPhysicalMaterial({
+      color: color3(values.baseColor, entry.diffuse),
+      emissive: color3(values.emissive, entry.emissive),
+      metalness: clamp01(number('metallic', entry.metallic)),
+      roughness: clamp01(number('roughness', entry.roughness || 0.5)),
+      ior: number('ior', entry.ior || 1.5),
+      clearcoat: clamp01(number('clearcoat', 0)),
+      clearcoatRoughness: clamp01(number('clearcoatRoughness', 0)),
+      sheen: clamp01(number('sheen', 0)),
+      transmission: clamp01(number('transmission', 0)),
+      side: THREE.DoubleSide,
+    });
+  } else {
+    material = new THREE.MeshPhongMaterial({
+      color: new THREE.Color(
+        clamp01(entry.diffuse[0]),
+        clamp01(entry.diffuse[1]),
+        clamp01(entry.diffuse[2]),
+      ),
+      emissive: new THREE.Color(
+        clamp01(entry.emissive[0]),
+        clamp01(entry.emissive[1]),
+        clamp01(entry.emissive[2]),
+      ),
+      shininess: Math.max(entry.shininess, 0) * 2,
+      specular: new THREE.Color(0x1a1a1a),
+      side: THREE.DoubleSide,
+    });
+  }
   if (entry.dissolve < 1) {
     material.transparent = true;
     material.opacity = clamp01(entry.dissolve);
   }
   material.userData.maps = maps;
+  material.userData.pbr = pbr;
   applyMaps(material);
   return material;
 }
@@ -413,7 +462,7 @@ function buildGroup(model, maps) {
     attachSkinAttributes(geometry, shape);
 
     const materials = model.materials.map((entry, i) =>
-      materialFor(entry, maps[i]),
+      materialFor(entry, maps[i], currentPbr[i]),
     );
     materials.push(fallbackMaterial);
     const fallbackIndex = materials.length - 1;
@@ -472,6 +521,8 @@ function materialCard(entry, index) {
   row('Ni', entry.ior.toFixed(2));
   row('illum', String(entry.illum));
   row('Pr/Pm', `${entry.roughness.toFixed(2)} / ${entry.metallic.toFixed(2)}`);
+  const surface = entry.mtlxLines?.find((line) => line.startsWith('mtlx_surface'));
+  if (surface) row('mtlx', surface.split(/\s+/)[2] || 'surface');
   const maps = Object.entries(entry.textures || {});
   if (maps.length) row('maps', maps.map(([k, v]) => `${k}: ${v}`).join('\n'));
 
@@ -654,6 +705,7 @@ async function showModel(objFile, mtl, extra) {
 
   const obj = await objFile.arrayBuffer();
   const model = tinyobj.parse(obj, mtl);
+  const pbrList = model.materials.map((entry) => resolveMtlx(entry.mtlxLines));
 
   if (skinData?.root) scene.remove(skinData.root);
   skinData?.skeleton.dispose();
@@ -665,7 +717,9 @@ async function showModel(objFile, mtl, extra) {
   textureUrls = [];
   let maps;
   try {
-    maps = await Promise.all(model.materials.map((entry) => loadMaps(entry)));
+    maps = await Promise.all(
+      model.materials.map((entry, i) => loadMaps(entry, pbrList[i])),
+    );
   } catch (error) {
     revokeUrls(textureUrls);
     textureUrls = oldUrls;
@@ -673,6 +727,7 @@ async function showModel(objFile, mtl, extra) {
   }
   const group = buildGroup(model, maps);
   currentMaps = maps;
+  currentPbr = pbrList;
   if (!group.children.length) {
     revokeUrls(textureUrls);
     textureUrls = oldUrls;
@@ -866,6 +921,9 @@ timelineInput.addEventListener('input', () => {
   timelineValue = Number(timelineInput.value) / 1000;
   applyPose();
 });
+envCheck.addEventListener('change', () => {
+  scene.environment = envCheck.checked ? envTexture : null;
+});
 
 canvas.addEventListener('pointerdown', (event) => {
   pointerStart = { x: event.clientX, y: event.clientY };
@@ -917,6 +975,22 @@ renderer.setAnimationLoop(() => {
   renderer.render(scene, camera);
 });
 
+function setupEnvmap() {
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  new RGBELoader().load(
+    new URL('./assets/ferndale_studio_06_1k.hdr', import.meta.url).href,
+    (hdr) => {
+      envTexture = pmrem.fromEquirectangular(hdr).texture;
+      scene.environmentIntensity = 0.75;
+      hdr.dispose();
+      pmrem.dispose();
+      if (envCheck.checked) scene.environment = envTexture;
+    },
+    undefined,
+    () => pmrem.dispose(),
+  );
+}
+
 function disableUi(reason) {
   pick.disabled = true;
   pickFolder.disabled = true;
@@ -933,6 +1007,7 @@ window.addEventListener('beforeunload', () => {
 });
 
 resize();
+setupEnvmap();
 setStatus('Loading WebAssembly…');
 try {
   tinyobj = await initTinyObj({

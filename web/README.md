@@ -144,6 +144,15 @@ from a CDN. The demo supports:
   and `skel_*` joints drive a `SkinnedMesh`. Pick a bone in the Heatmap selector
   to colour vertices by that bone's weight (blue → red). Play/pause or scrub the
   timeline to preview a procedural bone animation.
+- **MaterialX / OpenPBR** — `mtlx_*` lines are exposed by the loader and resolved
+  into a small subset of `MeshPhysicalMaterial` inputs (base colour, metallic,
+  roughness, clearcoat, sheen, transmission, ior, image connections), with the
+  classic MTL/PBR keys as fallback. The material panel shows the surface
+  category.
+- **Environment map** — a bundled 1k Radiance HDR from Poly Haven
+  (`ferndale_studio_06`, CC0; see `demo/assets/README.md`) is loaded with
+  `RGBELoader` into a `PMREMGenerator` for image-based lighting. Toggle it with
+  the Envmap checkbox; nothing is fetched at runtime.
 - **Large scenes** — the wasm build starts with 512 MB of memory (2 GB maximum)
   and the loader caps are raised, so `models/dragon.obj` (~71 MB, 871k triangles)
   loads in the browser.

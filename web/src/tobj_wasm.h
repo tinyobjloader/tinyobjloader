@@ -100,6 +100,10 @@ const char *tobjw_material_name(int handle, int material);
  * handle/material/slot. Valid until the handle is destroyed. */
 const char *tobjw_material_texname(int handle, int material, int slot);
 
+/* Verbatim MaterialX-in-MTL lines of one material. */
+int tobjw_num_mtlx_lines(int handle, int material);
+const char *tobjw_mtlx_line(int handle, int material, int index);
+
 /* Original file vertex id (0-based) of one emitted corner. */
 int tobjw_corner_vertex(int handle, int shape, uint32_t corner, uint32_t *out);
 

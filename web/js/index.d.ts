@@ -39,6 +39,8 @@ export interface TinyObjModule {
   _tobjw_skel_line(handle: number, index: number): number;
   _tobjw_num_tag_lines(handle: number, shape: number): number;
   _tobjw_tag_line(handle: number, shape: number, index: number): number;
+  _tobjw_num_mtlx_lines(handle: number, material: number): number;
+  _tobjw_mtlx_line(handle: number, material: number, index: number): number;
 }
 
 /** Options forwarded to the Emscripten factory. */
@@ -116,6 +118,8 @@ export interface Material {
   roughness: number;
   metallic: number;
   textures: MaterialTextures;
+  /** Verbatim MaterialX-in-MTL lines of this material. */
+  mtlxLines: string[];
 }
 
 export interface Model {

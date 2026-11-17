@@ -627,3 +627,22 @@ const char *tobjw_tag_line(int handle, int shape, int index) {
     return NULL;
   return m->shapes[shape].tag_lines[index];
 }
+
+int tobjw_num_mtlx_lines(int handle, int material) {
+  const tobjw_model *m;
+  if (!tobjw_handle_valid(handle)) return 0;
+  m = tobjw_models[handle - 1];
+  if (material < 0 || material >= m->num_materials) return 0;
+  return (int)m->scene.materials[material].num_mtlx_lines;
+}
+
+const char *tobjw_mtlx_line(int handle, int material, int index) {
+  const tobjw_model *m;
+  const tobj_material_f *mat;
+  if (!tobjw_handle_valid(handle)) return NULL;
+  m = tobjw_models[handle - 1];
+  if (material < 0 || material >= m->num_materials) return NULL;
+  mat = &m->scene.materials[material];
+  if (index < 0 || (size_t)index >= mat->num_mtlx_lines) return NULL;
+  return mat->mtlx_lines[index];
+}

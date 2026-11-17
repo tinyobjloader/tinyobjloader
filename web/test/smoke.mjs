@@ -119,6 +119,24 @@ const tinyobj = await initTinyObj();
     'subd: tag lines missing');
 }
 
+/* --- MaterialX-in-MTL lines are surfaced -------------------------------- */
+{
+  const obj = new TextEncoder().encode(
+    'mtllib basic.mtl\nv 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\nusemtl painted metal.001\n',
+  );
+  const mtl = await readFile(
+    path.join(repo, 'fuzzer', 'corpus', 'mtlx', 'basic.mtl'),
+  );
+  const model = tinyobj.parse(obj, { mtl, mtlName: 'basic.mtl' });
+  const material = model.materials.find((m) =>
+    m.mtlxLines.some((line) => line.startsWith('mtlx_surface')),
+  );
+  check(material?.mtlxLines.some((line) => line.includes('open_pbr_surface')) === true,
+    'mtlx: surface line missing');
+  check(material?.mtlxLines.some((line) => line.startsWith('mtlx_input')) === true,
+    'mtlx: input line missing');
+}
+
 /* --- cornell_box.obj, mtl name omitted ---------------------------------- */
 {
   const obj = await load('cornell_box.obj');

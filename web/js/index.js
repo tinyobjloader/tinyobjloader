@@ -228,8 +228,15 @@ export class TinyObj {
           const texName = texPtr ? module.UTF8ToString(texPtr) : '';
           if (texName) textures[TEXTURE_SLOTS[s]] = texName;
         }
+        const mtlxLines = [];
+        const numMtlx = module._tobjw_num_mtlx_lines(handle, m);
+        for (let i = 0; i < numMtlx; i++) {
+          const linePtr = module._tobjw_mtlx_line(handle, m, i);
+          if (linePtr) mtlxLines.push(module.UTF8ToString(linePtr));
+        }
         materials.push({
           name: namePtr2 ? module.UTF8ToString(namePtr2) : '',
+          mtlxLines,
           diffuse: [f[b], f[b + 1], f[b + 2]],
           emissive: [f[b + 3], f[b + 4], f[b + 5]],
           dissolve: f[b + 6],
