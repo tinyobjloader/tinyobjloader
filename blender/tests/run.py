@@ -449,17 +449,18 @@ def max_dist(a, b):
 SKEL_FRAMES = (1, 6, 12, 18, 24)
 
 
-def test_skel_roundtrip():
-    """Rig -> OBJ (inline skeleton + animation .fbx sidecar) -> re-import: same deformation."""
+def test_skel_roundtrip(fmt="fbx"):
+    """Rig -> OBJ (inline skeleton + animation sidecar) -> re-import: same deformation."""
     make_rig()
     want = {f: deformed("body", f) for f in SKEL_FRAMES}
-    out = os.path.join(WORK, "skel_rig.obj")
-    w = addon.export_obj(bpy.context, out, list(bpy.context.scene.objects))
-    check(not w, f"skel export: no warnings {w}")
+    out = os.path.join(WORK, f"skel_rig_{fmt}.obj")
+    side = f"skel_rig_{fmt}_skel." + ("usda" if fmt == "usd" else "fbx")
+    w = addon.export_obj(bpy.context, out, list(bpy.context.scene.objects), sidecar_format=fmt)
+    check(not w, f"skel export ({fmt}): no warnings {w}")
     dump = c_skel(out)
     check(dump.startswith("skel ok=1 joints=3\n"), "skel export: C checker accepts the skeleton")
-    check("skel_anim skel_rig_skel.fbx" in dump and
-          os.path.exists(os.path.join(WORK, "skel_rig_skel.fbx")), "skel export: animation sidecar")
+    check(f"skel_anim {side}" in dump and os.path.exists(os.path.join(WORK, side)),
+          f"skel export: animation sidecar {side}")
     text = open(out).read()
     check(skel.dump_obj(text) == dump, "skel export: lines are canonical (Python == C)")
     reset()
@@ -470,15 +471,20 @@ def test_skel_roundtrip():
           "skel import: armature root/spine/head")
     for f in SKEL_FRAMES:
         d = max_dist(deformed("body", f), want[f])
-        check(d < 1e-4, f"skel round trip frame {f}: max distance {d:.2e}")
+        check(d < 1e-4, f"skel round trip ({fmt}) frame {f}: max distance {d:.2e}")
 
 
-def test_skel_lib_only():
-    """Joint names only; bind, rest and animation from the .fbx sidecar (skel_lib)."""
+def test_skel_roundtrip_usd():
+    test_skel_roundtrip("usd")
+
+
+def test_skel_lib_only(fmt="fbx"):
+    """Joint names only; bind, rest and animation from the sidecar (skel_lib)."""
     make_rig()
     want = {f: deformed("body", f) for f in SKEL_FRAMES}
-    out = os.path.join(WORK, "skel_lib.obj")
-    addon.export_obj(bpy.context, out, list(bpy.context.scene.objects))
+    out = os.path.join(WORK, f"skel_lib_{fmt}.obj")
+    side = f"skel_lib_{fmt}_skel." + ("usda" if fmt == "usd" else "fbx")
+    addon.export_obj(bpy.context, out, list(bpy.context.scene.objects), sidecar_format=fmt)
     lines = []
     for line in open(out).read().splitlines():
         t = line.split()
@@ -489,15 +495,20 @@ def test_skel_lib_only():
         else:
             lines.append(line)
         if t and t[0] == "skel_joint" and t[1] == "head":
-            lines += ["skel_lib skel_lib_skel.fbx", "skel_anim skel_lib_skel.fbx"]
+            lines += [f"skel_lib {side}", f"skel_anim {side}"]
     with open(out, "w") as f:
         f.write("\n".join(lines) + "\n")
     check(c_skel(out).startswith("skel ok=1 joints=3"), "skel_lib: C checker accepts names only")
     reset()
-    addon.import_obj(bpy.context, out)
+    obs, w = addon.import_obj(bpy.context, out)
+    check(not w, f"skel_lib ({fmt}) import: no warnings {w}")
     for f in SKEL_FRAMES:
         d = max_dist(deformed("body", f), want[f])
-        check(d < 1e-4, f"skel_lib frame {f}: max distance {d:.2e}")
+        check(d < 1e-4, f"skel_lib ({fmt}) frame {f}: max distance {d:.2e}")
+
+
+def test_skel_lib_only_usd():
+    test_skel_lib_only("usd")
 
 
 def lbs(text):
@@ -563,7 +574,7 @@ def test_skel_bad():
           not any(o.type == 'ARMATURE' for o in bpy.data.objects), "skel bad: warning, no armature")
 
 
-def test_skel_lightusd():
+def test_skel_lightusd(fmt="fbx"):
     """LightUSD (skin_compare --dump on the exported OBJ) == Blender, per frame.
     Needs LIGHTUSD_SKIN_COMPARE (LightUSD tests/obj-skel/skin_compare); skipped otherwise."""
     exe = os.environ.get("LIGHTUSD_SKIN_COMPARE")
@@ -572,12 +583,13 @@ def test_skel_lightusd():
         return
     make_rig()
     want = {f: deformed("body", f) for f in SKEL_FRAMES}
-    out = os.path.join(WORK, "skel_usd.obj")
-    addon.export_obj(bpy.context, out, list(bpy.context.scene.objects))
-    wrap = os.path.join(WORK, "skel_usd.usda")
+    stem = f"skel_lightusd_{fmt}"
+    out = os.path.join(WORK, stem + ".obj")
+    addon.export_obj(bpy.context, out, list(bpy.context.scene.objects), sidecar_format=fmt)
+    wrap = os.path.join(WORK, stem + "_scene.usda")
     with open(wrap, "w") as f:
         f.write('#usda 1.0\n(\n    defaultPrim = "W"\n    upAxis = "Y"\n    metersPerUnit = 1\n'
-                '    timeCodesPerSecond = 24\n)\n\ndef SkelRoot "W" (\n    references = @skel_usd.obj@\n)\n{\n}\n')
+                '    timeCodesPerSecond = 24\n)\n\ndef SkelRoot "W" (\n    references = @' + stem + '.obj@\n)\n{\n}\n')
     for fr in SKEL_FRAMES:
         r = subprocess.run([exe, "--dump", wrap, str(fr)], capture_output=True, text=True)
         rows = [l.split() for l in r.stdout.splitlines() if l.startswith("/")]
@@ -591,14 +603,20 @@ def test_skel_lightusd():
         ref = [Vector(p) for p in want[fr]]
         d1 = max(min((g - q).length for q in ref) for g in got)
         d2 = max(min((g - q).length for g in got) for q in ref)
-        check(max(d1, d2) < 1e-4, f"LightUSD vs Blender frame {fr}: max distance {max(d1, d2):.2e}")
+        check(max(d1, d2) < 1e-4,
+              f"LightUSD vs Blender ({fmt} sidecar) frame {fr}: max distance {max(d1, d2):.2e}")
+
+
+def test_skel_lightusd_usd():
+    test_skel_lightusd("usd")
 
 
 def main():
     for t in (test_operators, test_subd_import, test_crease_mapping, test_subd_roundtrips, test_bad_tags,
               test_python_port_matches_c, test_materialx, test_opensubdiv,
               test_skel_python_port_matches_c, test_skel_roundtrip, test_skel_lib_only,
-              test_skel_inline_rest, test_skel_bad, test_skel_lightusd):
+              test_skel_inline_rest, test_skel_bad, test_skel_lightusd,
+              test_skel_roundtrip_usd, test_skel_lib_only_usd, test_skel_lightusd_usd):
         print(f"== {t.__name__}")
         try:
             t()

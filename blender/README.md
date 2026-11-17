@@ -74,25 +74,30 @@ back to the classic keys. Export always writes the classic keys too (`Kd`,
 | `skel_joint` with a bind matrix | a bone whose rest transform is the bind (scale dropped) |
 | `skel_rest` | the pose (rest transforms that differ from the bind) |
 | `vw` | vertex groups named after the joints, plus an Armature modifier |
-| `skel_lib x.fbx` (joints without bind) | the armature of `x.fbx` (Blender's FBX importer), joints matched by name |
-| `skel_anim x.fbx [take]` | the action of `x.fbx` |
+| `skel_lib x.fbx` / `x.usd*` (joints without bind) | the armature of the sidecar (Blender's FBX or USD importer), joints matched by name |
+| `skel_anim x.fbx [take]` / `x.usd*` | the action of the sidecar, baked onto the armature frame by frame |
 
 Export writes the armature of the first Armature modifier: the joints
 parents-first, each with its rest transform in OBJ world space as the bind
 matrix plus `skel_rest`, and `vw` from the vertex groups named after bones.
 Bone names that are not identifiers are made into identifiers (with a
 warning). If the armature has an action and *Animation sidecar* is on (the
-default), the armature and its action are also written to `<name>_skel.fbx`
-with Blender's FBX exporter, and the OBJ gets `skel_anim <name>_skel.fbx`.
+default), the armature and its action are also written to a sidecar, and
+the OBJ gets `skel_anim`. *Sidecar format* chooses `<name>_skel.fbx` (Blender's
+FBX exporter) or `<name>_skel.usda`. The add-on writes the USD sidecar itself,
+in OBJ space: a `Skeleton` and a `SkelAnimation` sampled per frame, with no
+transform above them. Blender's USD exporter puts the axis conversion and the
+armature transform on parent Xforms, which skel-obj.md does not apply.
 
 Frames: frame f is FBX time f / fps, on import and export. This is also how
 LightUSD maps the sidecar to USD time codes. Blender's FBX importer adds one
 frame by default, so the add-on imports with `anim_offset=0`.
 
-An action from a sidecar is copied onto an armature built from inline
-matrices only as pose channels. This is right when the sidecar's bones rest
-where the inline binds are, as in files the add-on writes. Otherwise the
-importer warns.
+When the joints have inline binds, the importer builds its own armature, and
+the sidecar's animation is baked onto it: each frame, every joint follows the
+same-named sidecar bone in world space, keeping its own rest orientation. This
+works whatever bone axes the sidecar's importer chose. USD sidecars are
+imported without unit conversion, because they share the OBJ's units.
 
 Texture paths are written relative to the `.mtl` when the texture is under the
 export folder, and absolute otherwise.
@@ -118,10 +123,12 @@ The tests need `cc` to build the C checkers. They cover:
   the C `tobj_skel` and re-imported with the same deformation at 5 frames;
   names only plus `skel_lib`; `skel_rest` against a reference linear blend
   skinning; an ill-formed skeleton;
+- the same round trip and names-only tests with a USD sidecar;
 - LightUSD cross-check: with `LIGHTUSD_SKIN_COMPARE` set to LightUSD's
-  `skin_compare` (tests/obj-skel), the exported OBJ is loaded by LightUSD and
-  its UsdSkel skinning is compared with Blender's at 5 frames (match to
-  about 5e-7);
+  `skin_compare` (tests/obj-skel), the exported OBJ (FBX and USD sidecars) is
+  loaded by LightUSD and its UsdSkel skinning is compared with Blender's at 5
+  frames (about 5e-7 with FBX; about 2e-6 with USD, whose text keeps 6
+  significant digits);
 - an OpenSubdiv cross-check (below).
 
 ### OpenSubdiv cross-check

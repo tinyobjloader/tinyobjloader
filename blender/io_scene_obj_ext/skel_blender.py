@@ -2,14 +2,16 @@
 
 Import: joints with inline bind matrices become an armature (edit bones at the
 bind transforms; `skel_rest` becomes the pose). Without inline binds, the
-`skel_lib` .fbx is imported with Blender's FBX importer and its armature is
-used (joints matched by name). `skel_anim` .fbx: its action drives the
-armature. `vw` weights become vertex groups plus an Armature modifier.
+`skel_lib` sidecar (.fbx with Blender's FBX importer, or .usd/.usda/.usdc/.usdz
+with its USD importer) is imported and its armature is used (joints matched by
+name). `skel_anim`: the sidecar's action drives the armature. `vw` weights
+become vertex groups plus an Armature modifier.
 
 Export: an Armature modifier's armature gives `skel_joint` lines (inline bind =
 the bone's rest transform in OBJ world space) and `skel_rest`; vertex groups
-named after bones give `vw`. With an action and `sidecar` set, the armature
-and its action are written to an .fbx next to the OBJ (`skel_anim`).
+named after bones give `vw`. With an action and a sidecar format, the armature
+and its action are written next to the OBJ (`<name>_skel.fbx` or
+`<name>_skel.usda`, `skel_anim`).
 
 Matrices: OBJ text is row-major with the translation in the last row (USD).
 Blender's are column-vector; `conv` is the Blender -> OBJ change of world
@@ -43,9 +45,41 @@ def to_text(m):
 
 # ---------------------------------------------------------------- import
 
-def _fbx_armature(bpy, context, path, warn):
-    """Import an .fbx; keep its armature object (meshes etc. are removed)."""
+USD_EXTS = (".usd", ".usda", ".usdc", ".usdz")
+
+
+def is_sidecar(path):
+    return path.lower().endswith(".fbx") or path.lower().endswith(USD_EXTS)
+
+
+def _fbx_armature(bpy, context, path, warn, prim=None):
+    """Import a sidecar (.fbx or USD); keep its armature object (meshes etc. are
+    removed). `prim`: a USD Skeleton prim path, matched by its last component."""
     before = set(bpy.data.objects)
+    if path.lower().endswith(USD_EXTS):
+        try:
+            # a sidecar is in the OBJ's units (OBJ has none): no unit conversion
+            bpy.ops.wm.usd_import(filepath=path, import_skeletons=True, import_blendshapes=False,
+                                  set_frame_range=False, apply_unit_conversion_scale=False)
+        except Exception as e:  # noqa: BLE001
+            warn(f"skeleton sidecar {os.path.basename(path)}: {e}")
+            return None
+        new = [o for o in bpy.data.objects if o not in before]
+        arms = [o for o in new if o.type == 'ARMATURE']
+        want = prim.rstrip("/").rsplit("/", 1)[-1] if prim else None
+        arm = next((o for o in arms if want and o.name.split(".")[0] in (want, o.data.name)), None)
+        arm = arm or (arms[0] if arms else None)
+        keep = {arm}
+        p = arm.parent if arm else None
+        while p is not None:  # keep the transforms above the armature
+            keep.add(p)
+            p = p.parent
+        for o in new:
+            if o not in keep:
+                bpy.data.objects.remove(o)
+        if arm is None:
+            warn(f"skeleton sidecar {os.path.basename(path)}: no armature")
+        return arm
     try:
         # anim_offset=0: frame = FBX time * fps (the importer adds 1 by default), the
         # mapping of the exporter and of USD time codes; keep every bone (no leaf
@@ -75,8 +109,45 @@ def _pick_action(bpy, arm, name):
     return arm.animation_data.action
 
 
-def _close(a, b, tol=1e-4):
-    return all(abs(a[r][c] - b[r][c]) <= tol for r in range(4) for c in range(4))
+def _retarget(bpy, context, src, arm, names, act):
+    """Key `arm`'s pose so each joint follows the same-named bone of `src` in
+    world space (each joint keeps its own rest orientation: the offset between
+    the two rest transforms is constant). Joints missing in `src` follow their
+    parent at their rest offset."""
+    scene = context.scene
+    f0, f1 = (int(round(x)) for x in act.frame_range)
+    frame = scene.frame_current
+    out = bpy.data.actions.new(act.name)
+    _assign(arm, out)
+    bones = arm.data.bones
+    a_inv = arm.matrix_world.inverted()
+    offset = {}
+    for n in names:
+        if n in src.data.bones:
+            offset[n] = (src.matrix_world @ src.data.bones[n].matrix_local).inverted() @ \
+                (arm.matrix_world @ bones[n].matrix_local)
+    for f in range(f0, f1 + 1):
+        scene.frame_set(f)
+        pose = {}
+        for n in names:  # parents first (skel-obj.md joint order)
+            b = bones[n]
+            if n in offset:
+                pose[n] = a_inv @ src.matrix_world @ src.pose.bones[n].matrix @ offset[n]
+            elif b.parent:
+                pose[n] = pose[b.parent.name] @ b.parent.matrix_local.inverted() @ b.matrix_local
+            else:
+                pose[n] = b.matrix_local.copy()
+            if b.parent:
+                rel = b.parent.matrix_local.inverted() @ b.matrix_local
+                basis = rel.inverted() @ pose[b.parent.name].inverted() @ pose[n]
+            else:
+                basis = b.matrix_local.inverted() @ pose[n]
+            pb = arm.pose.bones[n]
+            pb.rotation_mode = 'QUATERNION'
+            pb.matrix_basis = basis
+            for path in ("location", "rotation_quaternion", "scale"):
+                pb.keyframe_insert(path, frame=f)
+    scene.frame_set(frame)
 
 
 def _assign(ob, act):
@@ -148,40 +219,38 @@ def apply_to_objects(bpy, context, data, objects, mesh_maps, base, convert, warn
     arm = None
     if inline:
         arm = _build_armature(bpy, context, sk, conv)
-    elif sk.lib.lower().endswith(".fbx"):
-        arm = _fbx_armature(bpy, context, os.path.join(base, sk.lib), warn)
+    elif is_sidecar(sk.lib):
+        arm = _fbx_armature(bpy, context, os.path.join(base, sk.lib), warn, sk.lib_skeleton)
         if arm is not None:
             missing = [j.name for j in sk.joints if j.name not in arm.data.bones]
             if missing:
                 warn("joints missing from the skeleton sidecar: " + ", ".join(missing))
     else:
-        warn(f"skel_lib {sk.lib}: only .fbx sidecars are supported here")
+        warn(f"skel_lib {sk.lib}: only .fbx and USD sidecars are supported here")
     if arm is None:
         return None
     if sk.anim:
-        if not sk.anim.lower().endswith(".fbx"):
-            warn(f"skel_anim {sk.anim}: only .fbx sidecars are supported here")
+        if not is_sidecar(sk.anim):
+            warn(f"skel_anim {sk.anim}: only .fbx and USD sidecars are supported here")
         elif not inline and sk.anim == sk.lib:
             act = _pick_action(bpy, arm, sk.anim_name)
             if act is not None:
-                arm.animation_data.action = act
-        else:
-            src = _fbx_armature(bpy, context, os.path.join(base, sk.anim), warn)
-            act = _pick_action(bpy, src, sk.anim_name)
-            if act is not None:
-                # pose channels are relative to the rest pose: they carry over
-                # only when the sidecar's bones rest where the inline binds do
-                off = [b.name for b in arm.data.bones if b.name in src.data.bones and not
-                       _close(src.matrix_world @ src.data.bones[b.name].matrix_local,
-                              arm.matrix_world @ b.matrix_local)]
-                if off:
-                    warn("skel_anim: sidecar rest pose differs from the inline bind for " +
-                         ", ".join(off) + "; animation may be off")
                 _assign(arm, act)
+        else:
+            usd = sk.anim.lower().endswith(USD_EXTS)
+            src = _fbx_armature(bpy, context, os.path.join(base, sk.anim), warn)
+            act = _pick_action(bpy, src, None if usd else sk.anim_name)
+            if act is not None:
+                # the sidecar's bones may rest elsewhere (other orientations):
+                # bake its world-space pose onto our armature, frame by frame
+                _assign(src, act)
+                _retarget(bpy, context, src, arm, [j.name for j in sk.joints], act)
             else:
                 warn(f"skel_anim {sk.anim}: no animation")
-            if src is not None:
+            while src is not None:
+                parent = src.parent
                 bpy.data.objects.remove(src)
+                src = parent
     names = [j.name for j in sk.joints]
     for ob, local_of in zip(objects, mesh_maps):
         groups = {}
@@ -274,12 +343,94 @@ class Export:
             sk.anim = self.anim_file
         return sk
 
-    def write_sidecar(self, bpy, context, obj_path, warn):
-        """Armature + its action -> <stem>_skel.fbx (Blender's FBX exporter)."""
+    def write_usd(self, context, path, action):
+        """USD sidecar written directly, in OBJ space: a Skeleton (joints, bind and
+        rest transforms) and a SkelAnimation sampled per frame of the action. No
+        transform above the Skeleton (skel-obj.md: sidecar animations are applied
+        in the OBJ's skeleton space)."""
+        from .obj_io import fmt as num
+        scene = context.scene
+        f0, f1 = (int(round(x)) for x in action.frame_range)
+        world = self.conv @ self.arm.matrix_world
+        paths = []
+        for b in self.bones:
+            n = self.names[b.name]
+            paths.append(paths[self.ids[b.parent.name]] + "/" + n if b.parent else n)
+
+        def mat(m):
+            t = m.transposed()
+            return "(" + ", ".join("(" + ", ".join(num(t[r][c]) for c in range(4)) + ")"
+                                   for r in range(4)) + ")"
+
+        def tup(v):
+            return "(" + ", ".join(num(x) for x in v) + ")"
+        binds = [world @ b.matrix_local for b in self.bones]
+        rests = [b.parent.matrix_local.inverted() @ b.matrix_local if b.parent else binds[i]
+                 for i, b in enumerate(self.bones)]
+        frame = scene.frame_current
+        tr, ro, sc = [], [], []
+        for f in range(f0, f1 + 1):
+            scene.frame_set(f)
+            poses = [world @ self.arm.pose.bones[b.name].matrix for b in self.bones]
+            t, r, s = [], [], []
+            for i, b in enumerate(self.bones):
+                local = poses[self.ids[b.parent.name]].inverted() @ poses[i] if b.parent else poses[i]
+                loc, q, scale = local.decompose()
+                t.append(tup(loc))
+                r.append(tup((q.w, q.x, q.y, q.z)))
+                s.append(tup(scale))
+            tr.append(f"{f}: [{', '.join(t)}]")
+            ro.append(f"{f}: [{', '.join(r)}]")
+            sc.append(f"{f}: [{', '.join(s)}]")
+        scene.frame_set(frame)
+        joints = "[" + ", ".join(f'"{p}"' for p in paths) + "]"
+        sep = ",\n                "
+        with open(path, "w", encoding="utf-8", newline="\n") as f:
+            f.write(f"""#usda 1.0
+(
+    defaultPrim = "Rig"
+    timeCodesPerSecond = {num(scene.render.fps / scene.render.fps_base)}
+    startTimeCode = {f0}
+    endTimeCode = {f1}
+    upAxis = "{'Y' if self.conv != Matrix.Identity(4) else 'Z'}"
+)
+
+# skeleton + animation sidecar of an OBJ (tinyobjloader skel-obj.md), OBJ space
+def SkelRoot "Rig"
+{{
+    def Skeleton "Skel" (
+        prepend apiSchemas = ["SkelBindingAPI"]
+    )
+    {{
+        uniform token[] joints = {joints}
+        uniform matrix4d[] bindTransforms = [{", ".join(mat(m) for m in binds)}]
+        uniform matrix4d[] restTransforms = [{", ".join(mat(m) for m in rests)}]
+        rel skel:animationSource = </Rig/Skel/Anim>
+
+        def SkelAnimation "Anim"
+        {{
+            uniform token[] joints = {joints}
+            float3[] translations.timeSamples = {{
+                {sep.join(tr)}
+            }}
+            quatf[] rotations.timeSamples = {{
+                {sep.join(ro)}
+            }}
+            half3[] scales.timeSamples = {{
+                {sep.join(sc)}
+            }}
+        }}
+    }}
+}}
+""")
+
+    def write_sidecar(self, bpy, context, obj_path, warn, fmt="fbx"):
+        """Armature + its action -> <stem>_skel.fbx or .usda (Blender's exporters)."""
         ad = self.arm.animation_data
         if ad is None or ad.action is None:
             return
-        name = os.path.splitext(os.path.basename(obj_path))[0] + "_skel.fbx"
+        name = os.path.splitext(os.path.basename(obj_path))[0] + "_skel." + \
+            ("usda" if fmt == "usd" else "fbx")
         path = os.path.join(os.path.dirname(obj_path), name)
         if any(self.names[b.name] != b.name for b in self.bones):
             warn("skeleton sidecar not written: bone names are not identifiers")
@@ -290,6 +441,10 @@ class Export:
             o.select_set(o is self.arm)
         context.view_layer.objects.active = self.arm
         try:
+            if fmt == "usd":
+                self.write_usd(context, path, ad.action)
+                self.anim_file = name
+                return
             bpy.ops.export_scene.fbx(filepath=path, use_selection=True, object_types={'ARMATURE'},
                                      add_leaf_bones=False, bake_anim=True,
                                      bake_anim_use_all_actions=False,

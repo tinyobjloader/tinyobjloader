@@ -62,6 +62,25 @@ dropped. Loaders report this as a warning.
 The checks against the sidecar file itself are left to the consumer: that the
 joints exist there, and that an animation can be resolved.
 
+## Sidecar files
+
+`<path>` is relative to the `.obj`. A sidecar shares the OBJ's units and axes
+(OBJ declares neither), so readers apply no unit or up-axis conversion to it.
+
+- **`.fbx`**: `skel_lib` takes the skeleton's bind and rest transforms; joints
+  are matched by node name. `skel_anim` takes the named take (animation
+  stack), or the first one when no name is given. Frame f is FBX time f / fps.
+- **USD** (`.usd`, `.usda`, `.usdc`, `.usdz`): `skel_lib` takes the
+  `Skeleton` prim at the given path, or the layer's first `Skeleton`. Joints
+  are matched by the last component of their joint path. `skel_anim` takes the
+  `SkelAnimation` prim at the given path, or the first one. Its joints are
+  matched by joint path, built from the OBJ's hierarchy (`root/spine/head`).
+
+In both cases the animation is applied in the OBJ's skeleton space: a root
+joint's transform is relative to the OBJ's world. Transforms of the sidecar's
+nodes or prims above the skeleton are not applied, and readers warn when a USD
+sidecar has them.
+
 ## Canonical form
 
 The canonical writer emits:

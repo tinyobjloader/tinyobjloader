@@ -32,7 +32,7 @@ else:
     from . import subd, mtlx, skel, obj_io, subd_blender, materials_blender, skel_blender
 
 import bpy
-from bpy.props import BoolProperty, StringProperty
+from bpy.props import BoolProperty, EnumProperty, StringProperty
 from bpy_extras.io_utils import ExportHelper, ImportHelper
 
 
@@ -121,7 +121,7 @@ def import_obj(context, path, convert_axes=True, report=None):
 # ---------------------------------------------------------------- export
 
 def export_obj(context, path, objects, convert_axes=True, apply_transform=True, report=None,
-               skel_sidecar=True):
+               skel_sidecar=True, sidecar_format="fbx"):
     warnings = []
     warn = warnings.append
     out_dir = os.path.dirname(path)
@@ -189,7 +189,7 @@ def export_obj(context, path, objects, convert_axes=True, apply_transform=True, 
     skel_lines = []
     if skeleton is not None:
         if skel_sidecar:
-            skeleton.write_sidecar(bpy, context, path, warn)
+            skeleton.write_sidecar(bpy, context, path, warn, sidecar_format)
         sk = skeleton.lines()
         max_id = max((j for em in meshes for ws in em.weights for j, _ in ws), default=-1)
         checked = skel.parse_lines(sk.to_lines(), max_id)  # checked like a loader would
@@ -233,13 +233,16 @@ class EXPORT_SCENE_OT_obj_ext(bpy.types.Operator, ExportHelper):
     convert_axes: BoolProperty(name="Z-up to Y-up", default=True)
     apply_transform: BoolProperty(name="Apply object transform", default=True)
     selection_only: BoolProperty(name="Selection only", default=False)
-    skel_sidecar: BoolProperty(name="Animation sidecar (.fbx)", default=True,
-                               description="Write the armature's action to <name>_skel.fbx (skel_anim)")
+    skel_sidecar: BoolProperty(name="Animation sidecar", default=True,
+                               description="Write the armature's action to <name>_skel.fbx/.usda (skel_anim)")
+    sidecar_format: EnumProperty(name="Sidecar format", default='fbx',
+                                 items=(('fbx', "FBX", "Blender's FBX exporter"),
+                                        ('usd', "USD", "Blender's USD exporter (.usda)")))
 
     def execute(self, context):
         obs = context.selected_objects if self.selection_only else context.scene.objects
         export_obj(context, self.filepath, list(obs), self.convert_axes, self.apply_transform,
-                   self.report, self.skel_sidecar)
+                   self.report, self.skel_sidecar, self.sidecar_format)
         return {'FINISHED'}
 
 
