@@ -3,15 +3,18 @@ name: Python
 on: [push, pull_request]
 
 jobs:
-  # Disabled: this job fails on every run, independent of the change under test.
-  # tests/python pins black==22.10.0, which calls ast.Str (removed in Python
-  # 3.12), but the job runs it under Python 3.13 via `uv sync --python 3.13`.
-  # Every file then errors with "module 'ast' has no attribute 'Str'".
-  # Re-enable by dropping the `if: false` below and bumping black to a release
-  # that supports the Python version in use (23.x+).
+  # Disabled for now, but the blocker is fixed: black is now 25.11.0 in
+  # tests/python (it was 22.10.0, which called ast.Str and crashed under the
+  # Python 3.13 that this job uses). The command runs cleanly now and simply
+  # reports existing formatting differences across blender/, lib/tess/,
+  # formal/tools/ and tools/ (~34 files), so enabling it today would fail CI
+  # until the tree is reformatted in a dedicated commit.
+  #
+  # To re-enable: reformat the tree with `uv run --project . black ../..`
+  # from tests/python, then drop the `if: false` below.
   check_format:
     name: Check Python code format
-    if: false  # blocked on the black/py3.12+ incompatibility described above
+    if: false  # tree not yet reformatted; see note above
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
