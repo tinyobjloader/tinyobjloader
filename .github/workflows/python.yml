@@ -32,7 +32,7 @@ jobs:
           fetch-tags: true  # Optional, use if you use setuptools_scm
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v3.3.1
+        uses: pypa/cibuildwheel@v4.3.5
         env:
           # These are the only wheels we need for the `test_wheels` job. For
           # faster iteration times, we limit the job to only build these wheels.
@@ -111,11 +111,16 @@ jobs:
           fetch-tags: true  # Optional, use if you use setuptools_scm
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v3.3.1
+        uses: pypa/cibuildwheel@v4.3.5
         env:
             CIBW_ARCHS_MACOS: "x86_64 universal2 arm64"
             CIBW_ARCHS_WINDOWS: "AMD64"
             # The quick build has already taken care of manylinux.
+            # NOTE: CIBW_SKIP *replaces* [tool.cibuildwheel].skip from
+            # pyproject.toml instead of merging with it, which would silently
+            # re-enable the free-threaded (cp314t/cp315t) wheels. cibuildwheel
+            # v4's CIBW_INHERIT appends the config-file value back on.
+            CIBW_INHERIT: "skip:append"
             CIBW_SKIP: "*-manylinux_x86_64"
 
       - uses: actions/upload-artifact@v4
@@ -136,7 +141,7 @@ jobs:
           fetch-tags: true  # Optional, use if you use setuptools_scm
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v3.3.1
+        uses: pypa/cibuildwheel@v4.3.5
         env:
             CIBW_ARCHS_WINDOWS: "ARM64"
 
