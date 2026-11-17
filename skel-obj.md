@@ -62,6 +62,15 @@ dropped. Loaders report this as a warning.
 The checks against the sidecar file itself are left to the consumer: that the
 joints exist there, and that an animation can be resolved.
 
+## Design note: no geomBindTransform line
+
+UsdSkel's `geomBindTransform` maps a mesh's points into skeleton space at bind
+time. OBJ positions are already in world space, and the skeleton lives in the
+same space (bind matrices are world matrices), so that transform is always
+the identity. The extension therefore has no per-mesh bind line. To skin a
+mesh authored in another space, transform its `v` positions to world space when
+writing the OBJ.
+
 ## Sidecar files
 
 `<path>` is relative to the `.obj`. A sidecar shares the OBJ's units and axes
