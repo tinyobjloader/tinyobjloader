@@ -1,0 +1,22 @@
+o m
+v 0 0 0
+v 0 0 0
+f 1/1/1 2/1 1/1 2/1
+f 2/1/1 1/1/1 1/1/1 -2/1/1 2/1
+f 1//1 2/1/1 2/1 2//1
+f -2 1/1
+t foo 1/0/0 3
+t corner 1/1/0 3
+t
+t crease
+t	facevaryingpropagatecorners	1/0/0	3
+o m
+v 0 0 0
+v 0 0 0
+v 0 0 0
+v 0 0 0
+f 4 6/1/1 3//1 3
+f 5//1 2/1/1 6 3
+f -6//1 3/1
+f 2/1 -4//1 3/1 4//1
+t	facevaryingpropagatecorners	1/0/0

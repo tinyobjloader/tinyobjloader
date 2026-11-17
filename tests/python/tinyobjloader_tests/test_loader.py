@@ -272,3 +272,50 @@ def test_material_mtlx_lines():
     assert by_name["plain"].mtlx_lines == []
     # classic keys are still read
     np.testing.assert_allclose(by_name["painted"].diffuse, [0.8, 0.2, 0.1], rtol=1e-6)
+
+
+SUBD_OBJ = """
+v 0 0 0
+v 1 0 0
+v 1 1 0
+v 0 1 0
+g quad
+f 1 2 3 4
+t scheme 0/0/1 catmark
+t interpolateboundary 1/0/0 2
+t crease 4/2/0 0 1 2 1 2.5 -1
+t corner 1/1/0 3 10
+t hole 1/0/0 0
+g bad
+f 1 2 3
+t crease 2/1/0 0 3 1
+"""
+
+
+def test_subd_tags():
+    """Subdivision tags: tags, tag_lines and the typed, checked view."""
+    import tinyobjloader
+
+    reader = tinyobjloader.ObjReader()
+    config = tinyobjloader.ObjReaderConfig()
+    config.triangulate = False
+    assert reader.ParseFromString(SUBD_OBJ, "", config)
+    quad, bad = reader.GetShapes()
+    assert len(quad.mesh.tags) == 5
+    assert quad.mesh.tags[2].name == "crease"
+    assert list(quad.mesh.tags[2].intValues) == [0, 1, 2, 1]
+    assert quad.mesh.tag_lines[0] == "t scheme 0/0/1 catmark"
+
+    s = tinyobjloader.subd(quad.mesh)
+    assert s["ok"] and s["errors"] == []
+    assert s["scheme"] == "catmark"
+    assert s["interpolate_boundary"] == 2
+    assert s["fvar_interpolate_boundary"] is None
+    assert s["creases"] == [(0, 1, 2.5), (1, 2, 0.0)]  # negative sharpness -> 0
+    assert s["corners"] == [(3, 10.0)]
+    assert s["holes"] == [0]
+    assert s["canonical"].splitlines()[0] == "t scheme 0/0/1 catmark"
+
+    b = tinyobjloader.subd(bad.mesh)
+    assert not b["ok"]
+    assert b["errors"] == ["crease: not an edge of the mesh"]  # 0-3 is not an edge of 1 2 3

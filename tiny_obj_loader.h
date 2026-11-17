@@ -462,6 +462,9 @@ struct mesh_t {
                                                   // ID(0 = off. positive value
                                                   // = group id)
   std::vector<tag_t> tags;                        // SubD tag
+  // `t` lines verbatim, in file order. Subdivision meaning and checking:
+  // tobj_subd.h (load with triangulate = false). See subd-obj.md.
+  std::vector<std::string> tag_lines;
 };
 
 // struct path_t {
@@ -904,6 +907,7 @@ struct basic_mesh_t {
   std::vector<int, int_alloc> material_ids;
   std::vector<unsigned int, uint_alloc> smoothing_group_ids;
   std::vector<basic_tag_t<Alloc>, tag_alloc> tags;
+  std::vector<std::string> tag_lines;  // see mesh_t::tag_lines
 };
 
 template <typename Alloc = std::allocator<char>>
@@ -6071,6 +6075,13 @@ class StreamReader {
     return (c == '\n' || c == '\r' || c == '\0');
   }
 
+  // Rest of the current line, without advancing.
+  std::string peek_line() const {
+    size_t i = idx_;
+    while (i < length_ && buf_[i] != '\n' && buf_[i] != '\r') i++;
+    return std::string(buf_ + idx_, i - idx_);
+  }
+
   std::string read_line() {
     std::string result;
     while (idx_ < length_) {
@@ -8869,6 +8880,52 @@ bool MaterialStreamReader::operator()(const std::string &matId,
   return LoadMtlInternal(matMap, materials, mtl_sr, warn, err, "<stream>");
 }
 
+// A `t` line whose counts, argument count and integer/decimal arguments are
+// well-formed (only those become mesh_t::tags; all lines go to tag_lines).
+static bool tagLineWellFormed(const std::string &raw) {
+  std::vector<std::string> tk;
+  {
+    size_t i = 0;
+    while (i < raw.size()) {
+      while (i < raw.size() && (raw[i] == ' ' || raw[i] == '\t')) i++;
+      size_t j = i;
+      while (j < raw.size() && raw[j] != ' ' && raw[j] != '\t') j++;
+      if (j > i) tk.push_back(raw.substr(i, j - i));
+      i = j;
+    }
+  }
+  if (tk.size() < 3 || tk[0] != "t") return false;
+  size_t cnt[3] = {0, 0, 0};
+  {
+    const std::string &c = tk[2];
+    size_t i = 0;
+    for (int k = 0; k < 3; k++) {
+      size_t d = 0;
+      while (i < c.size() && c[i] >= '0' && c[i] <= '9') {
+        if (cnt[k] <= 8192) cnt[k] = cnt[k] * 10 + size_t(c[i] - '0');
+        i++, d++;
+      }
+      if (d == 0 || cnt[k] > 8192) return false;
+      if (k < 2) {
+        if (i >= c.size() || c[i] != '/') return false;
+        i++;
+      }
+    }
+    if (i != c.size()) return false;
+  }
+  if (tk.size() != 3 + cnt[0] + cnt[1] + cnt[2]) return false;
+  for (size_t k = 0; k < cnt[0] + cnt[1]; k++) {
+    const char *b = tk[3 + k].c_str();
+    char *e = NULL;
+    if (k < cnt[0])
+      (void)strtol(b, &e, 10);
+    else
+      (void)strtod(b, &e);
+    if (e == b || *e != '\0') return false;
+  }
+  return true;
+}
+
 static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
                             std::vector<material_t> *materials,
                             std::string *warn, std::string *err,
@@ -8890,7 +8947,8 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
   std::vector<real_t> vt_w;  // optional [w] component in `vt`
   std::vector<real_t> vc;
   std::vector<skin_weight_t> vw;
-  std::vector<tag_t> tags;
+  std::vector<tag_t> tags;            // tags of the current group
+  std::vector<std::string> tag_lines;
   PrimGroup prim_group;
   std::string name;
 
@@ -9230,8 +9288,11 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
       (void)ret;
 
       if (shape.mesh.indices.size() > 0) {
+        shape.mesh.tag_lines = tag_lines;
         shapes->push_back(shape);
       }
+      tags.clear();  // tags belong to their group
+      tag_lines.clear();
 
       shape = shape_t();
 
@@ -9284,8 +9345,11 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
 
       if (shape.mesh.indices.size() > 0 || shape.lines.indices.size() > 0 ||
           shape.points.indices.size() > 0) {
+        if (shape.mesh.indices.size() > 0) shape.mesh.tag_lines = tag_lines;
         shapes->push_back(shape);
       }
+      tags.clear();  // tags belong to their group
+      tag_lines.clear();
 
       // material = -1;
       prim_group.clear();
@@ -9299,9 +9363,25 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
       continue;
     }
 
+    if (sr.peek() == 't' && (sr.peek_at(1) == '\n' || sr.peek_at(1) == '\r' ||
+                             sr.peek_at(1) == '\0' || sr.tell() + 1 >= sr.size())) {
+      tag_lines.push_back("t");  // malformed: no name or counts
+      sr.skip_line();
+      continue;
+    }
+
     if (sr.peek() == 't' && (sr.peek_at(1) == ' ' || sr.peek_at(1) == '\t')) {
       const int max_tag_nums = 8192;
       tag_t tag;
+      bool well_formed;
+
+      {
+        std::string raw = sr.peek_line();
+        while (!raw.empty() && (raw.back() == ' ' || raw.back() == '\t'))
+          raw.pop_back();
+        well_formed = tagLineWellFormed(raw);
+        tag_lines.push_back(raw);
+      }
 
       sr.advance(2);
 
@@ -9346,7 +9426,7 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
         tag.stringValues[i] = sr_parseString(sr);
       }
 
-      tags.push_back(tag);
+      if (well_formed) tags.push_back(tag);
 
       sr.skip_line();
       continue;
@@ -9418,6 +9498,7 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
   bool ret = exportGroupsToShape(&shape, prim_group, tags, material, name,
                                  triangulate, v, warn);
   if (ret || shape.mesh.indices.size()) {
+    if (shape.mesh.indices.size() > 0) shape.mesh.tag_lines = tag_lines;
     shapes->push_back(shape);
   }
   prim_group.clear();
@@ -11386,6 +11467,7 @@ static void ConvertLegacyShapeToBasic(const shape_t &src, basic_shape_t<> *dst) 
   opt_assign_vector(&dst->mesh.smoothing_group_ids,
                     src.mesh.smoothing_group_ids);
   dst->mesh.tags = src.mesh.tags;
+  dst->mesh.tag_lines = src.mesh.tag_lines;
   opt_assign_vector(&dst->lines.indices, src.lines.indices);
   opt_assign_vector(&dst->lines.num_line_vertices, src.lines.num_line_vertices);
   opt_assign_vector(&dst->points.indices, src.points.indices);

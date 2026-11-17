@@ -1,0 +1,27 @@
+v 0 0 0
+v 0 0 0
+v 0 0 0
+v 0 0 0
+v 0 0 0
+v 0 0 0
+f -2//1 2/1 5 5
+f -3/1 6 6/1/1 -6//1 1/1/1
+f 2 6//1 1//1 4/1 -3//1
+o m
+v 0 0 0
+v 0 0 0
+v 0 0 0
+t facevaryinginterpolateboundary 1/0/0 
+t creasemethod 0/0/1 normal
+t	crease	1/0/0/0
+t	scheme	0/0/1	normal
+t	corner	a/0/0	9	+3
+t  foo  0/0/0
+o m
+t  foo  0/2/1  inf  x  bilinear
+o m
+v 0 0 0
+v 0 0 0
+f 0 3 9//1 -5/1 10/1/1
+t creasemethod 3/1/2 11 +1 8 -1 chaikin normal
+t  creasemethod  0/0/1

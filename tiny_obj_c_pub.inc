@@ -130,8 +130,11 @@ typedef struct TOBJ_T(tobj_mesh) {
   int *material_ids;                 /* per face */
   unsigned int *smoothing_group_ids; /* per face; 0 = off */
   size_t num_faces;
-  TOBJ_T(tobj_tag) * tags;
+  TOBJ_T(tobj_tag) * tags; /* well-formed `t` lines, parsed generically */
   size_t num_tags;
+  /* `t` lines verbatim, in file order (subdivision tags: see tobj_subd.h) */
+  const char **tag_lines;
+  size_t num_tag_lines;
 } TOBJ_T(tobj_mesh);
 
 typedef struct TOBJ_T(tobj_lines) {

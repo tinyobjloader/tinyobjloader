@@ -1,0 +1,10 @@
+o m
+v 0 0 0
+v 0 0 0
+v 0 0 0
+v 0 0 0
+f -2 3//1 3//1 4
+t  foo  1/0/0  1
+t  corner  1/1/0  99999999999999999999  x
+t creasemethod 0/0/1 loop
+t	smoothtriangles	0/0/1

@@ -86,7 +86,8 @@ static void w_shape(wsink *w, const tobj_index *indices,
                     const unsigned *num_face_vertices, const int *material_ids,
                     const unsigned *smoothing_group_ids, size_t num_faces,
                     const char *name, const char *const *mat_names,
-                    size_t num_mats) {
+                    size_t num_mats, const char *const *tag_lines,
+                    size_t num_tag_lines) {
   if (num_faces == 0) return;
   w_str(w, "g ");
   w_str(w, name ? name : "");
@@ -110,6 +111,12 @@ static void w_shape(wsink *w, const tobj_index *indices,
     w_bytes(w, "\n", 1);
     at += num_face_vertices[f];
   }
+  /* `t` lines verbatim: vertex numbers are file-global and faces keep their
+   * order, so the tags stay valid (subd-obj.md). */
+  for (size_t i = 0; i < num_tag_lines; i++) {
+    w_str(w, tag_lines[i]);
+    w_bytes(w, "\n", 1);
+  }
 }
 
 /* Shared body for the float and double writers. */
@@ -129,7 +136,7 @@ static void w_shape(wsink *w, const tobj_index *indices,
     const tobj_mesh##SUF *m = &sc->shapes[s].mesh;                             \
     w_shape(&w, m->indices, m->num_face_vertices, m->material_ids,           \
             m->smoothing_group_ids, m->num_faces, sc->shapes[s].name, names, \
-            nm);                                                             \
+            nm, m->tag_lines, m->num_tag_lines);                             \
   }                                                                          \
   if (buf && cap) buf[w.len < cap ? w.len : cap - 1] = '\0';                  \
   return w.len;

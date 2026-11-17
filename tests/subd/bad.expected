@@ -1,0 +1,28 @@
+shape counts faces=1 tags=0/1 ok=0
+  error: t: argument count
+shape notedge faces=1 tags=1/1 ok=0
+  error: crease: not an edge of the mesh
+shape dup faces=1 tags=2/2 ok=0
+  error: repeated scalar tag
+shape range faces=1 tags=1/1 ok=0
+  error: t: value out of range
+shape loopquad faces=1 tags=1/1 ok=0
+  error: scheme loop: all faces must be triangles
+shape smoothbilinear faces=1 tags=2/2 ok=0
+  error: smoothtriangles: catmark scheme only
+shape badnum faces=1 tags=1/1 ok=0
+  error: t: bad decimal
+shape badint faces=1 tags=0/1 ok=0
+  error: t: bad integer
+shape hole faces=1 tags=1/1 ok=0
+  error: hole: not a face of the mesh
+shape corner faces=1 tags=1/1 ok=0
+  error: corner: vertex not in the mesh
+shape selfedge faces=1 tags=1/1 ok=0
+  error: crease: bad edge
+shape bigcount faces=1 tags=0/1 ok=0
+  error: t: bad counts
+shape emptyname faces=1 tags=0/1 ok=0
+  error: t: expected <name> <ni>/<nf>/<ns>
+shape string faces=1 tags=1/1 ok=0
+  error: t: unknown value

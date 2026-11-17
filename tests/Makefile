@@ -111,6 +111,21 @@ check_mtlx: ../tobj_mtlx.c ../tobj_mtlx.h mtlx_loader_test.c mtlx_loader_test_cx
 	$(CC) -std=c11 -g -Wall -Wextra -fsanitize=address,undefined -o mtlx_roundtrip mtlx_roundtrip.c ../tobj_mtlx.c
 	./mtlx_roundtrip ../formal/Mtlx/tests/*.mtl ../fuzzer/corpus/mtlx/*.mtl
 
+# Subdivision tags (tobj_subd): C11 and C++ loaders vs golden files, and the
+# canonical round trip.
+SUBD_FIXTURES = ../formal/Subd/tests/bad.obj ../formal/Subd/tests/box.obj \
+                ../formal/Subd/tests/multi.obj ../models/catmark_torus_creases0.obj
+check_subd: ../tobj_subd.c ../tobj_subd.h subd_test.c subd_test_cxx.cc subd_roundtrip.c
+	$(CC) -std=c11 -g -fsanitize=address,undefined -o subd_test subd_test.c ../tiny_obj_c.c ../tobj_tess.c ../tobj_subd.c -lm
+	$(CC) -std=c11 -g -fsanitize=address,undefined -c -o tobj_subd.o ../tobj_subd.c
+	$(CXX) -std=c++11 -g -fsanitize=address,undefined -o subd_test_cxx subd_test_cxx.cc tobj_subd.o
+	$(CC) -std=c11 -g -Wall -Wextra -fsanitize=address,undefined -o subd_roundtrip subd_roundtrip.c ../tobj_subd.c
+	for f in $(SUBD_FIXTURES); do b=$$(basename $$f .obj); \
+	  ./subd_test $$f | diff -u subd/$$b.expected - || exit 1; \
+	  ./subd_test_cxx $$f | diff -u subd/$$b.expected - || exit 1; done
+	./subd_roundtrip $(SUBD_FIXTURES) ../fuzzer/corpus/subd/*.obj
+	@echo "check_subd: ok"
+
 clean:
 	rm -rf tester tester_features tester_nofastfloat \
 	       tester_c tester_c_features tess_tester tester_c_freestanding

@@ -1,0 +1,6 @@
+shape a faces=1 tags=1/1 ok=1
+t crease 2/1/0 0 1 1
+shape b faces=2 tags=3/3 ok=1
+t scheme 0/0/1 loop
+t crease 2/1/0 4 5 1E1
+t corner 1/1/0 6 +2

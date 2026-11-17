@@ -5,4 +5,7 @@ include LICENSE
 include python/sample.py
 include python/bindings.cc
 include python/tiny_obj_loader.cc
+include python/tobj_subd.cc
 include tiny_obj_loader.h
+include tobj_subd.c
+include tobj_subd.h

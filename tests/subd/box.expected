@@ -1,0 +1,12 @@
+shape box faces=6 tags=12/12 ok=1
+t interpolateboundary 1/0/0 2
+t facevaryinginterpolateboundary 1/0/0 1
+t creasemethod 0/0/1 chaikin
+t smoothtriangles 0/0/1 smooth
+t crease 2/1/0 0 1 3
+t crease 2/1/0 1 2 10
+t crease 2/1/0 2 3 0
+t corner 1/1/0 0 .5
+t corner 1/1/0 6 4
+t hole 2/0/0 5 1
+t mytag 1/1/1 7 1e3 hello

@@ -1,0 +1,17 @@
+# two meshes; tag vertex numbers count over the whole file
+v 0 0 0
+v 1 0 0
+v 1 1 0
+v 0 1 0
+g a
+f 1 2 3 4
+t crease 2/1/0 0 1 1
+o b
+v 2 0 0
+v 3 0 0
+v 3 1 0
+f 5 6 7
+f -3 -1 -2
+t scheme 0/0/1 loop
+t crease 2/1/0 4 5 1E1
+t corner 1/1/0 6 +2

@@ -80,6 +80,7 @@ The pure C11 loader additionally supports points (`p`) and free-form geometry
 
 * PBR material extension for .MTL. Please see [pbr-mtl.md](pbr-mtl.md) for details.
 * MaterialX node graphs in .MTL (`mtlx_*` lines; connections are `@node` input values), with a Lean 4 specification. Please see [mtlx-mtl.md](mtlx-mtl.md) for details.
+* Subdivision-surface tags (OpenSubdiv's `t` lines: scheme, boundary rules, creases, corners, holes), checked against the mesh by `tobj_subd`, with a Lean 4 specification. Please see [subd-obj.md](subd-obj.md) for details.
 * Texture options
 * Unknown material attributes are returned as key-value(value is string) map.
 
