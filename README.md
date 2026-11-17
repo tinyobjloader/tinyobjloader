@@ -94,6 +94,8 @@ The pure C11 loader additionally supports points (`p`) and free-form geometry
 
 TinyObjLoader is licensed under MIT license.
 
+Copyright (c) 2012-Present, Syoyo Fujita and many contributors.
+
 ### Third party licenses.
 
 * pybind11 : BSD-style license.
@@ -471,6 +473,32 @@ with CMake (`-DTINYOBJLOADER_BUILD_C_LIBRARY=ON`, the default; options
 compile `tiny_obj_c.c` and `tobj_tess.c`. C tests live under `tests/`
 (`make check_c`).
 
+## WebAssembly / npm (`web/`)
+
+The pure C11 loader also builds to WebAssembly for browsers and Node, packaged as
+the npm module `tinyobj`:
+
+* `web/src/tobj_wasm.{h,c}` — a hand-written C ABI shim (**no embind, no C++**).
+  Results are interleaved triangle corners with per-material draw groups, read by
+  JavaScript as `Float32Array` / `Uint32Array` heap views.
+* `web/js/` — the ESM wrapper (`initTinyObj()`, `parse()`, `dispose()`) plus
+  TypeScript declarations.
+* `web/build.sh` — `emcc -std=c11` build of `tiny_obj_c.c`, `tobj_tess.c` and the
+  shim into `web/dist/tinyobj.{js,wasm}`.
+* `web/demo/` — a Three.js viewer: drop an `.obj` (and its `.mtl`) onto the page.
+
+```sh
+cd web && ./build.sh
+python3 -m http.server 8000   # then open http://localhost:8000/demo/
+```
+
+It is the default wasm configuration (scalar, single-threaded, libc-backed; no
+`TOBJ_ENABLE_*` macros), and `.mtl` sidecars are resolved through
+`tobj_load_config.mtl_resolver` instead of file I/O. See
+[web/README.md](web/README.md) for the JavaScript API, the raw ABI and packaging
+details. Nothing is published to npm yet; `npm pack` inside `web/` produces the
+tarball. The release procedure is in [web/PUBLISHING.md](web/PUBLISHING.md).
+
 ## Python binding
 
 ```
@@ -491,6 +519,103 @@ cibuildwheels + twine upload for each git tagging event is handled in Github Act
 * `git push --tags`
   * version settings is automatically handled in python binding through setuptools_scm.
   * cibuildwheels + pypi upload (through twine) will be automatically triggered in Github Actions.
+
+## Developer guide
+
+### Release trains
+
+This repository publishes two independent things, and each has its own version
+number and its own tag namespace. Do not mix them.
+
+| | C++ library / PyPI | npm package (`web/`) |
+| --- | --- | --- |
+| Version source | `CMakeLists.txt` (`TINYOBJLOADER_VERSION`) / setuptools_scm | `web/package.json` |
+| Tag pattern | `v*` (e.g. `v3.1.0`) | `npm-v*` (e.g. `npm-v2.0.0-rc.13`) |
+| Workflow | `unit.yml`, `python.yml` | `npm-publish.yml` |
+| Current version | `2.0.0-rc.13` | `2.0.0-rc.13` |
+
+The `npm-` prefix is not cosmetic. The repository already has ~93 `v*` tags, and
+those versions do not track the npm package version. An npm workflow triggered on
+`v*` would fire on every C++/PyPI release and fail its version check, so
+`npm-publish.yml` deliberately listens on `npm-v*` only.
+
+For the C++/PyPI procedure see [CI + PyPI upload](#ci--pypi-upload) above.
+
+### Tagging an npm release
+
+`npm-publish.yml` runs **only** on a tag push — there is no `workflow_dispatch`
+and no branch trigger, so a tagged commit is the only way to stage a release. It
+stages the package with [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers)
+(OIDC, no tokens); a maintainer then approves it with 2FA before it becomes
+installable. Full details: [web/PUBLISHING.md](web/PUBLISHING.md).
+
+1. Bump `version` in `web/package.json`. It must be a version npm has never seen
+   for `tinyobj`. Keep `TINYOBJLOADER_VERSION` in `CMakeLists.txt` in sync if the
+   C++ release should carry the same number.
+
+2. Run the checks locally; the workflow repeats them, but a failing tag is noise:
+
+   ```sh
+   cd web
+   npm run test:native      # native cc build of the shim
+   ./build.sh               # requires emcc in PATH
+   npm test                 # node, against the built wasm
+   npm pack --dry-run       # expect exactly 7 files
+   ```
+
+3. Commit and push the version bump to the branch that will be released.
+
+4. Create a tag that matches `web/package.json` **exactly** — an `npm-v` prefix
+   followed by the version string, with no extra `v`:
+
+   ```sh
+   version=$(node -p "require('./web/package.json').version")   # e.g. 2.0.0-rc.13
+   git tag -a "npm-v$version" -m "tinyobj npm $version"
+   ```
+
+   The workflow fails with a version-mismatch error if the tag and
+   `web/package.json` disagree, so deriving the tag from the file avoids typos.
+
+5. Push the tag. This is what triggers the workflow:
+
+   ```sh
+   git push origin "npm-v$version"
+   ```
+
+   Avoid `git push --tags` here: that would push any local `v*` tag and trigger
+   the C++/PyPI release train as well.
+
+6. Watch the run, then approve the staged package. Nothing is public until this
+   step is done:
+
+   ```sh
+   npm stage list tinyobj
+   npm stage approve <stage-id>      # prompts for 2FA
+   ```
+
+   You can also review and approve under **Staged Packages** on npmjs.com.
+
+Dist-tags are derived from the version, not chosen by hand:
+
+* prerelease (`2.0.0-rc.13`) → `next`, so the RC never becomes the default that
+  `npm install tinyobj` resolves to;
+* stable (`2.0.0`) → `latest`.
+
+To promote an already-approved prerelease to the default install tag later:
+
+```sh
+npm dist-tag add tinyobj@2.0.0-rc.13 latest
+```
+
+Notes for maintainers:
+
+* `.github/workflows/wasm-package.yml` builds and tests `web/` on every push and
+  pull request, so a broken module is caught before it is tagged.
+* The npm trusted-publisher configuration (package **Settings → Trusted
+  publishing**) must name workflow filename `npm-publish.yml` exactly, and the
+  first publish must succeed within 2 days of saving it.
+* npm cannot unpublish after 72 hours and never allows reusing a version number.
+  Use `npm deprecate tinyobj@<version> "<reason>"` rather than deleting.
 
 ## Tests
 

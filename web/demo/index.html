@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>tinyobj — WebAssembly OBJ viewer</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #101216;
+        --panel: #191d23;
+        --line: #2b323c;
+        --text: #e6e9ee;
+        --muted: #98a2b2;
+        --accent: #7cc4ff;
+        --error: #ff8b8b;
+        --warn: #ffd479;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+          sans-serif;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+      }
+      header {
+        position: fixed;
+        inset: 16px auto auto 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 14px;
+        background: color-mix(in srgb, var(--panel) 88%, transparent);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        backdrop-filter: blur(6px);
+      }
+      header strong {
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      header span {
+        color: var(--muted);
+      }
+      button {
+        font: inherit;
+        color: var(--text);
+        background: #232a33;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 6px 12px;
+        cursor: pointer;
+      }
+      button:hover {
+        border-color: var(--accent);
+      }
+      button:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      #status {
+        position: fixed;
+        inset: auto 16px 16px 16px;
+        max-height: 25vh;
+        overflow: auto;
+        padding: 10px 14px;
+        background: color-mix(in srgb, var(--panel) 88%, transparent);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        color: var(--muted);
+        white-space: pre-wrap;
+        backdrop-filter: blur(6px);
+      }
+      #status[data-kind="error"] {
+        color: var(--error);
+      }
+      #status[data-kind="warn"] {
+        color: var(--warn);
+      }
+      #dropzone {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: color-mix(in srgb, var(--bg) 70%, transparent);
+        border: 2px dashed var(--accent);
+        color: var(--accent);
+        font-size: 16px;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 120ms ease;
+      }
+      body[data-dragging="true"] #dropzone {
+        opacity: 1;
+      }
+      #hint {
+        position: fixed;
+        inset: auto auto 16px 50%;
+        transform: translateX(-50%);
+        color: var(--muted);
+      }
+      @media (max-width: 640px) {
+        header span {
+          display: none;
+        }
+        #hint {
+          display: none;
+        }
+      }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+
+    <header>
+      <strong>tinyobj</strong>
+      <span>C11 loader → WebAssembly</span>
+      <button id="pick" type="button">Choose .obj</button>
+      <input
+        id="files"
+        type="file"
+        accept=".obj,.mtl"
+        multiple
+        hidden
+      />
+    </header>
+
+    <div id="hint">Drop an .obj (and its .mtl) anywhere</div>
+    <div id="status" role="status" aria-live="polite">Loading WebAssembly…</div>
+    <div id="dropzone">Drop .obj / .mtl to load</div>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

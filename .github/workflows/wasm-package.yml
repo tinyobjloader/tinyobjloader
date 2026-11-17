@@ -1,0 +1,95 @@
+name: WebAssembly package
+
+# Builds and tests the npm package in web/ on every change, so a release tag
+# never stages a broken module. Publishing itself is npm-publish.yml.
+
+on:
+  push:
+    branches: ['**']
+    paths: ['web/**', 'tiny_obj_c*', 'tobj_tess*', 'CMakeLists.txt', '.github/workflows/wasm-package.yml']
+  pull_request:
+    paths: ['web/**', 'tiny_obj_c*', 'tobj_tess*', 'CMakeLists.txt', '.github/workflows/wasm-package.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: build and test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: Set up Emscripten
+        uses: emscripten-core/setup-emsdk@v16
+        with:
+          version: 7.0.0
+
+      - name: Native shim test (no Emscripten)
+        run: bash test/run_native.sh
+
+      - name: Build WebAssembly module
+        run: ./build.sh
+
+      - name: Node smoke test
+        run: node test/smoke.mjs
+
+      - name: Check npm package contents
+        run: |
+          # --ignore-scripts: dist/ was built above, and prepack output would
+          # otherwise be mixed into this JSON.
+          npm pack --dry-run --json --ignore-scripts > pack.json
+          node -e '
+            const [tarball] = require("./pack.json");
+            const expected = [
+              "LICENSE", "README.md", "dist/tinyobj.js", "dist/tinyobj.wasm",
+              "js/index.d.ts", "js/index.js", "package.json",
+            ];
+            const actual = tarball.files.map((f) => f.path).sort();
+            if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+              console.error("unexpected tarball contents:", actual);
+              process.exit(1);
+            }
+            console.log(`${actual.length} files, ${tarball.size} bytes`);
+          '
+          rm -f pack.json
+
+  browser:
+    name: browser demo
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: Set up Emscripten
+        uses: emscripten-core/setup-emsdk@v16
+        with:
+          version: 7.0.0
+
+      - name: Build WebAssembly module
+        run: ./build.sh
+
+      - name: Install Chrome for the demo check
+        uses: browser-actions/setup-chrome@v1
+        id: chrome
+
+      - name: Run the demo in headless Chrome
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+        run: node test/browser_check.mjs

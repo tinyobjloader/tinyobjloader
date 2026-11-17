@@ -14,3 +14,7 @@ build/
 
 /Testing/Temporary/
 build-osd/
+
+# WebAssembly / npm package (generated output)
+/web/dist/
+/web/node_modules/

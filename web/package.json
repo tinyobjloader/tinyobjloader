@@ -1,0 +1,65 @@
+{
+  "name": "tinyobj",
+  "version": "2.0.0-rc.13",
+  "description": "Wavefront OBJ/MTL loader: the pure C11 tinyobjloader compiled to WebAssembly, with a hand-written C ABI (no embind, no C++).",
+  "type": "module",
+  "license": "MIT",
+  "author": {
+    "name": "Syoyo Fujita",
+    "email": "syoyo@lighttransport.com",
+    "url": "https://github.com/syoyo"
+  },
+  "homepage": "https://github.com/tinyobjloader/tinyobjloader/tree/release/web#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tinyobjloader/tinyobjloader.git",
+    "directory": "web"
+  },
+  "bugs": {
+    "url": "https://github.com/tinyobjloader/tinyobjloader/issues"
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "types": "./js/index.d.ts",
+      "import": "./js/index.js"
+    },
+    "./raw": "./dist/tinyobj.js",
+    "./package.json": "./package.json"
+  },
+  "types": "./js/index.d.ts",
+  "files": [
+    "js/",
+    "dist/tinyobj.js",
+    "dist/tinyobj.wasm",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "obj",
+    "mtl",
+    "wavefront",
+    "3d",
+    "mesh",
+    "wasm",
+    "webassembly",
+    "emscripten",
+    "loader"
+  ],
+  "scripts": {
+    "build": "bash build.sh",
+    "build:debug": "bash build.sh --debug",
+    "prepack": "bash build.sh",
+    "prepublishOnly": "bash scripts/prepublish-check.sh",
+    "test": "node test/smoke.mjs",
+    "test:native": "bash test/run_native.sh",
+    "test:browser": "node test/browser_check.mjs",
+    "demo": "node --version >/dev/null && python3 -m http.server 8000"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
