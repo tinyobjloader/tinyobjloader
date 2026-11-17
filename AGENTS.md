@@ -196,14 +196,36 @@ credential lands on `origin` it is forever in the public Git history.
 
 Always inspect the exact range you are pushing — `git log --oneline
 @{upstream}..HEAD` for a regular push, or `git log --oneline <remote-tip>..HEAD`
-for a force/lease push — and run the four checks below against **every** commit
-in that range, not just `HEAD`. Any single offending commit blocks the push;
+for a force/lease push — and run the checks below against **every** commit in
+that range, not just `HEAD`. Any single offending commit blocks the push;
 resolve via `git rebase -i` (drop / edit) or `git filter-repo` (path removal)
 before continuing.
 
-If the branch has no upstream yet (a brand-new branch), there is no range to
-diff against — audit `git log --oneline origin/release..HEAD` instead, and say so
-explicitly when reporting results.
+**Run the consolidated script; do not retype the commands.**
+
+```bash
+bash scripts/prepush-audit.sh              # @{upstream}..HEAD
+RANGE=origin/release..HEAD bash scripts/prepush-audit.sh   # explicit range
+UPSTREAM_DEFAULT=origin/master bash scripts/prepush-audit.sh
+```
+
+It prints one `ok` / `skip` / `ABORT` line per check and exits non-zero if
+anything fails, so a clean run is a single unambiguous signal. The commands
+below are what it runs; they are shown so the checks can be reviewed, not so
+they can be pasted individually.
+
+Three failure modes are deliberately fatal, because each makes a check silently
+*vacuous* rather than noisy:
+
+- **The range must resolve and be non-empty.** A branch with no upstream has no
+  `@{upstream}` to diff against, so the script falls back to
+  `UPSTREAM_DEFAULT` (`origin/release`) and says so on stderr. An unresolvable
+  or empty range aborts instead of reporting "clean" for a range that was never
+  read. Never treat a `fatal: no upstream configured` message as a pass.
+- **A secret scanner that scanned nothing is not a pass.** `gitleaks` is
+  checked for a non-zero "commits scanned" count; 0 commits aborts.
+- **The scanners must cover the same range as the grep heuristic** — see the
+  `--log-opts` / `--since-commit` notes in Check 1.
 
 #### Check 1 — Credentials & sensitive data
 
@@ -223,7 +245,10 @@ history within the push range:
 How to check (run from the repo root, against the exact push range):
 
 ```bash
-RANGE="$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream})..HEAD"
+# RANGE comes from step 1 above; it is never empty. Setting it inline as
+# RANGE="$(git rev-parse ... @{upstream})..HEAD" silently yields '..HEAD' on a
+# branch with no upstream, which makes every check below vacuous.
+: "${RANGE:?set RANGE=<base>..HEAD, e.g. origin/release..HEAD}"
 # Added lines only, and a value of >=12 token characters is required, so
 # `id-token: write` / `const char *token = ...` idioms do not trip it.
 git diff "$RANGE" -- ':!**/*.md' ':!**/*.txt' | grep '^+' \
@@ -253,9 +278,9 @@ treat the secret as compromised, and rotate before doing anything else). If a
 tool is missing, note that it was skipped and fall back to the grep heuristic.
 
 ```bash
-# Same range as Check 1 (BASE..HEAD).
-RANGE="${RANGE:-$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream})..HEAD}"
-BASE="$(git rev-parse "${RANGE%%..*}")"
+# Same range as Check 1 (BASE..HEAD). RANGE must already be resolved and
+# non-empty — see "Audit the commits" above; do not recompute @{upstream} here.
+BASE="${RANGE%%..*}"
 REPO="$(git rev-parse --show-toplevel)"
 BRANCH="$(git branch --show-current)"
 # trufflehog's go-git backend can't read a *worktree* `.git` file, so point it at
@@ -264,12 +289,22 @@ BRANCH="$(git branch --show-current)"
 MAIN_WT="$(git worktree list --porcelain | awk '/^worktree /{print $2; exit}')"
 
 # gitleaks — handles worktrees natively; scans exactly the commits in the range
-# via `git log` options. Exit 0 = clean, non-zero = leaks (or error). --redact
-# keeps any secret out of logs/stdout.
+# via --log-opts. Exit 0 = clean, non-zero = leaks (or error). --redact keeps any
+# secret out of logs/stdout. Two traps, both measured on gitleaks 8.x here:
+#   - the success line reads "no leaks found", so grepping for "leaks" matches
+#     the "no" and reports a false positive; use the exit status instead;
+#   - it colorizes log lines and ignores NO_COLOR (there is no --no-color), so a
+#     plain sed for "N commits scanned" matches nothing. Strip ESC first.
 if command -v gitleaks >/dev/null 2>&1; then
-  gitleaks detect --source "$REPO" --redact --log-opts="$RANGE" \
-    && echo "gitleaks: clean over $RANGE" \
-    || { echo "ABORT: gitleaks flagged secrets in $RANGE"; exit 1; }
+  if out="$(gitleaks detect --source "$REPO" --redact --log-opts="$RANGE" --no-banner 2>&1)"; then
+    clean="$(printf '%s' "$out" | tr -d '\033' | sed 's/\[[0-9;]*m//g')"
+    scanned="$(printf '%s' "$clean" | grep -oE '[0-9]+ commits scanned' | grep -oE '^[0-9]+' | tail -1)"
+    [ -n "$scanned" ] && [ "$scanned" -gt 0 ] \
+      && echo "gitleaks: $scanned commits, no leaks" \
+      || { echo "ABORT: gitleaks scanned 0 commits for $RANGE"; exit 1; }
+  else
+    echo "ABORT: gitleaks flagged secrets in $RANGE"; exit 1
+  fi
 else
   echo "gitleaks not installed; skipping (https://github.com/gitleaks/gitleaks). Rely on the grep heuristic above."
 fi
@@ -299,7 +334,8 @@ changed in generic terms ("a ~500k-face scene", "a reference folder scene"),
 never the private asset that exercised it. Run both scans over the push range:
 
 ```bash
-RANGE="$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream})..HEAD"
+# RANGE from step 1 above; never recompute it from @{upstream} (see Check 1).
+: "${RANGE:?set RANGE=<base>..HEAD, e.g. origin/release..HEAD}"
 
 # (a) Personal paths in BOTH messages and source — must be empty.
 { git log "$RANGE" --format='%B'; git diff "$RANGE" -- '*.c' '*.h' '*.inc' '*.cc' 'web/*' 'python/*'; } \
