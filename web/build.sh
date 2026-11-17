@@ -7,6 +7,8 @@
 #
 # Requires emcc (Emscripten) in PATH. Pure C11 only: tiny_obj_c.c + tobj_tess.c
 # plus the hand-written binding shim. No embind, no C++.
+# Threads are off: static hosts (e.g. GitHub Pages) cannot set the COOP/COEP
+# headers that SharedArrayBuffer-based pthreads require.
 #
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -52,6 +54,7 @@ emcc -std=c11 $OPT \
   -sMAXIMUM_MEMORY=2147483648 \
   -sSTACK_SIZE=1048576 \
   -sFILESYSTEM=0 \
+  -sUSE_PTHREADS=0 \
   -sEXPORTED_FUNCTIONS="$exports" \
   -sEXPORTED_RUNTIME_METHODS='["UTF8ToString","HEAPU8","HEAPU32","HEAPF32"]' \
   -sINCOMING_MODULE_JS_API='["locateFile","print","printErr","wasmBinary"]'

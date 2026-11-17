@@ -1,23 +1,37 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 
-// web/ is the Vite root so that demo/main.js can import ../js/index.js and the
-// Emscripten glue in ../dist/ directly. The static, CDN-based demo at /demo/
-// keeps working unchanged: Vite rewrites the bare `three` imports to the local
-// node_modules copy, while the import map in demo/index.html remains for
-// `npm run demo` / the browser-check harness (which do not use Vite).
+const web = path.dirname(fileURLToPath(import.meta.url));
+
+// The demo is the Vite root so the build emits index.html at the artifact root
+// (ready for GitHub Pages). main.js still imports ../js/index.js and the
+// Emscripten glue in ../dist/, which are served from the parent web/ directory.
 export default defineConfig({
+  root: path.join(web, 'demo'),
+  // Relative asset URLs so the built demo works at any GitHub Pages path.
+  base: './',
+  plugins: [
+    {
+      // The source import map is only for the no-bundler static demo. A build
+      // has three.js bundled, so leave no CDN reference in the artifact.
+      apply: 'build',
+      name: 'strip-importmap',
+      transformIndexHtml(html) {
+        return html.replace(/<script type="importmap">[\s\S]*?<\/script>\s*/g, '');
+      },
+    },
+  ],
   server: {
-    open: '/demo/',
+    fs: { allow: [web, path.join(web, '..')] },
+    open: '/',
   },
   build: {
     // The demo uses top-level await; Vite's default ES2020 target rejects it.
     target: 'es2022',
     // Do not clobber dist/, which holds the emscripten build consumed by the
     // published package.
-    outDir: '.vite-demo-dist',
+    outDir: path.join(web, '.vite-demo-dist'),
     emptyOutDir: true,
-    rollupOptions: {
-      input: 'demo/index.html',
-    },
   },
 });

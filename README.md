@@ -490,7 +490,7 @@ the npm module `tinyobj`:
 
 ```sh
 cd web && ./build.sh
-npm install && npm run dev     # Vite live demo at http://localhost:5173/demo/
+npm install && npm run dev     # Vite live demo at http://localhost:5173/
 # or, without a bundler:
 python3 -m http.server 8000   # then open http://localhost:8000/demo/
 ```

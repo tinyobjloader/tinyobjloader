@@ -107,7 +107,7 @@ Live development (recommended):
 cd web
 ./build.sh            # once, to produce dist/tinyobj.{js,wasm}
 npm install           # installs the Vite + Three.js dev dependencies
-npm run dev           # http://localhost:5173/demo/ (hot reload)
+npm run dev           # http://localhost:5173/ (hot reload)
 ```
 
 `npm run dev` resolves `three` from `node_modules` and rewrites the Emscripten
