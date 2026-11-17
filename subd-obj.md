@@ -53,9 +53,19 @@ mesh's own faces, in file order.
 Any other tag name is kept as is and has no meaning. Loaders report it as a
 warning.
 
-A tag that is absent means the consumer's default. For OpenSubdiv
-(`Sdc::Options`) the defaults are vertex boundary none, face-varying linear
-all, uniform creasing and catmark triangles.
+An absent tag takes the default of OpenSubdiv's OBJ reader
+(`regression/common/far_utils.h`):
+
+| Tag | Default |
+| --- | --- |
+| `scheme` | catmark |
+| `interpolateboundary` | `2` (edge only) |
+| `facevaryinginterpolateboundary` | `5` (all) |
+| `creasemethod` | `normal` |
+| `smoothtriangles` | `catmark` |
+
+Consumers whose defaults differ must apply these values themselves. USD, for
+example, defaults to edge-and-corner and corners-plus-1.
 
 ### Tokens and numbers
 

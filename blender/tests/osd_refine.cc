@@ -104,6 +104,9 @@ int main(int argc, char **argv) {
                              : s.scheme == TOBJ_SUBD_BILINEAR ? Sdc::SCHEME_BILINEAR
                                                               : Sdc::SCHEME_CATMARK;
     Sdc::Options opt;
+    // Absent tags: OpenSubdiv's OBJ reader defaults (subd-obj.md): edge-only
+    // boundary; the other Sdc defaults already match.
+    opt.SetVtxBoundaryInterpolation(Sdc::Options::VTX_BOUNDARY_EDGE_ONLY);
     // Tag values follow OpenSubdiv's OBJ reader (regression/common/far_utils.h),
     // which is not the Sdc enum order: 1 = edge and corner, 2 = edge only.
     if (s.interp_boundary == 0)

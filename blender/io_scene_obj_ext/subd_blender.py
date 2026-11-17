@@ -38,13 +38,6 @@ def sharp_text(x):
     return "10" if x >= 10.0 else f"{x:.6g}"
 
 
-def _has_boundary(me):
-    count = {}
-    for p in me.polygons:
-        for k in p.edge_keys:
-            count[k] = count.get(k, 0) + 1
-    return any(n == 1 for n in count.values())
-
 
 def apply_to_object(ob, s, local_of, warn):
     """Set up `ob` (mesh object) from an accepted subd.Subd; `local_of` maps
@@ -68,12 +61,15 @@ def apply_to_object(ob, s, local_of, warn):
             warn(f"{ob.name}: vertex boundary 'none' has no Blender equivalent")
         else:
             mod.boundary_smooth = BOUNDARY_TO_SMOOTH[s.interp_boundary]
-    elif _has_boundary(me):
-        warn(f"{ob.name}: no interpolateboundary tag; OpenSubdiv's default (none) has no Blender "
-             "equivalent, using edge-only")
+    else:
+        # absent: OpenSubdiv OBJ-reader default, edge only (subd-obj.md)
+        mod.boundary_smooth = 'ALL'
     if s.fvar_interp_boundary is not None:
         present.append("facevaryinginterpolateboundary")
         mod.uv_smooth = FVAR_TO_UV_SMOOTH[s.fvar_interp_boundary]
+    else:
+        # absent: default "all" (fully linear UVs)
+        mod.uv_smooth = 'NONE'
     if s.crease_method is not None:
         present.append("creasemethod")
         ob["obj_subd_creasemethod"] = subd.CREASE_METHODS[s.crease_method]
@@ -127,7 +123,7 @@ def tag_lines_for(ob, me):
             ib = 0
         if authored or "interpolateboundary" in present or mod.boundary_smooth != 'ALL':
             lines.append(f"t interpolateboundary 1/0/0 {ib}")
-        if authored or "facevaryinginterpolateboundary" in present or mod.uv_smooth != 'PRESERVE_BOUNDARIES':
+        if authored or "facevaryinginterpolateboundary" in present or mod.uv_smooth != 'NONE':
             lines.append(f"t facevaryinginterpolateboundary 1/0/0 {FVAR_TO_UV_SMOOTH.index(mod.uv_smooth)}")
         if "obj_subd_creasemethod" in ob:
             lines.append(f"t creasemethod 0/0/1 {ob['obj_subd_creasemethod']}")
