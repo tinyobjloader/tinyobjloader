@@ -13,3 +13,4 @@ build/
 **/__pycache__/
 
 /Testing/Temporary/
+build-osd/

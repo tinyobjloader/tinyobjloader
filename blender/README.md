@@ -93,6 +93,15 @@ Set `OSD_ROOT` to an OpenSubdiv install prefix. The CPU backend is enough:
 `NO_*` option on (OpenGL, CUDA, OpenCL, Metal, DX, TBB, OpenMP, Ptex, examples,
 tutorials, regression, docs).
 
+With the scripts in `tests/`, from the repository root:
+
+```
+sh blender/tests/build_osd.sh [OSD_SRC] [PREFIX]   # CPU-only build; clones v3_8_0 if OSD_SRC is absent
+sh blender/tests/run_cross_check.sh /path/to/blender [PREFIX/install] [WORKDIR]
+```
+
+`PREFIX` defaults to `build-osd`. Or by hand:
+
 ```
 OSD_ROOT=/path/to/osd/install blender -b --factory-startup --python-exit-code 1 \
     --python blender/tests/run.py -- /path/to/workdir
