@@ -23,7 +23,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, os.path.join(ROOT, "blender"))
 import io_scene_obj_ext as addon  # noqa: E402
-from io_scene_obj_ext import subd, mtlx  # noqa: E402
+from io_scene_obj_ext import subd, mtlx, skel  # noqa: E402
+from mathutils import Matrix, Vector  # noqa: E402
 
 WORK = sys.argv[sys.argv.index("--") + 1] if "--" in sys.argv else "/tmp/obj_ext_test"
 os.makedirs(WORK, exist_ok=True)
@@ -39,7 +40,8 @@ def check(cond, msg):
 def build_tools():
     tools = {}
     for name, srcs in (("subd_dump", ["tests/subd_dump.c", "tobj_subd.c"]),
-                       ("mtlx_dump", ["tests/mtlx_dump.c", "tobj_mtlx.c"])):
+                       ("mtlx_dump", ["tests/mtlx_dump.c", "tobj_mtlx.c"]),
+                       ("skel_dump", ["tests/skel_dump.c", "tobj_skel.c"])):
         exe = os.path.join(WORK, name)
         subprocess.run(["cc", "-std=c11", "-O1", "-o", exe] + [os.path.join(ROOT, s) for s in srcs],
                        check=True)
@@ -362,9 +364,241 @@ def test_operators():
         addon.unregister()
 
 
+# ---------------------------------------------------------------- skeletons
+
+def c_skel(path):
+    return subprocess.run([TOOLS["skel_dump"], path], capture_output=True, text=True,
+                          check=True).stdout
+
+
+def test_skel_python_port_matches_c():
+    """skel.dump_obj == tests/skel_dump (C) on the fixtures and random files."""
+    fixtures = os.path.join(ROOT, "formal", "Skel", "tests")
+    files = [os.path.join(fixtures, f) for f in sorted(os.listdir(fixtures))]
+    gen = os.path.join(ROOT, "formal", "Skel", "tools", "gen.py")
+    for seed in range(300):
+        p = os.path.join(WORK, f"skel_gen_{seed % 10}.obj")
+        with open(p, "w") as f:
+            f.write(subprocess.run([sys.executable, gen, str(seed)], capture_output=True,
+                                   text=True, check=True).stdout)
+        files.append(p)
+        bad = [p for p in files if skel.dump_obj(open(p).read()) != c_skel(p)]
+        if bad:
+            break
+        files = files[:4]
+    check(not bad, "skel: Python port == C on 4 fixtures + 300 random files" +
+          (f" (first mismatch {bad[0]})" if bad else ""))
+
+
+def make_rig():
+    """Column mesh skinned to root -> spine -> head; action bending spine/head."""
+    reset()
+    scene = bpy.context.scene
+    scene.render.fps, scene.frame_start, scene.frame_end = 24, 1, 24
+    ring = [(-0.2, -0.2), (0.2, -0.2), (0.2, 0.2), (-0.2, 0.2)]
+    verts = [(x, y, 3.0 * k / 12) for k in range(13) for (x, y) in ring]
+    faces = [(4 * k + i, 4 * k + (i + 1) % 4, 4 * k + (i + 1) % 4 + 4, 4 * k + i + 4)
+             for k in range(12) for i in range(4)] + [(3, 2, 1, 0), (48, 49, 50, 51)]
+    me = bpy.data.meshes.new("body")
+    me.from_pydata(verts, [], faces)
+    body = bpy.data.objects.new("body", me)
+    scene.collection.objects.link(body)
+    arm_data = bpy.data.armatures.new("rig")
+    arm = bpy.data.objects.new("rig", arm_data)
+    scene.collection.objects.link(arm)
+    bpy.context.view_layer.objects.active = arm
+    bpy.ops.object.mode_set(mode='EDIT')
+    prev = None
+    for i, n in enumerate(("root", "spine", "head")):
+        eb = arm_data.edit_bones.new(n)
+        eb.head, eb.tail, eb.parent = (0, 0, i), (0, 0, i + 1), prev
+        eb.use_connect = prev is not None
+        prev = eb
+    bpy.ops.object.mode_set(mode='OBJECT')
+    for n, lo in (("root", 0), ("spine", 1), ("head", 2)):
+        g = body.vertex_groups.new(name=n)
+        for v in me.vertices:
+            w = max(0.0, 1.0 - abs(v.co.z - (lo + 0.5)))
+            if w > 0:
+                g.add([v.index], w, 'REPLACE')
+    body.modifiers.new("Armature", 'ARMATURE').object = arm
+    arm.animation_data_create().action = bpy.data.actions.new("bend")
+    for frame, deg in ((1, 0), (12, 40), (24, 0)):
+        for n in ("spine", "head"):
+            pb = arm.pose.bones[n]
+            pb.rotation_mode = 'XYZ'
+            pb.rotation_euler = (math.radians(deg), 0, 0)
+            pb.keyframe_insert("rotation_euler", frame=frame)
+    return body, arm
+
+
+def deformed(name, frame):
+    """Evaluated world points of an object, in OBJ (Y-up) axes."""
+    bpy.context.scene.frame_set(frame)
+    ob = bpy.data.objects[name]
+    ev = ob.evaluated_get(bpy.context.evaluated_depsgraph_get())
+    return [(p.x, p.z, -p.y) for p in (ev.matrix_world @ v.co for v in ev.data.vertices)]
+
+
+def max_dist(a, b):
+    if len(a) != len(b):
+        return float("inf")
+    return max((Vector(p) - Vector(q)).length for p, q in zip(a, b))
+
+
+SKEL_FRAMES = (1, 6, 12, 18, 24)
+
+
+def test_skel_roundtrip():
+    """Rig -> OBJ (inline skeleton + animation .fbx sidecar) -> re-import: same deformation."""
+    make_rig()
+    want = {f: deformed("body", f) for f in SKEL_FRAMES}
+    out = os.path.join(WORK, "skel_rig.obj")
+    w = addon.export_obj(bpy.context, out, list(bpy.context.scene.objects))
+    check(not w, f"skel export: no warnings {w}")
+    dump = c_skel(out)
+    check(dump.startswith("skel ok=1 joints=3\n"), "skel export: C checker accepts the skeleton")
+    check("skel_anim skel_rig_skel.fbx" in dump and
+          os.path.exists(os.path.join(WORK, "skel_rig_skel.fbx")), "skel export: animation sidecar")
+    text = open(out).read()
+    check(skel.dump_obj(text) == dump, "skel export: lines are canonical (Python == C)")
+    reset()
+    obs, w = addon.import_obj(bpy.context, out)
+    check(not w, f"skel import: no warnings {w}")
+    arm = next((o for o in bpy.data.objects if o.type == 'ARMATURE'), None)
+    check(arm is not None and [b.name for b in arm.data.bones] == ["root", "spine", "head"],
+          "skel import: armature root/spine/head")
+    for f in SKEL_FRAMES:
+        d = max_dist(deformed("body", f), want[f])
+        check(d < 1e-4, f"skel round trip frame {f}: max distance {d:.2e}")
+
+
+def test_skel_lib_only():
+    """Joint names only; bind, rest and animation from the .fbx sidecar (skel_lib)."""
+    make_rig()
+    want = {f: deformed("body", f) for f in SKEL_FRAMES}
+    out = os.path.join(WORK, "skel_lib.obj")
+    addon.export_obj(bpy.context, out, list(bpy.context.scene.objects))
+    lines = []
+    for line in open(out).read().splitlines():
+        t = line.split()
+        if t and t[0] == "skel_joint":
+            lines.append(" ".join(t[:3]))
+        elif t and t[0] in ("skel_rest", "skel_anim"):
+            continue
+        else:
+            lines.append(line)
+        if t and t[0] == "skel_joint" and t[1] == "head":
+            lines += ["skel_lib skel_lib_skel.fbx", "skel_anim skel_lib_skel.fbx"]
+    with open(out, "w") as f:
+        f.write("\n".join(lines) + "\n")
+    check(c_skel(out).startswith("skel ok=1 joints=3"), "skel_lib: C checker accepts names only")
+    reset()
+    addon.import_obj(bpy.context, out)
+    for f in SKEL_FRAMES:
+        d = max_dist(deformed("body", f), want[f])
+        check(d < 1e-4, f"skel_lib frame {f}: max distance {d:.2e}")
+
+
+def lbs(text):
+    """Reference linear blend skinning of an OBJ with inline bind + rest (OBJ space)."""
+    d = {"v": [], "vw": {}}
+    sk = skel.parse_lines(text.splitlines())
+    for line in text.splitlines():
+        t = line.split()
+        if t and t[0] == "v":
+            d["v"].append(Vector(map(float, t[1:4])))
+        elif t and t[0] == "vw":
+            d["vw"][int(t[1])] = [(int(t[k]), float(t[k + 1])) for k in range(2, len(t), 2)]
+    from io_scene_obj_ext.skel_blender import from_text
+    world, binds = [], [from_text(j.bind) for j in sk.joints]
+    for i, j in enumerate(sk.joints):
+        if j.rest:
+            local = from_text(j.rest)
+        else:  # bind-relative
+            local = binds[j.parent].inverted() @ binds[i] if j.parent >= 0 else binds[i]
+        world.append(world[j.parent] @ local if j.parent >= 0 else local)
+    skin = [world[i] @ from_text(j.bind).inverted() for i, j in enumerate(sk.joints)]
+    out = []
+    for i, p in enumerate(d["v"]):
+        ws = d["vw"].get(i, [])
+        tot = sum(w for _, w in ws) or 1.0
+        out.append(tuple(sum(((skin[j] @ p) * (w / tot) for j, w in ws), Vector()) if ws else p))
+    return out
+
+
+def test_skel_inline_rest():
+    """skel_rest differing from the bind pose: Blender's pose == reference LBS."""
+    make_rig()
+    out = os.path.join(WORK, "skel_rest.obj")
+    addon.export_obj(bpy.context, out, list(bpy.context.scene.objects), skel_sidecar=False)
+    rot = Matrix.Rotation(math.radians(30), 4, 'Z')  # bend head about the OBJ Z axis
+    lines = []
+    for line in open(out).read().splitlines():
+        t = line.split()
+        if t and t[0] == "skel_rest" and t[1] == "head":
+            from io_scene_obj_ext.skel_blender import from_text, to_text
+            line = " ".join(["skel_rest", "head"] + to_text(from_text(t[2:]) @ rot))
+        lines.append(line)
+    text = "\n".join(lines) + "\n"
+    with open(out, "w") as f:
+        f.write(text)
+    want = lbs(text)
+    reset()
+    addon.import_obj(bpy.context, out)
+    d = max_dist(deformed("body", 1), want)
+    check(d < 1e-4, f"skel_rest pose vs reference LBS: max distance {d:.2e}")
+    check(max_dist(want, lbs(text.replace("skel_rest head", "skel_rest_x head"))) > 0.1,
+          "skel_rest: the test pose differs from the bind pose")
+
+
+def test_skel_bad():
+    """An ill-formed skeleton keeps the weights as vertex groups, without an armature."""
+    reset()
+    p = os.path.join(WORK, "skel_bad.obj")
+    with open(p, "w") as f:
+        f.write("skel_joint a -\nv 0 0 0\nv 1 0 0\nv 0 1 0\nvw 0 0 1\nf 1 2 3\n")
+    obs, w = addon.import_obj(bpy.context, p)
+    check(any("skeleton ignored" in x for x in w) and
+          not any(o.type == 'ARMATURE' for o in bpy.data.objects), "skel bad: warning, no armature")
+
+
+def test_skel_lightusd():
+    """LightUSD (skin_compare --dump on the exported OBJ) == Blender, per frame.
+    Needs LIGHTUSD_SKIN_COMPARE (LightUSD tests/obj-skel/skin_compare); skipped otherwise."""
+    exe = os.environ.get("LIGHTUSD_SKIN_COMPARE")
+    if not exe:
+        print("skip: LIGHTUSD_SKIN_COMPARE not set")
+        return
+    make_rig()
+    want = {f: deformed("body", f) for f in SKEL_FRAMES}
+    out = os.path.join(WORK, "skel_usd.obj")
+    addon.export_obj(bpy.context, out, list(bpy.context.scene.objects))
+    wrap = os.path.join(WORK, "skel_usd.usda")
+    with open(wrap, "w") as f:
+        f.write('#usda 1.0\n(\n    defaultPrim = "W"\n    upAxis = "Y"\n    metersPerUnit = 1\n'
+                '    timeCodesPerSecond = 24\n)\n\ndef SkelRoot "W" (\n    references = @skel_usd.obj@\n)\n{\n}\n')
+    for fr in SKEL_FRAMES:
+        r = subprocess.run([exe, "--dump", wrap, str(fr)], capture_output=True, text=True)
+        rows = [l.split() for l in r.stdout.splitlines() if l.startswith("/")]
+        if r.returncode or len(rows) != 1:
+            check(False, f"LightUSD dump frame {fr}: {r.stderr[-300:]}")
+            continue
+        v = list(map(float, rows[0][2:]))
+        got = [Vector(v[i:i + 3]) for i in range(0, len(v), 3)]
+        # LightUSD may split points per face: every point must lie on a Blender
+        # point, and every Blender point must be covered
+        ref = [Vector(p) for p in want[fr]]
+        d1 = max(min((g - q).length for q in ref) for g in got)
+        d2 = max(min((g - q).length for g in got) for q in ref)
+        check(max(d1, d2) < 1e-4, f"LightUSD vs Blender frame {fr}: max distance {max(d1, d2):.2e}")
+
+
 def main():
     for t in (test_operators, test_subd_import, test_crease_mapping, test_subd_roundtrips, test_bad_tags,
-              test_python_port_matches_c, test_materialx, test_opensubdiv):
+              test_python_port_matches_c, test_materialx, test_opensubdiv,
+              test_skel_python_port_matches_c, test_skel_roundtrip, test_skel_lib_only,
+              test_skel_inline_rest, test_skel_bad, test_skel_lightusd):
         print(f"== {t.__name__}")
         try:
             t()

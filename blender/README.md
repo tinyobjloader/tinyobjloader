@@ -1,14 +1,16 @@
-# Blender add-on: OBJ with subdivision tags and MaterialX-in-MTL
+# Blender add-on: OBJ with subdivision tags, MaterialX-in-MTL and skeletons
 
-`io_scene_obj_ext` imports and exports `.obj`/`.mtl` with two tinyobjloader
+`io_scene_obj_ext` imports and exports `.obj`/`.mtl` with three tinyobjloader
 extensions:
 
 - [subd-obj.md](../subd-obj.md): OpenSubdiv subdivision tags (`t` lines).
 - [mtlx-mtl.md](../mtlx-mtl.md): MaterialX node graphs (`mtlx_*` lines).
+- [skel-obj.md](../skel-obj.md): skeletons for the `vw` skin weights
+  (`skel_*` lines), with an optional `.fbx` sidecar for the animation.
 
-It is pure Python (tested with Blender 5.3). `subd.py` and `mtlx.py` are ports
-of `tobj_subd.c` and `tobj_mtlx.c`, and the tests check them against the C
-code.
+It is pure Python (tested with Blender 5.3). `subd.py`, `mtlx.py` and
+`skel.py` are ports of `tobj_subd.c`, `tobj_mtlx.c` and `tobj_skel.c`, and the
+tests check them against the C code.
 
 ## Install
 
@@ -65,6 +67,33 @@ writes only values that differ from it. Anything else is reported and falls
 back to the classic keys. Export always writes the classic keys too (`Kd`,
 `Pr`, `Pm`, `d`, `Ke`, `map_Kd`).
 
+**Skeletons ↔ armatures**
+
+| skel-obj.md | Blender |
+| --- | --- |
+| `skel_joint` with a bind matrix | a bone whose rest transform is the bind (scale dropped) |
+| `skel_rest` | the pose (rest transforms that differ from the bind) |
+| `vw` | vertex groups named after the joints, plus an Armature modifier |
+| `skel_lib x.fbx` (joints without bind) | the armature of `x.fbx` (Blender's FBX importer), joints matched by name |
+| `skel_anim x.fbx [take]` | the action of `x.fbx` |
+
+Export writes the armature of the first Armature modifier: the joints
+parents-first, each with its rest transform in OBJ world space as the bind
+matrix plus `skel_rest`, and `vw` from the vertex groups named after bones.
+Bone names that are not identifiers are made into identifiers (with a
+warning). If the armature has an action and *Animation sidecar* is on (the
+default), the armature and its action are also written to `<name>_skel.fbx`
+with Blender's FBX exporter, and the OBJ gets `skel_anim <name>_skel.fbx`.
+
+Frames: frame f is FBX time f / fps, on import and export. This is also how
+LightUSD maps the sidecar to USD time codes. Blender's FBX importer adds one
+frame by default, so the add-on imports with `anim_offset=0`.
+
+An action from a sidecar is copied onto an armature built from inline
+matrices only as pose channels. This is right when the sidecar's bones rest
+where the inline binds are, as in files the add-on writes. Otherwise the
+importer warns.
+
 Texture paths are written relative to the `.mtl` when the texture is under the
 export folder, and absolute otherwise.
 
@@ -84,6 +113,15 @@ The tests need `cc` to build the C checkers. They cover:
 - the Python port against C on random files;
 - MaterialX node trees through export and re-import;
 - the registered operators;
+- skeletons: the Python `skel.py` against C on the fixtures and 300 random
+  files; a rig exported (inline skeleton plus animation sidecar), checked by
+  the C `tobj_skel` and re-imported with the same deformation at 5 frames;
+  names only plus `skel_lib`; `skel_rest` against a reference linear blend
+  skinning; an ill-formed skeleton;
+- LightUSD cross-check: with `LIGHTUSD_SKIN_COMPARE` set to LightUSD's
+  `skin_compare` (tests/obj-skel), the exported OBJ is loaded by LightUSD and
+  its UsdSkel skinning is compared with Blender's at 5 frames (match to
+  about 5e-7);
 - an OpenSubdiv cross-check (below).
 
 ### OpenSubdiv cross-check
@@ -134,6 +172,7 @@ Tag values follow OpenSubdiv's OBJ reader (`regression/common/far_utils.h`),
 which is not the `Sdc` enum order: `interpolateboundary 1` is edge-and-corner
 and `2` is edge-only.
 
-When a file has tags but no `interpolateboundary`, OpenSubdiv uses "none".
-Blender has no equivalent, so the importer warns and uses edge-only for meshes
-that have a boundary.
+When a file has tags but no `interpolateboundary`, OpenSubdiv's OBJ reader
+uses edge-only (`2`), and so does the importer. An explicit
+`interpolateboundary 0` ("none") has no Blender equivalent: the importer warns
+and keeps the value in the property `obj_subd_boundary`.

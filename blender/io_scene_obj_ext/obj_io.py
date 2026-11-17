@@ -24,6 +24,8 @@ class ObjData:
         self.vertices, self.texcoords = [], []
         self.meshes = [ObjMesh("")]
         self.mtllibs = []
+        self.skel_lines = []   # file scope (skel-obj.md), verbatim
+        self.weights = {}      # file vertex number (0-based) -> [(joint id, weight)]
         self.warnings = []
 
 
@@ -66,6 +68,13 @@ def read_obj(path):
                     m.faces.append((vs, ts if all(t is not None for t in ts) else None))
                     m.face_mat.append(mat)
                     m.face_smooth.append(smooth)
+                elif kw in ("skel_joint", "skel_rest", "skel_lib", "skel_anim"):
+                    d.skel_lines.append(line)
+                elif kw == "vw":
+                    v = int(tk[1])
+                    if v < 0 or len(tk) % 2:
+                        raise ValueError("expected vw <vertex> (<joint> <weight>)...")
+                    d.weights[v] = [(int(tk[k]), float(tk[k + 1])) for k in range(2, len(tk), 2)]
                 elif kw == "t":
                     d.meshes[-1].tag_lines.append(line.strip(" \t"))
                 elif kw == "usemtl":
@@ -122,18 +131,24 @@ class ExportMesh:
         self.face_mat = []   # material name or None
         self.face_smooth = []
         self.tag_lines = lambda offset: []  # canonical `t` lines given the vertex offset
+        self.weights = []    # per local vertex: [(joint id, weight)] (empty: no vw line)
 
 
-def write_obj(path, meshes, mtl_name=None):
+def write_obj(path, meshes, mtl_name=None, skel_lines=()):
     voff = toff = 0
     with open(path, "w", encoding="utf-8", newline="\n") as f:
-        f.write("# tinyobjloader io_scene_obj_ext (subd-obj.md, mtlx-mtl.md)\n")
+        f.write("# tinyobjloader io_scene_obj_ext (subd-obj.md, mtlx-mtl.md, skel-obj.md)\n")
+        for line in skel_lines:
+            f.write(line + "\n")
         if mtl_name:
             f.write(f"mtllib {mtl_name}\n")
         for m in meshes:
             f.write(f"o {m.name}\n")
             for v in m.vertices:
                 f.write("v " + " ".join(fmt(c) for c in v) + "\n")
+            for i, w in enumerate(m.weights):
+                if w:
+                    f.write(f"vw {voff + i} " + " ".join(f"{j} {fmt(x)}" for j, x in w) + "\n")
             for t in m.uvs:
                 f.write("vt " + " ".join(fmt(c) for c in t) + "\n")
             mat = smooth = object()

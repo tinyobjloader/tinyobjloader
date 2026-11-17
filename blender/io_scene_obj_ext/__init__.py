@@ -3,7 +3,9 @@
 Extensions of tinyobjloader (https://github.com/tinyobjloader/tinyobjloader):
   subd-obj.md   OpenSubdiv `t` tags: scheme, boundaries, creases, corners, holes
   mtlx-mtl.md   MaterialX node graphs in .mtl (`mtlx_*` lines)
-Both are parsed and checked by pure-Python ports of the reference C code
+  skel-obj.md   skeletons for the `vw` skin weights (`skel_*` lines; armatures,
+                vertex groups, optional .fbx sidecar for skeleton/animation)
+All are parsed and checked by pure-Python ports of the reference C code
 (`subd.py`, `mtlx.py`), so the add-on needs no compiled module.
 
 Axes: OBJ is Y-up; Blender is Z-up. By default positions are converted
@@ -12,10 +14,10 @@ Axes: OBJ is Y-up; Blender is Z-up. By default positions are converted
 bl_info = {
     "name": "OBJ (subdivision + MaterialX extensions)",
     "author": "tinyobjloader contributors",
-    "version": (0, 1, 0),
+    "version": (0, 2, 0),
     "blender": (4, 2, 0),
     "location": "File > Import-Export",
-    "description": "OBJ/MTL with OpenSubdiv subdivision tags and MaterialX-in-MTL",
+    "description": "OBJ/MTL with OpenSubdiv subdivision tags, MaterialX-in-MTL and skeletons",
     "category": "Import-Export",
 }
 
@@ -23,11 +25,11 @@ import os
 
 if "bpy" in locals():
     import importlib
-    from . import subd, mtlx, obj_io, subd_blender, materials_blender
-    for _m in (subd, mtlx, obj_io, subd_blender, materials_blender):
+    from . import subd, mtlx, skel, obj_io, subd_blender, materials_blender, skel_blender
+    for _m in (subd, mtlx, skel, obj_io, subd_blender, materials_blender, skel_blender):
         importlib.reload(_m)
 else:
-    from . import subd, mtlx, obj_io, subd_blender, materials_blender
+    from . import subd, mtlx, skel, obj_io, subd_blender, materials_blender, skel_blender
 
 import bpy
 from bpy.props import BoolProperty, StringProperty
@@ -73,7 +75,7 @@ def import_obj(context, path, convert_axes=True, report=None):
             materials[name] = mat
         return materials[name]
 
-    objects = []
+    objects, maps = [], []
     for m in data.meshes:
         used = sorted({v for vs, _ in m.faces for v in vs})
         local_of = {g: i for i, g in enumerate(used)}
@@ -106,6 +108,8 @@ def import_obj(context, path, convert_axes=True, report=None):
             else:
                 warn(f"{ob.name}: subdivision tags ignored: " + "; ".join(sorted(set(s.errors))))
         objects.append(ob)
+        maps.append(local_of)
+    skel_blender.apply_to_objects(bpy, context, data, objects, maps, base, convert_axes, warn)
     for w in warnings:
         if report:
             report({'WARNING'}, w)
@@ -116,17 +120,27 @@ def import_obj(context, path, convert_axes=True, report=None):
 
 # ---------------------------------------------------------------- export
 
-def export_obj(context, path, objects, convert_axes=True, apply_transform=True, report=None):
+def export_obj(context, path, objects, convert_axes=True, apply_transform=True, report=None,
+               skel_sidecar=True):
     warnings = []
     warn = warnings.append
     out_dir = os.path.dirname(path)
     mtl_name = os.path.splitext(os.path.basename(path))[0] + ".mtl"
     meshes, mats = [], []
+    skeleton = None
     for ob in objects:
         if ob.type != 'MESH':
             continue
         me = ob.data
         em = obj_io.ExportMesh(ob.name.replace(" ", "_"))
+        arm = skel_blender.armature_of(ob)
+        if arm is not None:
+            if skeleton is None:
+                skeleton = skel_blender.Export(arm, convert_axes, warn)
+            if arm is skeleton.arm:
+                em.weights = skeleton.weights(ob, me)
+            else:
+                warn(f"{ob.name}: second armature {arm.name} not written (one skeleton per file)")
         mw = ob.matrix_world if apply_transform else None
         for v in me.vertices:
             co = mw @ v.co if mw is not None else v.co
@@ -172,7 +186,18 @@ def export_obj(context, path, objects, convert_axes=True, apply_transform=True, 
                 warn(f"{mat.name}: generated MaterialX lines are not well-formed; writing classic keys only")
                 ext = []
         out_mats.append((mat.name, classic, ext))
-    obj_io.write_obj(path, meshes, mtl_name if out_mats else None)
+    skel_lines = []
+    if skeleton is not None:
+        if skel_sidecar:
+            skeleton.write_sidecar(bpy, context, path, warn)
+        sk = skeleton.lines()
+        max_id = max((j for em in meshes for ws in em.weights for j, _ in ws), default=-1)
+        checked = skel.parse_lines(sk.to_lines(), max_id)  # checked like a loader would
+        if checked.ok:
+            skel_lines = checked.to_lines()
+        else:
+            warn("skeleton not written: " + "; ".join(sorted(set(checked.errors))))
+    obj_io.write_obj(path, meshes, mtl_name if out_mats else None, skel_lines)
     if out_mats:
         obj_io.write_mtl(os.path.join(out_dir, mtl_name), out_mats)
     for w in warnings:
@@ -208,20 +233,22 @@ class EXPORT_SCENE_OT_obj_ext(bpy.types.Operator, ExportHelper):
     convert_axes: BoolProperty(name="Z-up to Y-up", default=True)
     apply_transform: BoolProperty(name="Apply object transform", default=True)
     selection_only: BoolProperty(name="Selection only", default=False)
+    skel_sidecar: BoolProperty(name="Animation sidecar (.fbx)", default=True,
+                               description="Write the armature's action to <name>_skel.fbx (skel_anim)")
 
     def execute(self, context):
         obs = context.selected_objects if self.selection_only else context.scene.objects
         export_obj(context, self.filepath, list(obs), self.convert_axes, self.apply_transform,
-                   self.report)
+                   self.report, self.skel_sidecar)
         return {'FINISHED'}
 
 
 def _menu_import(self, context):
-    self.layout.operator(IMPORT_SCENE_OT_obj_ext.bl_idname, text="OBJ with subd + MaterialX (.obj)")
+    self.layout.operator(IMPORT_SCENE_OT_obj_ext.bl_idname, text="OBJ with subd + MaterialX + skeleton (.obj)")
 
 
 def _menu_export(self, context):
-    self.layout.operator(EXPORT_SCENE_OT_obj_ext.bl_idname, text="OBJ with subd + MaterialX (.obj)")
+    self.layout.operator(EXPORT_SCENE_OT_obj_ext.bl_idname, text="OBJ with subd + MaterialX + skeleton (.obj)")
 
 
 _classes = (IMPORT_SCENE_OT_obj_ext, EXPORT_SCENE_OT_obj_ext)
