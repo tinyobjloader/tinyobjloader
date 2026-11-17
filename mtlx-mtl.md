@@ -115,6 +115,7 @@ none.
 - **C11** (`tiny_obj_c.h`): each `tobj_material` has
   `mtlx_lines`/`num_mtlx_lines`. The lines are verbatim and in file order.
 - **C++** (`tiny_obj_loader.h`): `material_t::mtlx_lines`.
+- **Python**: `material_t.mtlx_lines` (list of str).
 - **`tobj_mtlx.h`**:
   - `tobj_mtlx_parse` parses a whole `.mtl`.
   - `tobj_mtlx_parse_lines` parses one material from a loader's lines.

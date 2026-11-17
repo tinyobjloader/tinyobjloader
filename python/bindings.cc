@@ -142,6 +142,9 @@ PYBIND11_MODULE(tinyobjloader, tobj_module)
     .def_readwrite("emissive_texname", &material_t::emissive_texname)
     .def_readwrite("normal_texname", &material_t::normal_texname)
 
+    // MaterialX-in-MTL extension lines (mtlx-mtl.md), verbatim, in file order.
+    .def_readwrite("mtlx_lines", &material_t::mtlx_lines)
+
     .def("GetCustomParameter", &material_t::GetCustomParameter)
     ;
 

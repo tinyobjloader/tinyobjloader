@@ -233,3 +233,42 @@ def test_numpy_num_face_vertices_from_file():
     result = shape.mesh.numpy_num_face_vertices()
     np.testing.assert_array_equal(result, expected_num_face_vertices)
     assert result.dtype == np.dtype("uint32")
+
+
+MTLX_OBJ = """
+mtllib m.mtl
+v 0 0 0
+v 1 0 0
+v 0 1 0
+usemtl painted
+f 1 2 3
+"""
+
+MTLX_MTL = """newmtl painted
+Kd 0.8 0.2 0.1
+mtlx_surface shader open_pbr_surface
+mtlx_node tex image color3
+mtlx_input tex.file filename "paint 01.png"
+mtlx_input shader.base_color color3 @tex
+newmtl plain
+Kd 1 1 1
+"""
+
+
+def test_material_mtlx_lines():
+    """MaterialX-in-MTL lines are kept verbatim per material."""
+    import tinyobjloader
+
+    reader = tinyobjloader.ObjReader()
+    config = tinyobjloader.ObjReaderConfig()
+    assert reader.ParseFromString(MTLX_OBJ, MTLX_MTL, config)
+    by_name = {m.name: m for m in reader.GetMaterials()}
+    assert by_name["painted"].mtlx_lines == [
+        "mtlx_surface shader open_pbr_surface",
+        "mtlx_node tex image color3",
+        'mtlx_input tex.file filename "paint 01.png"',
+        "mtlx_input shader.base_color color3 @tex",
+    ]
+    assert by_name["plain"].mtlx_lines == []
+    # classic keys are still read
+    np.testing.assert_allclose(by_name["painted"].diffuse, [0.8, 0.2, 0.1], rtol=1e-6)
