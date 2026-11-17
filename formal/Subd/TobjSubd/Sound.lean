@@ -192,6 +192,7 @@ theorem valid_stepHole {s : Subd} (h : Valid t s) (vs : List Int) :
   | cons x r ih =>
     simp only [List.foldl_cons]
     apply ih
+    unfold holeStep
     split
     · exact h.err
     · rename_i hx
@@ -257,26 +258,9 @@ theorem valid_stepTag {s : Subd} (h : Valid t s) (args : List S) (n : String)
 
 theorem valid_step {s : Subd} (h : Valid t s) (args : List S) : Valid t (step t s args) := by
   unfold TobjSubd.step
-  match args with
-  | name :: cnt :: rest =>
-    dsimp only
-    cases parseCounts? cnt with
-    | none => exact h.err
-    | some c =>
-      obtain ⟨ni, nf, ns⟩ := c
-      dsimp only
-      by_cases hl : (rest.length != ni + nf + ns) = true
-      · simp only [hl, ite_true]; exact h.err
-      · simp only [hl]
-        cases (rest.take ni).mapM parseInt? with
-        | none => exact h.err
-        | some ints =>
-          dsimp only
-          by_cases hd : (!((rest.drop ni).take nf).all isDecimal) = true
-          · simp only [hd, ite_true]; exact h.err
-          · simp only [hd]; exact valid_stepTag h _ _ _ _ _ _ _ _
-  | [] => exact h.err
-  | [_] => exact h.err
+  cases classify args with
+  | none => exact h.err
+  | some g => exact valid_stepTag h _ _ _ _ _ _ _ _
 
 theorem valid_empty : Valid t ({} : Subd) := by
   constructor <;> simp

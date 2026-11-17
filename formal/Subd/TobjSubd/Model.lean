@@ -17,12 +17,17 @@ abbrev S := List Char
 def isBlank (c : Char) : Bool := c == ' ' || c == '\t'
 def isDigit (c : Char) : Bool := '0' ≤ c && c ≤ '9'
 
-/-- Split into maximal runs of non-blank characters. -/
-def lineTokens (cs : S) : List S :=
-  let (acc, cur) := cs.foldl (fun (acc, cur) c =>
-    if isBlank c then (if cur.isEmpty then (acc, cur) else (acc ++ [cur], []))
-    else (acc, cur ++ [c])) (([] : List S), ([] : S))
-  if cur.isEmpty then acc else acc ++ [cur]
+/-- Split at every blank (empty pieces included). -/
+def splitBlank : S → List S
+  | [] => [[]]
+  | c :: cs =>
+    if isBlank c then [] :: splitBlank cs
+    else match splitBlank cs with
+      | [] => [[c]]
+      | w :: ws => (c :: w) :: ws
+
+/-- Maximal runs of non-blank characters. -/
+def lineTokens (cs : S) : List S := (splitBlank cs).filter (!·.isEmpty)
 
 /-- Drop one trailing carriage return. -/
 def dropCR (cs : S) : S :=
@@ -41,8 +46,11 @@ def parseInt? (s : S) : Option Int :=
   if ds.isEmpty || !ds.all isDigit then none
   else let v : Int := digitsVal ds; some (if neg then -v else v)
 
-/-- `[+-]?([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?` -/
-def isDecimal (s : S) : Bool :=
+def isDecChar (c : Char) : Bool := isDigit c || c == '.' || c == 'e' || c == 'E' || c == '+' || c == '-'
+
+/-- `[+-]?([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?` (the first two conjuncts are implied by
+the grammar; they are stated so that proofs can use them directly). -/
+def isDecimalCore (s : S) : Bool :=
   let s := match s with | '+' :: r => r | '-' :: r => r | r => r
   let ip := s.takeWhile isDigit
   let r := s.dropWhile isDigit
@@ -57,6 +65,9 @@ def isDecimal (s : S) : Bool :=
         let r' := match r' with | '+' :: x => x | '-' :: x => x | x => x
         !r'.isEmpty && r'.all isDigit
       else false
+
+def isDecimal (s : S) : Bool := !s.isEmpty && s.all isDecChar && isDecimalCore s
+
 
 def maxCount : Nat := 8192
 
@@ -140,15 +151,17 @@ def stepCrease (t : Topo) (s : Subd) (ps : List (Int × Int)) (vals : List S) (s
     else
       let lo := (min x y).toNat; let hi := (max x y).toNat
       if !t.hasEdge lo hi then s.err
-      else s.setCrease lo hi (vals.getD (if shared then 0 else k) [])) s
+      else s.setCrease lo hi (vals.getD (if shared then 0 else k) ['0'])) s
 
 def stepCorner (t : Topo) (s : Subd) (vs : List Int) (vals : List S) (shared : Bool) : Subd :=
   (vs.zipIdx).foldl (fun s (x, k) =>
     if x < 0 || !t.hasVert x.toNat then s.err
-    else s.setCorner x.toNat (vals.getD (if shared then 0 else k) [])) s
+    else s.setCorner x.toNat (vals.getD (if shared then 0 else k) ['0'])) s
 
-def stepHole (t : Topo) (s : Subd) (vs : List Int) : Subd :=
-  vs.foldl (fun s x => if x < 0 || x.toNat ≥ t.numFaces then s.err else s.addHole x.toNat) s
+def holeStep (t : Topo) (s : Subd) (x : Int) : Subd :=
+  if x < 0 || x.toNat ≥ t.numFaces then s.err else s.addHole x.toNat
+
+def stepHole (t : Topo) (s : Subd) (vs : List Int) : Subd := vs.foldl (holeStep t) s
 
 def lookup (v : S) (names : List String) : Option Nat :=
   (names.zipIdx.find? fun (n, _) => n.toList == v).map (·.2)
@@ -202,21 +215,36 @@ def stepTag (t : Topo) (s : Subd) (args : List S) (n : String) (ni nf ns : Nat)
     else s.err
   else { s with unknown := s.unknown ++ [joinSp (['t'] :: args)] }
 
-/-- One `t` line, given its tokens after `t`. -/
-def step (t : Topo) (s : Subd) (args : List S) : Subd :=
+/-- A parsed tag line: name, counts, integers, decimals, strings. -/
+structure Tag where
+  name : String
+  ni : Nat
+  nf : Nat
+  ns : Nat
+  ints : List Int
+  flts : List S
+  strs : List S
+
+/-- The state-free part of a `t` line: counts and argument kinds. -/
+def classify (args : List S) : Option Tag :=
   match args with
   | name :: cnt :: rest =>
     match parseCounts? cnt with
-    | none => s.err
+    | none => none
     | some (ni, nf, ns) =>
-      if rest.length != ni + nf + ns then s.err else
+      if rest.length != ni + nf + ns then none else
       match (rest.take ni).mapM parseInt? with
-      | none => s.err
+      | none => none
       | some ints =>
-        if !((rest.drop ni).take nf).all isDecimal then s.err
-        else stepTag t s args (String.ofList name) ni nf ns ints ((rest.drop ni).take nf)
-          (rest.drop (ni + nf))
-  | _ => s.err
+        if !((rest.drop ni).take nf).all isDecimal then none
+        else some ⟨String.ofList name, ni, nf, ns, ints, (rest.drop ni).take nf, rest.drop (ni + nf)⟩
+  | _ => none
+
+/-- One `t` line, given its tokens after `t`. -/
+def step (t : Topo) (s : Subd) (args : List S) : Subd :=
+  match classify args with
+  | none => s.err
+  | some g => stepTag t s args g.name g.ni g.nf g.ns g.ints g.flts g.strs
 
 /-- Whole-mesh rules, after all tag lines. -/
 def finish (t : Topo) (s : Subd) : Subd :=
@@ -234,7 +262,12 @@ def ok (s : Subd) : Bool := !s.bad
 
 /-! ## Canonical form -/
 
-def nat (n : Nat) : S := (toString n).toList
+def digitChar (k : Nat) : Char := Char.ofNat (48 + k)
+
+/-- Decimal digits of `n` (same as `toString n`). -/
+def nat (n : Nat) : S :=
+  if n < 10 then [digitChar n] else nat (n / 10) ++ [digitChar (n % 10)]
+decreasing_by omega
 
 def chunks (k : Nat) (l : List Nat) : List (List Nat) :=
   if k = 0 then [l] else
@@ -247,21 +280,32 @@ def chunks (k : Nat) (l : List Nat) : List (List Nat) :=
 
 def line (ws : List S) : S := joinSp ws ++ ['\n']
 
-def print (s : Subd) : S :=
-  if s.bad then [] else
-  let scal (tag : String) (cnt : String) (v : Option S) : S :=
-    match v with | some x => line ["t".toList, tag.toList, cnt.toList, x] | none => []
-  let name (ns : List String) (v : Option Nat) : Option S := v.map fun i => (ns.getD i "").toList
-  scal "scheme" "0/0/1" (name ["catmark", "loop", "bilinear"] s.scheme) ++
-  scal "interpolateboundary" "1/0/0" (s.ib.map nat) ++
-  scal "facevaryinginterpolateboundary" "1/0/0" (s.fvar.map nat) ++
-  scal "creasemethod" "0/0/1" (name ["normal", "chaikin"] s.cm) ++
-  scal "smoothtriangles" "0/0/1" (name ["catmark", "smooth"] s.st) ++
-  (s.creases.flatMap fun ((a, b), v) => line ["t".toList, "crease".toList, "2/1/0".toList, nat a, nat b, v]) ++
-  (s.corners.flatMap fun (v, x) => line ["t".toList, "corner".toList, "1/1/0".toList, nat v, x]) ++
-  ((chunks maxCount s.holes).flatMap fun hs =>
-    line (["t".toList, "hole".toList, nat hs.length ++ "/0/0".toList] ++ hs.map nat)) ++
-  (s.unknown.flatMap fun u => u ++ ['\n'])
+def scalLine (tag : String) (cnt : String) (v : Option S) : List S :=
+  match v with | some x => [joinSp ["t".toList, tag.toList, cnt.toList, x]] | none => []
+
+def nameOf (ns : List String) (v : Option Nat) : Option S := v.map fun i => (ns.getD i "").toList
+
+def creaseLine (c : (Nat × Nat) × S) : S :=
+  joinSp ["t".toList, "crease".toList, "2/1/0".toList, nat c.1.1, nat c.1.2, c.2]
+
+def cornerLine (c : Nat × S) : S := joinSp ["t".toList, "corner".toList, "1/1/0".toList, nat c.1, c.2]
+
+def holeLine (hs : List Nat) : S :=
+  joinSp (["t".toList, "hole".toList, nat hs.length ++ "/0/0".toList] ++ hs.map nat)
+
+def scalarLines (s : Subd) : List S :=
+  scalLine "scheme" "0/0/1" (nameOf ["catmark", "loop", "bilinear"] s.scheme) ++
+  scalLine "interpolateboundary" "1/0/0" (s.ib.map nat) ++
+  scalLine "facevaryinginterpolateboundary" "1/0/0" (s.fvar.map nat) ++
+  scalLine "creasemethod" "0/0/1" (nameOf ["normal", "chaikin"] s.cm) ++
+  scalLine "smoothtriangles" "0/0/1" (nameOf ["catmark", "smooth"] s.st)
+
+/-- Canonical lines, without line ends. -/
+def printLines (s : Subd) : List S :=
+  scalarLines s ++ s.creases.map creaseLine ++ s.corners.map cornerLine ++
+    (chunks maxCount s.holes).map holeLine ++ s.unknown
+
+def print (s : Subd) : S := if s.bad then [] else (printLines s).flatMap (· ++ ['\n'])
 
 /-! ## `.obj` subset for differential testing (`tobj_subd_dump_obj`) -/
 

@@ -106,7 +106,8 @@ The canonical writer emits, in this order:
   repeats;
 - the unknown tags, as they were written, with single blanks between tokens.
 
-Parsing canonical form gives back the same model.
+Parsing canonical form gives back the same model. This is proved in Lean
+(`TobjSubd.roundtrip`) for lines that contain no `\n` or `\r`.
 
 ## API
 
