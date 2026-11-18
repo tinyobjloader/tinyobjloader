@@ -34,6 +34,9 @@ jobs:
         with:
           version: 7.0.0
 
+      - name: Install demo dependencies
+        run: npm ci
+
       - name: Native shim test (no Emscripten)
         run: bash test/run_native.sh
 
@@ -42,6 +45,16 @@ jobs:
 
       - name: Node smoke test
         run: node test/smoke.mjs
+
+      - name: Build static demo (checks the CDN-free artifact)
+        run: |
+          npm run dev:build
+          test -f .vite-demo-dist/index.html
+          ls .vite-demo-dist/assets/tinyobj-*.wasm
+          if grep -q 'cdn.jsdelivr' .vite-demo-dist/index.html; then
+            echo 'error: built demo still references a CDN' >&2
+            exit 1
+          fi
 
       - name: Check npm package contents
         run: |
