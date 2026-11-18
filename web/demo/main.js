@@ -12,6 +12,8 @@ import { initTinyObj, STRIDE, NO_MATERIAL } from '../js/index.js';
 import { parseSubdTags, subdivideShape } from './subd.js';
 import { resolveMtlx } from './mtlx.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+import { OBJExporter } from 'three/addons/exporters/OBJExporter.js';
 
 const canvas = document.getElementById('view');
 const status = document.getElementById('status');
@@ -56,8 +58,13 @@ const ovMetalness = document.getElementById('ov-metalness');
 const ovClearcoat = document.getElementById('ov-clearcoat');
 const resetLookButton = document.getElementById('reset-look');
 const statsEl = document.getElementById('stats');
+const textureReportEl = document.getElementById('texture-report');
 const tabView = document.getElementById('tab-view');
 const viewView = document.getElementById('view-view');
+const exportGltf = document.getElementById('export-gltf');
+const exportObj = document.getElementById('export-obj');
+const exportPng = document.getElementById('export-png');
+const shareLinkButton = document.getElementById('share-link');
 
 const IMAGE_RE = /\.(png|jpe?g|webp|gif|bmp)$/i;
 
@@ -98,8 +105,9 @@ let currentMaterials = [];
 let currentMaps = [];
 let currentPbr = [];
 let selectedIndex = -1;
-let highlightBox = null;
-let highlightWire = null;
+let selectedSet = new Set();
+let highlightBoxes = [];
+let highlightWires = [];
 let pointerStart = null;
 let subdivLevel = 0;
 let boneIndex = -1;
@@ -120,7 +128,12 @@ let overrides = { roughness: null, metalness: null, clearcoat: null };
 let parseMs = 0;
 let heapMb = 0;
 let lastStatsUpdate = 0;
+let textureRecords = [];
+let missingTextures = new Set();
 let tinyobj = null;
+let parseWorker = null;
+let pendingParse = null;
+let parseId = 0;
 let textureUrls = [];
 let textureFiles = new Map();
 let shading = 'smooth';
@@ -206,6 +219,18 @@ function updateStats() {
     `parse       ${parseMs.toFixed(0)} ms`,
     `wasm heap   ${heapMb.toFixed(0)} MB`,
   ].join('\n');
+  const bytes = textureRecords.reduce(
+    (total, record) => total + record.width * record.height * 4, 0,
+  );
+  const lines = [
+    `loaded     ${textureRecords.length}`,
+    `gpu est.   ${(bytes / 1048576).toFixed(1)} MB`,
+  ];
+  if (missingTextures.size) {
+    lines.push(`missing   ${missingTextures.size}`);
+    lines.push(...[...missingTextures].slice(0, 4).map((name) => `  ${name}`));
+  }
+  textureReportEl.textContent = lines.join('\n');
 }
 
 function disposeObject(object) {
@@ -472,24 +497,44 @@ async function loadMaps(entry, pbr) {
   await Promise.all(
     Object.entries(entry.textures || {}).map(async ([kind, name]) => {
       const file = textureFiles.get(baseName(name));
-      if (!file) return;
+      if (!file) {
+        missingTextures.add(String(name));
+        return;
+      }
       const srgb =
         kind === 'diffuse' || kind === 'emissive' || kind === 'ambient' ||
         kind === 'specular';
       const texture = await loadImageTexture(file, srgb);
-      if (texture) maps[kind] = texture;
+      if (texture) {
+        maps[kind] = texture;
+        textureRecords.push({
+          name: file.name,
+          width: texture.image.width,
+          height: texture.image.height,
+        });
+      }
     }),
   );
   if (pbr) {
     await Promise.all(
       Object.entries(pbr.images || {}).map(async ([role, name]) => {
         const file = textureFiles.get(baseName(name));
-        if (!file) return;
+        if (!file) {
+          missingTextures.add(String(name));
+          return;
+        }
         const texture = await loadImageTexture(
           file,
           role === 'baseColor' || role === 'emissive',
         );
-        if (texture) maps[`mtlx:${role}`] = texture;
+        if (texture) {
+          maps[`mtlx:${role}`] = texture;
+          textureRecords.push({
+            name: file.name,
+            width: texture.image.width,
+            height: texture.image.height,
+          });
+        }
       }),
     );
   }
@@ -693,7 +738,7 @@ function renderShapes(model) {
   let shown = 0;
   model.shapes.forEach((shape, index) => {
     const name = shape.name || `shape ${index}`;
-    if (filter && !name.toLowerCase().includes(filter) && index !== selectedIndex) return;
+    if (filter && !name.toLowerCase().includes(filter) && !selectedSet.has(index)) return;
     shown++;
     const row = document.createElement('div');
     row.className = 'shape-row';
@@ -701,7 +746,9 @@ function renderShapes(model) {
     select.type = 'button';
     select.className = 'shape-name';
     select.textContent = `${name} · ${shape.triangleCount} tris`;
-    select.addEventListener('click', () => selectShape(index));
+    select.addEventListener('click', (event) =>
+      selectShape(index, event.ctrlKey || event.metaKey || event.shiftKey),
+    );
     select.addEventListener('dblclick', () => {
       selectShape(index);
       fitSelection();
@@ -716,7 +763,7 @@ function renderShapes(model) {
       applyVisibility();
     });
     row.append(visibility, select);
-    if (index === selectedIndex) row.classList.add('selected');
+    if (selectedSet.has(index)) row.classList.add('selected');
     shapesEl.append(row);
   });
   if (!shown) {
@@ -726,46 +773,47 @@ function renderShapes(model) {
 }
 
 function clearHighlight() {
-  if (highlightWire) {
-    highlightWire.parent?.remove(highlightWire);
-    highlightWire.material.dispose();
-    highlightWire = null;
+  for (const wire of highlightWires) {
+    wire.parent?.remove(wire);
+    wire.material.dispose();
   }
-  if (highlightBox) {
-    scene.remove(highlightBox);
-    highlightBox.geometry?.dispose();
-    highlightBox.material?.dispose();
-    highlightBox = null;
+  highlightWires = [];
+  for (const box of highlightBoxes) {
+    scene.remove(box);
+    box.geometry?.dispose();
+    box.material?.dispose();
   }
+  highlightBoxes = [];
 }
 
 function updateHighlight() {
   clearHighlight();
-  if (selectedIndex < 0 || !current) return;
-  const mesh = current.children.find(
-    (child) => child.userData.shapeIndex === selectedIndex,
-  );
-  if (!mesh) return;
+  if (!current || !selectedSet.size) return;
+  for (const index of selectedSet) {
+    const mesh = current.children.find(
+      (child) => child.userData.shapeIndex === index,
+    );
+    if (!mesh) continue;
+    const wire = new THREE.Mesh(
+      mesh.geometry,
+      new THREE.MeshBasicMaterial({
+        color: 0x7cc4ff,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.5,
+        depthTest: false,
+      }),
+    );
+    wire.renderOrder = 2;
+    mesh.add(wire);
+    highlightWires.push(wire);
 
-  const wire = new THREE.Mesh(
-    mesh.geometry,
-    new THREE.MeshBasicMaterial({
-      color: 0x7cc4ff,
-      wireframe: true,
-      transparent: true,
-      opacity: 0.5,
-      depthTest: false,
-    }),
-  );
-  wire.renderOrder = 2;
-  mesh.add(wire);
-  highlightWire = wire;
-
-  const box = new THREE.Box3().setFromObject(mesh);
-  const helper = new THREE.Box3Helper(box, 0x7cc4ff);
-  helper.renderOrder = 3;
-  scene.add(helper);
-  highlightBox = helper;
+    const box = new THREE.Box3().setFromObject(mesh);
+    const helper = new THREE.Box3Helper(box, 0x7cc4ff);
+    helper.renderOrder = 3;
+    scene.add(helper);
+    highlightBoxes.push(helper);
+  }
 }
 
 function clearHover() {
@@ -808,21 +856,27 @@ function updateHover(mesh, event) {
 }
 
 function renderSelection() {
-  const shape = currentModel?.shapes[selectedIndex];
-  if (!shape) {
+  const indices = [...selectedSet].filter(
+    (index) => currentModel?.shapes[index],
+  );
+  if (!indices.length) {
     selectionEl.hidden = true;
     return;
   }
   selectionEl.hidden = false;
   selectionDetailEl.replaceChildren();
 
-  const mesh = current?.children.find(
-    (child) => child.userData.shapeIndex === selectedIndex,
-  );
-  const box = mesh ? new THREE.Box3().setFromObject(mesh) : new THREE.Box3();
+  const shapes = indices.map((index) => currentModel.shapes[index]);
+  const boxes = indices
+    .map((index) => current?.children.find((child) => child.userData.shapeIndex === index))
+    .filter(Boolean)
+    .map((mesh) => new THREE.Box3().setFromObject(mesh));
+  const box = new THREE.Box3();
+  for (const part of boxes) box.union(part);
   const size = box.isEmpty()
     ? new THREE.Vector3()
     : box.getSize(new THREE.Vector3());
+
   const list = document.createElement('dl');
   const row = (key, value) => {
     const dt = document.createElement('dt');
@@ -831,18 +885,23 @@ function renderSelection() {
     dd.textContent = value;
     list.append(dt, dd);
   };
-  row('name', shape.name || `shape ${selectedIndex}`);
-  row('tris', String(shape.triangleCount));
-  row('groups', String(shape.groups.length));
-  if (shape.tagLines?.length) {
-    const tags = parseSubdTags(shape.tagLines);
+  if (indices.length > 1) {
+    row('shapes', String(indices.length));
+  } else {
+    row('name', shapes[0].name || `shape ${indices[0]}`);
+  }
+  row('tris', String(shapes.reduce((n, shape) => n + shape.triangleCount, 0)));
+  row('groups', String(shapes.reduce((n, shape) => n + shape.groups.length, 0)));
+  const tagLines = shapes.flatMap((shape) => shape.tagLines || []);
+  if (tagLines.length) {
+    const tags = parseSubdTags(tagLines);
     row('subd', `${tags.scheme}${tags.creases ? ` · ${tags.creases} creases` : ''}`);
   }
   row('size', `${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)}`);
   selectionDetailEl.append(list);
 
   selectionMaterialsEl.replaceChildren();
-  const ids = [...new Set(shape.groups.map((group) => group.material))];
+  const ids = [...new Set(shapes.flatMap((shape) => shape.groups.map((group) => group.material)))];
   if (!ids.length) {
     selectionMaterialsEl.textContent = 'No materials';
     return;
@@ -859,9 +918,25 @@ function renderSelection() {
   }
 }
 
-function selectShape(index) {
+function selectShape(index, additive = false) {
   if (!currentModel) return;
-  selectedIndex = index;
+  if (index < 0) {
+    selectedSet.clear();
+    selectedIndex = -1;
+  } else if (additive) {
+    if (selectedSet.has(index)) selectedSet.delete(index);
+    else {
+      selectedSet.add(index);
+      selectedIndex = index;
+    }
+    if (!selectedSet.size) selectedIndex = -1;
+    else if (!selectedSet.has(selectedIndex)) {
+      selectedIndex = [...selectedSet].at(-1);
+    }
+  } else {
+    selectedSet = new Set([index]);
+    selectedIndex = index;
+  }
   updateHighlight();
   renderShapes(currentModel);
   renderSelection();
@@ -879,6 +954,7 @@ function rebuildSubdivision() {
   boneSelect.value = '-1';
   applyHeatmap();
   clearHighlight();
+  selectedSet.clear();
   selectedIndex = -1;
 
   const model = {
@@ -907,10 +983,12 @@ async function showModel(objFile, mtl, extra) {
 
   const obj = await objFile.arrayBuffer();
   const started = performance.now();
-  const model = tinyobj.parse(obj, mtl);
+  const { model, heapBytes } = await parseAsync(obj, mtl.mtl, mtl.mtlName);
   parseMs = performance.now() - started;
-  heapMb = tinyobj.module.HEAPU8.byteLength / 1048576;
+  heapMb = heapBytes / 1048576;
   hiddenShapes = new Set();
+  textureRecords = [];
+  missingTextures = new Set();
   clearHover();
   const pbrList = model.materials.map((entry) => resolveMtlx(entry.mtlxLines));
 
@@ -948,6 +1026,7 @@ async function showModel(objFile, mtl, extra) {
   textureFiles = new Map();
 
   clearHighlight();
+  selectedSet.clear();
   selectedIndex = -1;
   if (current) {
     scene.remove(current);
@@ -1154,9 +1233,9 @@ viewSide.addEventListener('click', () => frameView('side'));
 fitSelectionButton.addEventListener('click', fitSelection);
 shapeFilter.addEventListener('input', () => currentModel && renderShapes(currentModel));
 isolateButton.addEventListener('click', () => {
-  if (!currentModel || selectedIndex < 0) return;
+  if (!currentModel || !selectedSet.size) return;
   hiddenShapes = new Set(
-    currentModel.shapes.map((_, i) => i).filter((i) => i !== selectedIndex),
+    currentModel.shapes.map((_, i) => i).filter((i) => !selectedSet.has(i)),
   );
   applyVisibility();
   renderShapes(currentModel);
@@ -1192,6 +1271,18 @@ for (const [input, key] of [
     applyShading();
   });
 }
+exportGltf.addEventListener('click', () => exportCurrent('gltf'));
+exportObj.addEventListener('click', () => exportCurrent('obj'));
+exportPng.addEventListener('click', () => exportCurrent('png'));
+shareLinkButton.addEventListener('click', async () => {
+  location.hash = `view=${btoa(unescape(encodeURIComponent(JSON.stringify(viewSettings()))))}`;
+  try {
+    await navigator.clipboard.writeText(location.href);
+    setStatus('Share link copied to the clipboard.');
+  } catch {
+    setStatus(`Share link: ${location.href}`);
+  }
+});
 resetLookButton.addEventListener('click', () => {
   overrides = { roughness: null, metalness: null, clearcoat: null };
   ovRoughness.value = '0.5';
@@ -1225,7 +1316,10 @@ canvas.addEventListener('pointerup', (event) => {
   pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
   const hit = raycaster.intersectObjects(current.children, false)[0];
-  selectShape(hit ? hit.object.userData.shapeIndex : -1);
+  selectShape(
+    hit ? hit.object.userData.shapeIndex : -1,
+    hit ? event.ctrlKey || event.metaKey : false,
+  );
 });
 
 canvas.addEventListener('pointermove', (event) => {
@@ -1295,6 +1389,175 @@ renderer.setAnimationLoop(() => {
   renderer.render(scene, camera);
 });
 
+function initParseWorker() {
+  try {
+    parseWorker = new Worker(
+      new URL('./parse-worker.js', import.meta.url),
+      { type: 'module' },
+    );
+    parseWorker.onmessage = (event) => {
+      const data = event.data;
+      if (data.type === 'progress') {
+        setStatus('Parsing in background…');
+        return;
+      }
+      if (!pendingParse || pendingParse.id !== data.id) return;
+      const { resolve, reject } = pendingParse;
+      pendingParse = null;
+      if (data.type === 'error') {
+        const error = new Error(data.message);
+        error.result = data.result;
+        reject(error);
+      } else {
+        resolve({ model: data.model, heapBytes: data.heapBytes });
+      }
+    };
+    parseWorker.onerror = () => {
+      parseWorker = null;
+      setStatus('Background parser failed; falling back to the main thread.', 'warn');
+    };
+  } catch {
+    parseWorker = null;
+  }
+}
+
+function parseAsync(obj, mtl, mtlName) {
+  if (!parseWorker) {
+    const model = tinyobj.parse(obj, mtl ? { mtl, mtlName } : {});
+    return Promise.resolve({
+      model,
+      heapBytes: tinyobj.module.HEAPU8.byteLength,
+    });
+  }
+  return new Promise((resolve, reject) => {
+    const id = ++parseId;
+    pendingParse = { id, resolve, reject };
+    const transfer = [obj];
+    if (mtl) transfer.push(mtl);
+    parseWorker.postMessage({ id, obj, mtl, mtlName }, transfer);
+  });
+}
+
+function downloadBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function exportCurrent(kind) {
+  if (!current) {
+    setStatus('Load a model before exporting.', 'warn');
+    return;
+  }
+  if (kind === 'obj') {
+    const text = new OBJExporter().parse(current);
+    downloadBlob(new Blob([text], { type: 'text/plain' }), 'scene.obj');
+  } else if (kind === 'png') {
+    renderer.render(scene, camera);
+    canvas.toBlob((blob) => blob && downloadBlob(blob, 'demo.png'));
+  } else {
+    new GLTFExporter().parse(
+      current,
+      (result) => {
+        const text = result instanceof ArrayBuffer
+          ? result
+          : JSON.stringify(result, null, 2);
+        downloadBlob(
+          new Blob([text], {
+            type: result instanceof ArrayBuffer ? 'model/gltf-binary' : 'model/gltf+json',
+          }),
+          result instanceof ArrayBuffer ? 'scene.glb' : 'scene.gltf',
+        );
+      },
+      (error) => setStatus(`glTF export failed: ${error.message}`, 'error'),
+      { onlyVisible: true },
+    );
+  }
+}
+
+function viewSettings() {
+  return {
+    shading,
+    showTextures,
+    subdivLevel,
+    boneIndex,
+    envmap: envCheck.checked,
+    exposure: Number(exposureInput.value),
+    envIntensity: Number(envIntensityInput.value),
+    toneMap: toneMapSelect.value,
+    roughness: overrides.roughness,
+    metalness: overrides.metalness,
+    clearcoat: overrides.clearcoat,
+  };
+}
+
+function applyViewSettings(settings) {
+  if (!settings || typeof settings !== 'object') return;
+  if (['smooth', 'flat', 'wireframe'].includes(settings.shading)) {
+    shading = settings.shading;
+    shadingSelect.value = shading;
+  }
+  if (typeof settings.showTextures === 'boolean') {
+    showTextures = settings.showTextures;
+    texturesCheck.checked = showTextures;
+  }
+  if (Number.isInteger(settings.subdivLevel) && settings.subdivLevel >= 0 && settings.subdivLevel <= 2) {
+    subdivLevel = settings.subdivLevel;
+    subdivSelect.value = String(subdivLevel);
+  }
+  if (Number.isInteger(settings.boneIndex) && settings.boneIndex >= -1) {
+    boneIndex = settings.boneIndex;
+    boneSelect.value = String(boneIndex);
+  }
+  if (typeof settings.envmap === 'boolean') {
+    envCheck.checked = settings.envmap;
+    scene.environment = envCheck.checked ? envTexture : null;
+  }
+  const numeric = [
+    ['exposure', exposureInput, (v) => { renderer.toneMappingExposure = v; }],
+    ['envIntensity', envIntensityInput, (v) => { scene.environmentIntensity = v; }],
+  ];
+  for (const [key, input, apply] of numeric) {
+    if (!Number.isFinite(settings[key])) continue;
+    input.value = String(settings[key]);
+    apply(settings[key]);
+  }
+  const toneMaps = {
+    none: THREE.NoToneMapping,
+    aces: THREE.ACESFilmicToneMapping,
+    agx: THREE.AgXToneMapping,
+    reinhard: THREE.ReinhardToneMapping,
+  };
+  if (toneMaps[settings.toneMap]) {
+    toneMapSelect.value = settings.toneMap;
+    renderer.toneMapping = toneMaps[settings.toneMap];
+  }
+  for (const [key, input] of [
+    ['roughness', ovRoughness],
+    ['metalness', ovMetalness],
+    ['clearcoat', ovClearcoat],
+  ]) {
+    if (Number.isFinite(settings[key])) {
+      overrides[key] = settings[key];
+      input.value = String(settings[key]);
+    }
+  }
+}
+
+function applyShareSettings() {
+  const match = /(?:^|#|&)view=([^&]+)/.exec(location.hash);
+  if (!match) return;
+  try {
+    const settings = JSON.parse(decodeURIComponent(escape(atob(match[1]))));
+    applyViewSettings(settings);
+  } catch {
+    setStatus('Could not read view settings from the link.', 'warn');
+  }
+}
+
 function setupEnvmap() {
   const pmrem = new THREE.PMREMGenerator(renderer);
   new RGBELoader().load(
@@ -1328,6 +1591,8 @@ window.addEventListener('beforeunload', () => {
 
 resize();
 setupEnvmap();
+initParseWorker();
+applyShareSettings();
 setStatus('Loading WebAssembly…');
 try {
   tinyobj = await initTinyObj({

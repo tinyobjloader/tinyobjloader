@@ -253,6 +253,15 @@
       .field input[type="range"] {
         width: 130px;
       }
+      .export-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+      }
+      .export-grid button {
+        font-size: 12px;
+        padding: 6px;
+      }
       .stats {
         font: 12px/1.6 ui-monospace, monospace;
         color: var(--muted);
@@ -411,6 +420,15 @@
         <label class="field">Metalness <input id="ov-metalness" type="range" min="0" max="1" step="0.01" value="0" /></label>
         <label class="field">Clearcoat <input id="ov-clearcoat" type="range" min="0" max="1" step="0.01" value="0" /></label>
         <button id="reset-look" type="button">Reset look</button>
+        <h3>Export & share</h3>
+        <div class="export-grid">
+          <button id="export-gltf" type="button">glTF</button>
+          <button id="export-obj" type="button">OBJ</button>
+          <button id="export-png" type="button">PNG</button>
+          <button id="share-link" type="button">Copy link</button>
+        </div>
+        <h3>Textures</h3>
+        <div id="texture-report" class="stats"></div>
         <h3>Stats</h3>
         <div id="stats" class="stats"></div>
       </div>

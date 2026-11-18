@@ -136,7 +136,8 @@ from a CDN. The demo supports:
   material panel showing Kd, Ke, Ns, d, Ni, illum, Pr/Pm and texture maps.
 - **Shape selection** — click a shape in the 3D view or in the Shapes list to
   highlight it (wireframe + bounding box) and see its name, triangle count,
-  bounds and the materials it uses. Hover shows a tooltip; the Shapes tab has a
+  bounds and the materials it uses. Ctrl/Cmd/Shift-click adds to the selection;
+  the detail panel then shows combined bounds, triangle counts and materials. Hover shows a tooltip; the Shapes tab has a
   filter plus hide/isolate controls, and the View tab has camera presets,
   exposure/env/tone-map sliders, material overrides and live render stats.
 - **Subdivision** — a level selector (0–2) applies Loop refinement on vertices
@@ -154,6 +155,13 @@ from a CDN. The demo supports:
   roughness, clearcoat, sheen, transmission, ior, image connections), with the
   classic MTL/PBR keys as fallback. The material panel shows the surface
   category.
+- **Export & share** — the View tab exports the displayed scene as glTF/OBJ,
+  saves a PNG screenshot, and copies a URL carrying the current viewer settings
+  (the model itself is not embedded).
+- **Background parsing** — OBJ/MTL parsing runs in a Web Worker with a fallback
+  to the main thread, so large models keep the UI responsive. The View tab
+  reports parse time, wasm heap, draw calls, loaded/missing textures and an
+  estimated GPU texture budget.
 - **Environment map** — a bundled 1k Radiance HDR from Poly Haven
   (`ferndale_studio_06`, CC0; see `demo/assets/README.md`) is loaded with
   `RGBELoader` into a `PMREMGenerator` for image-based lighting. Toggle it with
