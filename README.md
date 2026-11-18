@@ -1,6 +1,11 @@
 # tinyobjloader
 
 [![PyPI version](https://badge.fury.io/py/tinyobjloader.svg)](https://badge.fury.io/py/tinyobjloader)
+[![npm version](https://img.shields.io/npm/v/tinyobj.svg)](https://www.npmjs.com/package/tinyobj)
+[![npm downloads](https://img.shields.io/npm/dm/tinyobj.svg)](https://www.npmjs.com/package/tinyobj)
+[![Sponsor](https://img.shields.io/badge/sponsor-syoyo-ea4aaa?logo=github)](https://github.com/sponsors/syoyo)
+
+[**Try the WebAssembly demo →**](https://tinyobjloader.github.io/tinyobjloader/)
 
 Tiny but powerful Wavefront `.obj`/`.mtl` loader. This repository ships **two
 co-equal, independently usable implementations**:
