@@ -1,0 +1,107 @@
+# OpenSubdiv cross-check fixture (blender/tests/run.py): features Blender represents exactly.
+o grid_edge_corner
+v 0 0 0.0
+v 1 0 0.8999999999999999
+v 2 0 0.6
+v 3 0 0.3
+v 0 1 0.8999999999999999
+v 1 1 0.6
+v 2 1 0.3
+v 3 1 0.0
+v 0 2 0.6
+v 1 2 0.3
+v 2 2 0.0
+v 3 2 0.8999999999999999
+v 0 3 0.3
+v 1 3 0.0
+v 2 3 0.8999999999999999
+v 3 3 0.6
+f 1 2 6 5
+f 2 3 7 6
+f 3 4 8 7
+f 5 6 10 9
+f 6 7 11 10
+f 7 8 12 11
+f 9 10 14 13
+f 10 11 15 14
+f 11 12 16 15
+t interpolateboundary 1/0/0 1
+t crease 2/1/0 5 6 2.5
+t crease 4/2/0 6 10 9 10 1 10
+t corner 1/1/0 3 1.5
+o grid_edge_only
+v 0 0 3.0
+v 1 0 3.9
+v 2 0 3.6
+v 3 0 3.3
+v 0 1 3.9
+v 1 1 3.6
+v 2 1 3.3
+v 3 1 3.0
+v 0 2 3.6
+v 1 2 3.3
+v 2 2 3.0
+v 3 2 3.9
+v 0 3 3.3
+v 1 3 3.0
+v 2 3 3.9
+v 3 3 3.6
+f 17 18 22 21
+f 18 19 23 22
+f 19 20 24 23
+f 21 22 26 25
+f 22 23 27 26
+f 23 24 28 27
+f 25 26 30 29
+f 26 27 31 30
+f 27 28 32 31
+t interpolateboundary 1/0/0 2
+t crease 2/1/0 17 21 10
+t corner 2/1/0 25 26 0.5
+o grid_bilinear
+v 0 0 6.0
+v 1 0 6.9
+v 2 0 6.6
+v 3 0 6.3
+v 0 1 6.9
+v 1 1 6.6
+v 2 1 6.3
+v 3 1 6.0
+v 0 2 6.6
+v 1 2 6.3
+v 2 2 6.0
+v 3 2 6.9
+v 0 3 6.3
+v 1 3 6.0
+v 2 3 6.9
+v 3 3 6.6
+f 33 34 38 37
+f 34 35 39 38
+f 35 36 40 39
+f 37 38 42 41
+f 38 39 43 42
+f 39 40 44 43
+f 41 42 46 45
+f 42 43 47 46
+f 43 44 48 47
+t scheme 0/0/1 bilinear
+t interpolateboundary 1/0/0 2
+o cube
+v -1 -1 11
+v 1 -1 11
+v 1 1 11
+v -1 1 11
+v -1 -1 9
+v 1 -1 9
+v 1 1 9
+v -1 1 9
+f 49 50 51 52
+f 54 53 56 55
+f 50 54 55 51
+f 53 49 52 56
+f 52 51 55 56
+f 53 54 50 49
+t scheme 0/0/1 catmark
+t interpolateboundary 1/0/0 2
+t crease 6/1/0 48 49 49 50 50 51 3.25
+t corner 1/1/0 54 2

@@ -1,0 +1,8 @@
+newmtl m
+mtlx_surface s open_pbr_surface
+mtlx_node t image color3
+mtlx_input t.file filename @@at.png
+mtlx_input t.file filename x.png
+mtlx_colorspace t.file srgb_texture
+mtlx_colorspace t.file srgb_texture
+mtlx_input s.base_color float @t.out

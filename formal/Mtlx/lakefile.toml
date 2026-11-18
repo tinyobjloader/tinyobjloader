@@ -1,0 +1,17 @@
+name = "tobjmtlx"
+defaultTargets = ["TobjMtlx", "mtlxmtl"]
+# Share the parent formal/ package cache (same Mathlib rev 56a00585 as MtlxSpec).
+packagesDir = "../.lake/packages"
+
+# MaterialX specification model (materialx-conformance/verif/lean).  `mtlxspec-src`
+# is a local symlink created by tools/setup-mtlxspec.sh (see README.md).
+[[require]]
+name = "mtlxspec"
+path = "mtlxspec-src"
+
+[[lean_lib]]
+name = "TobjMtlx"
+
+[[lean_exe]]
+name = "mtlxmtl"
+root = "Main"

@@ -247,6 +247,11 @@ static int domain_valid(tm* m) {
   size_t i, j, r, s;
   int outer = 0;
   qr a = {0};
+  /* A previous attempt (e.g. another chart axis) may have left edge tangents. */
+  for (i = 0; i < m->ne; i++) {
+    qr_clear(&m->c, &m->e[i].ta);
+    qr_clear(&m->c, &m->e[i].tb);
+  }
   m->ne = 0;
   for (r = 0; r < m->nr; r++) {
     size_t st = m->rings[r], en = m->rings[r + 1];

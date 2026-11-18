@@ -70,9 +70,15 @@ void zi_clear(tx* c, zi* a) {
 }
 /* Allocated length equals n; normalization shrinks accounting only after a
  * copy. */
-static void norm(tx* c, zi* a) {
+/* Number of limbs after dropping most-significant zero limbs. Pure; translated and proved
+ * against the Lean `trimL` model. */
+static size_t trim_len(const zi* a) {
   size_t n = a->n;
   while (n && !a->v[n - 1]) n--;
+  return n;
+}
+static void norm(tx* c, zi* a) {
+  size_t n = trim_len(a);
   if (n != a->n) {
     zi t = {0};
     if (n) {
@@ -108,14 +114,19 @@ static void move(tx* c, zi* r, zi* t) {
   *r = *t;
   memset(t, 0, sizeof(*t));
 }
+/* Limb count and limb/sign fill of an int64 magnitude (pure; translated and proved). */
+static size_t i64_limb_count(uint64_t u) { return u > UINT32_MAX ? 2 : u ? 1 : 0; }
+static void i64_fill(zi* t, int64_t x, uint64_t u) {
+  if (t->n) {
+    t->v[0] = (uint32_t)u;
+    if (t->n == 2) t->v[1] = (uint32_t)(u >> 32);
+    t->sign = x < 0 ? -1 : 1;
+  }
+}
 void zi_i64(tx* c, zi* a, int64_t x) {
   uint64_t u = tess_mag(x);
-  zi t = make(c, u > UINT32_MAX ? 2 : u ? 1 : 0);
-  if (t.n) {
-    t.v[0] = (uint32_t)u;
-    if (t.n == 2) t.v[1] = (uint32_t)(u >> 32);
-    t.sign = x < 0 ? -1 : 1;
-  }
+  zi t = make(c, i64_limb_count(u));
+  i64_fill(&t, x, u);
   move(c, a, &t);
 }
 void zi_copy(tx* c, zi* r, const zi* a) {
@@ -125,6 +136,43 @@ void zi_copy(tx* c, zi* r, const zi* a) {
     t.sign = a->sign;
   }
   move(c, r, &t);
+}
+/* Limb kernels split out for exact verification. These helpers carry no
+   allocator state and are the translation boundary for the c2lean MiniC
+   refinement. They perform exactly the bit arithmetic that used to be
+   inlined in zi_add and zi_mul. */
+static void zi_add_equisign(zi* t, const zi* a, const zi* b, size_t n) {
+  size_t i;
+  uint64_t carry = 0;
+  for (i = 0; i < n; i++) {
+    uint64_t v = carry + (i < a->n ? a->v[i] : 0) +
+                 (uint64_t)(i < b->n ? b->v[i] : 0);
+    t->v[i] = (uint32_t)v;
+    carry = v >> 32;
+  }
+  t->v[n] = (uint32_t)carry;
+}
+static void zi_add_mixed(zi* t, const zi* x, const zi* y, size_t n) {
+  size_t i;
+  uint64_t carry = 0;
+  for (i = 0; i < n; i++) {
+    uint64_t xv = i < x->n ? x->v[i] : 0,
+             yv = (uint64_t)(i < y->n ? y->v[i] : 0) + carry;
+    t->v[i] = (uint32_t)(xv - yv);
+    carry = xv < yv;
+  }
+}
+static void zi_mul_accumulate(zi* t, const zi* a, const zi* b) {
+  size_t i, j;
+  for (i = 0; i < a->n; i++) {
+    uint64_t k = 0;
+    for (j = 0; j < b->n; j++) {
+      uint64_t v = tess_limb_madd(a->v[i], b->v[j], t->v[i + j], (uint32_t)k);
+      t->v[i + j] = (uint32_t)v;
+      k = v >> 32;
+    }
+    t->v[i + b->n] = (uint32_t)k;
+  }
 }
 static int acmp(const zi* a, const zi* b) {
   size_t i;
@@ -139,8 +187,7 @@ int zi_cmp(const zi* a, const zi* b) {
 }
 void zi_add(tx* c, zi* r, const zi* a, const zi* b) {
   zi t = {0};
-  size_t i, n = a->n > b->n ? a->n : b->n;
-  uint64_t carry = 0;
+  size_t n = a->n > b->n ? a->n : b->n;
   if (!tick(c, n)) return;
   if (!a->sign) {
     zi_copy(c, r, b);
@@ -153,13 +200,7 @@ void zi_add(tx* c, zi* r, const zi* a, const zi* b) {
   if (a->sign == b->sign) {
     t = make(c, n + 1);
     if (t.v) {
-      for (i = 0; i < n; i++) {
-        uint64_t v = carry + (i < a->n ? a->v[i] : 0) +
-                     (uint64_t)(i < b->n ? b->v[i] : 0);
-        t.v[i] = (uint32_t)v;
-        carry = v >> 32;
-      }
-      t.v[n] = (uint32_t)carry;
+      zi_add_equisign(&t, a, b, n);
       t.sign = a->sign;
     }
   } else {
@@ -170,12 +211,7 @@ void zi_add(tx* c, zi* r, const zi* a, const zi* b) {
     }
     t = make(c, n);
     if (t.v) {
-      for (i = 0; i < n; i++) {
-        uint64_t xv = i < x->n ? x->v[i] : 0,
-                 yv = (uint64_t)(i < y->n ? y->v[i] : 0) + carry;
-        t.v[i] = (uint32_t)(xv - yv);
-        carry = xv < yv;
-      }
+      zi_add_mixed(&t, x, y, n);
       t.sign = x->sign;
     }
   }
@@ -189,7 +225,6 @@ void zi_sub(tx* c, zi* r, const zi* a, const zi* b) {
 }
 void zi_mul(tx* c, zi* r, const zi* a, const zi* b) {
   zi t = {0};
-  size_t i, j;
   if (!a->n || !b->n) {
     move(c, r, &t);
     return;
@@ -201,38 +236,75 @@ void zi_mul(tx* c, zi* r, const zi* a, const zi* b) {
   if (!tick(c, a->n * b->n)) return;
   t = make(c, a->n + b->n);
   if (t.v) {
-    for (i = 0; i < a->n; i++) {
-      uint64_t k = 0;
-      for (j = 0; j < b->n; j++) {
-        uint64_t v = tess_limb_madd(a->v[i], b->v[j], t.v[i + j], (uint32_t)k);
-        t.v[i + j] = (uint32_t)v;
-        k = v >> 32;
-      }
-      t.v[i + b->n] = (uint32_t)k;
-    }
+    zi_mul_accumulate(&t, a, b);
     t.sign = a->sign * b->sign;
   }
   norm(c, &t);
   move(c, r, &t);
 }
+/* Radix-2^32 schoolbook division of `a` by the single limb `d` (pure; translated and proved
+ * against the Lean `ldRun` model). Writes the quotient limbs into t and returns the remainder. */
+static uint64_t div_single_fill(zi* t, const zi* a, uint32_t d) {
+  uint64_t remainder = 0;
+  size_t i;
+  for (i = a->n; i; i--) {
+    uint64_t value = (remainder << 32) | a->v[i - 1];
+    t->v[i - 1] = (uint32_t)(value / d);
+    remainder = value % d;
+  }
+  return remainder;
+}
+/* In-place `r = 2*r + k` over the limbs of r (k is 0 or 1); returns the carry out of the top limb
+ * (pure; translated and proved against the Lean `siPrefix` model). */
+static uint64_t div_shift_in(zi* r, uint64_t k) {
+  size_t i;
+  for (i = 0; i < r->n; i++) {
+    uint64_t v = ((uint64_t)r->v[i] << 1) | k;
+    r->v[i] = (uint32_t)v;
+    k = v >> 32;
+  }
+  return k;
+}
+/* In-place `r -= b` over the limbs of r (b has no more limbs than r); returns the final borrow
+ * (pure; translated and proved against the Lean `sbPrefix` model). */
+static uint64_t div_sub_in(zi* r, const zi* b) {
+  uint64_t borrow = 0;
+  size_t i;
+  for (i = 0; i < r->n; i++) {
+    uint64_t x = r->v[i], y = (uint64_t)(i < b->n ? b->v[i] : 0) + borrow;
+    r->v[i] = (uint32_t)(x - y);
+    borrow = x < y;
+  }
+  return borrow;
+}
+/* Compare r (b->n + 1 limbs) with b: 1 if r > b, 0 if equal, -1 if r < b (pure; translated and proved
+ * against the Lean `dcCmp` model). */
+static int div_cmp(const zi* r, const zi* b) {
+  size_t i;
+  int cmp = r->v[b->n] ? 1 : 0;
+  if (!cmp) {
+    for (i = b->n; i; i--)
+      if (r->v[i - 1] != b->v[i - 1]) {
+        cmp = r->v[i - 1] > b->v[i - 1] ? 1 : -1;
+        break;
+      }
+  }
+  return cmp;
+}
 /* Binary long division; nonnegative remainder for nonnegative operands. */
 void zi_divrem(tx* c, zi* q, zi* r, const zi* a, const zi* b) {
   zi qt = {0}, rt = {0};
-  size_t bit, i;
+  size_t bit;
   if (!b->n) {
     if (!c->status) c->status = TESS_INVALID_INPUT;
     return;
   }
   if (b->n == 1) {
-    uint64_t remainder = 0;
+    uint64_t remainder;
     if (!tick(c, a->n)) return;
     qt = make(c, a->n);
     if (a->n && !qt.v) goto done;
-    for (i = a->n; i; i--) {
-      uint64_t value = (remainder << 32) | a->v[i - 1];
-      qt.v[i - 1] = (uint32_t)(value / b->v[0]);
-      remainder = value % b->v[0];
-    }
+    remainder = div_single_fill(&qt, a, b->v[0]);
     qt.sign = a->sign * b->sign;
     if (remainder) {
       rt = make(c, 1);
@@ -253,26 +325,10 @@ void zi_divrem(tx* c, zi* q, zi* r, const zi* a, const zi* b) {
     bit--;
     if (!tick(c, rt.n)) break;
     k = (a->v[bit / 32] >> (bit % 32)) & 1u;
-    for (i = 0; i < rt.n; i++) {
-      uint64_t v = ((uint64_t)rt.v[i] << 1) | k;
-      rt.v[i] = (uint32_t)v;
-      k = v >> 32;
-    }
-    cmp = rt.v[b->n] ? 1 : 0;
-    if (!cmp) {
-      for (i = b->n; i; i--)
-        if (rt.v[i - 1] != b->v[i - 1]) {
-          cmp = rt.v[i - 1] > b->v[i - 1] ? 1 : -1;
-          break;
-        }
-    }
+    (void)div_shift_in(&rt, k);
+    cmp = div_cmp(&rt, b);
     if (cmp >= 0) {
-      uint64_t borrow = 0;
-      for (i = 0; i < rt.n; i++) {
-        uint64_t x = rt.v[i], y = (uint64_t)(i < b->n ? b->v[i] : 0) + borrow;
-        rt.v[i] = (uint32_t)(x - y);
-        borrow = x < y;
-      }
+      (void)div_sub_in(&rt, b);
       qt.v[bit / 32] |= UINT32_C(1) << (bit % 32);
     }
   }
@@ -340,17 +396,22 @@ void qr_copy(tx* c, qr* r, const qr* a) {
   zi_copy(c, &t.d, &a->d);
   qm(c, r, &t);
 }
-static void shift(tx* c, zi* r, const zi* a, unsigned bits) {
-  zi t = make(c, a->n + bits / 32 + 1);
+/* Limb carry chain of a left shift into a zeroed destination of a->n + bits/32 + 1
+ * limbs (pure; translated and proved against the Lean `shiftLimbs` model). */
+static void shift_fill(zi* t, const zi* a, unsigned bits) {
   size_t i;
   uint64_t carry = 0;
+  for (i = 0; i < a->n; i++) {
+    uint64_t v = ((uint64_t)a->v[i] << (bits % 32)) | carry;
+    t->v[i + bits / 32] = (uint32_t)v;
+    carry = v >> 32;
+  }
+  t->v[a->n + bits / 32] = (uint32_t)carry;
+}
+static void shift(tx* c, zi* r, const zi* a, unsigned bits) {
+  zi t = make(c, a->n + bits / 32 + 1);
   if (t.v) {
-    for (i = 0; i < a->n; i++) {
-      uint64_t v = ((uint64_t)a->v[i] << (bits % 32)) | carry;
-      t.v[i + bits / 32] = (uint32_t)v;
-      carry = v >> 32;
-    }
-    t.v[a->n + bits / 32] = (uint32_t)carry;
+    shift_fill(&t, a, bits);
     t.sign = a->sign;
   }
   norm(c, &t);
@@ -384,9 +445,19 @@ int tx_report_double(long double value, double* out) {
   *out = (double)value;
   return 1;
 }
+/* binary64 field decode (pure; translated and proved against the Lean `dblMant`/`dblExp`
+ * model). Returns 0 for infinities and NaNs. */
+static int dbl_decode(uint64_t u, uint64_t* mant, int* exponent) {
+  unsigned e = (unsigned)((u >> 52) & 2047);
+  uint64_t m = u & UINT64_C(0xfffffffffffff);
+  if (e == 2047) return 0;
+  *exponent = e ? (int)e - 1023 - 52 : -1074;
+  if (e) m |= UINT64_C(1) << 52;
+  *mant = m;
+  return 1;
+}
 void qr_double(tx* c, qr* r, double d) {
   uint64_t u, m;
-  unsigned e;
   int exp;
   qr t = {0};
   if (!tx_binary64_supported()) {
@@ -394,14 +465,10 @@ void qr_double(tx* c, qr* r, double d) {
     return;
   }
   memcpy(&u, &d, 8);
-  e = (unsigned)((u >> 52) & 2047);
-  m = u & UINT64_C(0xfffffffffffff);
-  if (e == 2047) {
+  if (!dbl_decode(u, &m, &exp)) {
     c->status = TESS_INVALID_INPUT;
     return;
   }
-  exp = e ? (int)e - 1023 - 52 : -1074;
-  if (e) m |= UINT64_C(1) << 52;
   zi_i64(c, &t.n, (int64_t)m);
   zi_i64(c, &t.d, 1);
   if (m) {
@@ -579,21 +646,22 @@ void qr_import(tx* c, qr* r, const tess_rational* input) {
   qm(c, r, &t);
 }
 
+/* Bit length of a 32-bit value (pure; translated and proved equal to the Lean `Nat.size`). */
+static unsigned bit_len32(uint32_t x) {
+  unsigned nb = 0;
+  while (x) {
+    nb++;
+    x >>= 1;
+  }
+  return nb;
+}
 int qr_exponent(const qr* a) {
   uint32_t n, d;
-  unsigned nb = 0, db = 0;
   if (!a->n.n || !a->d.n) return 0;
   n = a->n.v[a->n.n - 1];
   d = a->d.v[a->d.n - 1];
-  while (n) {
-    nb++;
-    n >>= 1;
-  }
-  while (d) {
-    db++;
-    d >>= 1;
-  }
-  return (int)(a->n.n - 1) * 32 + (int)nb - ((int)(a->d.n - 1) * 32 + (int)db);
+  return (int)(a->n.n - 1) * 32 + (int)bit_len32(n) -
+         ((int)(a->d.n - 1) * 32 + (int)bit_len32(d));
 }
 void qr_scale_pow2(tx* c, qr* r, const qr* a, int exponent) {
   qr t = {0};

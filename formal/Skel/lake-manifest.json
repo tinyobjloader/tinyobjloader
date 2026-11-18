@@ -1,0 +1,14 @@
+{"version": "1.3.0",
+ "packagesDir": ".lake/packages",
+ "packages":
+ [{"type": "path",
+   "scope": "",
+   "name": "tobjsubd",
+   "manifestFile": "lake-manifest.json",
+   "inherited": false,
+   "dir": "../Subd",
+   "copy": false,
+   "configFile": "lakefile.toml"}],
+ "name": "tobjskel",
+ "lakeDir": ".lake",
+ "fixedToolchain": false}

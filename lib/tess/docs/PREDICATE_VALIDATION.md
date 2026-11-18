@@ -66,13 +66,18 @@ ctest --test-dir /tmp/tess-validation -R 'tess_(lean_predicates|predicate_resour
 The proof audit builds both executables and CI runs the differential test.
 
 `tests/predicate_differential.py` compares C, executable Lean and an independent
-Python Fraction oracle on 19,982 fixtures for orientation, orientation-correct
-incircle, 3D orientation and noncoplanar triangle audits, segment membership and indexed/ordinary segment conflict. It uses exhaustive 3x3
+Python Fraction oracle on 21,923 fixtures for orientation, orientation-correct
+incircle, 3D orientation, strict plane cuts, 2D containment and noncoplanar
+triangle audits, segment membership and indexed/ordinary segment conflict.
+Coplanar and shared-index triangle pairs run C-only against the Fraction
+oracle (operation `triaudit`). It uses exhaustive 3x3
 integer grids, mixed dyadic exponents, collinear and degenerate data, near-contact
 endpoints and cocircular perturbations. The Python circle oracle eliminates a
 full 4x4 homogeneous matrix; C uses a translated 3x3 determinant. Ordinary segment contact
 uses exact line parameters and interval overlap in Python, versus determinant
-signs in the implementations.
+signs in the implementations. When the record count exceeds Lean's per-invocation
+fixture cap, the differential feeds each probe in 19,000-record chunks rather
+than weakening the cap; all records are still checked.
 
 For `orient3`, 128 low-coordinate grid points, 256 bounded dyadic-exponent
 random points and 128 axis-dominant extreme-exponent cases are compared exactly.
@@ -81,6 +86,45 @@ covers 64 nondegenerate noncoplanar random/float pairs and 36 nested source-edge
 fixtures where one edge lies in the other face's plane and only the middle
 overlaps the target triangle; it is an acceptance test for the direct C/Lean/Fraction
 path and excludes the indexed shared-simplex exception.
+
+`planecut` compares the strict-crossing branch of the 3D auditor. Both sides
+receive a z-normal face grid in one batch (mixed strict, same-side, on-plane
+and endpoint-touching configurations), 64 reversed-orientation cuts and 128
+bounded random 3D dyadics. C prints the exact rational cut point with
+hexadecimal numerator/denominator tokens (`0x` prefixes, `/` separator) or `0`;
+Lean prints `1` plus the three rational coordinates in decimal
+numerator/denominator form, or `0`; Python computes `dx/(dx-dy)` and the point
+on the segment exactly. Lines are matched exactly as Fractions, so a reported
+coordinate cannot be merely close. The C operands keep dyadic exponents within
+±15 so the default C work budget is never exhausted; no planecut fixture
+relies on resource exhaustion.
+
+`contains2` compares the 2D no-mixed-sign closed-triangle projection test used
+by the 3D auditor's projected branch (`contains` in `audit.c`), in both face
+orientations. Fixtures enumerate integer triples over a 3x3x3 grid with two
+probe points each; the clockwise case exercises the reversed edge order. The
+Python oracle computes the three exact edge signs and accepts either all-
+nonnegative or all-nonpositive. Coplanar degenerate faces are rejected by the
+auditor separately and are not part of the fixture set.
+
+`triaudit` is a diagnostic mode covering the two paths that
+`tricontact` deliberately excludes: coplanar face pairs (including identical,
+reversed and shared-edge/vertex faces whose IDs are expected shared simplices,
+and the identical-triangle rejection) and indexed shared-index fixtures. C
+prints 1 when `tg_audit3` accepts the two-face mesh and 0 otherwise. The
+Python oracle replicates the auditor's exact algorithm: coplanarity from
+`planeValue`, projected containment on the face's own first nondegenerate
+axis, per-ID shared-simplex allowance (point equality, and on-segment +
+collinearity for two shared IDs), projected segment-conflict detection with the
+indexed exception, and the identical-triangle (three shared IDs) rejection.
+The Lean fixture evaluates the same decision with `Tess.PairAudit.pairOk`, a
+statement-by-statement executable specification of the C pair logic, so the
+differential compares C, Lean and the Fraction oracle. For noncoplanar faces
+with no shared vertex IDs, `PairAuditBridge.pairOk_noncoplanar_disjoint` proves
+`pairOk` is exactly the negation of the proved `noncoplanarTrianglesConflict`.
+Six hand-verified fixtures (nested coplanar,
+disjoint, bottomed-out edge touch, shared edge, noncoplanar pierce, parallel
+sheet) are asserted before the 195 random/constructed pairs.
 
 For the first 100 ordinary `segments` records, the executable C and Lean
 `segments` probes are used. The remaining ordinary segment records exercise
@@ -94,11 +138,12 @@ Non-dyadic rational parser mutations are compared between Lean and Fraction
 only. C coordinates are binary64 values; their exact dyadics are sent to Lean and
 Fraction without decimal rounding.
 
-A frozen mixed-exponent incircle case exceeds C's default 100-million-unit work
-cap. The resource regression requires an explicit library resource error, no
-sign output, and complete teardown. Lean and Fraction agree on its exact sign.
-This is an expected bounded outcome, not an accepted C predicate result. The
-C test probe exits 5 while reporting library status 3; this convention is local
+Frozen mixed-exponent incircle, orient3 and tricontact fixtures exceed C's
+default 100-million-unit work cap. The resource regression requires an explicit
+library resource error, no sign output, and complete teardown for each. Lean
+and Fraction agree on their exact signs. These are expected bounded outcomes,
+not accepted C predicate results. The C test probe exits 5 while reporting
+library status 3; this convention is local
 to the test executable and does not change the public API or OBJ CLI statuses.
 `tests/predicate_resources.py` runs independently of Lean, including in sanitizer
 CI. The probe releases the mesh on error paths before returning.
@@ -115,6 +160,19 @@ return 1 when the triangles do not conflict and 0 on geometric contact. The C
 probe evaluates `tg_audit3` with two triangles and reports the audit result;
 the Lean fixture evaluates `Tess.noncoplanarTrianglesConflict` exactly. Coplanar
 pairs and indexed shared-simplex cases are not included in those fixtures.
+`triaudit` carries six 3D points as eighteen coordinates followed by six face
+vertex IDs (three for each face index triple, IDs less than 6), and prints
+`tg_audit3`'s accept bit on the C side only; the Lean fixture rejects it.
+
+`planecut` carries five 3D points as fifteen coordinates: face `a b c` then
+the edge endpoints `x y`. Output is either `0` (endpoint plane signs not
+strict opposites, no strict cut) or `1` with the three exact rational cut
+coordinates. The C probe prints hexagonal numerator/denominator tokens
+(`0x…/0x…`, sign prefix allowed); the Lean fixture prints decimal
+`num/den` tokens. Python parses both encodings back to exact Fractions.
+
+`contains2` carries two 2D points as eight coordinates and prints `1` when the
+last point lies in the closed triangle with either orientation, `0` otherwise.
 
 The indexed conflict record is `indexedsegments ax ay bx by cx cy dx dy a b c d`:
 the same eight coordinates followed by four vertex IDs. Repeated IDs denote the
@@ -135,16 +193,20 @@ printf 'indexedsegments 0/1 0/1 1/1 1/1 0/1 1/1 1/1 0/1 0 1 0 1\n' | formal/.lak
 # 0
 ```
 
-Orientation/incircle return -1, 0 or 1; membership/intersection return 0 or 1.
+Orientation/incircle return -1, 0 or 1; membership/intersection return 0 or 1;
+containment and audit modes return 0 or 1; `planecut` returns 0 or a `1` record
+with three rationals.
 The byte limit is 8 MiB, record/newline limit 20,000, line limit 32,768 characters,
 and numerator/denominator token limit 1,024 characters. Newline count is checked
 before allocating split records. Exit 0 means all records evaluated, 1 malformed
 input, 2 usage and 3 an explicit size limit. Partial stdout preceding a failed
 record does not make a batch successful; callers must require exit 0.
 
-Targeted malformed/oversized/UTF-8/NUL/usage tests and 128 deterministic byte
+Targeted malformed/oversized/UTF-8/NUL/usage tests and 256 deterministic byte
 mutations exercise the parser. Accepted mutations are checked against
 Fraction. Parser tests also cover the indexed operation's missing and negative
-IDs, IDs at the explicit resource cap, and inconsistent repeated-ID coordinates.
+IDs, IDs at the explicit resource cap, inconsistent repeated-ID coordinates,
+and explicit rejections of truncated `planecut`, `contains2` and `triaudit`
+records.
 This parser and native execution are validation boundaries, not newly proved serialization or compiler refinements. The existing artifact
 checker remains unchanged.

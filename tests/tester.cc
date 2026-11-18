@@ -647,6 +647,8 @@ void test_catmark_torus_creases0() {
 
   TEST_CHECK(1 == shapes.size());
   TEST_CHECK(8 == shapes[0].mesh.tags.size());
+  TEST_CHECK(8 == shapes[0].mesh.tag_lines.size());
+  TEST_CHECK(std::string("t crease 2/1/0 1 5 4.7") == shapes[0].mesh.tag_lines[0]);
   TEST_CHECK(std::string("crease") == shapes[0].mesh.tags[0].name);
   TEST_CHECK(2 == shapes[0].mesh.tags[0].intValues.size());
   TEST_CHECK(1 == shapes[0].mesh.tags[0].floatValues.size());
@@ -1988,6 +1990,32 @@ void test_usemtl_callback_trims_trailing_comment() {
   TEST_CHECK(err.empty());
 }
 
+// Tags belong to their own group (they used to accumulate across groups).
+void test_tags_per_group() {
+  std::string obj_text =
+      "v 0 0 0\nv 1 0 0\nv 0 1 0\n"
+      "g a\nf 1 2 3\nt crease 2/1/0 0 1 1\n"
+      "g b\nf 1 2 3\nt corner 1/1/0 2 3\nt\n";
+  std::istringstream obj_stream(obj_text);
+  std::string mtl_text;
+  std::istringstream mtl_stream(mtl_text);
+  tinyobj::MaterialStreamReader mtl_reader(mtl_stream);
+  tinyobj::attrib_t attrib;
+  std::vector<tinyobj::shape_t> shapes;
+  std::vector<tinyobj::material_t> materials;
+  std::string warn, err;
+  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                              &obj_stream, &mtl_reader, false);
+  TEST_CHECK(ret == true);
+  TEST_CHECK(shapes.size() == size_t(2));
+  TEST_CHECK(shapes[0].mesh.tags.size() == size_t(1));
+  TEST_CHECK(shapes[0].mesh.tag_lines.size() == size_t(1));
+  TEST_CHECK(shapes[1].mesh.tags.size() == size_t(1));
+  TEST_CHECK(shapes[1].mesh.tags[0].name == "corner");
+  TEST_CHECK(shapes[1].mesh.tag_lines.size() == size_t(2));  // includes bare `t`
+  TEST_CHECK(shapes[1].mesh.tag_lines[1] == "t");
+}
+
 void test_tag_triple_huge_count_is_safely_rejected() {
   std::string obj_text =
       "v 0 0 0\n"
@@ -2009,10 +2037,9 @@ void test_tag_triple_huge_count_is_safely_rejected() {
 
   TEST_CHECK(ret == true);
   TEST_CHECK(shapes.size() == size_t(1));
-  TEST_CHECK(shapes[0].mesh.tags.size() == size_t(1));
-  TEST_CHECK(shapes[0].mesh.tags[0].intValues.size() == size_t(0));
-  TEST_CHECK(shapes[0].mesh.tags[0].floatValues.size() == size_t(0));
-  TEST_CHECK(shapes[0].mesh.tags[0].stringValues.size() == size_t(0));
+  // Malformed counts: not a generic tag, but kept verbatim in tag_lines.
+  TEST_CHECK(shapes[0].mesh.tags.size() == size_t(0));
+  TEST_CHECK(shapes[0].mesh.tag_lines.size() == size_t(1));
 }
 
 
@@ -4283,6 +4310,7 @@ TEST_LIST = {
      test_mtllib_empty_filename_is_ignored_callback},
     {"test_usemtl_callback_trims_trailing_comment",
      test_usemtl_callback_trims_trailing_comment},
+    {"test_tags_per_group", test_tags_per_group},
     {"test_tag_triple_huge_count_is_safely_rejected",
      test_tag_triple_huge_count_is_safely_rejected},
     {"test_texcoord_w_component", test_texcoord_w_component},

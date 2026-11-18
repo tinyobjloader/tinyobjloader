@@ -36,6 +36,7 @@ typedef struct TOBJ_T(tobj_builder) {
   tobj_vec matmap_key;  /* const char* (interned) */
   tobj_vec matmap_id;   /* int */
   tobj_vec mat_unknown; /* tobj_pending_kv */
+  tobj_vec mat_mtlx;    /* tobj_pending_kv: key NULL, value = raw MaterialX-in-MTL line */
 
   /* finalized shapes */
   tobj_vec shapes; /* TOBJ_T(tobj_shape) */
@@ -50,6 +51,9 @@ typedef struct TOBJ_T(tobj_builder) {
   tobj_vec l_idx;    /* tobj_index */
   tobj_vec l_cnt;    /* int per-line counts */
   tobj_vec p_idx;    /* tobj_index */
+  tobj_vec t_lines;  /* const char* (interned `t` lines) */
+  tobj_vec t_tags;   /* TOBJ_T(tobj_tag) */
+  tobj_vec skel_lines; /* const char* (interned `skel_*` lines, file scope) */
 
   /* per-face scratch (reused) */
   tobj_vec corners;  /* tobj_index */
@@ -467,7 +471,10 @@ static bool TOBJ_T(finalize_shape)(TOBJ_T(tobj_builder) * b) {
                 b->sh_surfaces.count;
   if (!b->cur_has_prims && b->m_fv.count == 0 && b->l_cnt.count == 0 &&
       b->p_idx.count == 0 && !has_ff) {
-    /* nothing to emit, but keep the name for the next group */
+    /* nothing to emit, but keep the name for the next group; tags of an
+     * empty group are dropped */
+    b->t_lines.count = 0;
+    b->t_tags.count = 0;
     return true;
   }
   if (b->shapes.count >= b->caps.shapes) return TOBJ_T(b_fail)(b, TOBJ_ERR_LIMIT_EXCEEDED);
@@ -488,6 +495,9 @@ static bool TOBJ_T(finalize_shape)(TOBJ_T(tobj_builder) * b) {
   TOBJ_FIN(sh.lines.num_line_vertices, sh.lines.num_lines, b->l_cnt, int);
 
   TOBJ_FIN(sh.points.indices, sh.points.num_indices, b->p_idx, tobj_index);
+
+  TOBJ_FIN(sh.mesh.tag_lines, sh.mesh.num_tag_lines, b->t_lines, const char *);
+  TOBJ_FIN(sh.mesh.tags, sh.mesh.num_tags, b->t_tags, TOBJ_T(tobj_tag));
 
   /* free-form geometry, if any accumulated for this shape */
   if (b->sh_curves.count || b->sh_curves2.count || b->sh_surfaces.count) {
@@ -834,6 +844,25 @@ static bool TOBJ_T(parse_mtl_buffer)(TOBJ_T(tobj_builder) * b,
       m->sheen_texname = TOBJ_T(parse_texopt)(b, &c, &m->sheen_texopt);
     } else if (tobj_slice_eq(tok, tl, "map_Ke")) {
       m->emissive_texname = TOBJ_T(parse_texopt)(b, &c, &m->emissive_texopt);
+    } else if (tobj_slice_eq(tok, tl, "mtlx_version") ||
+               tobj_slice_eq(tok, tl, "mtlx_surface") ||
+               tobj_slice_eq(tok, tl, "mtlx_node") ||
+               tobj_slice_eq(tok, tl, "mtlx_input") ||
+               tobj_slice_eq(tok, tl, "mtlx_include") ||
+               tobj_slice_eq(tok, tl, "mtlx_colorspace")) {
+      /* MaterialX-in-MTL line: kept verbatim, in order (see tobj_mtlx.h) */
+      tobj_pending_kv *kv = (tobj_pending_kv *)tobj_vec_push(&b->mat_mtlx, b->alloc);
+      if (!kv) {
+        TOBJ_T(b_fail)(b, TOBJ_ERR_ALLOC);
+        break;
+      }
+      kv->mat_index = (size_t)cur;
+      kv->key = NULL;
+      kv->value = tobj_intern(b->arena, base + ln->pos, ln->len);
+      if (!kv->value) {
+        TOBJ_T(b_fail)(b, TOBJ_ERR_ALLOC);
+        break;
+      }
     } else {
       /* unknown parameter: store key -> rest of line */
       if (!TOBJ_T(push_unknown)(b, (size_t)cur, tok, tl, &c)) break;
@@ -1105,6 +1134,89 @@ static bool TOBJ_T(handle_freeform)(TOBJ_T(tobj_builder) * b, const char *tok,
   return true;
 }
 
+/* `t <name> <ni>/<nf>/<ns> args...`: keep the line verbatim; also record it as a
+ * generic tag when its counts and arguments parse (subdivision meaning and
+ * checking: tobj_subd.h). */
+#define TOBJ_TAG_MAX 8192
+static bool TOBJ_T(handle_t)(TOBJ_T(tobj_builder) * b, const char *line, size_t len,
+                             tobj_cursor *c) {
+  while (len && tobj_is_space(line[len - 1])) len--;
+  while (len && tobj_is_space(*line)) line++, len--;
+  const char *raw = tobj_intern(b->arena, line, len);
+  const char **slot = (const char **)tobj_vec_push(&b->t_lines, b->alloc);
+  if (!raw || !slot) return TOBJ_T(b_fail)(b, TOBJ_ERR_ALLOC);
+  *slot = raw;
+
+  const char *tok;
+  size_t tl;
+  TOBJ_T(tobj_tag) tag;
+  tobj_memset(&tag, 0, sizeof tag);
+  if (!tobj_next_token(c, &tok, &tl)) goto malformed;
+  tag.name = tobj_intern(b->arena, tok, tl);
+  if (!tag.name) return TOBJ_T(b_fail)(b, TOBJ_ERR_ALLOC);
+  if (!tobj_next_token(c, &tok, &tl)) goto malformed;
+  {
+    size_t cnt[3] = {0, 0, 0}, k = 0, i = 0;
+    for (; k < 3; k++) {
+      size_t d = 0;
+      while (i < tl && tok[i] >= '0' && tok[i] <= '9') {
+        if (cnt[k] <= TOBJ_TAG_MAX) cnt[k] = cnt[k] * 10 + (size_t)(tok[i] - '0');
+        i++, d++;
+      }
+      if (d == 0 || cnt[k] > TOBJ_TAG_MAX) goto malformed;
+      if (k < 2) {
+        if (i >= tl || tok[i] != '/') goto malformed;
+        i++;
+      }
+    }
+    if (i != tl) goto malformed;
+    if (cnt[0]) {
+      tag.int_values = (int *)tobj_arena_alloc(b->arena, cnt[0] * sizeof(int), 16);
+      if (!tag.int_values) return TOBJ_T(b_fail)(b, TOBJ_ERR_ALLOC);
+    }
+    if (cnt[1]) {
+      tag.float_values =
+          (TOBJ_REAL *)tobj_arena_alloc(b->arena, cnt[1] * sizeof(TOBJ_REAL), 16);
+      if (!tag.float_values) return TOBJ_T(b_fail)(b, TOBJ_ERR_ALLOC);
+    }
+    if (cnt[2]) {
+      tag.string_values = (const char **)tobj_arena_alloc(
+          b->arena, cnt[2] * sizeof(const char *), 16);
+      if (!tag.string_values) return TOBJ_T(b_fail)(b, TOBJ_ERR_ALLOC);
+    }
+    for (k = 0; k < cnt[0]; k++) {
+      if (!tobj_next_token(c, &tok, &tl)) goto malformed;
+      const char *q = tok;
+      if (!tobj_scan_int(&q, tok + tl, &tag.int_values[k]) || q != tok + tl) goto malformed;
+    }
+    for (k = 0; k < cnt[1]; k++) {
+      if (!tobj_next_token(c, &tok, &tl)) goto malformed;
+      const char *q = tok;
+      double d;
+      if (!tobj_scan_double(&q, tok + tl, &d) || q != tok + tl) goto malformed;
+      tag.float_values[k] = (TOBJ_REAL)d;
+    }
+    for (k = 0; k < cnt[2]; k++) {
+      if (!tobj_next_token(c, &tok, &tl)) goto malformed;
+      tag.string_values[k] = tobj_intern(b->arena, tok, tl);
+      if (!tag.string_values[k]) return TOBJ_T(b_fail)(b, TOBJ_ERR_ALLOC);
+    }
+    if (tobj_next_token(c, &tok, &tl)) goto malformed;
+    tag.num_int_values = cnt[0];
+    tag.num_float_values = cnt[1];
+    tag.num_string_values = cnt[2];
+  }
+  {
+    TOBJ_T(tobj_tag) *ts = (TOBJ_T(tobj_tag) *)tobj_vec_push(&b->t_tags, b->alloc);
+    if (!ts) return TOBJ_T(b_fail)(b, TOBJ_ERR_ALLOC);
+    *ts = tag;
+  }
+  return true;
+malformed:
+  TOBJ_T(b_warn)(b, "tinyobjc: malformed `t` line (kept in tag_lines only)\n");
+  return true;
+}
+
 /* ----------------------------------------------------------------------- */
 /* line dispatch                                                           */
 /* ----------------------------------------------------------------------- */
@@ -1177,6 +1289,18 @@ static bool TOBJ_T(dispatch_line)(TOBJ_T(tobj_builder) * b, const char *p,
     return true;
   }
   if (tobj_slice_eq(tok, tl, "mtllib")) return TOBJ_T(handle_mtllib)(b, &c);
+  if (tobj_slice_eq(tok, tl, "t")) return TOBJ_T(handle_t)(b, p, len, &c);
+  if (tobj_slice_eq(tok, tl, "skel_joint") || tobj_slice_eq(tok, tl, "skel_rest") ||
+      tobj_slice_eq(tok, tl, "skel_lib") || tobj_slice_eq(tok, tl, "skel_anim")) {
+    /* skeleton line (skel-obj.md): kept verbatim, file scope */
+    while (len && tobj_is_space(p[len - 1])) len--;
+    while (len && tobj_is_space(*p)) p++, len--;
+    const char *raw = tobj_intern(b->arena, p, len);
+    const char **slot = (const char **)tobj_vec_push(&b->skel_lines, b->alloc);
+    if (!raw || !slot) return TOBJ_T(b_fail)(b, TOBJ_ERR_ALLOC);
+    *slot = raw;
+    return true;
+  }
   if (b->cfg->parse_freeform) return TOBJ_T(handle_freeform)(b, tok, tl, &c);
   /* unrecognized directive: silently skipped */
   return true;
@@ -1219,6 +1343,29 @@ static bool TOBJ_T(finalize_unknowns)(TOBJ_T(tobj_builder) * b) {
   return true;
 }
 
+/* Attach the pending MaterialX-in-MTL lines to their materials, in order. */
+static bool TOBJ_T(finalize_mtlx)(TOBJ_T(tobj_builder) * b) {
+  if (b->mat_mtlx.count == 0) return true;
+  const tobj_pending_kv *pend = (const tobj_pending_kv *)b->mat_mtlx.data;
+  size_t j = 0; /* entries are in material order: lines follow their newmtl */
+  while (j < b->mat_mtlx.count) {
+    size_t mi = pend[j].mat_index, e = j;
+    while (e < b->mat_mtlx.count && pend[e].mat_index == mi) e++;
+    if (mi < b->materials.count) {
+      const char **arr = (const char **)tobj_arena_alloc(
+          b->arena, (e - j) * sizeof(const char *), 16);
+      if (!arr) return TOBJ_T(b_fail)(b, TOBJ_ERR_ALLOC);
+      for (size_t k = j; k < e; k++) arr[k - j] = pend[k].value;
+      TOBJ_T(tobj_material) *m =
+          (TOBJ_T(tobj_material) *)tobj_vec_at(&b->materials, mi);
+      m->mtlx_lines = arr;
+      m->num_mtlx_lines = e - j;
+    }
+    j = e;
+  }
+  return true;
+}
+
 static void TOBJ_T(builder_init)(TOBJ_T(tobj_builder) * b) {
   tobj_vec_init(&b->av, sizeof(TOBJ_REAL));
   tobj_vec_init(&b->avw, sizeof(TOBJ_REAL));
@@ -1230,6 +1377,7 @@ static void TOBJ_T(builder_init)(TOBJ_T(tobj_builder) * b) {
   tobj_vec_init(&b->matmap_key, sizeof(const char *));
   tobj_vec_init(&b->matmap_id, sizeof(int));
   tobj_vec_init(&b->mat_unknown, sizeof(tobj_pending_kv));
+  tobj_vec_init(&b->mat_mtlx, sizeof(tobj_pending_kv));
   tobj_vec_init(&b->shapes, sizeof(TOBJ_T(tobj_shape)));
   tobj_vec_init(&b->m_idx, sizeof(tobj_index));
   tobj_vec_init(&b->m_fv, sizeof(unsigned));
@@ -1238,6 +1386,9 @@ static void TOBJ_T(builder_init)(TOBJ_T(tobj_builder) * b) {
   tobj_vec_init(&b->l_idx, sizeof(tobj_index));
   tobj_vec_init(&b->l_cnt, sizeof(int));
   tobj_vec_init(&b->p_idx, sizeof(tobj_index));
+  tobj_vec_init(&b->t_lines, sizeof(const char *));
+  tobj_vec_init(&b->t_tags, sizeof(TOBJ_T(tobj_tag)));
+  tobj_vec_init(&b->skel_lines, sizeof(const char *));
   tobj_vec_init(&b->corners, sizeof(tobj_index));
   tobj_vec_init(&b->ringpos, sizeof(TOBJ_REAL));
   tobj_vec_init(&b->tris, sizeof(uint32_t));
@@ -1269,6 +1420,7 @@ static void TOBJ_T(builder_dispose)(TOBJ_T(tobj_builder) * b) {
   tobj_vec_free(&b->matmap_key, a);
   tobj_vec_free(&b->matmap_id, a);
   tobj_vec_free(&b->mat_unknown, a);
+  tobj_vec_free(&b->mat_mtlx, a);
   tobj_vec_free(&b->shapes, a);
   tobj_vec_free(&b->m_idx, a);
   tobj_vec_free(&b->m_fv, a);
@@ -1277,6 +1429,9 @@ static void TOBJ_T(builder_dispose)(TOBJ_T(tobj_builder) * b) {
   tobj_vec_free(&b->l_idx, a);
   tobj_vec_free(&b->l_cnt, a);
   tobj_vec_free(&b->p_idx, a);
+  tobj_vec_free(&b->t_lines, a);
+  tobj_vec_free(&b->t_tags, a);
+  tobj_vec_free(&b->skel_lines, a);
   tobj_vec_free(&b->corners, a);
   tobj_vec_free(&b->ringpos, a);
   tobj_vec_free(&b->tris, a);
@@ -1641,9 +1796,14 @@ tobj_result TOBJ_T(tobj_load_obj_from_memory)(TOBJ_T(tobj_scene) * out,
     TOBJ_FIN_BUF(texcoord_ws, b.avtw);
     TOBJ_FIN_BUF(colors, b.acol);
 #undef TOBJ_FIN_BUF
+    out->attrib.num_skel_lines = b.skel_lines.count;
+    out->attrib.skel_lines =
+        (const char **)tobj_vec_finalize(&b.skel_lines, arena, 16);
+    if (b.skel_lines.count && !out->attrib.skel_lines) b.err = TOBJ_ERR_ALLOC;
   }
 
   if (b.err == TOBJ_OK) TOBJ_T(finalize_unknowns)(&b);
+  if (b.err == TOBJ_OK) TOBJ_T(finalize_mtlx)(&b);
 
   if (b.err == TOBJ_OK) {
     out->num_shapes = b.shapes.count;
@@ -1806,6 +1966,7 @@ tobj_result TOBJ_T(tobj_parse_mtl_from_memory)(TOBJ_T(tobj_material_list) * out,
 
   TOBJ_T(parse_mtl_buffer)(&b, buf, len);
   if (b.err == TOBJ_OK) TOBJ_T(finalize_unknowns)(&b);
+  if (b.err == TOBJ_OK) TOBJ_T(finalize_mtlx)(&b);
 
   if (b.err == TOBJ_OK) {
     out->count = b.materials.count;

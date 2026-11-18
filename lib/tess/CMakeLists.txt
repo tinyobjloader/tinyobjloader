@@ -76,6 +76,7 @@ if(BUILD_TESTING)
   endforeach()
   tess_test(tess_arithmetic_core_probe "" tests/arithmetic_core_probe.c)
   tess_test(tess_exact_probe "" tests/exact_probe.c)
+  tess_test(tess_zi_probe "" tests/zi_probe.c)
   tess_test(tess_predicate_probe "" tests/predicate_probe.c)
   tess_test(tess_emit_certificate "" tests/emit_certificate.c)
   tess_test(tess_benchmark "" tools/benchmark.c)
@@ -89,6 +90,8 @@ if(BUILD_TESTING)
       ${CMAKE_CURRENT_SOURCE_DIR}/tests/arithmetic_core_oracle.py $<TARGET_FILE:tess_arithmetic_core_probe>)
     add_test(NAME tess_benchmark_gate COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_CURRENT_SOURCE_DIR}/tests/benchmark_regression.py)
+    add_test(NAME tess_zi_oracle COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/tests/zi_oracle.py $<TARGET_FILE:tess_zi_probe>)
     add_test(NAME tess_exact_oracle COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_CURRENT_SOURCE_DIR}/tests/oracle.py $<TARGET_FILE:tess_exact_probe>)
     add_test(NAME tess_predicate_oracle COMMAND ${Python3_EXECUTABLE}

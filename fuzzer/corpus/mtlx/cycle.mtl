@@ -1,0 +1,7 @@
+newmtl m
+mtlx_surface s standard_surface
+mtlx_node a add float
+mtlx_node b add float
+mtlx_input a.in1 float @b
+mtlx_input b.in1 float @a
+mtlx_input s.base float @a

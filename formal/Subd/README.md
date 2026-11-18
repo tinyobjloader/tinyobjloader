@@ -1,0 +1,41 @@
+# formal/Subd — subdivision-surface tags in .obj
+
+Lean 4 model of [`subd-obj.md`](../../subd-obj.md). It is the normative
+specification; `tobj_subd.c` mirrors it definition by definition.
+No dependencies beyond the Lean core (toolchain in `lean-toolchain`).
+
+| Module | Contents |
+| --- | --- |
+| `TobjSubd/Model.lean` | Tokens, number grammars, topology, `step`/`stepTag`, `parseLines`, `finish`, canonical `print`, the `.obj` subset used by the differential (`parseObj`, `dumpObj`). |
+| `TobjSubd/Sound.lean` | `Valid` (per-tag rules) and `MeshRules` (whole-mesh rules); `parseLines_valid`, `check_sound`. |
+| `TobjSubd/Text.lean` | Lexical lemmas: splitting printed text into lines and tokens, parsing printed numbers. |
+| `TobjSubd/Roundtrip.lean` | The canonical round trip, `roundtrip`. |
+| `TobjSubd/Audit.lean` | `#print axioms` for the main theorems. |
+| `Main.lean` | Exe `subdobj`: dump (for the C differential) and `--roundtrip`. |
+
+## Results
+
+- `parseLines_valid`: for any lines, the model satisfies the per-tag rules.
+  Creases are edges `a < b` of the mesh and listed once; corners are mesh
+  vertices listed once; holes are face numbers listed once; sharpness is never
+  negative; scalar options are in range.
+- `check_sound`: an accepted model also satisfies the whole-mesh rules
+  (`smoothtriangles` only with catmark, `loop` only on triangles).
+- `roundtrip`: if the mesh lines contain no `\n` or `\r`, then an accepted
+  model `s = parseLines t lines` satisfies
+  `parseLines t (splitOn '\n' (print s)) = s`. The line-break hypothesis is
+  needed: a token that ends in `\r` cannot survive being printed and split into
+  lines again.
+- Only the standard axioms are used (`propext`, `Classical.choice`,
+  `Quot.sound`), and there is no `sorry`.
+- `subdobj --roundtrip` also checks the round trip by running it, on the
+  fixtures and on random files.
+
+## Running
+
+```
+lake build
+lake env lean TobjSubd/Audit.lean
+sh tools/diff.sh 3000                    # Lean vs C, ASan/UBSan
+.lake/build/bin/subdobj --roundtrip tests/*.obj
+```

@@ -1,0 +1,27 @@
+v 0 0 0
+v 0 0 0
+v 0 0 0
+f -3 1/1/1 -3/1/1
+f 1 2/1/1 3
+f 1/1 1 1/1
+f 1/1/1 1/1/1 3//1 3//1
+f 1/1/1 1//1 2
+o m
+v 0 0 0
+v 0 0 0
+v 0 0 0
+v 0 0 0
+v 0 0 0
+v 0 0 0
+f 8/1/1 2/1/1 6
+f 5/1/1 2//1 5/1/1
+t facevaryingpropagatecorners 1/0/0 2
+t  hole  3/1/1  7  4    1e  chaikin
+t interpolateboundary 01/0/0 3
+t crease 6/3/0 5 -0 0 0 8 6 nan -0 .
+t  smoothtriangles  0/0/1  smooth
+g m
+v 0 0 0
+v 0 0 0
+v 0 0 0
+v 0 0 0

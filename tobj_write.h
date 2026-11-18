@@ -14,6 +14,9 @@
  *   f a b c ...              per face, absolute 1-based indices, written as
  *                            v, v/vt, v//vn or v/vt/vn depending on which
  *                            indices are present
+ *   t ...                    the shape's `t` lines (tag_lines) verbatim, after
+ *                            its faces (subdivision tags, subd-obj.md; the
+ *                            Lean model ignores `t` lines)
  *
  * Only mesh topology is written (lines/points/free-form and materials files
  * are not).

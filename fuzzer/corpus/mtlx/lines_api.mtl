@@ -1,0 +1,5 @@
+m
+mtlx_surface s standard_surface
+mtlx_node n noise2d float
+mtlx_input n.amplitude float 0.5
+mtlx_input s.base float @n

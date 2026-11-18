@@ -1,12 +1,22 @@
 import Tess.SegmentConflict
 import Tess.Orient3
 import Tess.TriangleContact
+import Tess.Plane
+import Tess.PairAudit
 
 /-! Bounded exact-rational validation protocol, separate from certificates.
 Ordinary records have an operation and eight signed-decimal numerator/denominator
 coordinates. `orient3` carries four 3D points as twelve coordinates.
+`tricontact` carries six 3D points as eighteen coordinates.
+`planecut` carries face `a b c` and edge endpoints `x y` as five 3D points as
+fifteen coordinates and prints `1` with the three rational cut coordinates, or
+`0` when the endpoint plane signs are not strict opposites.
+`contains2` carries two 2D points and prints `1` when the last point is in the
+closed triangle, `0` otherwise. `contains2` output is orientation-independent.
 `indexedsegments` carries eight 2D coordinates plus four nonnegative vertex IDs;
 repeated IDs denote the same vertex and must carry the same coordinates.
+`triaudit` (coplanar/shared-index triangle pairs) is evaluated by `PairAudit.pairOk`; the
+It carries eighteen coordinates and six indices (< 6).
 This parser is a test boundary, not a verified C refinement. -/
 namespace Tess.PredicateFixture
 
@@ -31,7 +41,7 @@ def decode3D (fields : Array String) : Except String (Array Point3) := do
   return #[point 0, point 1, point 2, point 3]
 
 def decodePointArray (fields : Array String) (count : Nat) : Except String (Array Point3) := do
-  if fields.size != 3 * count then throw "expected eighteen coordinates"
+  if fields.size != 3 * count then throw s!"expected {3 * count} coordinates"
   let mut coordinates := #[]
   for field in fields do coordinates := coordinates.push (← decodeRational field)
   let mut points := #[]
@@ -114,27 +124,92 @@ def evaluateIndexed (operation : String) (coordinates : Array Rat)
       | _ => throw "expected four vertex indices"
   | _ => throw "unknown indexed predicate"
 
-def decodeLine (line : String) : Except String Int := do
+/-- Hex-free rational renderer used by the planecut record. -/
+def ratStr (q : Rat) : String := s!"{q.num}/{q.den}"
+
+/-- Build the five-vertex exact-coordinate mesh used by planecut: vertices 0..2
+are the face, vertices 3..4 are the edge endpoints. -/
+def planecutMesh (points : Array Point3) : ExactMesh where
+  points := points
+  sources := Array.replicate points.size 0
+  pinned := Array.replicate points.size false
+  faces := #[⟨0, 1, 2⟩]
+  constraints := #[]
+  axis := 2
+  u := 0
+  w := 1
+  orientation := true
+  planar := true
+
+/-- Exact strict plane-cut evaluation. Output line: `0` when the endpoint
+plane signs are not strict opposites, otherwise `1` followed by the three
+rational cut coordinates in numerator/denominator form. -/
+def evaluatePlaneCut (fields : Array String) : Except String String := do
+  let points ← decodePointArray fields 5
+  let mesh := planecutMesh points
+  match planeCut mesh ⟨0, 1, 2⟩ 3 4 with
+  | some point => return s!"1 {ratStr point.x} {ratStr point.y} {ratStr point.z}"
+  | none => return "0"
+
+/-- Exact 2D no-mixed-sign containment; `1` when contained, `0` otherwise. -/
+def evaluateContains2 (fields : Array String) : Except String Int := do
+  if fields.size≠8 then throw "expected eight coordinates"
+  let mut coordinates := #[]
+  for field in fields do coordinates:=coordinates.push (← decodeRational field)
+  let point (i : Nat) : Point2 := ⟨coordinates[2*i]!,coordinates[2*i+1]!⟩
+  return if contains2 (point 0) (point 1) (point 2) (point 3) then 1 else 0
+
+def decodeLine (line : String) : Except String String := do
   if line.length>32768 then throw "resource limit: line"
   let words := (line.splitOn " ").filter (fun word => !word.isEmpty)
   match words with
   | operation :: fields =>
     if operation="orient3" then
-      evaluate3D operation (← decode3D fields.toArray)
+      let value ← evaluate3D operation (← decode3D fields.toArray)
+      return toString value
     else if operation="tricontact" then
-      evaluateAudit operation fields.toArray
+      let value ← evaluateAudit operation fields.toArray
+      return toString value
+    else if operation="planecut" then
+      if fields.length≠15 then throw "expected fifteen coordinates"
+      evaluatePlaneCut fields.toArray
+    else if operation="contains2" then
+      let value ← evaluateContains2 fields.toArray
+      return toString value
     else if operation="indexedsegments" then
       if fields.length≠12 then throw "expected eight coordinates and four indices"
       let mut coordinates := #[]
       for field in fields.take 8 do coordinates:=coordinates.push (← decodeRational field)
       let mut ids := #[]
       for field in fields.drop 8 do ids:=ids.push (← decodeIndex field)
-      evaluateIndexed operation coordinates ids
+      let value ← evaluateIndexed operation coordinates ids
+      return toString value
+    else if operation="triaudit" then
+      if fields.length≠24 then throw "expected eighteen coordinates and six indices"
+      let points ← decodePointArray (fields.take 18).toArray 6
+      let mut ids := #[]
+      for field in fields.drop 18 do
+        let index ← decodeIndex field
+        if index≥6 then throw "triaudit index out of range"
+        ids:=ids.push index
+      let mesh : ExactMesh := {
+        points
+        sources := Array.replicate 6 0
+        pinned := Array.replicate 6 false
+        faces := #[]
+        constraints := #[]
+        axis := 2
+        u := 0
+        w := 1
+        orientation := true
+        planar := false }
+      return toString (if PairAudit.pairOk mesh ⟨ids[0]!, ids[1]!, ids[2]!⟩ ⟨ids[3]!, ids[4]!, ids[5]!⟩ then 1 else 0)
     else
       if fields.length≠8 then throw "expected eight coordinates"
       let mut coordinates := #[]
       for field in fields do coordinates:=coordinates.push (← decodeRational field)
-      evaluate operation coordinates
+      let value ← evaluate operation coordinates
+      return toString value
   | [] => throw "empty predicate line"
 
 /-- A fixture sign uses the same strict orientation convention as the kernel

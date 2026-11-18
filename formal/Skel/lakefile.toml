@@ -1,0 +1,14 @@
+name = "tobjskel"
+defaultTargets = ["TobjSkel", "skelobj"]
+
+# Tokens, the decimal grammar and the lexical lemmas are shared with formal/Subd.
+[[require]]
+name = "tobjsubd"
+path = "../Subd"
+
+[[lean_lib]]
+name = "TobjSkel"
+
+[[lean_exe]]
+name = "skelobj"
+root = "Main"

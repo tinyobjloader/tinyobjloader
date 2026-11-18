@@ -1,0 +1,28 @@
+# cube, OSD-style tags (0-based file vertex numbers)
+o box
+v -1 -1 1
+v 1 -1 1
+v 1 1 1
+v -1 1 1
+v -1 -1 -1
+v 1 -1 -1
+v 1 1 -1
+v -1 1 -1
+f 1 2 3 4
+f 6 5 8 7
+f 2 6 7 3
+f 5 1 4 8
+f 4 3 7 8
+f 5 6 2 1
+t interpolateboundary 1/0/0 2
+t facevaryinginterpolateboundary 1/0/0 1
+t facevaryingpropagatecorners 1/0/0 1
+t creasemethod 0/0/1 chaikin
+t smoothtriangles 0/0/1 smooth
+t crease 2/1/0 0 1 2.500000
+t crease 4/2/0 2 1 3 2 10 -1.5
+t crease 2/1/0 1 0 3
+t corner 2/1/0 0 6 4
+t corner 1/1/0 0 .5
+t hole 3/0/0 5 1 5
+t mytag 1/1/1 7 1e3 hello

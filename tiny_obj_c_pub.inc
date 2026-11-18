@@ -84,6 +84,11 @@ typedef struct TOBJ_T(tobj_material) {
   /* Unknown parameters: sorted-by-key array, binary searchable. */
   tobj_kv *unknown_params;
   size_t num_unknown_params;
+
+  /* MaterialX-in-MTL extension lines (mtlx_*), verbatim and in
+   * file order; parse with tobj_mtlx_parse_lines() from tobj_mtlx.h. */
+  const char **mtlx_lines;
+  size_t num_mtlx_lines;
 } TOBJ_T(tobj_material);
 
 typedef struct TOBJ_T(tobj_joint_weight) {
@@ -116,6 +121,9 @@ typedef struct TOBJ_T(tobj_attrib) {
   TOBJ_T(tobj_real_buf) colors;          /* rgb (empty unless present/forced) */
   TOBJ_T(tobj_skin_weight) * skin_weights;
   size_t num_skin_weights;
+  /* `skel_*` lines verbatim, in file order (skeleton: see tobj_skel.h) */
+  const char **skel_lines;
+  size_t num_skel_lines;
 } TOBJ_T(tobj_attrib);
 
 typedef struct TOBJ_T(tobj_mesh) {
@@ -125,8 +133,11 @@ typedef struct TOBJ_T(tobj_mesh) {
   int *material_ids;                 /* per face */
   unsigned int *smoothing_group_ids; /* per face; 0 = off */
   size_t num_faces;
-  TOBJ_T(tobj_tag) * tags;
+  TOBJ_T(tobj_tag) * tags; /* well-formed `t` lines, parsed generically */
   size_t num_tags;
+  /* `t` lines verbatim, in file order (subdivision tags: see tobj_subd.h) */
+  const char **tag_lines;
+  size_t num_tag_lines;
 } TOBJ_T(tobj_mesh);
 
 typedef struct TOBJ_T(tobj_lines) {

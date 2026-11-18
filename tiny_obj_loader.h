@@ -247,6 +247,10 @@ struct material_t {
 
   std::map<std::string, std::string> unknown_parameter;
 
+  // MaterialX-in-MTL extension lines (mtlx_*), verbatim and in
+  // file order. Parse with tobj_mtlx_parse_lines() (tobj_mtlx.h).
+  std::vector<std::string> mtlx_lines;
+
 #ifdef TINY_OBJ_LOADER_PYTHON_BINDING
   // For pybind11
   std::array<double, 3> GetDiffuse() {
@@ -458,6 +462,9 @@ struct mesh_t {
                                                   // ID(0 = off. positive value
                                                   // = group id)
   std::vector<tag_t> tags;                        // SubD tag
+  // `t` lines verbatim, in file order. Subdivision meaning and checking:
+  // tobj_subd.h (load with triangulate = false). See subd-obj.md.
+  std::vector<std::string> tag_lines;
 };
 
 // struct path_t {
@@ -504,6 +511,10 @@ struct attrib_t {
   // Need to reconstruct a look up table: `skin_weight_t::vertex_id` == `vid`
   // (e.g. using std::map, std::unordered_map)
   std::vector<skin_weight_t> skin_weights;
+
+  // `skel_*` lines verbatim, in file order (skeleton for skin_weights; see
+  // skel-obj.md and tobj_skel.h).
+  std::vector<std::string> skel_lines;
 
   attrib_t() {}
 
@@ -900,6 +911,7 @@ struct basic_mesh_t {
   std::vector<int, int_alloc> material_ids;
   std::vector<unsigned int, uint_alloc> smoothing_group_ids;
   std::vector<basic_tag_t<Alloc>, tag_alloc> tags;
+  std::vector<std::string> tag_lines;  // see mesh_t::tag_lines
 };
 
 template <typename Alloc = std::allocator<char>>
@@ -960,6 +972,7 @@ struct basic_attrib_t {
   std::vector<real_t, real_alloc> texcoord_ws;  // optional w for `vt`
   std::vector<real_t, real_alloc> colors;     // rgb (optional)
   std::vector<basic_skin_weight_t<Alloc>, skin_weight_alloc> skin_weights;
+  std::vector<std::string> skel_lines;  // see attrib_t::skel_lines
   std::vector<index_t, index_alloc> indices;  // face indices
   std::vector<int, int_alloc> face_num_verts; // verts per face
   std::vector<int, int_alloc> material_ids;   // per-face material
@@ -6067,6 +6080,13 @@ class StreamReader {
     return (c == '\n' || c == '\r' || c == '\0');
   }
 
+  // Rest of the current line, without advancing.
+  std::string peek_line() const {
+    size_t i = idx_;
+    while (i < length_ && buf_[i] != '\n' && buf_[i] != '\r') i++;
+    return std::string(buf_ + idx_, i - idx_);
+  }
+
   std::string read_line() {
     std::string result;
     while (idx_ < length_) {
@@ -7596,6 +7616,7 @@ static void InitMaterial(material_t *material) {
   material->normal_texname = "";
 
   material->unknown_parameter.clear();
+  material->mtlx_lines.clear();
 }
 
 // code from https://wrf.ecse.rpi.edu//Research/Short_Notes/pnpoly.html
@@ -8678,6 +8699,29 @@ static bool LoadMtlInternal(std::map<std::string, int> *material_map,
       continue;
     }
 
+    // MaterialX-in-MTL extension line: kept verbatim, in order.
+    {
+      static const char *const kMtlxKeys[] = {"mtlx_version", "mtlx_surface",
+                                              "mtlx_node",    "mtlx_input",
+                                              "mtlx_include", "mtlx_colorspace"};
+      bool is_mtlx = false;
+      for (size_t k = 0; k < sizeof(kMtlxKeys) / sizeof(kMtlxKeys[0]); k++) {
+        size_t kl = strlen(kMtlxKeys[k]);
+        if (sr.match(kMtlxKeys[k], kl) &&
+            (sr.peek_at(kl) == ' ' || sr.peek_at(kl) == '\t' ||
+             sr.peek_at(kl) == '\r' || sr.peek_at(kl) == '\n' ||
+             sr.peek_at(kl) == '\0')) {
+          is_mtlx = true;
+          break;
+        }
+      }
+      if (is_mtlx) {
+        material.mtlx_lines.push_back(trimTrailingWhitespace(sr.read_line()));
+        sr.skip_line();
+        continue;
+      }
+    }
+
     // unknown parameter
     {
       std::string line_rest = trimTrailingWhitespace(sr.read_line());
@@ -8841,6 +8885,52 @@ bool MaterialStreamReader::operator()(const std::string &matId,
   return LoadMtlInternal(matMap, materials, mtl_sr, warn, err, "<stream>");
 }
 
+// A `t` line whose counts, argument count and integer/decimal arguments are
+// well-formed (only those become mesh_t::tags; all lines go to tag_lines).
+static bool tagLineWellFormed(const std::string &raw) {
+  std::vector<std::string> tk;
+  {
+    size_t i = 0;
+    while (i < raw.size()) {
+      while (i < raw.size() && (raw[i] == ' ' || raw[i] == '\t')) i++;
+      size_t j = i;
+      while (j < raw.size() && raw[j] != ' ' && raw[j] != '\t') j++;
+      if (j > i) tk.push_back(raw.substr(i, j - i));
+      i = j;
+    }
+  }
+  if (tk.size() < 3 || tk[0] != "t") return false;
+  size_t cnt[3] = {0, 0, 0};
+  {
+    const std::string &c = tk[2];
+    size_t i = 0;
+    for (int k = 0; k < 3; k++) {
+      size_t d = 0;
+      while (i < c.size() && c[i] >= '0' && c[i] <= '9') {
+        if (cnt[k] <= 8192) cnt[k] = cnt[k] * 10 + size_t(c[i] - '0');
+        i++, d++;
+      }
+      if (d == 0 || cnt[k] > 8192) return false;
+      if (k < 2) {
+        if (i >= c.size() || c[i] != '/') return false;
+        i++;
+      }
+    }
+    if (i != c.size()) return false;
+  }
+  if (tk.size() != 3 + cnt[0] + cnt[1] + cnt[2]) return false;
+  for (size_t k = 0; k < cnt[0] + cnt[1]; k++) {
+    const char *b = tk[3 + k].c_str();
+    char *e = NULL;
+    if (k < cnt[0])
+      (void)strtol(b, &e, 10);
+    else
+      (void)strtod(b, &e);
+    if (e == b || *e != '\0') return false;
+  }
+  return true;
+}
+
 static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
                             std::vector<material_t> *materials,
                             std::string *warn, std::string *err,
@@ -8862,7 +8952,9 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
   std::vector<real_t> vt_w;  // optional [w] component in `vt`
   std::vector<real_t> vc;
   std::vector<skin_weight_t> vw;
-  std::vector<tag_t> tags;
+  std::vector<tag_t> tags;            // tags of the current group
+  std::vector<std::string> tag_lines;
+  std::vector<std::string> skel_lines;  // file scope
   PrimGroup prim_group;
   std::string name;
 
@@ -9202,8 +9294,11 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
       (void)ret;
 
       if (shape.mesh.indices.size() > 0) {
+        shape.mesh.tag_lines = tag_lines;
         shapes->push_back(shape);
       }
+      tags.clear();  // tags belong to their group
+      tag_lines.clear();
 
       shape = shape_t();
 
@@ -9256,8 +9351,11 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
 
       if (shape.mesh.indices.size() > 0 || shape.lines.indices.size() > 0 ||
           shape.points.indices.size() > 0) {
+        if (shape.mesh.indices.size() > 0) shape.mesh.tag_lines = tag_lines;
         shapes->push_back(shape);
       }
+      tags.clear();  // tags belong to their group
+      tag_lines.clear();
 
       // material = -1;
       prim_group.clear();
@@ -9271,9 +9369,37 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
       continue;
     }
 
+    if (sr.peek() == 's' && sr.peek_at(1) == 'k' && sr.peek_at(2) == 'e' &&
+        sr.peek_at(3) == 'l' && sr.peek_at(4) == '_') {
+      std::string raw = sr.peek_line();
+      while (!raw.empty() && (raw.back() == ' ' || raw.back() == '\t')) raw.pop_back();
+      const std::string kw = raw.substr(0, raw.find_first_of(" \t"));
+      if (kw == "skel_joint" || kw == "skel_rest" || kw == "skel_lib" || kw == "skel_anim") {
+        skel_lines.push_back(raw);  // skeleton line (skel-obj.md)
+        sr.skip_line();
+        continue;
+      }
+    }
+
+    if (sr.peek() == 't' && (sr.peek_at(1) == '\n' || sr.peek_at(1) == '\r' ||
+                             sr.peek_at(1) == '\0' || sr.tell() + 1 >= sr.size())) {
+      tag_lines.push_back("t");  // malformed: no name or counts
+      sr.skip_line();
+      continue;
+    }
+
     if (sr.peek() == 't' && (sr.peek_at(1) == ' ' || sr.peek_at(1) == '\t')) {
       const int max_tag_nums = 8192;
       tag_t tag;
+      bool well_formed;
+
+      {
+        std::string raw = sr.peek_line();
+        while (!raw.empty() && (raw.back() == ' ' || raw.back() == '\t'))
+          raw.pop_back();
+        well_formed = tagLineWellFormed(raw);
+        tag_lines.push_back(raw);
+      }
 
       sr.advance(2);
 
@@ -9318,7 +9444,7 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
         tag.stringValues[i] = sr_parseString(sr);
       }
 
-      tags.push_back(tag);
+      if (well_formed) tags.push_back(tag);
 
       sr.skip_line();
       continue;
@@ -9390,6 +9516,7 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
   bool ret = exportGroupsToShape(&shape, prim_group, tags, material, name,
                                  triangulate, v, warn);
   if (ret || shape.mesh.indices.size()) {
+    if (shape.mesh.indices.size() > 0) shape.mesh.tag_lines = tag_lines;
     shapes->push_back(shape);
   }
   prim_group.clear();
@@ -9401,6 +9528,7 @@ static bool LoadObjInternal(attrib_t *attrib, std::vector<shape_t> *shapes,
   attrib->texcoord_ws.swap(vt_w);
   attrib->colors.swap(vc);
   attrib->skin_weights.swap(vw);
+  attrib->skel_lines.swap(skel_lines);
 
   return true;
 }
@@ -9416,6 +9544,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   attrib->texcoord_ws.clear();
   attrib->colors.clear();
   attrib->skin_weights.clear();
+  attrib->skel_lines.clear();
   shapes->clear();
 
   std::string baseDir = mtl_basedir ? mtl_basedir : "";
@@ -9490,6 +9619,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   attrib->texcoord_ws.clear();
   attrib->colors.clear();
   attrib->skin_weights.clear();
+  attrib->skel_lines.clear();
   shapes->clear();
 
   StreamReader sr(*inStream);
@@ -11358,6 +11488,7 @@ static void ConvertLegacyShapeToBasic(const shape_t &src, basic_shape_t<> *dst) 
   opt_assign_vector(&dst->mesh.smoothing_group_ids,
                     src.mesh.smoothing_group_ids);
   dst->mesh.tags = src.mesh.tags;
+  dst->mesh.tag_lines = src.mesh.tag_lines;
   opt_assign_vector(&dst->lines.indices, src.lines.indices);
   opt_assign_vector(&dst->lines.num_line_vertices, src.lines.num_line_vertices);
   opt_assign_vector(&dst->points.indices, src.points.indices);
@@ -11376,6 +11507,7 @@ static void ConvertLegacyResultToBasic(
     opt_assign_vector(&dst_attrib->texcoord_ws, src_attrib.texcoord_ws);
     opt_assign_vector(&dst_attrib->colors, src_attrib.colors);
     dst_attrib->skin_weights = src_attrib.skin_weights;
+    dst_attrib->skel_lines = src_attrib.skel_lines;
     dst_attrib->indices.clear();
     dst_attrib->face_num_verts.clear();
     dst_attrib->material_ids.clear();
@@ -11415,6 +11547,9 @@ static inline bool opt_line_start_is_legacy(const char *p, size_t rem) {
   if (rem >= 2 &&
       ((p[0] == 'l' || p[0] == 'p' || p[0] == 't') &&
        (p[1] == ' ' || p[1] == '\t')))
+    return true;
+  // skeleton lines (skel_joint/skel_rest/skel_lib/skel_anim)
+  if (rem >= 5 && p[0] == 's' && p[1] == 'k' && p[2] == 'e' && p[3] == 'l' && p[4] == '_')
     return true;
   return false;
 }

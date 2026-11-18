@@ -1,0 +1,7 @@
+skel_anim	rig.fbx	walk
+skel_joint	j0	-	-1	-1	1	1	2.25	-1	0	1	-1	0.5	-1	0	0	0	-1	1
+vw 9
+skel_joint  j1  j0  -1  1  -1  0  1  2.25  0  2.25  1  2.25  0  -1  1  2.25  0.5  2.25
+skel_anim	rig.fbx
+skel_joint j2 j1 0.5 0 0.5 0 2.25 -1 1 0 1 -1 2.25 0.5 0.5 1 1 2.25
+skel_joint	j3	j1	0	0.5	0	1	-1	1	0.5	2.25	0	0.5	1	0	1	1	-1	2.25

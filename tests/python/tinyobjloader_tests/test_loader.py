@@ -233,3 +233,128 @@ def test_numpy_num_face_vertices_from_file():
     result = shape.mesh.numpy_num_face_vertices()
     np.testing.assert_array_equal(result, expected_num_face_vertices)
     assert result.dtype == np.dtype("uint32")
+
+
+MTLX_OBJ = """
+mtllib m.mtl
+v 0 0 0
+v 1 0 0
+v 0 1 0
+usemtl painted
+f 1 2 3
+"""
+
+MTLX_MTL = """newmtl painted
+Kd 0.8 0.2 0.1
+mtlx_surface shader open_pbr_surface
+mtlx_node tex image color3
+mtlx_input tex.file filename "paint 01.png"
+mtlx_input shader.base_color color3 @tex
+newmtl plain
+Kd 1 1 1
+"""
+
+
+def test_material_mtlx_lines():
+    """MaterialX-in-MTL lines are kept verbatim per material."""
+    import tinyobjloader
+
+    reader = tinyobjloader.ObjReader()
+    config = tinyobjloader.ObjReaderConfig()
+    assert reader.ParseFromString(MTLX_OBJ, MTLX_MTL, config)
+    by_name = {m.name: m for m in reader.GetMaterials()}
+    assert by_name["painted"].mtlx_lines == [
+        "mtlx_surface shader open_pbr_surface",
+        "mtlx_node tex image color3",
+        'mtlx_input tex.file filename "paint 01.png"',
+        "mtlx_input shader.base_color color3 @tex",
+    ]
+    assert by_name["plain"].mtlx_lines == []
+    # classic keys are still read
+    np.testing.assert_allclose(by_name["painted"].diffuse, [0.8, 0.2, 0.1], rtol=1e-6)
+
+
+SUBD_OBJ = """
+v 0 0 0
+v 1 0 0
+v 1 1 0
+v 0 1 0
+g quad
+f 1 2 3 4
+t scheme 0/0/1 catmark
+t interpolateboundary 1/0/0 2
+t crease 4/2/0 0 1 2 1 2.5 -1
+t corner 1/1/0 3 10
+t hole 1/0/0 0
+g bad
+f 1 2 3
+t crease 2/1/0 0 3 1
+"""
+
+
+def test_subd_tags():
+    """Subdivision tags: tags, tag_lines and the typed, checked view."""
+    import tinyobjloader
+
+    reader = tinyobjloader.ObjReader()
+    config = tinyobjloader.ObjReaderConfig()
+    config.triangulate = False
+    assert reader.ParseFromString(SUBD_OBJ, "", config)
+    quad, bad = reader.GetShapes()
+    assert len(quad.mesh.tags) == 5
+    assert quad.mesh.tags[2].name == "crease"
+    assert list(quad.mesh.tags[2].intValues) == [0, 1, 2, 1]
+    assert quad.mesh.tag_lines[0] == "t scheme 0/0/1 catmark"
+
+    s = tinyobjloader.subd(quad.mesh)
+    assert s["ok"] and s["errors"] == []
+    assert s["scheme"] == "catmark"
+    assert s["interpolate_boundary"] == 2
+    assert s["fvar_interpolate_boundary"] is None
+    assert s["creases"] == [(0, 1, 2.5), (1, 2, 0.0)]  # negative sharpness -> 0
+    assert s["corners"] == [(3, 10.0)]
+    assert s["holes"] == [0]
+    assert s["canonical"].splitlines()[0] == "t scheme 0/0/1 catmark"
+
+    b = tinyobjloader.subd(bad.mesh)
+    assert not b["ok"]
+    assert b["errors"] == ["crease: not an edge of the mesh"]  # 0-3 is not an edge of 1 2 3
+
+
+SKEL_OBJ = """
+skel_joint hips - 1 0 0 0 0 1 0 0 0 0 1 0 0 1 0 1
+skel_joint head hips
+skel_rest head 1 0 0 0 0 1 0 0 0 0 1 0 0 0.5 0 1
+skel_lib rig.fbx
+v 0 0 0
+v 0 1 0
+v 1 0 0
+vw 0 0 1
+vw 1 1 1
+f 1 2 3
+"""
+
+
+def test_skel_lines():
+    """Skeleton lines: kept on attrib, checked against the vw joint ids."""
+    import tinyobjloader
+
+    reader = tinyobjloader.ObjReader()
+    assert reader.ParseFromString(SKEL_OBJ, "", tinyobjloader.ObjReaderConfig())
+    attrib = reader.GetAttrib()
+    assert attrib.skel_lines[0].startswith("skel_joint hips -")
+    s = tinyobjloader.skel(attrib)
+    assert s["ok"] and s["errors"] == []
+    assert [j["name"] for j in s["joints"]] == ["hips", "head"]
+    assert s["joints"][1]["parent"] == 0
+    assert s["joints"][0]["bind"][13] == 1.0  # translation y (row-major, last row)
+    assert s["joints"][1]["bind"] is None  # from the skel_lib sidecar
+    assert s["joints"][1]["rest"][13] == 0.5
+    assert s["lib"] == "rig.fbx" and s["anim"] is None
+
+    # a vw joint id without a joint
+    reader = tinyobjloader.ObjReader()
+    assert reader.ParseFromString(SKEL_OBJ.replace("vw 1 1 1", "vw 1 2 1"), "",
+                                  tinyobjloader.ObjReaderConfig())
+    s = tinyobjloader.skel(reader.GetAttrib())
+    assert not s["ok"] and s["errors"] == ["vw: joint id without a skel_joint"]

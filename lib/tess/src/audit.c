@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 #include "bounds.h"
 #include "geometry.h"
+#include <string.h>
 /* Independent rational 3D triangle-pair audit. No floating broad phase. */
 static void plane(tm* m, qr* r, const tf* f, const qr p[3]) {
   qr v[3][3] = {0}, a = {0}, b = {0}, c = {0};
@@ -88,36 +89,86 @@ static int allowed(tm* m, const tf* a, const tf* b, const qr p[3]) {
   }
   return 0;
 }
+/* Exact strict crossing cut: fill `p` with `x + dx/(dx - dy) * (y - x)` when
+   the endpoint plane signs are strict opposites. `dx` and `dy` are the
+   precomputed exact plane values at `x` and `y`; they are borrowed, not
+   consumed or cleared. Returns 1 when the cut exists and `p` was written. */
+static int cut_from_plane_values(tm* m, const qr x[3], const qr y[3],
+                                 const qr* dx, const qr* dy, qr p[3]) {
+  qr den = {0}, t = {0};
+  size_t j;
+  int cut = dx->n.sign * dy->n.sign < 0;
+  if (cut) {
+    qr_sub(&m->c, &den, dx, dy);
+    qr_div(&m->c, &t, dx, &den);
+    for (j = 0; j < 3; j++) {
+      qr_sub(&m->c, &p[j], &y[j], &x[j]);
+      qr_mul(&m->c, &p[j], &p[j], &t);
+      qr_add(&m->c, &p[j], &p[j], &x[j]);
+    }
+  }
+  qr_clear(&m->c, &den);
+  qr_clear(&m->c, &t);
+  return cut;
+}
 static int edges_against(tm* m, const tf* a, const tf* b, int projection) {
   size_t i, j;
   int ok = 1;
   for (i = 0; i < 3 && ok && !m->c.status; i++) {
     const qr *x = m->v[a->v[i]].p, *y = m->v[a->v[(i + 1) % 3]].p;
-    qr dx = {0}, dy = {0}, den = {0}, t = {0}, p[3] = {0};
+    qr dx = {0}, dy = {0}, p[3] = {0};
     plane(m, &dx, b, x);
     plane(m, &dy, b, y);
     if (!dx.n.sign && contains(m, b, x, projection) && !allowed(m, a, b, x))
       ok = 0;
     if (!dy.n.sign && contains(m, b, y, projection) && !allowed(m, a, b, y))
       ok = 0;
-    if (dx.n.sign * dy.n.sign < 0) {
-      qr_sub(&m->c, &den, &dx, &dy);
-      qr_div(&m->c, &t, &dx, &den);
-      for (j = 0; j < 3; j++) {
-        qr_sub(&m->c, &p[j], &y[j], &x[j]);
-        qr_mul(&m->c, &p[j], &p[j], &t);
-        qr_add(&m->c, &p[j], &p[j], &x[j]);
-      }
-      if (contains(m, b, p, projection) && !allowed(m, a, b, p)) ok = 0;
-    }
+    if (cut_from_plane_values(m, x, y, &dx, &dy, p) &&
+        contains(m, b, p, projection) && !allowed(m, a, b, p))
+      ok = 0;
     for (j = 0; j < 3; j++) qr_clear(&m->c, &p[j]);
     qr_clear(&m->c, &dx);
     qr_clear(&m->c, &dy);
-    qr_clear(&m->c, &den);
-    qr_clear(&m->c, &t);
   }
   return ok && !m->c.status;
 }
+/* Diagnostic entry points for predicate probes. The caller receives exact
+   rational results through qr; m->c.status must be inspected as usual.
+   tg_plane_cut writes the exact strict crossing point into `p` and returns
+   1 when the endpoints have strict opposite plane signs; otherwise it
+   returns 0 and `p` is zero. tg_projected_contains answers the projected
+   containment question used by the 3D auditor. */
+int tg_plane_cut(tm* m, size_t fa, size_t fb, size_t fc, size_t x, size_t y,
+                 qr p[3]) {
+  tf f;
+  qr dx = {0}, dy = {0};
+  size_t j;
+  int cut;
+  f.v[0] = fa;
+  f.v[1] = fb;
+  f.v[2] = fc;
+  f.id = 0;
+  /* qr destinations must start zeroed: move() clears them before assigning. */
+  for (j = 0; j < 3; j++) memset(&p[j], 0, sizeof(p[j]));
+  plane(m, &dx, &f, m->v[x].p);
+  plane(m, &dy, &f, m->v[y].p);
+  cut = cut_from_plane_values(m, m->v[x].p, m->v[y].p, &dx, &dy, p);
+  qr_clear(&m->c, &dx);
+  qr_clear(&m->c, &dy);
+  return cut;
+}
+
+int tg_projected_contains(tm* m, size_t fa, size_t fb, size_t fc, size_t p,
+                          int axis) {
+  tf f;
+  f.v[0] = fa;
+  f.v[1] = fb;
+  f.v[2] = fc;
+  f.id = 0;
+  if (axis < 0 || axis > 2) return 0;
+  return contains(m, &f, m->v[p].p, axis);
+}
+
 int tg_audit3_mode(tm* m, int accelerated) {
   tbounds* boxes = accelerated ? tg_bounds(m) : NULL;
   size_t i, j, k, l;

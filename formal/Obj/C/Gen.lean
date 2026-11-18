@@ -251,49 +251,49 @@ def tobj_material_get_param_d : Func where
 def fid_cnt_v_f : Nat := 33
 def cnt_v_f : Func where
   params := [0]
-  body := (.ret (some (.cond (.cast ⟨32, true⟩ (.load (.int ⟨8, false⟩) (.field (.var 0) 1264))) (.load (.int ⟨64, false⟩) (.field (.var 0) 1272)) (.bin .div (some ⟨64, false⟩) (.load (.int ⟨64, false⟩) (.field (.field (.var 0) 120) 8)) (.cast ⟨64, false⟩ (.const (.int ⟨32, false⟩ 3)))))))
+  body := (.ret (some (.cond (.cast ⟨32, true⟩ (.load (.int ⟨8, false⟩) (.field (.var 0) 1392))) (.load (.int ⟨64, false⟩) (.field (.var 0) 1400)) (.bin .div (some ⟨64, false⟩) (.load (.int ⟨64, false⟩) (.field (.field (.var 0) 120) 8)) (.cast ⟨64, false⟩ (.const (.int ⟨32, false⟩ 3)))))))
 
 /-- `cnt_v_d` (function id 34). Locals: 0=b -/
 def fid_cnt_v_d : Nat := 34
 def cnt_v_d : Func where
   params := [0]
-  body := (.ret (some (.cond (.cast ⟨32, true⟩ (.load (.int ⟨8, false⟩) (.field (.var 0) 1288))) (.load (.int ⟨64, false⟩) (.field (.var 0) 1296)) (.bin .div (some ⟨64, false⟩) (.load (.int ⟨64, false⟩) (.field (.field (.var 0) 120) 8)) (.cast ⟨64, false⟩ (.const (.int ⟨32, false⟩ 3)))))))
+  body := (.ret (some (.cond (.cast ⟨32, true⟩ (.load (.int ⟨8, false⟩) (.field (.var 0) 1416))) (.load (.int ⟨64, false⟩) (.field (.var 0) 1424)) (.bin .div (some ⟨64, false⟩) (.load (.int ⟨64, false⟩) (.field (.field (.var 0) 120) 8)) (.cast ⟨64, false⟩ (.const (.int ⟨32, false⟩ 3)))))))
 
 /-- `cnt_vt_f` (function id 35). Locals: 0=b -/
 def fid_cnt_vt_f : Nat := 35
 def cnt_vt_f : Func where
   params := [0]
-  body := (.ret (some (.cond (.cast ⟨32, true⟩ (.load (.int ⟨8, false⟩) (.field (.var 0) 1264))) (.load (.int ⟨64, false⟩) (.field (.var 0) 1280)) (.bin .div (some ⟨64, false⟩) (.load (.int ⟨64, false⟩) (.field (.field (.var 0) 216) 8)) (.cast ⟨64, false⟩ (.const (.int ⟨32, false⟩ 2)))))))
+  body := (.ret (some (.cond (.cast ⟨32, true⟩ (.load (.int ⟨8, false⟩) (.field (.var 0) 1392))) (.load (.int ⟨64, false⟩) (.field (.var 0) 1408)) (.bin .div (some ⟨64, false⟩) (.load (.int ⟨64, false⟩) (.field (.field (.var 0) 216) 8)) (.cast ⟨64, false⟩ (.const (.int ⟨32, false⟩ 2)))))))
 
 /-- `cnt_vt_d` (function id 36). Locals: 0=b -/
 def fid_cnt_vt_d : Nat := 36
 def cnt_vt_d : Func where
   params := [0]
-  body := (.ret (some (.cond (.cast ⟨32, true⟩ (.load (.int ⟨8, false⟩) (.field (.var 0) 1288))) (.load (.int ⟨64, false⟩) (.field (.var 0) 1304)) (.bin .div (some ⟨64, false⟩) (.load (.int ⟨64, false⟩) (.field (.field (.var 0) 216) 8)) (.cast ⟨64, false⟩ (.const (.int ⟨32, false⟩ 2)))))))
+  body := (.ret (some (.cond (.cast ⟨32, true⟩ (.load (.int ⟨8, false⟩) (.field (.var 0) 1416))) (.load (.int ⟨64, false⟩) (.field (.var 0) 1432)) (.bin .div (some ⟨64, false⟩) (.load (.int ⟨64, false⟩) (.field (.field (.var 0) 216) 8)) (.cast ⟨64, false⟩ (.const (.int ⟨32, false⟩ 2)))))))
 
 /-- `cnt_vn_f` (function id 37). Locals: 0=b -/
 def fid_cnt_vn_f : Nat := 37
 def cnt_vn_f : Func where
   params := [0]
-  body := (.ret (some (.cond (.cast ⟨32, true⟩ (.load (.int ⟨8, false⟩) (.field (.var 0) 1264))) (.load (.int ⟨64, false⟩) (.field (.var 0) 1288)) (.bin .div (some ⟨64, false⟩) (.load (.int ⟨64, false⟩) (.field (.field (.var 0) 184) 8)) (.cast ⟨64, false⟩ (.const (.int ⟨32, false⟩ 3)))))))
+  body := (.ret (some (.cond (.cast ⟨32, true⟩ (.load (.int ⟨8, false⟩) (.field (.var 0) 1392))) (.load (.int ⟨64, false⟩) (.field (.var 0) 1416)) (.bin .div (some ⟨64, false⟩) (.load (.int ⟨64, false⟩) (.field (.field (.var 0) 184) 8)) (.cast ⟨64, false⟩ (.const (.int ⟨32, false⟩ 3)))))))
 
 /-- `cnt_vn_d` (function id 38). Locals: 0=b -/
 def fid_cnt_vn_d : Nat := 38
 def cnt_vn_d : Func where
   params := [0]
-  body := (.ret (some (.cond (.cast ⟨32, true⟩ (.load (.int ⟨8, false⟩) (.field (.var 0) 1288))) (.load (.int ⟨64, false⟩) (.field (.var 0) 1312)) (.bin .div (some ⟨64, false⟩) (.load (.int ⟨64, false⟩) (.field (.field (.var 0) 184) 8)) (.cast ⟨64, false⟩ (.const (.int ⟨32, false⟩ 3)))))))
+  body := (.ret (some (.cond (.cast ⟨32, true⟩ (.load (.int ⟨8, false⟩) (.field (.var 0) 1416))) (.load (.int ⟨64, false⟩) (.field (.var 0) 1440)) (.bin .div (some ⟨64, false⟩) (.load (.int ⟨64, false⟩) (.field (.field (.var 0) 184) 8)) (.cast ⟨64, false⟩ (.const (.int ⟨32, false⟩ 3)))))))
 
 /-- `ff_reset_elem_f` (function id 39). Locals: 0=b -/
 def fid_ff_reset_elem_f : Nat := 39
 def ff_reset_elem_f : Func where
   params := [0]
-  body := (.seq (.store (.int ⟨8, false⟩) (.field (.var 0) 885) (.cond (.const (.int ⟨32, true⟩ 0)) (.const (.int ⟨8, false⟩ 1)) (.const (.int ⟨8, false⟩ 0)))) (.seq (.store (.int ⟨32, true⟩) (.field (.var 0) 888) (.const (.int ⟨32, true⟩ 0))) (.seq (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 936) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 968) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 1000) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 1032) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 1064) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 1096) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 1128) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0))))))))))))
+  body := (.seq (.store (.int ⟨8, false⟩) (.field (.var 0) 1013) (.cond (.const (.int ⟨32, true⟩ 0)) (.const (.int ⟨8, false⟩ 1)) (.const (.int ⟨8, false⟩ 0)))) (.seq (.store (.int ⟨32, true⟩) (.field (.var 0) 1016) (.const (.int ⟨32, true⟩ 0))) (.seq (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 1064) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 1096) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 1128) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 1160) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 1192) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 1224) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 1256) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0))))))))))))
 
 /-- `ff_reset_elem_d` (function id 40). Locals: 0=b -/
 def fid_ff_reset_elem_d : Nat := 40
 def ff_reset_elem_d : Func where
   params := [0]
-  body := (.seq (.store (.int ⟨8, false⟩) (.field (.var 0) 885) (.cond (.const (.int ⟨32, true⟩ 0)) (.const (.int ⟨8, false⟩ 1)) (.const (.int ⟨8, false⟩ 0)))) (.seq (.store (.int ⟨32, true⟩) (.field (.var 0) 888) (.const (.int ⟨32, true⟩ 0))) (.seq (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 960) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 992) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 1024) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 1056) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 1088) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 1120) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 1152) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0))))))))))))
+  body := (.seq (.store (.int ⟨8, false⟩) (.field (.var 0) 1013) (.cond (.const (.int ⟨32, true⟩ 0)) (.const (.int ⟨8, false⟩ 1)) (.const (.int ⟨8, false⟩ 0)))) (.seq (.store (.int ⟨32, true⟩) (.field (.var 0) 1016) (.const (.int ⟨32, true⟩ 0))) (.seq (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 1088) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 1120) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 1152) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 1184) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 1216) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.seq (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 1248) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0)))) (.store (.int ⟨64, false⟩) (.field (.field (.var 0) 1280) 8) (.cast ⟨64, false⟩ (.const (.int ⟨32, true⟩ 0))))))))))))
 
 /-- `tobj_dabs` (function id 41). Locals: 0=x -/
 def fid_tobj_dabs : Nat := 41

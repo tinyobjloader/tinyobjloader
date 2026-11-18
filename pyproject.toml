@@ -52,4 +52,17 @@ write_to = "python/_version.py"
 
 [tool.cibuildwheel]
 # Disable aarch64 build since it's too slow to build(docker + qemu).
-skip = ["cp38-*", "cp314t-*", "*_aarch64*"]
+#
+# cibuildwheel v4 notes:
+#   * v4 no longer builds CPython 3.8, so the "cp38-*" skip is redundant but
+#     harmless; it is kept so an older cibuildwheel still behaves the same.
+#   * v4.2+ builds CPython 3.15 by default, and v4 has free-threaded builds
+#     (cp314t/cp315t). This project is not free-threading ready, so skip those
+#     explicitly; otherwise CI starts producing t-wheels.
+skip = ["cp38-*", "cp314t-*", "cp315t-*", "*_aarch64*"]
+
+# This extension module is not abi3 and doesn't use the limited API, so v4's
+# default "abi3audit --strict --report {abi3_wheel}" audit would be pointless
+# (it skips non-abi3 wheels anyway, but pinning the option makes the intent
+# explicit and avoids installing abi3audit at all).
+audit-command = ""

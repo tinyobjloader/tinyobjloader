@@ -9,6 +9,8 @@
 // define some helper functions for pybind11
 #define TINY_OBJ_LOADER_PYTHON_BINDING
 #include "../tiny_obj_loader.h"
+#include "../tobj_subd.h"
+#include "../tobj_skel.h"
 
 namespace py = pybind11;
 
@@ -40,6 +42,7 @@ PYBIND11_MODULE(tinyobjloader, tobj_module)
     .def_readonly("vertices", &attrib_t::vertices)
     .def_readonly("vertex_weights", &attrib_t::vertex_weights)
     .def_readonly("skin_weights", &attrib_t::skin_weights)
+    .def_readwrite("skel_lines", &attrib_t::skel_lines)
     .def_readonly("normals", &attrib_t::normals)
     .def_readonly("texcoords", &attrib_t::texcoords)
     .def_readonly("colors", &attrib_t::colors)
@@ -142,12 +145,17 @@ PYBIND11_MODULE(tinyobjloader, tobj_module)
     .def_readwrite("emissive_texname", &material_t::emissive_texname)
     .def_readwrite("normal_texname", &material_t::normal_texname)
 
+    // MaterialX-in-MTL extension lines (mtlx-mtl.md), verbatim, in file order.
+    .def_readwrite("mtlx_lines", &material_t::mtlx_lines)
+
     .def("GetCustomParameter", &material_t::GetCustomParameter)
     ;
 
   py::class_<mesh_t>(tobj_module, "mesh_t", py::buffer_protocol())
     .def(py::init<>())
     .def_readonly("num_face_vertices", &mesh_t::num_face_vertices)
+    .def_readwrite("tags", &mesh_t::tags)
+    .def_readwrite("tag_lines", &mesh_t::tag_lines)
     .def("numpy_num_face_vertices", [] (mesh_t &instance) {
         using T = typename std::remove_reference<decltype(instance.num_face_vertices)>::type::value_type;
         auto ret = py::array_t<T>(instance.num_face_vertices.size());
@@ -240,10 +248,104 @@ PYBIND11_MODULE(tinyobjloader, tobj_module)
 
   py::class_<tag_t>(tobj_module, "tag_t")
     .def(py::init<>())
-    .def_readonly("name", &tag_t::name)
-    .def_readonly("intValues", &tag_t::intValues)  
-    .def_readonly("floatValues", &tag_t::floatValues)  
-    .def_readonly("stringValues", &tag_t::stringValues)  
+    .def_readwrite("name", &tag_t::name)
+    .def_readwrite("intValues", &tag_t::intValues)
+    .def_readwrite("floatValues", &tag_t::floatValues)
+    .def_readwrite("stringValues", &tag_t::stringValues)
     ;
+
+  // Subdivision tags (subd-obj.md): check a mesh's `t` lines against its
+  // faces. Load with ObjReaderConfig.triangulate = False.
+  tobj_module.def("subd", [](const mesh_t &m) {
+    std::vector<const char *> lines;
+    for (const std::string &l : m.tag_lines) lines.push_back(l.c_str());
+    std::vector<int> vi;
+    for (const index_t &i : m.indices) vi.push_back(i.vertex_index);
+    tobj_subd s;
+    if (tobj_subd_parse_lines(lines.data(), lines.size(), m.num_face_vertices.data(),
+                              m.num_face_vertices.size(), vi.data(), &s))
+      throw std::bad_alloc();
+    auto opt = [](int v) -> py::object {
+      return v == TOBJ_SUBD_UNSET ? py::object(py::none()) : py::object(py::int_(v));
+    };
+    static const char *const kScheme[] = {"catmark", "loop", "bilinear"};
+    static const char *const kCrease[] = {"normal", "chaikin"};
+    static const char *const kTri[] = {"catmark", "smooth"};
+    auto name = [](int v, const char *const *names) -> py::object {
+      return v == TOBJ_SUBD_UNSET ? py::object(py::none()) : py::object(py::str(names[v]));
+    };
+    py::dict d;
+    d["ok"] = bool(s.ok);
+    py::list errors, creases, corners, holes, unknown;
+    for (size_t i = 0; i < s.num_errors; i++) errors.append(s.errors[i]);
+    for (size_t i = 0; i < s.num_creases; i++)
+      creases.append(py::make_tuple(s.creases[i].v0, s.creases[i].v1,
+                                    tobj_subd_sharpness(s.creases[i].sharpness)));
+    for (size_t i = 0; i < s.num_corners; i++)
+      corners.append(py::make_tuple(s.corners[i].v, tobj_subd_sharpness(s.corners[i].sharpness)));
+    for (size_t i = 0; i < s.num_holes; i++) holes.append(s.holes[i]);
+    for (size_t i = 0; i < s.num_unknown; i++) unknown.append(s.unknown[i]);
+    d["errors"] = errors;
+    d["scheme"] = name(s.scheme, kScheme);
+    d["interpolate_boundary"] = opt(s.interp_boundary);
+    d["fvar_interpolate_boundary"] = opt(s.fvar_interp_boundary);
+    d["crease_method"] = name(s.crease_method, kCrease);
+    d["smooth_triangles"] = name(s.smooth_triangles, kTri);
+    d["creases"] = creases;
+    d["corners"] = corners;
+    d["holes"] = holes;
+    d["unknown"] = unknown;
+    char *canon = tobj_subd_to_lines(&s, nullptr);
+    d["canonical"] = canon ? std::string(canon) : std::string();
+    std::free(canon);
+    tobj_subd_free(&s);
+    return d;
+  }, "Typed, checked subdivision tags of a mesh (see subd-obj.md).");
+
+  // Skeleton lines (skel-obj.md), checked against the vw joint ids.
+  tobj_module.def("skel", [](const attrib_t &a) {
+    long max_id = -1;
+    for (const auto &sw : a.skin_weights)
+      for (const auto &jw : sw.weightValues)
+        if (jw.joint_id > max_id) max_id = jw.joint_id;
+    std::vector<const char *> lines;
+    for (const std::string &l : a.skel_lines) lines.push_back(l.c_str());
+    tobj_skel s;
+    if (tobj_skel_parse_lines(lines.data(), lines.size(), max_id, &s)) throw std::bad_alloc();
+    auto matrix = [](char **m) -> py::object {
+      if (!m) return py::none();
+      py::list v;
+      for (int k = 0; k < 16; k++) v.append(tobj_skel_number(m[k]));
+      return v;
+    };
+    auto opt = [](const char *t) -> py::object {
+      return t ? py::object(py::str(t)) : py::object(py::none());
+    };
+    py::dict d;
+    d["ext"] = bool(s.ext);
+    d["ok"] = bool(s.ok);
+    py::list errors, joints;
+    for (size_t i = 0; i < s.num_errors; i++) errors.append(s.errors[i]);
+    for (size_t i = 0; i < s.num_joints; i++) {
+      py::dict j;
+      j["name"] = s.joints[i].name;
+      j["parent"] = s.joints[i].parent < 0 ? py::object(py::none())
+                                           : py::object(py::int_(s.joints[i].parent));
+      j["bind"] = matrix(s.joints[i].bind);
+      j["rest"] = matrix(s.joints[i].rest);
+      joints.append(j);
+    }
+    d["errors"] = errors;
+    d["joints"] = joints;
+    d["lib"] = opt(s.lib);
+    d["lib_skeleton"] = opt(s.lib_skeleton);
+    d["anim"] = opt(s.anim);
+    d["anim_name"] = opt(s.anim_name);
+    char *canon = tobj_skel_to_lines(&s, nullptr);
+    d["canonical"] = canon ? std::string(canon) : std::string();
+    std::free(canon);
+    tobj_skel_free(&s);
+    return d;
+  }, "Typed, checked skeleton of a file (see skel-obj.md).");
 }
 

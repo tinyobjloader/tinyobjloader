@@ -1,0 +1,9 @@
+skel_joint 1bad - 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1
+skel_joint a b 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1
+skel_joint a - 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1
+skel_joint a - 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 x
+skel_joint c -
+skel_rest zz 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1
+skel_lib x.fbx
+skel_lib y.fbx
+vw 0 5 1

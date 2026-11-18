@@ -54,6 +54,11 @@ int tg_orient3(tm* m, size_t a, size_t b, size_t c, size_t d);
 int tg_incircle(tm* m, size_t a, size_t b, size_t c, size_t d);
 
 int tg_audit3(tm* m);
+/* Diagnostic entry points for predicate probes. Caller inspects m->c.status. */
+int tg_plane_cut(tm* m, size_t fa, size_t fb, size_t fc, size_t x, size_t y,
+                 qr p[3]);
+int tg_projected_contains(tm* m, size_t fa, size_t fb, size_t fc, size_t p,
+                          int axis);
 int tg_legalize(tm* m, size_t fuel, int* complete);
 
 int tg_topology(tm* m, int patch);

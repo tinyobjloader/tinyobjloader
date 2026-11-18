@@ -24,6 +24,7 @@ import sys
 import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+INCLUDE_DIRS = []
 SRC = os.path.join(ROOT, "tiny_obj_verified.c")
 OUT = os.path.join(ROOT, "formal", "Obj", "C", "Gen.lean")
 CLANG = os.environ.get("CLANG", "clang")
@@ -793,7 +794,7 @@ class Layout:
                     f.write(f'    printf("%zu\\n", (size_t){q});\n')
                 f.write("    return 0;\n}\n")
             subprocess.check_call([CLANG, f"--target={TARGET}", "-std=c11", "-w",
-                                   f"-I{ROOT}", "-o", exe, c])
+                                   f"-I{ROOT}", *INCLUDE_DIRS, "-o", exe, c])
             vals = subprocess.check_output([exe]).decode().split()
         self.results = dict(zip(self.queries, (int(v) for v in vals)))
 
@@ -807,7 +808,7 @@ def load_ast():
          # MiniC model treats `bin .mul`/`.add` as two separate roundings;
          # fusing is then an explicit, modelled `(.fma ...)` only.
          "-ffp-contract=off",
-         f"--target={TARGET}", f"-I{ROOT}", SRC], stderr=subprocess.DEVNULL)
+         f"--target={TARGET}", f"-I{ROOT}", *INCLUDE_DIRS, SRC], stderr=subprocess.DEVNULL)
     return json.loads(out)
 
 
@@ -916,7 +917,7 @@ def generate():
 
 
 def main():
-    global SRC, OUT, FUNCTIONS, TARGET, NAMESPACE
+    global SRC, OUT, FUNCTIONS, TARGET, NAMESPACE, INCLUDE_DIRS
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--source", default=SRC)
@@ -924,8 +925,11 @@ def main():
     parser.add_argument("--function", action="append", dest="functions")
     parser.add_argument("--namespace", default=NAMESPACE)
     parser.add_argument("--target", default=TARGET)
+    parser.add_argument("--include", action="append", dest="includes", default=[],
+                        help="additional -I directory (repeatable)")
     args = parser.parse_args()
     SRC, OUT, TARGET, NAMESPACE = os.path.abspath(args.source), os.path.abspath(args.output), args.target, args.namespace
+    INCLUDE_DIRS = [f"-I{os.path.abspath(d)}" for d in args.includes]
     if not re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*(\.[A-Za-z_][A-Za-z_0-9]*)*", NAMESPACE):
         parser.error("invalid Lean namespace")
     if args.functions:

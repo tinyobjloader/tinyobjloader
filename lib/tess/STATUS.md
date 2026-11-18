@@ -4,6 +4,24 @@ Implemented against `../../robust-ngon-remeshing-c11-lean4-prompt.md`.
 Release evidence below was collected on 2026-11-14. The deliverable is a bounded
 reference library, not a convergence guarantee or full C refinement proof.
 
+**Current authoritative proof-audit count: 3954 Tess declarations** (re-run
+2026-11-16 after `C/I64Import`; standard axioms only). `C/I64Import` refines the pure
+kernels (`i64_limb_count`, `i64_fill`) factored out of `zi_i64` (LimbGen ids 8, 9; behavior
+unchanged, 28/28 tests pass); the written limbs denote the int64 magnitude and the sign field is ±1. Declaration counts quoted in the dated
+sections below are historical snapshots.
+
+Session summary (2026-11-16): new MiniC refinements of translated C kernels — `shift_fill`, the four
+`zi_divrem` limb loops (`div_single_fill`, `div_shift_in`, `div_cmp`, `div_sub_in`), `bit_len32`, and the
+checked int64 `sub`/`mul` of `tess_orient2i`; limb-level model of the whole binary division loop
+(`DivBinLoop.binLoop_correct`); value-level models of `qr_exponent`/`qr_sqrt_bounds`/`qr_round_dyadic`,
+`serial_add`, `grow`, `split_find`, the topology union-find and the certificate insertion sort; and
+auditor completeness for valid coplanar pairs (no shared vertex, one shared vertex, shared edge in either
+direction, all rotations). Not proved: allocating whole-function refinements (MiniC has no allocator),
+real-point (not only rational) disjointness, and the `tess_status` wrapper of `tess_orient2i` (its translated core `orient2i_core` is refined on both success and failure paths).
+Sanitizer note: the full Clang ASan/UBSan suite (leak detection on) passes 25/25 after fixing a pre-existing
+leak in `domain_valid` (edge tangents were dropped by `m->ne = 0` when the domain check ran more than once,
+e.g. across chart-axis attempts).
+
 ## Milestones delivered
 
 1. **Contract/arithmetic:** standalone strict C11 public API; exact binary64 and
@@ -299,3 +317,188 @@ build warning policy.
   pairs cover disjoint and contacting cases.
 - These are bounded direct comparisons of exact executable paths, not a C
   refinement theorem for `tg_audit3`, nor coplanar or shared-index validation.
+
+## Strict plane cuts, projected containment and diagnostic coplanar audits (2026-11-15)
+
+- The strict-crossing branch of the 3D auditor is now a shared static
+  `cut_from_plane_values` in `audit.c`, reused by `edges_against` and by the
+  new diagnostic export `tg_plane_cut` (declared in `geometry.h`).
+  `tg_projected_contains` exports the projected-containment half of the
+  auditor for the probe. The production crossing path is unchanged in behavior;
+  it is now exercised directly.
+- `tesspredicates` gains `planecut` (face a b c plus edge endpoints x y as
+  fifteen rationals; prints `1` with three exact cut rationals or `0`) and
+  `contains2` (two 2D points; orientation-independent closed-triangle answer).
+  The C probe answers `planecut` with exact rational cut coordinates encoded as
+  `0x…/0x…` tokens and `contains2` with 0/1. Python parses both encodings into
+  exact Fractions and checks the cut lies on the segment and the face plane.
+- A separate C-only `triaudit` diagnostic mode covers the coplanar and
+  shared-index two-face paths: coplanar containment on the face's own
+  projection axis, indexed shared-simplex allowance (vertex equality and
+  on-segment plus collinearity for two shared IDs), projected segment conflict
+  with the indexed exception, and the identical-triangle rejection. The Lean
+  fixture rejects `triaudit` explicitly; the differential compares C against an
+  independently written exact Fraction replication of the auditor, including
+  six hand-verified fixtures. This is bounded differential evidence, not a C
+  auditor refinement proof.
+- The direct differential now covers **21,923** C/Lean/Fraction predicate
+  comparisons. It feeds each probe in 19,000-record chunks instead of raising
+  Lean's per-invocation fixture cap. Parser campaigns cover truncations of the
+  new records; 256 deterministic mutations are checked against Fraction.
+- `predicate_resources.py` additionally freezes two new default-budget
+  exhaustion fixtures: a mixed-exponent orient3 case (Lean sign −1) and a
+  mixed-exponent tricontact case (Lean returns 1, no contact). The C probe
+  deterministically reports library status 3 with no sign. Both were found by
+  seeded random search over exact dyadics and are replayed exactly.
+- The regeneration/kernel/axiom audit passes for **976** Tess declarations
+  with only `propext`, `Classical.choice` and `Quot.sound` allowed. GCC Release
+  and Clang Release pass 27/27 tests (86.65 s and 79.42 s). A standalone
+  source-copy build without the repository OBJ adapter passes 21/21. The full
+  21,923-case direct workload and `predicate_resources.py` pass with the C
+  probe under ASan/UBSan, with local leak detection disabled for the
+  documented tracing limitation.
+
+These are executable differential checks. No claim is made that the C 3D
+auditor is refined by the Lean specification, and the coplanar/shared-index
+path now has the Lean executable specification `PairAudit.pairOk`.
+
+## Big-integer limb-boundary differential (2026-11-16)
+
+- New `tess_zi_oracle` runs the real `zi_add`, `zi_sub`, `zi_mul`, `zi_cmp`
+  (via `tests/zi_probe.c`) against Python integers on limb-boundary values
+  (2^(32k)±2, all-ones carry chains, single-limb-nonzero borrow ripples,
+  zero normalization) plus 3,000 random pairs. A mutation of the borrow
+  computation in `zi_add_mixed` is detected. Full GCC suite: 25/25 native
+  tests pass without Lean. Differential evidence only; `zi_add`/`zi_mul`/`norm`
+  remain unproved in Lean.
+
+## Integer semantics of limb models (2026-11-16)
+
+- `Tess.C.ZiValue` proves, with no new axioms, that the limb models behind the
+  translated loops denote integer arithmetic: `ziAdd_value` (a+b including
+  the overflow limb), `ziMixed_value` (a-b and zero final borrow when b ≤ a)
+  and `ziMul_value` (a*b over a zero buffer of capacity ≥ |a|+|b|, using the
+  fact that each row's overflow write replaces a zero). Audit: 1367 declarations.
+  Open: composing with allocation, `norm`, sign dispatch and `move`.
+- `Tess.C.ZiOrder` adds the order/sign layer: `acmp` outcomes imply the
+  denoted-integer order (for normalized operands), `norm` trimming preserves
+  value and normalizes, and `ziAdd_signed`/`ziMixed_signed` give the signed sum
+  for the two `zi_add` branches. Audit: 1388 declarations.
+- `Tess.C.ZiModel` assembles functional models of `zi_add`/`zi_sub`/`zi_mul`
+  from the proved loop models and proves they denote signed integer
+  addition/subtraction/multiplication with well-formed results (no sorry).
+  Audit: 1442 declarations. Remaining gap to the C: allocation/budget/`move`
+  and whole-function MiniC refinement.
+- `Tess.C.QrModel` proves the rational layer models: Euclid loop = gcd,
+  `reduce` canonical form and value preservation, `qr_add/sub/mul` denote
+  rational arithmetic (the equal-denominator shortcut agrees with the general
+  path). Audit: 1469 declarations. `zi_divrem` remains unproved.
+- `Tess.C.DivModel` proves both `zi_divrem` paths compute floor division
+  (radix-2^32 and binary compare/subtract), the bit-extraction identity and the
+  signed truncated-division law. Audit: 1510 declarations.
+
+Verification at commit "Prove zi_divrem long-division models" (2026-11-16): proof
+audit 1510 declarations; GCC Release with Lean 28/28; Clang Release 25/25;
+ASan/UBSan subset (zi/exact/arithmetic/predicate-resource/audit/resource) passes
+with local leak detection disabled.
+- `Tess.C.PredModel` ties the rational models to the Lean predicate
+  specifications: `tg_orient_q` sign = sign of `Tess.orient`; `det3` equals
+  `incircleDet`/`orient3`; incircle sign product ⇔ `illegalDelaunay`. `ZiM.WF`
+  gained the `limbs = [] → sign = 0` field. Audit: 1539 declarations.
+- `Tess.C.ShiftModel` proves the `shift` limb carry chain denotes `a*2^bits`;
+  `QrModel.qrDoubleM_spec` proves `qr_double` returns the canonical exact value
+  of a finite binary64 pattern. Audit: 1569 declarations.
+- `Tess.C.ZiCmp` proves `acmp`/`zi_cmp` models equal the order of the denoted
+  integers. Audit: 1636 declarations.
+
+## Auditor pair specification and rational compare/divide (2026-11-16)
+
+- `Tess.PairAudit.pairOk` is a Lean executable specification of the C auditor's
+  pair decision (coplanar branch, `allowed`, `edges_against`). `tesspredicates`
+  now evaluates `triaudit`, so the differential compares C, Lean and Fraction on
+  all 201 pairs (21,923 total comparisons pass). `pairOk_noncoplanar_disjoint`
+  proves it equals the negation of `noncoplanarTrianglesConflict` for
+  noncoplanar faces without shared vertex IDs.
+- `PredModel` gained `qrDivM_spec` and `qrCmpM_spec` (cmp = sign of the exact
+  difference). Audit: 1675 declarations; GCC+Lean predicate/segment tests pass.
+- `PairAuditAllowed.allowed_sound` proves the shared-simplex exception admits only
+  shared vertices and exact rational points of the shared edge. Audit: 1682.
+- `PairAuditCoplanar.coplanar_disjoint_accepted`: an accepted coplanar pair without
+  shared IDs has no vertex inside the other projected triangle and no closed edge
+  intersections. Audit: 1690.
+
+## Targeted mutation check (2026-11-16)
+
+- Twelve hand-written mutants of `exact.c`, `predicates.c`, `geometry.c` and
+  `audit.c` (carry/borrow, sign handling, compare direction, subtract guard,
+  incircle orientation correction, coplanar cross check, containment sign
+  accumulation, identical-triangle test) were run against the `zi`, exact,
+  predicate and C/Lean/Fraction differential oracles. Eleven were killed
+  (one of them only after a test fix). The `zi_i64` mutant, ignoring the sign of negative inputs, exposed an
+  untested path and survived initially; `tess_zi_oracle` now imports 76 int64 values (including
+  `INT64_MIN`) and kills it. The remaining survivor (`z*w <= 0` in
+  `tg_segments`) is an equivalent mutant: strict straddling plus an endpoint of
+  one segment on the other's line already returns through the later branch.
+- `Tess.TriangleMeet` proves in the real plane that a segment from a triangle point to an
+  outside point exits through an edge, hence two meeting triangles with no vertex of one in
+  the other have meeting edges. `PairAuditDisjoint.coplanar_disjoint_triangles_disjoint`
+  concludes that an accepted coplanar pair without shared IDs has disjoint projected closed
+  triangles (hypotheses: valid indices, nondegenerate projected edges and second face).
+  Audit: 1715 declarations.
+- `Tess.C.ZiCmpC.zi_cmp_refines`: the translated `zi_cmp` (including its call to `acmp`) is
+  proved equal to the model `ziCmpM`, hence to the true integer order by `ziCmpM_spec`.
+  `acmp_exs`/`acmp_exs_unequal` were generalized over the struct signs and the read-only flag
+  (expression calls run read-only). `LimbGen` now also contains `zi_cmp` (function id 5).
+  Audit: 1732 declarations.
+- `BoxSeparation.boxes_separate_disjoint`: a strict gap between recorded AABB extrema excludes any common point of the two closed triangles, justifying the broadphase skip.
+- `C/SegModel.tgSegmentsM_eq`: the `tg_segments` model equals `segmentConflict` (audit count in the header is kept current).
+- The mutation campaign is reproducible: `python3 lib/tess/tools/mutation_check.py --lean
+  formal/.lake/build/bin/tesspredicates` applies the twenty mutants to a scratch copy and reports
+  nineteen killed plus the one documented equivalent mutant (not part of default ctest). Five mutants were
+  added for the factored `shift_fill`/`div_single_fill` kernels and the binary division path.
+- `NoncoplanarComplete.noncoplanar_gp_disjoint`: in general position, `noncoplanarTrianglesConflict = false`
+  implies no common rational point of the two closed triangles (Case I: exit lemma in the plane of
+  `A` for a point of `B ∩ plane A` outside `A`; Case II: strict cut of a `B` edge). Combined with
+  `pairOk_noncoplanar_disjoint` this gives `PairAuditNoncoplanar.accepted_noncoplanar_gp_disjoint`.
+  New supporting files: `TriangleExitQ` (rational exit lemma), `PlaneTransfer` (Hull3 ↔ projected
+  `Tri2` on a plane, plane injectivity via coordinate rotation). Audit: 1816 declarations.
+- `noncoplanar_edgefree_disjoint` strengthens the above: vertices of one face may lie on the other
+  face's plane (flagged through `vertex_flag`), as long as the faces are noncoplanar and no edge of
+  the first face lies in the second's plane; `accepted_noncoplanar_edgefree_disjoint` is the pair-level
+  corollary.
+- `conflict_swap` (the exact contact predicate is symmetric for noncoplanar faces) and
+  `noncoplanar_disjoint_either` / `accepted_noncoplanar_either_disjoint`: the disjointness result holds as
+  soon as either face has no edge in the other's plane. Audit: 1825 declarations.
+- `SharedEdge.shared_edge_intersection`: noncoplanar triangles sharing an edge meet exactly in that edge.
+- `InPlane`/`PlaneLine`: the last degenerate configuration (an edge of each triangle in the other's
+  plane) is closed by a collinearity lemma for points on two nonparallel planes and a 1D interval
+  argument. `noncoplanar_disjoint_complete` and `PairAuditNoncoplanarFull.accepted_noncoplanar_disjoint`
+  now need no general-position hypothesis: an accepted noncoplanar pair without shared IDs has
+  disjoint closed triangles (rational points).
+- `SharedVertex`/`PairAuditShared.accepted_shared_vertex_only`: for noncoplanar faces sharing exactly one
+  vertex, an accepted pair has no common point other than the shared vertex. `edgesAgainst_contact`
+  extracts the auditor's per-edge acceptance condition in `allowed` form. Audit: 1852 declarations.
+- `PairAuditCoplanarShared.accepted_coplanar_shared_vertex_only`: coplanar faces sharing one vertex meet only
+  there when accepted; supported by `coplanar_contact_false` (an endpoint-free chord of a face forces an
+  edge/edge conflict) and `segmentConflict_symm`. Audit: 1872 declarations.
+
+Verification at HEAD of this session (2026-11-16): proof audit 1872 declarations; GCC Release with Lean
+28/28; Clang Release 25/25; Clang ASan/UBSan full native suite 25/25 (209 s, local leak detection
+disabled for the documented tracing limitation).
+- `CoplanarSharedEdge.accepted_coplanar_shared_edge`: coplanar faces sharing an edge meet only in that edge when
+  accepted (either traversal direction), via `shared_edge_exit` and the ID-level reduction
+  `coplanar_shared_edge_of_conflicts`. With this the auditor spec's pairwise soundness covers every
+  configuration of 0, 1 or 2 shared vertex IDs for both coplanar and noncoplanar faces. Audit: 1902 declarations.
+- `C/TrimLen.trim_len_refines`: the length scan of `norm` was factored into the pure `trim_len` (behavior
+  unchanged; GCC+Lean 28/28 still pass) and its translated loop is refined against `trimL`.
+  `LimbGen` gained function id 6. Audit: 1932 declarations.
+- `PairAuditComplete`: rejected pairs without shared IDs always have a genuine common point
+  (`pairOk_false_noncoplanar_common`, `pairOk_false_coplanar_common`), giving
+  `pairOk_iff_disjoint_noncoplanar`: for noncoplanar faces the exact decision equals disjointness.
+- `pairOk_of_shared_edge_noncoplanar`: no false rejection for noncoplanar faces sharing an edge (their common
+  points are on the edge and `allowed_of_edge_point` admits them); `edgesAgainst_false_contact'` extracts the
+  non-allowed contact point of a rejected edge check.
+- `pairOk_iff_shared_vertex_noncoplanar`: for noncoplanar faces with one shared vertex the auditor accepts exactly when the triangles meet only there.
+- `C/DblDecode.dbl_decode_refines`: the binary64 field decode of `qr_double` was factored into the pure helper
+  `dbl_decode` (behavior unchanged; 28/28 tests pass) and refined in MiniC against `dblMant`/`dblExp`.
+  `LimbGen` gained function id 7. Audit: 1990 declarations.

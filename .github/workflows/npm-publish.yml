@@ -1,0 +1,175 @@
+name: Publish tinyobj to npm (staged)
+
+# Stages web/ (the `tinyobj` npm package) using npm Trusted Publishing (OIDC).
+# Staging is not a release: a maintainer must review and approve the package
+# with 2FA (`npm stage approve <id>`, or npmjs.com -> Staged Packages).
+# No long-lived registry tokens are used anywhere.
+#
+# Triggered ONLY by pushing a tag. There is no workflow_dispatch and no branch
+# trigger, so nothing can stage a package without a tagged commit. The tag must
+# be `npm-v<package.json version>`; that version is what gets staged.
+#
+# Release tags for this workflow are `npm-v*`, deliberately separate from the
+# `v*` tags that drive the C++/PyPI releases (see python.yml / unit.yml).
+#
+# Configure once on npmjs.com, package Settings -> Trusted publishing:
+#   Organization or user : tinyobjloader
+#   Repository           : tinyobjloader
+#   Workflow filename    : npm-publish.yml   (filename only, must match exactly)
+#   Environment name     : (leave empty)
+#   Allowed actions      : npm stage publish
+#
+# See web/PUBLISHING.md for the full procedure.
+
+on:
+  push:
+    tags: ['npm-v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    # Only from the canonical repository, never from a fork pushing tags.
+    if: github.repository == 'tinyobjloader/tinyobjloader'
+    permissions:
+      contents: read
+      id-token: write # required for OIDC
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false # never cache in release builds
+
+      # `npm stage` requires npm >= 11.15.0, newer than the bundled one.
+      - name: Install npm with staged publishing support
+        run: |
+          npm install --global 'npm@^11.15.0'
+          node --version
+          npm --version
+
+      # Same Emscripten version the module was developed and tested against.
+      - name: Set up Emscripten
+        uses: emscripten-core/setup-emsdk@v16
+        with:
+          version: 7.0.0
+
+      - name: Resolve version and dist-tag
+        id: release
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          if [ "$REF_TYPE" != tag ]; then
+            echo "::error::this workflow only runs from tag refs, got $REF_TYPE"
+            exit 1
+          fi
+
+          case "$REF_NAME" in
+            npm-v*) tagged="${REF_NAME#npm-v}" ;;
+            *) echo "::error::release tags must start with npm-v"; exit 1 ;;
+          esac
+
+          version="$(node -p "require('./package.json').version")"
+          if [ "$tagged" != "$version" ]; then
+            echo "::error::tag $REF_NAME does not match web/package.json version $version"
+            exit 1
+          fi
+
+          # Derive the dist-tag from the version: a prerelease goes to `next`,
+          # never to the default install tag `latest`.
+          case "$version" in
+            *-*) dist_tag=next ;;
+            *) dist_tag=latest ;;
+          esac
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "dist_tag=$dist_tag" >> "$GITHUB_OUTPUT"
+          echo "Staging tinyobj@$version with dist-tag $dist_tag"
+
+      - name: Skip if this version is already published
+        id: check
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          if npm view "tinyobj@$VERSION" version >/dev/null 2>&1; then
+            echo "::notice::tinyobj@$VERSION is already published; nothing to stage"
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build WebAssembly module
+        if: steps.check.outputs.published != 'true'
+        run: ./build.sh
+
+      - name: Verify generated artifacts
+        if: steps.check.outputs.published != 'true'
+        run: |
+          test -s dist/tinyobj.js
+          test -s dist/tinyobj.wasm
+
+      - name: Run tests against the built module
+        if: steps.check.outputs.published != 'true'
+        run: |
+          node test/smoke.mjs
+          bash test/run_native.sh
+
+      - name: Check npm package contents
+        if: steps.check.outputs.published != 'true'
+        run: |
+          # --ignore-scripts: dist/ was built above, and prepack output would
+          # otherwise be mixed into this JSON.
+          npm pack --dry-run --json --ignore-scripts > pack.json
+          node -e '
+            const [tarball] = require("./pack.json");
+            const expected = [
+              "LICENSE", "README.md", "dist/tinyobj.js", "dist/tinyobj.wasm",
+              "js/index.d.ts", "js/index.js", "package.json",
+            ];
+            const actual = tarball.files.map((f) => f.path).sort();
+            if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+              console.error("unexpected tarball contents:", actual);
+              process.exit(1);
+            }
+            console.log(`${actual.length} files, ${tarball.size} bytes`);
+          '
+          rm -f pack.json
+
+      - name: Stage package with npm Trusted Publishing
+        if: steps.check.outputs.published != 'true'
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          DIST_TAG: ${{ steps.release.outputs.dist_tag }}
+        run: |
+          set -euo pipefail
+          # prepublishOnly re-checks build/tests and refuses a prerelease on
+          # 'latest'; it reads the tag from npm_config_tag.
+          npm stage publish --tag "$DIST_TAG"
+          {
+            echo "### Staged \`tinyobj@$VERSION\` (dist-tag \`$DIST_TAG\`)"
+            echo
+            echo "Nothing is installable from this version yet. A maintainer"
+            echo "reviews and approves it with 2FA:"
+            echo
+            echo '```sh'
+            echo "npm stage list tinyobj"
+            echo "npm stage approve <stage-id>"
+            echo '```'
+            echo
+            echo "Or approve under *Staged Packages* on npmjs.com."
+          } >> "$GITHUB_STEP_SUMMARY"
