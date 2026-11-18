@@ -38,6 +38,8 @@ const playButton = document.getElementById('play');
 const timelineInput = document.getElementById('timeline');
 const timeLabel = document.getElementById('time');
 const envCheck = document.getElementById('envmap');
+const bonesCheck = document.getElementById('bones');
+const loopSelect = document.getElementById('loop');
 const viewFront = document.getElementById('view-front');
 const viewTop = document.getElementById('view-top');
 const viewSide = document.getElementById('view-side');
@@ -107,6 +109,9 @@ let playing = false;
 let timelineValue = 0;
 let lastFrameTime = 0;
 let envTexture = null;
+let boneHelper = null;
+let animClip = null;
+let playDirection = 1;
 let hoverIndex = -1;
 let hoverWire = null;
 let dragging = false;
@@ -245,6 +250,18 @@ function baseName(path) {
   return String(path).replace(/\\/g, '/').split('/').pop().toLowerCase();
 }
 
+function setupBoneHelper() {
+  if (boneHelper) {
+    scene.remove(boneHelper);
+    boneHelper.dispose?.();
+    boneHelper = null;
+  }
+  if (!skinData) return;
+  boneHelper = new THREE.SkeletonHelper(skinData.root);
+  boneHelper.visible = bonesCheck.checked;
+  scene.add(boneHelper);
+}
+
 function populateBoneSelect() {
   boneSelect.replaceChildren();
   const off = document.createElement('option');
@@ -325,18 +342,32 @@ function buildSkinData(model) {
   };
 }
 
-function attachSkinAttributes(geometry, shape) {
-  if (!skinData) return;
-  const corners = shape.cornerVertices.length;
-  const indices = new Uint16Array(corners * 4);
-  const weights = new Float32Array(corners * 4);
-  for (let c = 0; c < corners; c++) {
+function ensureCornerSkin(shape) {
+  if (shape.cornerSkin || !skinData) return shape;
+  const skin = new Float32Array(shape.cornerVertices.length * 8);
+  for (let c = 0; c < shape.cornerVertices.length; c++) {
     const joints = skinData.weightByVertex.get(shape.cornerVertices[c]) || [];
     for (let j = 0; j < 4; j++) {
       const src = joints[j];
       const id = src ? src.id : 0;
+      skin[c * 8 + j] = id >= 0 && id < skinData.bones.length ? id : 0;
+      skin[c * 8 + 4 + j] = src ? src.weight : 0;
+    }
+  }
+  return { ...shape, cornerSkin: skin };
+}
+
+function attachSkinAttributes(geometry, shape) {
+  if (!skinData) return;
+  const source = ensureCornerSkin(shape).cornerSkin;
+  const corners = shape.cornerVertices.length;
+  const indices = new Uint16Array(corners * 4);
+  const weights = new Float32Array(corners * 4);
+  for (let c = 0; c < corners; c++) {
+    for (let j = 0; j < 4; j++) {
+      const id = source[c * 8 + j];
       indices[c * 4 + j] = id >= 0 && id < skinData.bones.length ? id : 0;
-      weights[c * 4 + j] = src ? src.weight : 0;
+      weights[c * 4 + j] = source[c * 8 + 4 + j];
     }
   }
   geometry.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(indices, 4));
@@ -375,20 +406,46 @@ function applyHeatmap() {
   }
 }
 
+function clipDuration() {
+  const frames = animClip?.frames;
+  return frames?.length ? Math.max(0.1, frames[frames.length - 1].time || 1) : 2;
+}
+
 function applyPose() {
   if (!skinData) return;
-  const t = timelineValue * Math.PI * 2;
-  for (let i = 0; i < skinData.bones.length; i++) {
-    skinData.bones[i].rotation.set(
-      Math.sin(t + i * 0.7) * 0.12,
-      Math.sin(t * 0.5 + i * 1.1) * 0.3,
-      Math.cos(t * 0.7 + i * 0.5) * 0.08,
-    );
+  const frames = animClip?.frames;
+  if (frames?.length) {
+    const target = timelineValue * clipDuration();
+    let index = 0;
+    while (index < frames.length - 1 && frames[index + 1].time < target) index++;
+    const a = frames[index];
+    const b = frames[Math.min(index + 1, frames.length - 1)];
+    const span = b.time - a.time || 1;
+    const blend = Math.min(1, Math.max(0, (target - a.time) / span));
+    for (const bone of skinData.bones) {
+      const from = a.bones?.[bone.name] || [0, 0, 0];
+      const to = b.bones?.[bone.name] || from;
+      bone.rotation.set(
+        from[0] + (to[0] - from[0]) * blend,
+        from[1] + (to[1] - from[1]) * blend,
+        from[2] + (to[2] - from[2]) * blend,
+      );
+    }
+  } else {
+    const t = timelineValue * Math.PI * 2;
+    for (let i = 0; i < skinData.bones.length; i++) {
+      skinData.bones[i].rotation.set(
+        Math.sin(t + i * 0.7) * 0.12,
+        Math.sin(t * 0.5 + i * 1.1) * 0.3,
+        Math.cos(t * 0.7 + i * 0.5) * 0.08,
+      );
+    }
   }
   skinData.root.updateMatrixWorld(true);
   skinData.skeleton.update();
+  if (boneHelper) boneHelper.updateMatrixWorld(true);
   timelineInput.value = String(Math.round(timelineValue * 1000));
-  timeLabel.textContent = `${(timelineValue * 2).toFixed(2)}s`;
+  timeLabel.textContent = `${(timelineValue * clipDuration()).toFixed(2)}s`;
 }
 
 function loadImageTexture(file, srgb) {
@@ -827,7 +884,7 @@ function rebuildSubdivision() {
   const model = {
     ...currentModel,
     shapes: currentModel.shapes.map((shape) =>
-      subdivideShape(shape, subdivLevel),
+      subdivideShape(ensureCornerSkin(shape), subdivLevel),
     ),
   };
   const group = buildGroup(model, currentMaps);
@@ -860,6 +917,10 @@ async function showModel(objFile, mtl, extra) {
   if (skinData?.root) scene.remove(skinData.root);
   skinData?.skeleton.dispose();
   skinData = buildSkinData(model);
+  bonesCheck.disabled = !skinData;
+  setupBoneHelper();
+  timelineValue = 0;
+  playDirection = 1;
 
   // New textures get their own URL batch; old ones stay alive until the new
   // model is ready so a failed load leaves the current view intact.
@@ -941,6 +1002,15 @@ async function handleFiles(list) {
   }
 
   textureFiles = new Map(images.map((file) => [baseName(file.name), file]));
+  animClip = null;
+  const animFile = all.find((file) => /\.anim\.json$/i.test(file.name));
+  if (animFile) {
+    try {
+      animClip = JSON.parse(await animFile.text());
+    } catch {
+      setStatus('Invalid .anim.json sidecar — using the default animation.', 'warn');
+    }
+  }
   const objFile = objs[0];
   const extra = [];
   if (objs.length > 1) extra.push(`+${objs.length - 1} more .obj`);
@@ -1075,6 +1145,9 @@ timelineInput.addEventListener('input', () => {
 envCheck.addEventListener('change', () => {
   scene.environment = envCheck.checked ? envTexture : null;
 });
+bonesCheck.addEventListener('change', () => {
+  if (boneHelper) boneHelper.visible = bonesCheck.checked;
+});
 viewFront.addEventListener('click', () => frameView('front'));
 viewTop.addEventListener('click', () => frameView('top'));
 viewSide.addEventListener('click', () => frameView('side'));
@@ -1194,7 +1267,23 @@ renderer.setAnimationLoop(() => {
   const now = performance.now();
   if (playing && skinData) {
     const delta = lastFrameTime ? (now - lastFrameTime) / 1000 : 0;
-    timelineValue = (timelineValue + delta / 2) % 1;
+    const step = delta / clipDuration();
+    timelineValue += step * playDirection;
+    if (loopSelect.value === 'once' && timelineValue >= 1) {
+      timelineValue = 1;
+      playing = false;
+      playButton.textContent = '▶';
+    } else if (loopSelect.value === 'pingpong') {
+      if (timelineValue >= 1) {
+        timelineValue = 1;
+        playDirection = -1;
+      } else if (timelineValue <= 0) {
+        timelineValue = 0;
+        playDirection = 1;
+      }
+    } else {
+      timelineValue %= 1;
+    }
     applyPose();
   }
   lastFrameTime = now;

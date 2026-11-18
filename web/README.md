@@ -136,14 +136,19 @@ from a CDN. The demo supports:
   material panel showing Kd, Ke, Ns, d, Ni, illum, Pr/Pm and texture maps.
 - **Shape selection** — click a shape in the 3D view or in the Shapes list to
   highlight it (wireframe + bounding box) and see its name, triangle count,
-  bounds and the materials it uses. The panel has Shapes / Materials tabs.
-- **Subdivision** — a level selector (0–2) applies a linear midpoint refinement
-  preview; the shape detail shows the scheme and crease count from the `t` tags.
-  Large meshes are capped so the preview never exhausts memory.
+  bounds and the materials it uses. Hover shows a tooltip; the Shapes tab has a
+  filter plus hide/isolate controls, and the View tab has camera presets,
+  exposure/env/tone-map sliders, material overrides and live render stats.
+- **Subdivision** — a level selector (0–2) applies Loop refinement on vertices
+  welded by their original file ids, honouring crease and corner `t` tags;
+  sharp edges stay sharp and skin weights are interpolated across new vertices.
+  The shape detail shows the scheme and crease count. Large meshes are capped.
 - **Skinning** — `vw` weights (parsed in JS; the C11 loader does not decode them)
   and `skel_*` joints drive a `SkinnedMesh`. Pick a bone in the Heatmap selector
   to colour vertices by that bone's weight (blue → red). Play/pause or scrub the
-  timeline to preview a procedural bone animation.
+  timeline to preview a procedural bone animation. A `.anim.json` sidecar with
+  keyframed bone rotations can replace the procedural pose; a Bones checkbox
+  draws the joint hierarchy, and the timeline supports loop / ping-pong / once.
 - **MaterialX / OpenPBR** — `mtlx_*` lines are exposed by the loader and resolved
   into a small subset of `MeshPhysicalMaterial` inputs (base colour, metallic,
   roughness, clearcoat, sheen, transmission, ior, image connections), with the

@@ -355,9 +355,15 @@
         Heatmap
         <select id="bone" disabled><option value="-1">Off</option></select>
       </label>
+      <label><input id="bones" type="checkbox" disabled /> Bones</label>
       <button id="play" type="button" disabled>▶</button>
       <input id="timeline" type="range" min="0" max="1000" value="0" disabled />
       <span id="time">0.00s</span>
+      <select id="loop" title="Loop mode">
+        <option value="loop">Loop</option>
+        <option value="pingpong">Ping-pong</option>
+        <option value="once">Once</option>
+      </select>
       <button id="view-front" type="button">Front</button>
       <button id="view-top" type="button">Top</button>
       <button id="view-side" type="button">Side</button>
