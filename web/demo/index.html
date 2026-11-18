@@ -156,13 +156,43 @@
         text-transform: uppercase;
         color: var(--muted);
       }
-      .shape-row {
-        display: block;
-        width: 100%;
-        margin-bottom: 4px;
-        padding: 6px 8px;
+      .shape-tools {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 8px;
+      }
+      .shape-tools input {
+        min-width: 0;
+        flex: 1;
+        font: inherit;
         font-size: 12px;
+        background: #232a33;
+        color: var(--text);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 4px 8px;
+      }
+      .shape-tools button {
+        font-size: 12px;
+        padding: 4px 8px;
+      }
+      .shape-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 4px;
+        padding: 4px 6px;
+        font-size: 12px;
+        border: 1px solid transparent;
+        border-radius: 8px;
+      }
+      .shape-name {
+        flex: 1;
         text-align: left;
+        background: transparent;
+        border: 0;
+        padding: 2px 4px;
+        font-size: 12px;
       }
       .shape-row.selected {
         border-color: var(--accent);
@@ -210,6 +240,35 @@
       .empty {
         color: var(--muted);
         font-size: 13px;
+      }
+      .field {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin: 6px 0;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .field input[type="range"] {
+        width: 130px;
+      }
+      .stats {
+        font: 12px/1.6 ui-monospace, monospace;
+        color: var(--muted);
+        white-space: pre-wrap;
+      }
+      #tooltip {
+        position: fixed;
+        z-index: 10;
+        padding: 4px 8px;
+        font-size: 12px;
+        color: var(--text);
+        background: var(--panel);
+        border: 1px solid var(--accent);
+        border-radius: 6px;
+        pointer-events: none;
+        transform: translate(12px, 12px);
       }
       #dropzone {
         position: fixed;
@@ -299,6 +358,10 @@
       <button id="play" type="button" disabled>▶</button>
       <input id="timeline" type="range" min="0" max="1000" value="0" disabled />
       <span id="time">0.00s</span>
+      <button id="view-front" type="button">Front</button>
+      <button id="view-top" type="button">Top</button>
+      <button id="view-side" type="button">Side</button>
+      <button id="fit-selection" type="button">Fit sel</button>
       <button id="reset" type="button">Reset view</button>
     </div>
 
@@ -306,8 +369,14 @@
       <div class="tabs">
         <button id="tab-shapes" class="tab active" type="button">Shapes</button>
         <button id="tab-materials" class="tab" type="button">Materials</button>
+        <button id="tab-view" class="tab" type="button">View</button>
       </div>
       <div id="shapes-view">
+        <div class="shape-tools">
+          <input id="shape-filter" type="search" placeholder="Filter shapes…" />
+          <button id="isolate" type="button">Isolate</button>
+          <button id="show-all" type="button">Show all</button>
+        </div>
         <div id="shapes" class="empty">No model loaded</div>
         <section id="selection" hidden>
           <h3>Selected shape</h3>
@@ -319,8 +388,29 @@
       <div id="materials-view" hidden>
         <div id="materials" class="empty">No model loaded</div>
       </div>
+      <div id="view-view" hidden>
+        <h3>Rendering</h3>
+        <label class="field">Exposure <input id="exposure" type="range" min="0.2" max="2" step="0.05" value="1" /></label>
+        <label class="field">Env intensity <input id="env-intensity" type="range" min="0" max="2" step="0.05" value="0.75" /></label>
+        <label class="field">Tone map
+          <select id="tonemap">
+            <option value="none">None</option>
+            <option value="aces">ACES</option>
+            <option value="agx">AgX</option>
+            <option value="reinhard">Reinhard</option>
+          </select>
+        </label>
+        <h3>Material overrides</h3>
+        <label class="field">Roughness <input id="ov-roughness" type="range" min="0" max="1" step="0.01" value="0.5" /></label>
+        <label class="field">Metalness <input id="ov-metalness" type="range" min="0" max="1" step="0.01" value="0" /></label>
+        <label class="field">Clearcoat <input id="ov-clearcoat" type="range" min="0" max="1" step="0.01" value="0" /></label>
+        <button id="reset-look" type="button">Reset look</button>
+        <h3>Stats</h3>
+        <div id="stats" class="stats"></div>
+      </div>
     </aside>
 
+    <div id="tooltip" hidden></div>
     <div id="hint">Drop an .obj, folder, or images anywhere</div>
     <div id="status" role="status" aria-live="polite">Loading WebAssembly…</div>
     <div id="dropzone">Drop .obj / .mtl / textures / folder to load</div>

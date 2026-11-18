@@ -38,6 +38,24 @@ const playButton = document.getElementById('play');
 const timelineInput = document.getElementById('timeline');
 const timeLabel = document.getElementById('time');
 const envCheck = document.getElementById('envmap');
+const viewFront = document.getElementById('view-front');
+const viewTop = document.getElementById('view-top');
+const viewSide = document.getElementById('view-side');
+const fitSelectionButton = document.getElementById('fit-selection');
+const shapeFilter = document.getElementById('shape-filter');
+const isolateButton = document.getElementById('isolate');
+const showAllButton = document.getElementById('show-all');
+const tooltip = document.getElementById('tooltip');
+const exposureInput = document.getElementById('exposure');
+const envIntensityInput = document.getElementById('env-intensity');
+const toneMapSelect = document.getElementById('tonemap');
+const ovRoughness = document.getElementById('ov-roughness');
+const ovMetalness = document.getElementById('ov-metalness');
+const ovClearcoat = document.getElementById('ov-clearcoat');
+const resetLookButton = document.getElementById('reset-look');
+const statsEl = document.getElementById('stats');
+const tabView = document.getElementById('tab-view');
+const viewView = document.getElementById('view-view');
 
 const IMAGE_RE = /\.(png|jpe?g|webp|gif|bmp)$/i;
 
@@ -89,6 +107,14 @@ let playing = false;
 let timelineValue = 0;
 let lastFrameTime = 0;
 let envTexture = null;
+let hoverIndex = -1;
+let hoverWire = null;
+let dragging = false;
+let hiddenShapes = new Set();
+let overrides = { roughness: null, metalness: null, clearcoat: null };
+let parseMs = 0;
+let heapMb = 0;
+let lastStatsUpdate = 0;
 let tinyobj = null;
 let textureUrls = [];
 let textureFiles = new Map();
@@ -108,7 +134,7 @@ function resize() {
   camera.updateProjectionMatrix();
 }
 
-function frame(object) {
+function frame(object, direction = null) {
   const box = new THREE.Box3().setFromObject(object);
   if (box.isEmpty()) return;
   const size = box.getSize(new THREE.Vector3());
@@ -117,14 +143,64 @@ function frame(object) {
 
   controls.target.copy(center);
   const distance = radius / Math.tan((camera.fov * Math.PI) / 360);
-  const direction = new THREE.Vector3(1, 0.65, 1).normalize();
-  camera.position.copy(center).addScaledVector(direction, distance * 1.9);
+  const view = direction
+    ? direction.clone().normalize()
+    : new THREE.Vector3(1, 0.65, 1).normalize();
+  camera.position.copy(center).addScaledVector(view, distance * 1.9);
   camera.near = Math.max(distance / 100, 0.001);
   camera.far = distance * 100;
   camera.updateProjectionMatrix();
   controls.update();
 
   grid.position.y = box.min.y - size.y * 0.02;
+}
+
+function selectedMesh() {
+  return selectedIndex < 0
+    ? null
+    : current?.children.find((child) => child.userData.shapeIndex === selectedIndex) || null;
+}
+
+function fitSelection() {
+  const target = selectedMesh() || current;
+  if (target) frame(target);
+}
+
+function frameView(name) {
+  const target = selectedMesh() || current;
+  if (!target) return;
+  const directions = {
+    front: new THREE.Vector3(0, 0, 1),
+    top: new THREE.Vector3(0, 1, 0),
+    side: new THREE.Vector3(1, 0, 0),
+  };
+  frame(target, directions[name] || directions.front);
+}
+
+function applyVisibility() {
+  for (const child of current?.children || []) {
+    child.visible = !hiddenShapes.has(child.userData.shapeIndex);
+  }
+}
+
+function updateStats() {
+  if (!statsEl.closest('#view-view') || viewView.hidden) return;
+  const shapes = currentModel?.shapes.length || 0;
+  const materials = currentModel?.materials.length || 0;
+  const triangles = currentModel
+    ? currentModel.shapes.reduce((n, shape) => n + shape.triangleCount, 0)
+    : 0;
+  const info = renderer.info;
+  statsEl.textContent = [
+    `triangles   ${triangles.toLocaleString()}`,
+    `shapes      ${shapes}`,
+    `materials   ${materials}`,
+    `draw calls  ${info.render.calls}`,
+    `geometries  ${info.memory.geometries}`,
+    `textures    ${info.memory.textures}`,
+    `parse       ${parseMs.toFixed(0)} ms`,
+    `wasm heap   ${heapMb.toFixed(0)} MB`,
+  ].join('\n');
 }
 
 function disposeObject(object) {
@@ -385,6 +461,11 @@ function applyShading() {
     material.flatShading = shading === 'flat';
     material.wireframe = shading === 'wireframe';
     applyMaps(material);
+    if (material.isMeshPhysicalMaterial) {
+      if (overrides.roughness !== null) material.roughness = overrides.roughness;
+      if (overrides.metalness !== null) material.metalness = overrides.metalness;
+      if (overrides.clearcoat !== null) material.clearcoat = overrides.clearcoat;
+    }
     material.needsUpdate = true;
   }
 }
@@ -551,15 +632,40 @@ function renderShapes(model) {
     shapesEl.className = 'empty';
     return;
   }
+  const filter = shapeFilter.value.trim().toLowerCase();
+  let shown = 0;
   model.shapes.forEach((shape, index) => {
-    const row = document.createElement('button');
-    row.type = 'button';
+    const name = shape.name || `shape ${index}`;
+    if (filter && !name.toLowerCase().includes(filter) && index !== selectedIndex) return;
+    shown++;
+    const row = document.createElement('div');
     row.className = 'shape-row';
-    row.textContent = `${shape.name || `shape ${index}`} · ${shape.triangleCount} tris`;
+    const select = document.createElement('button');
+    select.type = 'button';
+    select.className = 'shape-name';
+    select.textContent = `${name} · ${shape.triangleCount} tris`;
+    select.addEventListener('click', () => selectShape(index));
+    select.addEventListener('dblclick', () => {
+      selectShape(index);
+      fitSelection();
+    });
+    const visibility = document.createElement('input');
+    visibility.type = 'checkbox';
+    visibility.checked = !hiddenShapes.has(index);
+    visibility.title = 'Show shape';
+    visibility.addEventListener('change', () => {
+      if (visibility.checked) hiddenShapes.delete(index);
+      else hiddenShapes.add(index);
+      applyVisibility();
+    });
+    row.append(visibility, select);
     if (index === selectedIndex) row.classList.add('selected');
-    row.addEventListener('click', () => selectShape(index));
     shapesEl.append(row);
   });
+  if (!shown) {
+    shapesEl.textContent = 'No shapes match the filter';
+    shapesEl.className = 'empty';
+  }
 }
 
 function clearHighlight() {
@@ -603,6 +709,45 @@ function updateHighlight() {
   helper.renderOrder = 3;
   scene.add(helper);
   highlightBox = helper;
+}
+
+function clearHover() {
+  if (hoverWire) {
+    hoverWire.parent?.remove(hoverWire);
+    hoverWire.material.dispose();
+    hoverWire = null;
+  }
+  hoverIndex = -1;
+  tooltip.hidden = true;
+}
+
+function updateHover(mesh, event) {
+  if (!mesh) {
+    clearHover();
+    return;
+  }
+  const index = mesh.userData.shapeIndex;
+  if (index !== hoverIndex) {
+    clearHover();
+    hoverWire = new THREE.Mesh(
+      mesh.geometry,
+      new THREE.MeshBasicMaterial({
+        color: 0xffd479,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.35,
+        depthTest: false,
+      }),
+    );
+    hoverWire.renderOrder = 1;
+    mesh.add(hoverWire);
+    hoverIndex = index;
+    const shape = currentModel?.shapes[index];
+    tooltip.textContent = `${shape?.name || `shape ${index}`} · ${shape?.triangleCount || 0} tris`;
+    tooltip.hidden = false;
+  }
+  tooltip.style.left = `${event.clientX}px`;
+  tooltip.style.top = `${event.clientY}px`;
 }
 
 function renderSelection() {
@@ -704,7 +849,12 @@ async function showModel(objFile, mtl, extra) {
   setStatus(`Parsing ${objFile.name}…`);
 
   const obj = await objFile.arrayBuffer();
+  const started = performance.now();
   const model = tinyobj.parse(obj, mtl);
+  parseMs = performance.now() - started;
+  heapMb = tinyobj.module.HEAPU8.byteLength / 1048576;
+  hiddenShapes = new Set();
+  clearHover();
   const pbrList = model.materials.map((entry) => resolveMtlx(entry.mtlxLines));
 
   if (skinData?.root) scene.remove(skinData.root);
@@ -748,6 +898,7 @@ async function showModel(objFile, mtl, extra) {
   currentMaterials = group.children.flatMap((child) => child.material).filter(
     (material) => material !== fallbackMaterial,
   );
+  applyVisibility();
   scene.add(group);
   if (skinData) scene.add(skinData.root);
   boneIndex = -1;
@@ -924,9 +1075,68 @@ timelineInput.addEventListener('input', () => {
 envCheck.addEventListener('change', () => {
   scene.environment = envCheck.checked ? envTexture : null;
 });
+viewFront.addEventListener('click', () => frameView('front'));
+viewTop.addEventListener('click', () => frameView('top'));
+viewSide.addEventListener('click', () => frameView('side'));
+fitSelectionButton.addEventListener('click', fitSelection);
+shapeFilter.addEventListener('input', () => currentModel && renderShapes(currentModel));
+isolateButton.addEventListener('click', () => {
+  if (!currentModel || selectedIndex < 0) return;
+  hiddenShapes = new Set(
+    currentModel.shapes.map((_, i) => i).filter((i) => i !== selectedIndex),
+  );
+  applyVisibility();
+  renderShapes(currentModel);
+});
+showAllButton.addEventListener('click', () => {
+  hiddenShapes = new Set();
+  applyVisibility();
+  renderShapes(currentModel);
+});
+exposureInput.addEventListener('input', () => {
+  renderer.toneMappingExposure = Number(exposureInput.value);
+});
+envIntensityInput.addEventListener('input', () => {
+  scene.environmentIntensity = Number(envIntensityInput.value);
+});
+const toneMaps = {
+  none: THREE.NoToneMapping,
+  aces: THREE.ACESFilmicToneMapping,
+  agx: THREE.AgXToneMapping,
+  reinhard: THREE.ReinhardToneMapping,
+};
+toneMapSelect.addEventListener('change', () => {
+  renderer.toneMapping = toneMaps[toneMapSelect.value] ?? THREE.NoToneMapping;
+  for (const material of currentMaterials) material.needsUpdate = true;
+});
+for (const [input, key] of [
+  [ovRoughness, 'roughness'],
+  [ovMetalness, 'metalness'],
+  [ovClearcoat, 'clearcoat'],
+]) {
+  input.addEventListener('input', () => {
+    overrides[key] = Number(input.value);
+    applyShading();
+  });
+}
+resetLookButton.addEventListener('click', () => {
+  overrides = { roughness: null, metalness: null, clearcoat: null };
+  ovRoughness.value = '0.5';
+  ovMetalness.value = '0';
+  ovClearcoat.value = '0';
+  exposureInput.value = '1';
+  renderer.toneMappingExposure = 1;
+  envIntensityInput.value = '0.75';
+  scene.environmentIntensity = 0.75;
+  toneMapSelect.value = 'none';
+  renderer.toneMapping = THREE.NoToneMapping;
+  applyShading();
+});
 
 canvas.addEventListener('pointerdown', (event) => {
   pointerStart = { x: event.clientX, y: event.clientY };
+  dragging = true;
+  clearHover();
 });
 canvas.addEventListener('pointerup', (event) => {
   if (!pointerStart || !current) return;
@@ -935,6 +1145,7 @@ canvas.addEventListener('pointerup', (event) => {
     event.clientY - pointerStart.y,
   );
   pointerStart = null;
+  dragging = false;
   if (moved > 5) return; // an orbit drag, not a pick
   const rect = canvas.getBoundingClientRect();
   pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -944,15 +1155,31 @@ canvas.addEventListener('pointerup', (event) => {
   selectShape(hit ? hit.object.userData.shapeIndex : -1);
 });
 
+canvas.addEventListener('pointermove', (event) => {
+  if (dragging || !current) return;
+  const rect = canvas.getBoundingClientRect();
+  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hit = raycaster.intersectObjects(
+    current.children.filter((child) => child.visible), false,
+  )[0];
+  updateHover(hit?.object || null, event);
+});
+canvas.addEventListener('pointerleave', clearHover);
+
 function setTab(which) {
-  const shapes = which === 'shapes';
-  tabShapes.classList.toggle('active', shapes);
-  tabMaterials.classList.toggle('active', !shapes);
-  shapesView.hidden = !shapes;
-  materialsView.hidden = shapes;
+  tabShapes.classList.toggle('active', which === 'shapes');
+  tabMaterials.classList.toggle('active', which === 'materials');
+  tabView.classList.toggle('active', which === 'view');
+  shapesView.hidden = which !== 'shapes';
+  materialsView.hidden = which !== 'materials';
+  viewView.hidden = which !== 'view';
+  updateStats();
 }
 tabShapes.addEventListener('click', () => setTab('shapes'));
 tabMaterials.addEventListener('click', () => setTab('materials'));
+tabView.addEventListener('click', () => setTab('view'));
 
 document.addEventListener('keydown', (event) => {
   if (event.key === 'o' && (event.ctrlKey || event.metaKey)) {
@@ -971,6 +1198,10 @@ renderer.setAnimationLoop(() => {
     applyPose();
   }
   lastFrameTime = now;
+  if (now - lastStatsUpdate > 1000) {
+    lastStatsUpdate = now;
+    updateStats();
+  }
   controls.update();
   renderer.render(scene, camera);
 });
